@@ -12,7 +12,7 @@ are the engine's state (multi-turn + idempotency).
 | id | autonumber | PK |
 | name | text | customer name (PII) |
 | phone | text | E.164 (PII) |
-| source | single-select | whatsapp \| widget |
+| source | single-select | whatsapp \| widget \| instagram |
 | message | long text | first message |
 | status | single-select | new \| contacted \| converted |
 | created_at | datetime | UTC |
@@ -41,7 +41,7 @@ are the engine's state (multi-turn + idempotency).
 ## `conversations` (multi-turn slot-filling state)
 | Field | Type | Notes |
 |---|---|---|
-| sender_key | text | PK — channel+phone (PII) |
+| sender_key | text | PK — `"{channel}:{id}"`, e.g. `wa:+90555…`, `ig:12345` — namespaced so channels can never collide (PII) |
 | stage | single-select | new \| collecting \| ready \| done |
 | slot_service | text | nullable |
 | slot_date | text | nullable |

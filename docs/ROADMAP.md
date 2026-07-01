@@ -11,7 +11,7 @@
 | ▶ | **1. Visual blueprint** | landing + widget + dashboard **mockup** + flow diagram *(CC builds → commits; Cowork reviews from git)* | Visual demo approved, gaps logged |
 | ☐ | **2. Core bot** | n8n: webhook → load state → LLM intent → routing → slot-filling → reply (test via widget first) | Happy path + 2–3 intents, JSON valid, multi-turn slot-fill completes |
 | ☐ | **3. Booking + data** | availability → write → re-verify → Google Calendar + Airtable · idempotency · timezone-UTC | Booking works; duplicate ≠ double-book; concurrent same-slot → one + handoff |
-| ☐ | **4. WhatsApp** | Zernio channel `⚠ verify §13` | Real WhatsApp message → booking + reply |
+| ☐ | **4. WhatsApp** | Zernio channel `⚠ verify §13` · IG activation = per-client onboarding via docs/runbook (Meta requirements) — the config switch alone is not enough | Real WhatsApp message → booking + reply |
 | ☐ | **5. Safety** | handoff · cost cap · kill-switch · dry-run · max-iteration · injection · error branch | Low conf → handoff; kill-switch works; errors visible; jailbreak caught |
 | ☐ | **6. Vitrin frontend** | build Next.js landing + widget + dashboard → live data → Vercel | Deployed, branded, reads live data |
 | ☐ | **7. Test + Codex + DoD** | golden set · edge · jailbreak · critical-targets audit · sanitize · README/case-study | Full DoD checklist passes |

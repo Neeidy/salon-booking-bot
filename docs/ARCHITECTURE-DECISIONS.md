@@ -16,10 +16,15 @@
 - **The ONE job:** turn an inbound message into a booked appointment — or a captured lead + human handoff — in the shop's voice.
 - **Success metric:** % of inbound messages → booking or captured lead, with zero owner effort and **zero double-bookings**.
 - **NOT-build (OUT OF SCOPE — permanent):** payments/prepay · POS/inventory · multi-staff rota · marketing blasts
-  · single-instance multi-tenancy · Instagram/FB DM · autonomous multi-step agent · loyalty/reviews ·
+  · single-instance multi-tenancy · Facebook DM · autonomous multi-step agent · loyalty/reviews ·
   reschedule/cancel (→ handoff) · time-based reminders.
-- **Integrations + auth:** Zernio (WhatsApp) `⚠ verify` · Google Calendar (OAuth per client) · Airtable · LLM
-  (Claude/OpenAI) · n8n webhooks · Vercel. See MASTER-BRIEF §13 for unverified assumptions.
+- **IN SCOPE (config-gated):** Instagram = config-gated optional channel (architecture-ready; per-client
+  connection, default OFF). Deviates from the MASTER-BRIEF NOT-build snapshot — recorded in the decision log below.
+- **Integrations + auth:** Zernio (WhatsApp) `⚠ verify` · Instagram DM (Meta Graph, optional) `⚠ verify` ·
+  Google Calendar (OAuth per client) · Airtable · LLM (Claude/OpenAI) · n8n webhooks · Vercel.
+  See MASTER-BRIEF §13 for unverified assumptions.
+- **Verify at build time (additions to §13):** does Zernio support Instagram DM? · Meta IG API constraints
+  (app-review lead time, business-account requirement, 24h messaging window).
 - **Mock plan + one-swap-to-real:** config-driven mock (services/prices/hours); demo via test WhatsApp/widget →
   live = client's real Zernio number + Google Calendar + Airtable base, no code change.
 
@@ -48,5 +53,9 @@
 | 2026-06-30 | `n8n/` (not `builds/_TEMPLATE`) | one product, one engine | portfolio multi-build layout |
 | 2026-06-30 | Split idempotency vs concurrency (write-then-verify) | no atomic lock across Airtable+GCal (TOCTOU) | assume a lock exists |
 | 2026-06-30 | Scaffold before mockup | scaffold feeds from brief, needs no mockup | mockup-first |
+| 2026-07-01 | **Config-gated optional channels:** every channel → NORMALIZE `{channel, sender_key, text}` → one shared brain; channels toggle in config and several may run at once (e.g. WhatsApp + Instagram) — the brain is channel-count-agnostic | one engine to maintain; adding a channel = one adapter + config, zero brain change | per-channel forked flows |
+| 2026-07-01 | `sender_key = "{channel}:{id}"` namespacing (e.g. `wa:+90555…`, `ig:12345`) | prevents cross-channel ID collisions and state bleed in `conversations` | raw provider id as key |
+| 2026-07-01 | **Reply-to-origin-channel:** the `channel` field set at NORMALIZE travels the whole flow; the reply ALWAYS returns to the channel the message came from | a customer must never be answered on a different channel | single "default reply channel" |
+| 2026-07-01 | **Instagram = IN SCOPE** as config-gated optional channel, default OFF; live IG connection is per-client (verify at build time: Meta app review, business account, 24h window). Facebook DM stays OUT. MASTER-BRIEF stays locked; this row records the deviation | architecture-ready now; connection cost deferred to per-client onboarding | rebuild-later (touches the brain twice) |
 
 <TODO: append decisions as phases progress>

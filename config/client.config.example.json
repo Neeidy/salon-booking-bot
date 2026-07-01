@@ -10,6 +10,11 @@
     "accentColor": "#D4A017",
     "logoUrl": "https://example.com/demo-barber-logo.png"
   },
+  "channels": {
+    "whatsapp": { "enabled": true, "provider": "zernio" },
+    "widget": { "enabled": true, "provider": "webchat" },
+    "instagram": { "enabled": false, "provider": "meta-graph" }
+  },
   "services": [
     { "id": "haircut", "name": "Sac Kesimi", "durationMin": 30, "priceTRY": 250 },
     { "id": "beard", "name": "Sakal Tiras", "durationMin": 20, "priceTRY": 150 },
