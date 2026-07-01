@@ -1,0 +1,22 @@
+{
+  "$comment": "Committed project settings for salon-booking-bot. Permissive-but-safe. Personal overrides go in settings.local.json (gitignored). Repo is PUBLIC — deny reads of any secret path.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(./credentials/**)",
+      "Read(./config/client.config.json)"
+    ]
+  }
+}

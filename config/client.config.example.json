@@ -1,0 +1,40 @@
+{
+  "$comment": "MOCK example config for one client. Copy to client.config.json (gitignored) and fill per client. NON-SECRET only — no API keys, no tokens (those live in n8n Credentials / Vercel env). Validated against ../schemas/client.config.schema.json.",
+  "business": {
+    "name": "Demo Barber Co.",
+    "timezone": "Europe/Istanbul",
+    "locale": "tr-TR"
+  },
+  "branding": {
+    "primaryColor": "#111827",
+    "accentColor": "#D4A017",
+    "logoUrl": "https://example.com/demo-barber-logo.png"
+  },
+  "services": [
+    { "id": "haircut", "name": "Sac Kesimi", "durationMin": 30, "priceTRY": 250 },
+    { "id": "beard", "name": "Sakal Tiras", "durationMin": 20, "priceTRY": 150 },
+    { "id": "haircut_beard", "name": "Sac + Sakal", "durationMin": 45, "priceTRY": 350 }
+  ],
+  "workingHours": {
+    "mon": ["10:00-19:00"],
+    "tue": ["10:00-19:00"],
+    "wed": ["10:00-19:00"],
+    "thu": ["10:00-19:00"],
+    "fri": ["10:00-19:00"],
+    "sat": ["10:00-18:00"],
+    "sun": []
+  },
+  "bot": {
+    "tone": "friendly, concise, speaks Turkish",
+    "confidenceThreshold": 0.7,
+    "maxTurnsPerConversation": 12
+  },
+  "messageTemplates": {
+    "greeting": "Merhaba! Demo Barber Co.'ya hos geldiniz. Nasil yardimci olabilirim?",
+    "askService": "Hangi hizmeti istersiniz? (Sac Kesimi / Sakal Tiras / Sac + Sakal)",
+    "askDateTime": "Hangi gun ve saat sizin icin uygun?",
+    "bookingConfirmed": "Randevunuz olusturuldu: {service}, {date} {time}. Gorusmek uzere!",
+    "handoff": "Sizi bir yetkiliye aktariyorum, en kisa surede donus yapilacak.",
+    "outsideHours": "Su an calisma saatleri disindayiz. Talebinizi aldik, yetkilimiz donecek."
+  }
+}

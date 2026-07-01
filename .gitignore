@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────
+#  .gitignore — security-first · repo is PUBLIC
+#  Rule: ".env.example" is committed (template); ".env" is NEVER committed (real values).
+# ─────────────────────────────────────────────────────────────
+
+# Secrets & environment (real values) — MOST CRITICAL
+.env
+.env.*
+# .env.example is the committed template (names + fake placeholders only)
+!.env.example
+*.key
+*.pem
+secrets/
+credentials/
+*credential*.json
+*secret*.json
+token.json
+*token*.json
+
+# Personal / local overrides
+CLAUDE.local.md
+.claude/settings.local.json
+*.local.*
+
+# Dependencies / build artifacts
+node_modules/
+dist/
+build/
+.next/
+__pycache__/
+*.log
+
+# Local data (keep raw/personal data out, even if mock)
+/data/
+*.sqlite
+*.db
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Project-specific (tailored) ──
+# Raw n8n exports — only the sanitized workflow is committed
+n8n/**/*.json
+!n8n/workflow.sanitized.json
+
+# Real per-client config — only the .example is committed
+config/client.config.json
+
+# PII-containing test data (repo is PUBLIC — this is critical)
+/test-data/
+tests/**/real-*.*
+tests/**/*.pii.*
+
+# NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).

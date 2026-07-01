@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://salon-booking-bot/schemas/client.config.schema.json",
+  "title": "client.config",
+  "description": "Per-client, NON-SECRET config for one salon-booking-bot deployment.",
+  "type": "object",
+  "required": ["business", "services", "workingHours", "bot", "messageTemplates"],
+  "additionalProperties": true,
+  "properties": {
+    "business": {
+      "type": "object",
+      "required": ["name", "timezone"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Istanbul" },
+        "locale": { "type": "string" }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "properties": {
+        "primaryColor": { "type": "string" },
+        "accentColor": { "type": "string" },
+        "logoUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "services": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "durationMin"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "name": { "type": "string" },
+          "durationMin": { "type": "integer", "minimum": 5 },
+          "priceTRY": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "workingHours": {
+      "type": "object",
+      "description": "Per weekday (mon..sun): array of HH:MM-HH:MM ranges; [] means closed.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^\\d{2}:\\d{2}-\\d{2}:\\d{2}$" }
+      }
+    },
+    "bot": {
+      "type": "object",
+      "required": ["confidenceThreshold"],
+      "properties": {
+        "tone": { "type": "string" },
+        "confidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxTurnsPerConversation": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "messageTemplates": {
+      "type": "object",
+      "description": "Named reply templates; may contain {service},{date},{time} placeholders.",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
