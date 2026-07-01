@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<!--
+  landing.html — Phase 1 static mockup (a): barber/salon landing (vitrin).
+  MOCK ONLY — no backend, no live data. All content is placeholder branding that mirrors
+  config/client.config.example.json (business.name, services[], workingHours, branding.*).
+  In production these values come from client.config.json → swap config = swap look.
+-->
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Barber Co. — Randevu</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <style>
+    /* landing-specific layout (shared tokens live in tokens.css) */
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(14,16,20,.85);
+           backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    .nav__row { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .brand { display: flex; align-items: center; gap: var(--s-3); font-family: var(--font-display);
+             font-size: 20px; font-weight: 600; letter-spacing: .02em; }
+    .brand__mark { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
+                   background: var(--gold); color: var(--ink); font-weight: 800; font-family: var(--font-sans); }
+    .nav__links { display: flex; gap: var(--s-6); align-items: center; }
+    .nav__links a { font-size: 14px; color: var(--muted); }
+    .nav__links a:hover { color: var(--text); }
+
+    .hero { position: relative; overflow: hidden;
+            background:
+              radial-gradient(1200px 500px at 70% -10%, rgba(212,160,23,.18), transparent 60%),
+              linear-gradient(180deg, #12141a 0%, var(--bg) 100%); }
+    .hero__grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: var(--s-8);
+                  align-items: center; padding: var(--s-9) 0; }
+    .hero h1 { font-size: clamp(38px, 6vw, 64px); letter-spacing: .01em; }
+    .hero h1 .accent { color: var(--gold); }
+    .hero p.lead { font-size: 19px; color: var(--muted); margin: var(--s-5) 0 var(--s-6); max-width: 46ch; }
+    .hero__cta { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+    .hero__card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+                  padding: var(--s-6); box-shadow: var(--shadow); }
+    .hero__card h3 { font-size: 18px; margin-bottom: var(--s-4); }
+    .hourline { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line);
+                font-size: 15px; }
+    .hourline:last-child { border-bottom: 0; }
+    .hourline .closed { color: var(--muted); }
+
+    .services__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); margin-top: var(--s-7); }
+    .svc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+           padding: var(--s-6); transition: border-color .2s, transform .12s; }
+    .svc:hover { border-color: var(--gold); transform: translateY(-3px); }
+    .svc__name { font-family: var(--font-display); font-size: 22px; }
+    .svc__meta { color: var(--muted); font-size: 14px; margin: var(--s-2) 0 var(--s-5); }
+    .svc__price { font-size: 28px; font-weight: 700; color: var(--gold); }
+    .svc__price small { font-size: 14px; color: var(--muted); font-weight: 500; }
+
+    .gallery__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4); margin-top: var(--s-6); }
+    .tile { aspect-ratio: 3/4; border-radius: var(--r-md); border: 1px dashed var(--line);
+            background: linear-gradient(135deg, var(--surface-2), var(--surface));
+            display: grid; place-items: center; color: var(--muted); font-size: 12px; text-align: center; }
+
+    footer { border-top: 1px solid var(--line); background: #0b0d11; }
+    .foot__grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: var(--s-6); padding: var(--s-8) 0; }
+    .foot__note { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding: var(--s-4) 0; }
+
+    /* floating chat-widget launcher (visual only — see widget.html for the panel) */
+    .launcher { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 10px; }
+    .launcher__tip { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-pill);
+                     padding: 10px 16px; font-size: 14px; box-shadow: var(--shadow-soft); }
+    .launcher__btn { width: 60px; height: 60px; border-radius: 50%; background: var(--gold); color: var(--ink);
+                     display: grid; place-items: center; font-size: 26px; box-shadow: var(--shadow); cursor: pointer; }
+
+    @media (max-width: 860px) {
+      .hero__grid, .services__grid, .foot__grid { grid-template-columns: 1fr; }
+      .gallery__grid { grid-template-columns: repeat(2, 1fr); }
+      .nav__links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mock-ribbon">MOCK</div>
+
+  <!-- NAV -->
+  <header class="nav">
+    <div class="container nav__row">
+      <div class="brand"><span class="brand__mark">DB</span> Demo Barber Co.</div>
+      <nav class="nav__links">
+        <a href="#services">Hizmetler</a>
+        <a href="#hours">Saatler</a>
+        <a href="#contact">İletişim</a>
+        <a href="#" class="btn btn--gold">Randevu Al</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container hero__grid">
+      <div>
+        <span class="eyebrow">Premium Berber · Şehir Merkezi</span>
+        <h1>Koltuğa oturun, <span class="accent">gerisini biz halledelim.</span></h1>
+        <p class="lead">Mesaj atın, saniyeler içinde randevunuz onaylansın — WhatsApp'tan ya da buradan.
+          Bekleme yok, telefon trafiği yok.</p>
+        <div class="hero__cta">
+          <a href="#" class="btn btn--gold">Randevu Al →</a>
+          <a href="#services" class="btn btn--ghost">Hizmetleri Gör</a>
+        </div>
+      </div>
+      <aside class="hero__card" id="hours">
+        <h3>Çalışma Saatleri</h3>
+        <div class="hourline"><span>Pazartesi – Cuma</span><span>10:00 – 19:00</span></div>
+        <div class="hourline"><span>Cumartesi</span><span>10:00 – 18:00</span></div>
+        <div class="hourline"><span>Pazar</span><span class="closed">Kapalı</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- SERVICES -->
+  <section class="section" id="services">
+    <div class="container">
+      <span class="eyebrow">Hizmetler</span>
+      <h2 style="font-size:34px; margin-top:8px;">Fiyatlar net, sürprizsiz.</h2>
+      <div class="services__grid">
+        <div class="svc">
+          <div class="svc__name">Saç Kesimi</div>
+          <div class="svc__meta">≈ 30 dk</div>
+          <div class="svc__price">250₺</div>
+          <a href="#" class="btn btn--ghost" style="margin-top:20px;">Seç</a>
+        </div>
+        <div class="svc">
+          <div class="svc__name">Sakal Tıraşı</div>
+          <div class="svc__meta">≈ 20 dk</div>
+          <div class="svc__price">150₺</div>
+          <a href="#" class="btn btn--ghost" style="margin-top:20px;">Seç</a>
+        </div>
+        <div class="svc">
+          <div class="svc__name">Saç + Sakal</div>
+          <div class="svc__meta">≈ 45 dk</div>
+          <div class="svc__price">350₺</div>
+          <a href="#" class="btn btn--ghost" style="margin-top:20px;">Seç</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GALLERY (placeholder) -->
+  <section class="section" style="padding-top:0;">
+    <div class="container">
+      <span class="eyebrow">Galeri</span>
+      <h2 style="font-size:28px; margin-top:8px;">Dükkândan kareler</h2>
+      <div class="gallery__grid">
+        <div class="tile">görsel placeholder</div>
+        <div class="tile">görsel placeholder</div>
+        <div class="tile">görsel placeholder</div>
+        <div class="tile">görsel placeholder</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer id="contact">
+    <div class="container">
+      <div class="foot__grid">
+        <div>
+          <div class="brand" style="margin-bottom:12px;"><span class="brand__mark">DB</span> Demo Barber Co.</div>
+          <p class="muted" style="font-size:14px; max-width:38ch;">Mesajla randevu alan modern berber.
+            Bu bir <strong>demo</strong> vitrindir — içerik config'ten gelir.</p>
+        </div>
+        <div>
+          <span class="eyebrow">Adres</span>
+          <p class="muted" style="font-size:14px;">&lt;adres placeholder&gt;<br/>Şehir Merkezi</p>
+        </div>
+        <div>
+          <span class="eyebrow">İletişim</span>
+          <p class="muted" style="font-size:14px;">WhatsApp: &lt;test numarası&gt;<br/>Pzt–Cmt açık</p>
+        </div>
+      </div>
+      <p class="foot__note">Demo / öğrenme amaçlı mockup · gerçek müşteri verisi yoktur ·
+        marka bilgileri <code>client.config.json</code>'dan gelir (config-driven).</p>
+    </div>
+  </footer>
+
+  <!-- CHAT WIDGET LAUNCHER (visual only) -->
+  <div class="launcher">
+    <span class="launcher__tip">Randevu için yazın 👋</span>
+    <div class="launcher__btn" title="Sohbeti aç (bkz. widget.html)">💬</div>
+  </div>
+</body>
+</html>

@@ -54,4 +54,7 @@ config/client.config.json
 tests/**/real-*.*
 tests/**/*.pii.*
 
+# Local headless-render previews (temporary Playwright output — never committed)
+design/mockups/preview/
+
 # NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).
