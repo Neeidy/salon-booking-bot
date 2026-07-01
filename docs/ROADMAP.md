@@ -7,7 +7,7 @@
 
 | ✓ | Phase | Work | Done criteria |
 |---|---|---|---|
-| ▶ | **0. Scaffold** | repo skeleton · `.claude/` governance · schemas · config example · docs | Skeleton + schemas in place |
+| ✅ | **0. Scaffold** | repo skeleton · `.claude/` governance · schemas · config example · docs | Skeleton + schemas in place — **done + pushed (`a74625d`)** |
 | ☐ | **1. Visual blueprint** | landing + widget + dashboard **mockup** + flow diagram *(CC builds → commits; Cowork reviews from git)* | Visual demo approved, gaps logged |
 | ☐ | **2. Core bot** | n8n: webhook → load state → LLM intent → routing → slot-filling → reply (test via widget first) | Happy path + 2–3 intents, JSON valid, multi-turn slot-fill completes |
 | ☐ | **3. Booking + data** | availability → write → re-verify → Google Calendar + Airtable · idempotency · timezone-UTC | Booking works; duplicate ≠ double-book; concurrent same-slot → one + handoff |
