@@ -39,3 +39,5 @@ built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)**
 ## Rules & commands
 Modular rules in [.claude/rules/](.claude/rules/); slash commands in [.claude/commands/](.claude/commands/).
 Start any phase with `/plan-flow`; before any commit run `/sanitize` and the `security-auditor` agent.
+**Every step/phase report ends with the mandatory VERDICT block** ([.claude/rules/reporting.md](.claude/rules/reporting.md)):
+"ready for review" = pushed; no unproven number in the main text (evidence-gated).

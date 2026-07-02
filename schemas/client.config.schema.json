@@ -44,7 +44,7 @@
           "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
           "name": { "type": "string" },
           "durationMin": { "type": "integer", "minimum": 5 },
-          "priceTRY": { "type": "number", "minimum": 0 }
+          "priceEUR": { "type": "number", "minimum": 0 }
         }
       }
     },

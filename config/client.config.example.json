@@ -3,7 +3,7 @@
   "business": {
     "name": "Demo Barber Co.",
     "timezone": "Europe/Istanbul",
-    "locale": "tr-TR"
+    "locale": "en-IE"
   },
   "branding": {
     "primaryColor": "#111827",
@@ -16,9 +16,9 @@
     "instagram": { "enabled": false, "provider": "meta-graph" }
   },
   "services": [
-    { "id": "haircut", "name": "Sac Kesimi", "durationMin": 30, "priceTRY": 250 },
-    { "id": "beard", "name": "Sakal Tiras", "durationMin": 20, "priceTRY": 150 },
-    { "id": "haircut_beard", "name": "Sac + Sakal", "durationMin": 45, "priceTRY": 350 }
+    { "id": "haircut", "name": "Haircut", "durationMin": 30, "priceEUR": 25 },
+    { "id": "beard", "name": "Beard Trim", "durationMin": 20, "priceEUR": 15 },
+    { "id": "haircut_beard", "name": "Haircut + Beard", "durationMin": 45, "priceEUR": 35 }
   ],
   "workingHours": {
     "mon": ["10:00-19:00"],
@@ -30,16 +30,16 @@
     "sun": []
   },
   "bot": {
-    "tone": "friendly, concise, speaks Turkish",
+    "tone": "friendly, concise, speaks English",
     "confidenceThreshold": 0.7,
     "maxTurnsPerConversation": 12
   },
   "messageTemplates": {
-    "greeting": "Merhaba! Demo Barber Co.'ya hos geldiniz. Nasil yardimci olabilirim?",
-    "askService": "Hangi hizmeti istersiniz? (Sac Kesimi / Sakal Tiras / Sac + Sakal)",
-    "askDateTime": "Hangi gun ve saat sizin icin uygun?",
-    "bookingConfirmed": "Randevunuz olusturuldu: {service}, {date} {time}. Gorusmek uzere!",
-    "handoff": "Sizi bir yetkiliye aktariyorum, en kisa surede donus yapilacak.",
-    "outsideHours": "Su an calisma saatleri disindayiz. Talebinizi aldik, yetkilimiz donecek."
+    "greeting": "Hi! Welcome to Demo Barber Co. How can I help?",
+    "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",
+    "askDateTime": "What day and time works for you?",
+    "bookingConfirmed": "You're booked: {service}, {date} {time}. See you then!",
+    "handoff": "I'm passing you to a team member — we'll get back to you shortly.",
+    "outsideHours": "We're outside working hours right now. We've got your request and will reply soon."
   }
 }
