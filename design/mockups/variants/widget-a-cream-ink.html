@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Barber Co. — Embeddable chat widget · Cream &amp; Ink</title>
+<script>
+  /* Progressive-enhancement gate (same pattern as the landing): the hide-before-reveal
+     rules for the staged chat live ONLY under html.js. No JS → no .js class → the whole
+     thread renders statically. Set before first paint so bubbles never flash hidden. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — identical to the approved landing.
+       primaryColor / accentColor mirror config.branding (client.config.json):
+       primaryColor = --ink (#16150F) · accentColor = --oxide (#B4472E). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;         /* accent on cream — display sizes only */
+    --oxide-soft:#D98B66;    /* accent on ink blocks */
+    --muted:#5C594E;         /* secondary text on cream (≥4.5:1) */
+    --stamp:#C9C4B4;         /* timestamps on ink bubbles */
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  /* ---------- host page backdrop — deliberately understated; the widget is the star ---------- */
+  .host-header{display:flex;align-items:center;justify-content:space-between;gap:18px;height:64px;border-bottom:1px solid var(--hairline)}
+  .host-brand{font-family:var(--font-display);font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .host-nav{display:flex;gap:24px;font-size:14px;color:var(--muted)}
+  .host-hero{padding:clamp(48px,7vw,96px) 0 clamp(40px,5vw,72px)}
+  .host-eyebrow{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin-bottom:16px}
+  .host-title{font-weight:600;font-size:clamp(38px,6vw,72px);line-height:1.04;letter-spacing:-.015em;max-width:14ch}
+  .host-sub{font-size:17px;color:var(--muted);max-width:46ch;margin-top:22px}
+  .host-strip{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:8px 0 0}
+  .host-cell{padding:22px 20px 22px 0}
+  .host-cell-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .host-cell-value{font-family:var(--font-display);font-weight:600;font-size:20px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .host-cell-value.closed{font-style:italic;font-weight:500;color:var(--oxide)}
+  .host-note{padding:clamp(40px,5vw,72px) 0;color:var(--muted);font-size:16px;max-width:56ch}
+  .host-footer{padding:28px 0 120px;border-top:1px solid var(--hairline);font-size:13px;color:var(--muted)}
+
+  /* ================= EMBEDDABLE WIDGET ================= */
+  /* Fixed bottom-right, above host content. This is the real embed anchor. */
+  .widget{position:fixed;right:24px;bottom:22px;z-index:90;display:flex;flex-direction:column;align-items:flex-end;gap:14px}
+
+  /* ---------- collapsed state: the floating launcher pill ---------- */
+  .launcher{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--cream);border-radius:999px;font-size:14.5px;font-weight:600;padding:14px 24px;box-shadow:0 16px 38px -14px rgba(22,21,15,.55);transition:transform .3s var(--ease)}
+  .launcher:hover{transform:translateY(-2px)}
+  .launcher:active{transform:scale(.97)}
+  .launcher .online-dot{width:8px;height:8px;background:var(--oxide-soft)}
+
+  /* ---------- expanded state: the chat panel ---------- */
+  .panel{width:390px;max-width:calc(100vw - 32px);background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12),0 30px 60px -30px rgba(22,21,15,.5);overflow:hidden;display:flex;flex-direction:column;transform-origin:bottom right}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;flex-shrink:0;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s var(--ease),color .15s var(--ease)}
+  .panel-close:hover{background:rgba(22,21,15,.08);color:var(--ink)}
+
+  /* scrollable message thread */
+  .thread{padding:18px;display:flex;flex-direction:column;gap:12px;max-height:min(60vh,440px);overflow-y:auto}
+  .msg{max-width:88%;padding:11px 15px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chips + .stamp{margin-top:8px}
+  .chip{font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid rgba(22,21,15,.3);white-space:nowrap}
+  .chip-on{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  /* Typing overlays the upcoming bot bubble's reserved slot (absolute inside .pair) so
+     toggling it never changes the thread's height — identical craft to the landing. */
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:12px 15px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+
+  /* fake input bar — non-functional, mirrors the landing's chat foot */
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  /* ---------- staged conversation — hidden ONLY under html.js; no-JS reads the full thread ---------- */
+  .js .thread .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .thread .msg.in{opacity:1;transform:none}
+  /* the picked chip pops once, right after its bubble lands */
+  .js .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+
+  /* ---------- open/closed toggle — the closed rule applies ONLY under html.js, so a
+       no-JS visitor always sees the panel open (fully readable, per hard constraint) ---------- */
+  .js .widget:not(.is-open) .panel{display:none}
+  /* Launcher stays visible while open — the panel floats above it and the pill doubles
+     as the close toggle (aria-expanded flips), so there's always a reachable entry point. */
+  .js .widget.is-open .panel{animation:panelin .32s var(--ease) both}
+
+  @keyframes panelin{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- "Other bot states" showcase — alternate flows, not the happy path ---------- */
+  .showcase{margin:0 0 8px}
+  .showcase-title{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--oxide);margin-bottom:6px}
+  .showcase-note{font-size:13px;color:var(--muted);margin-bottom:20px;max-width:52ch}
+  .showcase-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+  .state-card{border:1px solid var(--rule);border-radius:6px;padding:16px;background:rgba(255,253,247,.5)}
+  .state-label{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .state-card .msg{max-width:100%}
+  .msg.handoff{border-left:3px solid var(--muted)}
+  .msg.hours{border-left:3px dashed var(--oxide)}
+
+  /* ---------- MOCK ribbon — same diagonal pattern as the landing ---------- */
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+
+  /* paper grain — inline turbulence, no image files (same as landing) */
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  /* ---------- mobile 390px: panel becomes a full-width bottom sheet ---------- */
+  @media (max-width:480px){
+    .host-nav{display:none}
+    .widget{left:12px;right:12px;bottom:14px;align-items:stretch}
+    .launcher{align-self:flex-end}
+    .panel{width:100%;max-width:100%}
+    .thread{max-height:52vh}
+  }
+
+  /* ---------- reduced motion: kill every animation, show everything ---------- */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .thread .msg{opacity:1 !important;transform:none !important}
+    .typing{display:none !important}
+    .js .widget.is-open .panel{animation:none !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HOST PAGE BACKDROP — a muted barber site so the widget is shown in context ===== -->
+<header class="host-header wrap">
+  <span class="host-brand">Demo Barber Co.</span>
+  <nav class="host-nav" aria-label="Sections">
+    <span>The menu</span>
+    <span>Hours</span>
+    <span>Find us</span>
+  </nav>
+</header>
+
+<main>
+  <section class="host-hero wrap">
+    <p class="host-eyebrow">Premium barbershop · City Center</p>
+    <h1 class="host-title">Sit back. We'll handle the rest.</h1>
+    <p class="host-sub">A quiet chair that runs on time. Book by text — the assistant in the corner handles the rest.</p>
+  </section>
+
+  <section class="wrap">
+    <div class="host-strip">
+      <div class="host-cell">
+        <div class="host-cell-label">Mon – Fri</div>
+        <div class="host-cell-value">10:00 – 19:00</div>
+      </div>
+      <div class="host-cell">
+        <div class="host-cell-label">Saturday</div>
+        <div class="host-cell-value">10:00 – 18:00</div>
+      </div>
+      <div class="host-cell">
+        <div class="host-cell-label">Sunday</div>
+        <div class="host-cell-value closed">Closed</div>
+      </div>
+      <div class="host-cell">
+        <div class="host-cell-label">From</div>
+        <div class="host-cell-value">Haircut €25</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="host-note">This muted page is a stand-in host site. The chat widget pinned to the bottom-right corner is the real deliverable — click its launcher to open or close the booking conversation.</p>
+  </section>
+
+  <!-- ===== OTHER BOT STATES — labelled showcase of the two alternate flows ===== -->
+  <!-- These are NOT part of the happy path; shown so all six messageTemplates are visible. -->
+  <section class="wrap showcase" id="other-states">
+    <p class="showcase-title">Other bot states</p>
+    <p class="showcase-note">Alternate flows the same bot falls back to — rendered as authentic bot bubbles, shown here outside the happy-path thread for review.</p>
+    <div class="showcase-grid">
+      <div class="state-card">
+        <div class="state-label">Handoff — low confidence / jailbreak</div>
+        <div class="msg bot handoff">I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:06</span></div>
+      </div>
+      <div class="state-card">
+        <div class="state-label">Outside working hours</div>
+        <div class="msg bot hours">We're outside working hours right now. We've got your request and will reply soon.<span class="stamp">22:41</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="host-footer wrap">
+  Demo / mock widget · no real customer data · brand values come from client.config.json (config-driven).
+</footer>
+
+<!-- ===== THE WIDGET — launcher (collapsed) + panel (expanded). Starts OPEN. ===== -->
+<div class="widget is-open" id="widget">
+  <!-- Chat panel: header · scrollable thread · fake input bar -->
+  <section class="panel" id="chat-panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+    <div class="panel-head">
+      <span class="panel-avatar" aria-hidden="true">DB</span>
+      <div class="panel-id">
+        <strong class="panel-name">Demo Barber Co.</strong>
+        <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+      </div>
+      <button class="panel-close" type="button" data-close aria-label="Close chat">×</button>
+    </div>
+
+    <!-- BOOKING HAPPY PATH — six states in order, each a real bubble with a 24h timestamp -->
+    <div class="thread" role="log" aria-live="polite">
+      <!-- 1 · greeting -->
+      <div class="msg bot" data-step="1">Hi! Welcome to Demo Barber Co. How can I help?<span class="stamp">14:00</span></div>
+
+      <!-- 2 · askService + selectable service chips (Haircut picked) -->
+      <div class="pair">
+        <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="msg bot" data-step="2">Which service would you like? (Haircut / Beard Trim / Haircut + Beard)
+          <span class="chips">
+            <span class="chip chip-on">Haircut · €25</span>
+            <span class="chip">Beard Trim · €15</span>
+            <span class="chip">Haircut + Beard · €35</span>
+          </span>
+          <span class="stamp">14:00</span>
+        </div>
+      </div>
+
+      <!-- 3 · user picks Haircut -->
+      <div class="msg user" data-step="3">Haircut<span class="stamp">14:01</span></div>
+
+      <!-- 4 · askDateTime + slot chips (15:30 picked) -->
+      <div class="pair">
+        <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="msg bot" data-step="4">What day and time works for you?
+          <span class="chips">
+            <span class="chip">14:00</span>
+            <span class="chip chip-on">15:30</span>
+            <span class="chip">17:00</span>
+          </span>
+          <span class="stamp">14:01</span>
+        </div>
+      </div>
+
+      <!-- 5 · user confirms the slot -->
+      <div class="msg user" data-step="5">15:30 works<span class="stamp">14:02</span></div>
+
+      <!-- 6 · bookingConfirmed — confirm style, oxide left-border + check -->
+      <div class="pair">
+        <div class="typing" data-typing="6" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="msg bot confirm" data-step="6"><strong>✓</strong> You're booked: Haircut, tomorrow 15:30. See you then!<span class="stamp">14:02</span></div>
+      </div>
+    </div>
+
+    <div class="panel-foot" aria-hidden="true">
+      <span class="panel-input">Type a message…</span>
+      <span class="panel-send">↑</span>
+    </div>
+  </section>
+
+  <!-- Collapsed launcher — floating entry point -->
+  <button class="launcher" type="button" id="launcher" aria-expanded="true" aria-controls="chat-panel">
+    <span class="online-dot"></span><span>Book by text</span>
+  </button>
+</div>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Everything here is enhancement only — with JS off the panel is open and the whole
+     thread is static (see the .js gate in CSS). */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var widget = document.getElementById('widget');
+  var launcher = document.getElementById('launcher');
+  var closeBtn = document.querySelector('[data-close]');
+
+  /* ---- launcher toggle — collapsed <-> expanded, aria-expanded kept in sync ---- */
+  function setOpen(open) {
+    widget.classList.toggle('is-open', open);
+    launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) startChat();               // (re)play the staged reveal on open
+  }
+  launcher.addEventListener('click', function () { setOpen(!widget.classList.contains('is-open')); });
+  closeBtn.addEventListener('click', function () { setOpen(false); launcher.focus(); });
+
+  /* ---- staged conversation — time-driven, plays once; matches the landing's timings ---- */
+  var chatStarted = false;
+  function startChat() {
+    if (chatStarted) return;
+    chatStarted = true;
+    var thread = document.querySelector('.thread');
+    var msgs = thread.querySelectorAll('.msg');
+    if (reduced) {                       // CSS already shows everything; keep DOM consistent
+      msgs.forEach(function (m) { m.classList.add('in'); });
+      return;
+    }
+    function reveal(step) {
+      return function () {
+        msgs.forEach(function (m) {
+          if (Number(m.getAttribute('data-step')) <= step) m.classList.add('in');
+        });
+        thread.scrollTop = thread.scrollHeight; // keep the newest bubble in view
+      };
+    }
+    function typing(step, on) {
+      return function () {
+        var t = document.querySelector('.typing[data-typing="' + step + '"]');
+        if (t) t.classList.toggle('on', on);
+      };
+    }
+    setTimeout(reveal(1), 400);
+    setTimeout(typing(2, true), 1000);
+    setTimeout(typing(2, false), 2000);
+    setTimeout(reveal(2), 2000);         // service chips land; the picked chip pops via CSS
+    setTimeout(reveal(3), 2900);
+    setTimeout(typing(4, true), 3500);
+    setTimeout(typing(4, false), 4500);
+    setTimeout(reveal(4), 4500);         // slot chips land
+    setTimeout(reveal(5), 5400);
+    setTimeout(typing(6, true), 6000);
+    setTimeout(typing(6, false), 7000);
+    setTimeout(reveal(6), 7000);         // confirmation
+  }
+
+  /* Panel starts open (per the mockup brief) → begin the staged reveal immediately. */
+  startChat();
+})();
+</script>
+</body>
+</html>
