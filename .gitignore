@@ -58,3 +58,5 @@ tests/**/*.pii.*
 design/mockups/preview/
 
 # NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).
+# design/mockups/variants/ holds the DELIVERED Phase-1 surface mockups (landing, then
+# widget + dashboard) — committed for Cowork to review from git.
