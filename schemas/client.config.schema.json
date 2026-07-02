@@ -12,7 +12,7 @@
       "required": ["name", "timezone"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Istanbul" },
+        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Vienna" },
         "locale": { "type": "string" }
       }
     },

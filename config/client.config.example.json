@@ -2,8 +2,8 @@
   "$comment": "MOCK example config for one client. Copy to client.config.json (gitignored) and fill per client. NON-SECRET only — no API keys, no tokens (those live in n8n Credentials / Vercel env). Validated against ../schemas/client.config.schema.json.",
   "business": {
     "name": "Demo Barber Co.",
-    "timezone": "Europe/Istanbul",
-    "locale": "en-IE"
+    "timezone": "Europe/Vienna",
+    "locale": "en-AT"
   },
   "branding": {
     "primaryColor": "#111827",
