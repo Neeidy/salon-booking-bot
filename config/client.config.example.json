@@ -6,8 +6,8 @@
     "locale": "en-AT"
   },
   "branding": {
-    "primaryColor": "#111827",
-    "accentColor": "#D4A017",
+    "primaryColor": "#16150F",
+    "accentColor": "#B4472E",
     "logoUrl": "https://example.com/demo-barber-logo.png"
   },
   "channels": {
