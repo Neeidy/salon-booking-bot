@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Barber Co. — Owner Dashboard · Cream &amp; Ink</title>
+<script>
+  /* Progressive-enhancement gate (same pattern as the landing/widget): the fade-in
+     rules live ONLY under html.js. No JS → no .js class → every section renders
+     statically. Set before first paint so panels never flash hidden. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — identical to the approved landing.
+       primaryColor / accentColor mirror config.branding (client.config.json):
+       primaryColor = --ink (#16150F) · accentColor = --oxide (#B4472E). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;         /* accent on cream — display sizes only */
+    --oxide-soft:#D98B66;    /* accent on ink blocks */
+    --muted:#5C594E;         /* secondary text on cream (≥4.5:1) */
+    --stamp:#C9C4B4;         /* timestamps on ink bubbles */
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  h1,h2,h3{font-family:var(--font-display)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:1360px;margin:0 auto;padding:0 clamp(16px,3vw,44px)}
+
+  /* ---------- top bar — the back-office masthead ---------- */
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(241,238,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  .topbar-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:66px;padding-top:10px;padding-bottom:10px}
+  .brand{font-family:var(--font-display);font-weight:600;font-size:21px;letter-spacing:-.01em}
+  .topbar-role{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.4);border-radius:999px;padding:4px 12px}
+  .topbar-date{margin-left:auto;font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  /* ---------- shared atoms ---------- */
+  .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin:0 0 14px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:currentColor}
+  .section-note{font-size:13px;color:var(--muted);margin:-6px 0 16px;max-width:64ch}
+
+  /* pill chips — enum values rendered honestly, one style per meaning */
+  .chip{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.04em;padding:4px 12px;border-radius:999px;border:1px solid rgba(22,21,15,.3);white-space:nowrap}
+  .chip-ink{background:var(--ink);border-color:var(--ink);color:var(--cream)}          /* booked / converted */
+  .chip-oxide{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}    /* handoff — attention */
+  .chip-line-oxide{border-color:var(--oxide);color:var(--oxide)}                       /* contacted — in progress */
+  .chip-off{border-style:dashed;color:var(--muted)}                                    /* channel disabled in config */
+
+  /* ---------- KPI strip ---------- */
+  .kpis{padding:clamp(28px,3.5vw,48px) 0 clamp(10px,1.5vw,18px)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(14px,1.6vw,22px)}
+  .kpi{position:relative;border:1.5px solid var(--ink);border-radius:4px;background:rgba(255,253,247,.55);box-shadow:5px 5px 0 rgba(22,21,15,.1);padding:20px 22px 18px;transition:transform .2s var(--ease)}
+  .kpi:hover{transform:translateY(-2px)}
+  .kpi-label{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .kpi-value{font-family:var(--font-display);font-weight:700;font-size:clamp(34px,3.2vw,48px);line-height:1.1;margin-top:8px;font-variant-numeric:tabular-nums}
+  .kpi-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .kpi-alert{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .kpi-alert .kpi-value{color:var(--oxide)}
+  .mock-tag{position:absolute;top:10px;right:12px;font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.45);border-radius:3px;padding:1px 6px}
+
+  /* ---------- board layout: tables left · attention column right ---------- */
+  .board{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:clamp(20px,2.5vw,36px);align-items:start;padding:clamp(20px,2.5vw,36px) 0 clamp(40px,4vw,64px)}
+
+  /* channel legend — the config enum shown honestly, incl. the disabled one */
+  .legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 22px}
+  .legend-label{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+  /* ---------- data tables — newspaper ledger style ---------- */
+  .panel{margin-bottom:clamp(28px,3vw,44px)}
+  .panel-title{font-weight:600;font-size:clamp(22px,2vw,28px);letter-spacing:-.01em;margin-bottom:8px}
+  /* Wide tables scroll INSIDE this container — the page itself never scrolls sideways. */
+  .table-scroll{overflow-x:auto;border-top:2px solid var(--ink)}
+  table{width:100%;border-collapse:collapse;min-width:640px}
+  th{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px 10px 4px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{font-size:14.5px;padding:14px 14px 14px 4px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  tbody tr{transition:background .2s var(--ease)}
+  tbody tr:hover{background:rgba(255,253,247,.75)}
+  .cell-time{font-family:var(--font-display);font-weight:600;font-size:16.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cell-name{font-weight:600;white-space:nowrap}
+  .cell-price{color:var(--muted);white-space:nowrap}
+  .cell-phone{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+  .cell-snippet{color:var(--muted);font-style:italic;max-width:30ch}
+
+  /* ---------- handoff alerts — the attention column (oxide accents) ---------- */
+  .alerts{border:1.5px solid var(--oxide);border-radius:4px;background:rgba(255,253,247,.55);box-shadow:6px 6px 0 rgba(180,71,46,.16);padding:22px 22px 18px}
+  .alerts .eyebrow{margin-bottom:6px}
+  .alerts-title{font-weight:600;font-size:22px;letter-spacing:-.01em;margin-bottom:6px}
+  .alerts-note{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .alert-card{border-top:1px solid var(--rule);padding:16px 0 14px}
+  .alert-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .sender-key{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .alert-msg{font-size:14px;color:var(--ink);font-style:italic;margin-bottom:10px}
+  .confidence{display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .conf-badge{font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--oxide);font-variant-numeric:tabular-nums;border:1.5px solid var(--oxide);border-radius:3px;padding:1px 8px}
+  .conf-note{font-size:12px;color:var(--muted)}
+  .alert-actions{display:flex;gap:8px;margin-top:12px}
+  .mini-btn{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:999px;text-decoration:none;transition:transform .15s var(--ease)}
+  .mini-btn:active{transform:scale(.97)}
+  .mini-btn-ink{background:var(--ink);color:var(--cream)}
+  .mini-btn-ghost{color:var(--ink);border:1px solid rgba(22,21,15,.3)}
+  .mini-btn-ghost:hover{border-color:var(--ink)}
+
+  /* ---------- footer ---------- */
+  .site-footer{border-top:1px solid var(--hairline);padding:26px 0 40px;font-size:13px;color:var(--muted)}
+
+  /* ---------- MOCK ribbon — same diagonal pattern as the landing ---------- */
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+
+  /* paper grain — inline turbulence, no image files (same as landing) */
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  /* ---------- soft section fade-in — exists ONLY under html.js; no-JS shows all ---------- */
+  .js [data-reveal]{opacity:0;transform:translateY(14px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .js [data-reveal].in{opacity:1;transform:none}
+  .js .kpi-grid .kpi:nth-child(2){transition-delay:.06s}
+  .js .kpi-grid .kpi:nth-child(3){transition-delay:.12s}
+  .js .kpi-grid .kpi:nth-child(4){transition-delay:.18s}
+
+  /* ---------- mobile 390px: KPIs stack, tables scroll in place ---------- */
+  @media (max-width:960px){
+    /* minmax(0,…) keeps the wide tables scrolling INSIDE .table-scroll —
+       a bare 1fr track is minmax(auto,1fr) and would stretch the page. */
+    .board{grid-template-columns:minmax(0,1fr)}
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:480px){
+    .kpi-grid{grid-template-columns:1fr}
+    .topbar-date{margin-left:0;width:100%}
+  }
+
+  /* ---------- reduced motion: kill every animation, show everything ---------- */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js [data-reveal]{opacity:1 !important;transform:none !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== TOP BAR — masthead: brand (config: business.name) · role · static mock clock ===== -->
+<header class="topbar">
+  <div class="wrap topbar-row">
+    <span class="brand">Demo Barber Co.</span>
+    <span class="topbar-role">Owner Dashboard</span>
+    <span class="topbar-date">Today · Thu 15:30 (Europe/Vienna)</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ===== KPI STRIP — static mock numbers (no count-ups: numbers = trust) ===== -->
+  <section class="kpis" aria-label="Today at a glance">
+    <div class="kpi-grid">
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">Today's appointments</p>
+        <p class="kpi-value">6</p>
+        <p class="kpi-sub">within 10:00 – 19:00</p>
+      </div>
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">New leads</p>
+        <p class="kpi-value">3</p>
+        <p class="kpi-sub">status: new</p>
+      </div>
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">Appointments this week</p>
+        <p class="kpi-value">21</p>
+        <p class="kpi-sub">Mon – Sat</p>
+      </div>
+      <!-- Pending handoffs = the one KPI that demands action → oxide, not ink -->
+      <div class="kpi kpi-alert" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">Pending handoffs</p>
+        <p class="kpi-value">2</p>
+        <p class="kpi-sub">awaiting human review</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="board">
+    <div class="board-main">
+
+      <!-- Channel legend — the config enum shown honestly: the third channel is
+           enabled:false in client.config.json, so it never appears as a table row.
+           The disabled chip says so instead of hiding the fact. -->
+      <div class="legend" data-reveal>
+        <span class="legend-label">Channels</span>
+        <span class="chip chip-ink">whatsapp</span>
+        <span class="chip">widget</span>
+        <span class="chip chip-off">instagram (off in config)</span>
+      </div>
+
+      <!-- ===== APPOINTMENTS — mirrors the `appointments` table (status enum: booked | cancelled | handoff).
+           Times are today's wall-clock in the shop timezone (stored UTC, displayed local). ===== -->
+      <section class="panel" data-reveal aria-label="Today's appointments">
+        <p class="eyebrow">Today's book</p>
+        <h2 class="panel-title">Appointments</h2>
+        <p class="section-note">Service names and prices come from client.config.json — one config swap re-brands every row.</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Service</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-time">10:30</td>
+                <td class="cell-name">Max Mustermann</td>
+                <td>Haircut <span class="cell-price">· €25</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">11:30</td>
+                <td class="cell-name">M. Beispiel</td>
+                <td>Beard Trim <span class="cell-price">· €15</span></td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">13:00</td>
+                <td class="cell-name">Erika Musterfrau</td>
+                <td>Haircut + Beard <span class="cell-price">· €35</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">14:30</td>
+                <td class="cell-name">S. Muster</td>
+                <td>Haircut <span class="cell-price">· €25</span></td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-oxide">handoff</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">16:00</td>
+                <td class="cell-name">L. Mustermann</td>
+                <td>Beard Trim <span class="cell-price">· €15</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">17:30</td>
+                <td class="cell-name">A. Musterfrau</td>
+                <td>Haircut + Beard <span class="cell-price">· €35</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== LEADS — mirrors the `leads` table (status enum: new | contacted | converted).
+           Names are Mustermann-style placeholders; phones are masked — the dashboard never
+           shows a complete number, even for real data (repo is public, PII stays private). ===== -->
+      <section class="panel" data-reveal aria-label="Recent leads">
+        <p class="eyebrow">Lead capture</p>
+        <h2 class="panel-title">Leads</h2>
+        <p class="section-note">Every unfinished conversation becomes a lead — the bot's second job after booking.</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Phone</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Status</th>
+                <th scope="col">First message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-name">Max Mustermann</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;431</td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip">new</span></td>
+                <td class="cell-snippet">"Do you have anything Saturday morning?"</td>
+              </tr>
+              <tr>
+                <td class="cell-name">Erika Musterfrau</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;208</td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-line-oxide">contacted</span></td>
+                <td class="cell-snippet">"How much is a beard trim?"</td>
+              </tr>
+              <tr>
+                <td class="cell-name">M. Beispiel</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;917</td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">converted</span></td>
+                <td class="cell-snippet">"Haircut tomorrow afternoon?"</td>
+              </tr>
+              <tr>
+                <td class="cell-name">S. Muster</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;356</td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip">new</span></td>
+                <td class="cell-snippet">"Are you open on Sundays?"</td>
+              </tr>
+              <tr>
+                <td class="cell-name">L. Mustermann</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;642</td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip">new</span></td>
+                <td class="cell-snippet">"Can I book for my son as well?"</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== HANDOFF ALERTS — mirrors the `conversations` table (sender_key = "{channel}:{id}",
+         stage). Low-confidence intents fall below bot.confidenceThreshold (0.7 in config) and
+         wait here for a human — the bot abstains instead of guessing. Oxide = attention. ===== -->
+    <aside class="alerts" data-reveal aria-label="Pending handoffs">
+      <p class="eyebrow">Needs a human</p>
+      <h2 class="alerts-title">Handoff alerts</h2>
+      <p class="alerts-note">The bot never guesses below the confidence threshold — it hands off. Both customers were told a human will follow up.</p>
+
+      <article class="alert-card">
+        <div class="alert-head">
+          <span class="sender-key">wa:+43&nbsp;•••&nbsp;••2&nbsp;17</span>
+          <span class="chip chip-oxide">handoff</span>
+        </div>
+        <p class="alert-msg">"I need something for a wedding, not sure what exactly — can I talk to someone?"</p>
+        <p class="confidence">
+          <span class="conf-badge">0.42</span>
+          <span class="conf-note">below threshold 0.7 → human review</span>
+        </p>
+        <div class="alert-actions">
+          <a class="mini-btn mini-btn-ink" href="#reply">Reply</a>
+          <a class="mini-btn mini-btn-ghost" href="#thread">View thread</a>
+        </div>
+      </article>
+
+      <article class="alert-card">
+        <div class="alert-head">
+          <span class="sender-key">widget:sess-…a4</span>
+          <span class="chip chip-oxide">handoff</span>
+        </div>
+        <p class="alert-msg">"Do you also do hair colouring for long hair?"</p>
+        <p class="confidence">
+          <span class="conf-badge">0.55</span>
+          <span class="conf-note">below threshold 0.7 → human review</span>
+        </p>
+        <div class="alert-actions">
+          <a class="mini-btn mini-btn-ink" href="#reply">Reply</a>
+          <a class="mini-btn mini-btn-ghost" href="#thread">View thread</a>
+        </div>
+      </article>
+    </aside>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    Demo / mock dashboard · all rows are Mustermann-style sample data, no real customers · brand values come from client.config.json (config-driven).
+  </div>
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only: soft fade-in per section via IntersectionObserver.
+     Reduced motion or no IO support → everything shown immediately. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var els = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  if (reduced || !('IntersectionObserver' in window)) {
+    els.forEach(function (el) { el.classList.add('in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -5% 0px' });
+  els.forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>
