@@ -12,7 +12,7 @@
       "required": ["name", "timezone"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Istanbul" },
+        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Vienna" },
         "locale": { "type": "string" }
       }
     },
@@ -44,7 +44,7 @@
           "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
           "name": { "type": "string" },
           "durationMin": { "type": "integer", "minimum": 5 },
-          "priceTRY": { "type": "number", "minimum": 0 }
+          "priceEUR": { "type": "number", "minimum": 0 }
         }
       }
     },

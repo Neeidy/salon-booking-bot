@@ -24,7 +24,8 @@
   Google Calendar (OAuth per client) · Airtable · LLM (Claude/OpenAI) · n8n webhooks · Vercel.
   See MASTER-BRIEF §13 for unverified assumptions.
 - **Verify at build time (additions to §13):** does Zernio support Instagram DM? · Meta IG API constraints
-  (app-review lead time, business-account requirement, 24h messaging window).
+  (app-review lead time, business-account requirement, 24h messaging window) · Zernio/WhatsApp app-coexistence —
+  with the bot API active, can the barber still message from their own app on the same number (needed for handoff)?
 - **Mock plan + one-swap-to-real:** config-driven mock (services/prices/hours); demo via test WhatsApp/widget →
   live = client's real Zernio number + Google Calendar + Airtable base, no code change.
 
@@ -54,8 +55,13 @@
 | 2026-06-30 | Split idempotency vs concurrency (write-then-verify) | no atomic lock across Airtable+GCal (TOCTOU) | assume a lock exists |
 | 2026-06-30 | Scaffold before mockup | scaffold feeds from brief, needs no mockup | mockup-first |
 | 2026-07-01 | **Config-gated optional channels:** every channel → NORMALIZE `{channel, sender_key, text}` → one shared brain; channels toggle in config and several may run at once (e.g. WhatsApp + Instagram) — the brain is channel-count-agnostic | one engine to maintain; adding a channel = one adapter + config, zero brain change | per-channel forked flows |
-| 2026-07-01 | `sender_key = "{channel}:{id}"` namespacing (e.g. `wa:+90555…`, `ig:12345`) | prevents cross-channel ID collisions and state bleed in `conversations` | raw provider id as key |
+| 2026-07-01 | `sender_key = "{channel}:{id}"` namespacing with the FULL channel name (matches the config channels enum), e.g. `whatsapp:+43…`, `instagram:12345` | prevents cross-channel ID collisions and state bleed in `conversations` | raw provider id as key; or channel-name shorthand (`wa:`/`ig:`) that drifts from the enum |
 | 2026-07-01 | **Reply-to-origin-channel:** the `channel` field set at NORMALIZE travels the whole flow; the reply ALWAYS returns to the channel the message came from | a customer must never be answered on a different channel | single "default reply channel" |
 | 2026-07-01 | **Instagram = IN SCOPE** as config-gated optional channel, default OFF; live IG connection is per-client (verify at build time: Meta app review, business account, 24h window). Facebook DM stays OUT. MASTER-BRIEF stays locked; this row records the deviation | architecture-ready now; connection cost deferred to per-client onboarding | rebuild-later (touches the brain twice) |
+| 2026-07-02 | **Handoff mechanics (built in Phase 5):** the owner notification carries `sender + intent + filled slots + last N messages` → a `messages` log table is designed for this (with an explicit PII + TTL decision). While `stage: handoff`, the bot sends **no auto-reply** to that same sender (prevents human↔bot collision); the human joins the channel from their own WhatsApp Business / IG app | the owner needs full context to take over, and two responders on one thread confuse the customer | notify with a bare "someone needs help" ping; or let the bot keep replying alongside the human |
+| 2026-07-02 | **Returning-customer touch (built in Phase 2):** the "load state" step also looks up the `customers` table; a known phone is greeted by name | cheap, deterministic personalization with data we already hold — no LLM needed | treat every inbound as a first-time stranger |
+| 2026-07-02 | **Demo brand locale = EN/EUR** (target market is English-first); single source of truth: every mockup/demo value mirrors `config/client.config.example.json` (services EN + `priceEUR`, EN message templates) | one canonical place for demo copy/prices — no drift between config, schema and mockups | TR/₺ demo, or per-surface hardcoded values |
+| 2026-07-02 | **Demo identity = English UI · EUR · Europe/Vienna** — one consistent single market (Yigitcan's location + the Beauty precedent) | a coherent demo reads as a real product; scattered locale/tz/currency looks unfinished | mixed identity (en-IE locale + Istanbul tz + € prices) |
+| 2026-07-02 | **i18n (DE/EN) = OUT OF SCOPE (for now).** Architecture does not block it: UI copy comes from `config`/`messageTemplates`, so future DE/EN is a copy/i18n layer, not a code change — the `locale` field is already in place | ship one clean market now; the config-driven copy keeps the door open at zero rebuild cost | build a DE/EN toggle now (scope creep, no demand yet) |
 
 <TODO: append decisions as phases progress>
