@@ -42,7 +42,7 @@ are the engine's state (multi-turn + idempotency).
 ## `conversations` (multi-turn slot-filling state)
 | Field | Type | Notes |
 |---|---|---|
-| sender_key | text | PK — `"{channel}:{id}"`, e.g. `wa:+90555…`, `ig:12345` — namespaced so channels can never collide (PII) |
+| sender_key | text | PK — `"{channel}:{id}"` using the FULL channel name (matches the config channels enum), e.g. `whatsapp:+43…`, `instagram:12345` — namespaced so channels can never collide (PII) |
 | stage | single-select | new \| collecting \| ready \| done \| handoff — while `handoff`, the bot sends no auto-reply to this sender (see decision log 2026-07-02) |
 | slot_service | text | nullable |
 | slot_date | text | nullable |
@@ -59,4 +59,4 @@ are the engine's state (multi-turn + idempotency).
 **Booking integrity:** `processed_messages` guards idempotency; `appointments` + Google Calendar guarded by
 write-then-verify (no atomic lock). See [../.claude/rules/booking-integrity.md](../.claude/rules/booking-integrity.md).
 
-<TODO (Phase 1): confirm exact field types against the real Airtable base; add any status enums used by the dashboard>
+<TODO (Phase 3): confirm exact field types against the real Airtable base>
