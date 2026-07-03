@@ -12,7 +12,7 @@ are the engine's state (multi-turn + idempotency).
 | id | autonumber | PK |
 | name | text | customer name (PII) |
 | phone | text | E.164 (PII) |
-| source | single-select | whatsapp \| widget |
+| source | single-select | whatsapp \| widget \| instagram |
 | message | long text | first message |
 | status | single-select | new \| contacted \| converted |
 | created_at | datetime | UTC |
@@ -35,14 +35,15 @@ are the engine's state (multi-turn + idempotency).
 | start_utc | datetime | **UTC** — display in shop tz |
 | end_utc | datetime | UTC |
 | gcal_event_id | text | Google Calendar event id (for re-verify + undo) |
+| channel | single-select | whatsapp \| widget \| instagram — origin channel of the booking (reply-to-origin; shown on the owner dashboard) |
 | status | single-select | booked \| cancelled \| handoff |
 | created_at | datetime | UTC |
 
 ## `conversations` (multi-turn slot-filling state)
 | Field | Type | Notes |
 |---|---|---|
-| sender_key | text | PK — channel+phone (PII) |
-| stage | single-select | new \| collecting \| ready \| done |
+| sender_key | text | PK — `"{channel}:{id}"`, e.g. `wa:+90555…`, `ig:12345` — namespaced so channels can never collide (PII) |
+| stage | single-select | new \| collecting \| ready \| done \| handoff — while `handoff`, the bot sends no auto-reply to this sender (see decision log 2026-07-02) |
 | slot_service | text | nullable |
 | slot_date | text | nullable |
 | slot_time | text | nullable |

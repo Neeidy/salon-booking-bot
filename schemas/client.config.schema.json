@@ -12,7 +12,7 @@
       "required": ["name", "timezone"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Istanbul" },
+        "timezone": { "type": "string", "description": "IANA tz, e.g. Europe/Vienna" },
         "locale": { "type": "string" }
       }
     },
@@ -22,6 +22,16 @@
         "primaryColor": { "type": "string" },
         "accentColor": { "type": "string" },
         "logoUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "description": "Config-gated channels; a channel omitted here is OFF. Several may be enabled at once — the brain is channel-agnostic: every inbound message is normalized to {channel, sender_key, text} with sender_key = '{channel}:{id}', and the reply always returns to the origin channel. instagram ships default OFF: live connection is per-client (Meta app review, business account, 24h messaging window).",
+      "additionalProperties": false,
+      "properties": {
+        "whatsapp": { "$ref": "#/definitions/channel" },
+        "widget": { "$ref": "#/definitions/channel" },
+        "instagram": { "$ref": "#/definitions/channel" }
       }
     },
     "services": {
@@ -34,7 +44,7 @@
           "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
           "name": { "type": "string" },
           "durationMin": { "type": "integer", "minimum": 5 },
-          "priceTRY": { "type": "number", "minimum": 0 }
+          "priceEUR": { "type": "number", "minimum": 0 }
         }
       }
     },
@@ -59,6 +69,17 @@
       "type": "object",
       "description": "Named reply templates; may contain {service},{date},{time} placeholders.",
       "additionalProperties": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "channel": {
+      "type": "object",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "provider": { "type": "string", "description": "Adapter id — e.g. whatsapp: zernio · widget: webchat · instagram: meta-graph" }
+      }
     }
   }
 }
