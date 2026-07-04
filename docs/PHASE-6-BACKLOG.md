@@ -45,3 +45,13 @@ this spec is the brain and must be written before/with the n8n flow.
 - **Config wiring:** the "config-driven" footer claim is currently config-*consistent* (values mirror
   `client.config.example.json`) but not config-*wired*. Phase 6 must actually read brand name / colors /
   services / hours from config at build/runtime, so one config swap re-brands every surface for real.
+
+## 7. Dashboard authentication — SECURITY-CRITICAL — *dashboard*
+The dashboard exposes PII (names, phones, threads) and a destructive one-click Cancel →
+**owner-only, authenticated access; never public without auth**. Locked in
+[ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) Final Feature Log (2026-07-04);
+Critical-Review Target #9 (Codex gate).
+
+## 8. Dark/light theme — *all three surfaces*
+Dark/light theme support across landing + widget + dashboard (locked 2026-07-04).
+Interacts with §6 config wiring: theme becomes a `client.config` field.
