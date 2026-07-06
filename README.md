@@ -8,6 +8,8 @@
 A config-driven, reusable salon **booking + lead-capture chatbot template** — it turns an incoming
 WhatsApp/website message into a **booked appointment**, or a **captured lead + human handoff**,
 automatically and in the shop's voice. One isolated deployment per client (**Model 1**).
+The v1 design scope also covers the full booking lifecycle — **cancel · reschedule · reminders**
+(bot-automated) — **design-locked 2026-07-04, not yet shipped**.
 
 ## Stack
 n8n (engine, on RS) · Zernio (WhatsApp) · Google Calendar · Airtable (CRM) · LLM (Claude/OpenAI,
@@ -33,3 +35,5 @@ Everything is demo-able from config + a test WhatsApp number / the website widge
 ## Security
 This repo is **PUBLIC**. No secrets and no customer PII in git — real values live in n8n Credentials / Vercel
 env. See [.claude/rules/security-secrets.md](.claude/rules/security-secrets.md).
+The owner dashboard is **authenticated (owner-only)** — it exposes PII and a destructive cancel, so it is
+never public without auth.

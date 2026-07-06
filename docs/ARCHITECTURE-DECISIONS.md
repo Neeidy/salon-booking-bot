@@ -1,8 +1,9 @@
 # Architecture Decisions — salon-booking-bot
 
-> **Role of this file:** the **authoritative working record** of this project's architecture decisions —
-> the living source of truth. The frozen snapshot is [../MASTER-BRIEF.md](../MASTER-BRIEF.md); live phase
-> status is [ROADMAP.md](ROADMAP.md) (roadmap content lives there, not here).
+> **Role of this file:** the decision **log / rationale + history** for this project's architecture.
+> [../MASTER-BRIEF.md](../MASTER-BRIEF.md) = the **current architecture (versioned)**; this file records
+> *why/when* each decision changed — the two never disagree. Live phase status is
+> [ROADMAP.md](ROADMAP.md) (roadmap content lives there, not here).
 
 ## 1. Snapshot
 - **Type:** automation-n8n + chatbot + web-app (config-driven template)
@@ -134,7 +135,7 @@ no automated marketing.
 
 ## 7. Critical-Review Targets — additions (2026-07-04)
 
-Rows 1–7 live in MASTER-BRIEF §9 (locked snapshot). These rows **extend** that table; the same
+Rows 1–7 live in MASTER-BRIEF §9 (current architecture). These rows **extend** that table; the same
 Codex gate applies (audited by the second tool before the owning phase is "done").
 
 | # | What | Why critical (criterion) | Auditor | Status | Phase |

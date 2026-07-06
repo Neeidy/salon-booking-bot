@@ -34,10 +34,15 @@ are the engine's state (multi-turn + idempotency).
 | service_id | text | from client.config services |
 | start_utc | datetime | **UTC** — display in shop tz |
 | end_utc | datetime | UTC |
-| gcal_event_id | text | Google Calendar event id (for re-verify + undo) |
+| gcal_event_id | text | Google Calendar event id (re-verify · undo · cancel/reschedule delete) |
 | channel | single-select | whatsapp \| widget \| instagram — origin channel of the booking (reply-to-origin; shown on the owner dashboard) |
-| status | single-select | booked \| cancelled \| handoff |
+| status | single-select | booked \| cancelled \| rescheduled \| handoff |
+| reminder_sent | datetime | nullable — set when the reminder fired (config `bot.reminderHoursBefore` before `start_utc`); Phase 3 |
 | created_at | datetime | UTC |
+
+> **Availability source of truth = Google Calendar** (owner "busy" blocks live in GCal too); Airtable
+> `appointments` mirrors it. Booking write order: **GCal first, then Airtable**. See
+> [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §6.
 
 ## `conversations` (multi-turn slot-filling state)
 | Field | Type | Notes |

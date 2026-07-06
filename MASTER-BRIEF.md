@@ -1,6 +1,11 @@
 # Barber Booking Bot — MASTER BRIEF
 *(Cowork → Claude Code handoff · approved architecture + roadmap)*
 
+**Version:** v1.1 — updated 2026-07-04 · (v1.0 approved 2026-06-29)
+> Changelog v1.1: cancel·reschedule·reminders OUT→IN SCOPE (v1 core) · Instagram = config-gated
+> optional (default OFF) · Zernio VERIFIED · Critical-Review Targets +#8/#9.
+> Rationale + full feature log: docs/ARCHITECTURE-DECISIONS.md §6-7.
+
 > **What this is:** the **approved** master architecture for a config-driven, reusable salon
 > lead-capture + booking chatbot **template** (Model 1 — one isolated deployment per client).
 > Produced in Cowork (architecture/brain). Hand this to **Claude Code on the RS**; CC runs
@@ -12,6 +17,9 @@
 ## 1. Operating protocol for Claude Code (READ FIRST)
 
 - **This master architecture is ALREADY APPROVED.** Do **not** relitigate tier / stack / scope. Execute it.
+- **This master is the SINGLE current architecture (versioned).** Locked scope/decision changes are
+  recorded HERE (version bump + changelog); their rationale lives in `docs/ARCHITECTURE-DECISIONS.md` —
+  the two never disagree. "Do not relitigate" = don't reopen an approved decision, **not** "never update."
 - **PLAN MODE GATE — per phase.** Before building each phase, enter CC **plan mode** → produce that
   phase's *implementation* plan (files/nodes, acceptance criteria, test) → get Yigitcan's explicit
   **"approved"** → only then build. (The architecture is the approved top plan; plan mode operates at the
@@ -62,12 +70,16 @@ Each layer catches a different class of error → no single point of dependency.
   or booked instantly.
 - **User:** triggers = the **end customer** (messages); consumes = the **shop owner** (bookings on
   calendar + leads in dashboard).
-- **NOT-build (OUT OF SCOPE — permanent boundary):** online payment/prepay · POS/inventory · multi-staff rota ·
-  marketing/email blasts · single-instance multi-tenancy (we use copy-per-client) · Instagram/FB DM ·
-  autonomous multi-step agent · loyalty/reviews · **reschedule/cancel an existing booking
-  (OUT OF SCOPE → human handoff)** · **time-based reminders (scheduled flow — OUT OF SCOPE)**.
-  *(IN SCOPE: the immediate booking-confirmation reply.)*
-- **Integrations:** Zernio (WhatsApp) `⚠ verify §13` · Google Calendar (OAuth per client) `⚠ verify §13` ·
+- **NOT-build (permanent boundary):** online payment/prepay · POS/inventory · multi-staff rota ·
+  marketing/email blasts · single-instance multi-tenancy (we use copy-per-client) · Facebook DM ·
+  autonomous multi-step agent · loyalty/reviews · group bookings.
+- **IN SCOPE (v1 core):** booking-confirmation reply · **cancel · reschedule · reminders (bot-automated)** ·
+  config-driven FAQ · human handoff. **Instagram DM = config-gated optional channel (default OFF).**
+  *(cancel/reschedule/reminders were OUT in v1.0 → moved IN by the 2026-07-04 decision, see ARCH-DEC §6.)*
+- **Integrations — Zernio (WhatsApp):** `✅ verified 2026-07-04 — official WhatsApp Business API BSP`;
+  WhatsApp channel = generic Webhook + HTTP Request (`n8n-nodes-zernio` NOT used; provider-agnostic);
+  handoff via Zernio Inbox.
+- **Integrations — unverified (confirm at build):** Google Calendar (OAuth per client) `⚠ verify §13` ·
   Airtable `⚠ verify limits §13` · LLM (Claude/OpenAI, cheap-model-first) · n8n webhooks · Vercel (frontend).
 - **Mock plan:** services/prices/hours come from config (mock); demo via a test WhatsApp number / the
   website widget. **One-swap-to-real** = client's real Zernio number + Google Calendar + Airtable base.
@@ -117,6 +129,10 @@ Each layer catches a different class of error → no single point of dependency.
 - **n8n control-plane locked down** — via the Cloudflare tunnel expose **only the webhook endpoints**;
   the n8n **editor/admin UI is never on the public internet** (behind auth / Cloudflare Access).
 - **Secrets only in Credentials / `.env`** — never in git (repo is PUBLIC); sanitize **PII** too.
+- **Destructive-action gating + dashboard auth** — cancel/reschedule are bot-automated but **gated**:
+  phone-identity (WhatsApp = verified number; **widget requires a booking-ref → IDOR guard**) + explicit
+  confirm + `cancellationCutoffHours`. The owner dashboard (PII + destructive cancel) = **owner-only
+  authenticated, never public**.
 
 ## 8. Data flow
 
@@ -132,6 +148,7 @@ Each layer catches a different class of error → no single point of dependency.
    3) Slot-fill: missing slot (service/date/time) → ask + save state → loop until complete
    4) Act: ├ Book → only when slots complete → availability check → write Cal + Airtable
            │        → re-verify slot (no atomic lock; >1 event → cancel one + handoff)
+           ├ Cancel/Reschedule → identity + confirm → GCal delete/rebook + Airtable
            ├ Capture lead → Airtable
            └ Answer FAQ (from config)
    5) confidence < 0.7 → Human handoff (notify owner)
@@ -147,6 +164,10 @@ Each layer catches a different class of error → no single point of dependency.
 > slots `service/date/time` · `last_updated`). Every message **loads context → fills the missing slot →
 > books ONLY when all slots are complete**. Simple slot-filling state machine; stays T1.
 
+> **Availability = Google Calendar (SINGLE source of truth):** owner "busy" blocks live in GCal too;
+> booking write order = **GCal first → Airtable (mirror)**; if GCal is unreachable the bot does **NO
+> silent booking** → error branch + owner notify.
+
 ## 9. Critical-Review Targets (Codex audit — gate before "done")
 
 | # | What | Why critical (criterion) | Status |
@@ -159,16 +180,20 @@ Each layer catches a different class of error → no single point of dependency.
 | 5 | Human-handoff threshold (low-confidence → human) | 1/5 — wrong action / silent | [ ] |
 | 6 | Error visibility (no silent failure) | 5 — silent failure | [ ] |
 | 7 | n8n control-plane exposure — only webhook endpoints public; editor/admin UI never on the internet (behind auth / Cloudflare Access) | 1/3 — admin takeover | [ ] |
+| 8 | Booking mutation via bot (cancel/reschedule = delete-write on real appointments) | 1+4 — irreversible + shared state | [ ] |
+| 9 | Dashboard auth (PII + destructive surface) | 3 — data leak / unauthorized destructive | [ ] |
 
 ## 10. Roadmap (Phase 0 → 8) + Definition of Done
+
+> **Live phase status: `docs/ROADMAP.md`** (this table = architecture reference).
 
 | Phase | Work | Done criteria |
 |---|---|---|
 | **0. Scaffold** | `/repo-scaffold` → repo · `.env.example` · `client.config.json` schema · Airtable tables (incl. `conversations`, `processed_messages`) · intent JSON schema · ARCHITECTURE-DECISIONS.md *(analyzes this brief first; needs no mockup)* | Skeleton + schemas in place |
 | **1. Visual blueprint** | landing + chat widget + owner dashboard **mockup** + flow diagram *(CC builds → commits; Cowork reviews from git)* | Visual demo approved, gaps logged |
 | **2. Core bot** | n8n: webhook → load conversation state → LLM intent → routing → **slot-filling state machine** (`conversations`) → reply (test via website widget first) | Happy path + 2–3 intents work, JSON valid, multi-turn slot-fill completes |
-| **3. Booking + data** | availability → write → **re-verify (no atomic lock)** → Google Calendar + Airtable · idempotency (dedupe store + TTL) · **timezone-explicit (store UTC)** | Booking works; duplicate trigger ≠ double-booking; concurrent same-slot → one booking + handoff; edge cases |
-| **4. WhatsApp** | Zernio channel `⚠ verify BSP/n8n — §13` | Real WhatsApp message → booking + reply |
+| **3. Booking + data** | availability → write → **re-verify (no atomic lock)** → Google Calendar + Airtable · **cancel · reschedule · reminders** · **GCal = availability source-of-truth (write GCal→Airtable)** · **widget-cancel booking-ref (IDOR)** · idempotency (dedupe store + TTL) · **timezone-explicit (store UTC)** | Booking works; duplicate trigger ≠ double-booking; concurrent same-slot → one booking + handoff; cancel/reschedule mutate exactly one appointment safely; edge cases |
+| **4. WhatsApp** | Zernio channel `✅ verified 2026-07-04` — generic Webhook + HTTP Request (`n8n-nodes-zernio` not used) | Real WhatsApp message → booking + reply |
 | **5. Safety** | handoff · cost cap · **kill-switch · dry-run default · max-iteration** · injection handling · error branch | Low confidence → handoff; kill-switch works; errors visible; jailbreak attempt caught |
 | **6. Vitrin frontend** | build landing + widget + owner dashboard (from Phase 0) → live data → Vercel | Deployed, branded, reads live data |
 | **7. Test + Codex + DoD** | golden set · edge · jailbreak · critical-targets audit · sanitize · README/case-study · Loom | Full DoD checklist passes |
@@ -213,10 +238,10 @@ Each layer catches a different class of error → no single point of dependency.
 
 Verified at build time (Phase 0/4), **not** in the architecture phase:
 
-- **Zernio** — is it a real WhatsApp Business Solution Provider (BSP)? Does it offer n8n integration
-  (dedicated node, or generic webhook-in + send-API)? What is the inbound webhook payload + the outbound
-  send API? **Not confirmed.** Directly affects Phase 4. **Fallback if it doesn't pan out:** WhatsApp Cloud
-  API (Meta) / 360dialog / Twilio.
+- **Zernio** — **✅ RESOLVED 2026-07-04 — verified** (official WhatsApp Business API BSP; see §4 / ARCH-DEC §6).
+  WhatsApp channel = generic Webhook + HTTP Request against REST (`n8n-nodes-zernio` not used → provider-agnostic).
+  **Fallback if a client can't use it:** WhatsApp Cloud API (Meta) / 360dialog / Twilio — same 2 nodes, URL/mapping swap.
+  *(Still open: does Zernio support Instagram DM? — confirm per-client at build.)*
 - **Google Calendar OAuth (per client)** — OAuth consent + Google "unverified app" warning, sensitive-scope
   (calendar) verification, test-mode 100-user cap; or a service-account + calendar-share alternative.
   Confirm the per-client auth path before Phase 3/4.

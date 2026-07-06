@@ -1,8 +1,8 @@
 # CLAUDE.md — salon-booking-bot (project operating manual)
 
 > **Role of this file:** the operating manual Claude Code follows in THIS repo.
-> Architecture is frozen in [MASTER-BRIEF.md](MASTER-BRIEF.md) (locked snapshot); decisions evolve in
-> [docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md); live phase status is in
+> Architecture is the current versioned master in [MASTER-BRIEF.md](MASTER-BRIEF.md); decisions & rationale
+> evolve in [docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md); live phase status is in
 > [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What this is
