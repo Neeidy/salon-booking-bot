@@ -19,6 +19,20 @@
 
 **Legend:** ▶ in progress · ☐ not started · ✅ done.
 
+## Phase 2 — checkpoint progress (core bot, built in n8n)
+Built as a checkpoint (CP) sequence in n8n (workflow `Salon Booking Bot — Main`); sanitized flow committed at
+[../n8n/workflow.sanitized.json](../n8n/workflow.sanitized.json). Each CP is built → tested (verified via the n8n
+execution API) → understood, one small step at a time. No production publish until safety brakes are in (LLM lands CP3).
+
+- ✅ **CP0 — Echo skeleton:** Webhook → Normalize (adapter boundary; `sender_key = {channel}:{id}`) → Build Reply → Respond. Transport + reply-to-origin proven for both widget (`sessionId`) and whatsapp (`from`) shapes.
+- ✅ **CP1 — Front gate:** + Load Config (MOCK client config) + Validate Payload (channel enabled in config · text present · length ≤ 1000) → invalid = **400** reject. 5-scenario test passed (valid ×2 → echo; disabled-channel / empty / oversized → reject).
+- ✅ **CP2 — Conversation state (Airtable `conversations`):** Load State (search by `sender_key`) → Merge State (found/new; Airtable nests fields under `fields`) → Save State (upsert, `last_updated` in **UTC**). Multi-turn persistence + per-sender isolation proven (2 distinct rows). Airtable-failure branch → **503** wired + config-verified; live error-drill deferred to Phase 5.
+- ☐ **CP3 — LLM intent (next):** genuine free-text intent → JSON validated against `schemas/intent.schema.json` → low-confidence (<0.7) handoff. ⚠ LLM = real cost → spend cap + max-turns + rate-limit **before** any public publish.
+
+Not yet in the flow (scope guard): booking / Google Calendar (Phase 3) · WhatsApp / Zernio transport (Phase 4) ·
+full handoff · kill-switch · injection hardening (Phase 5). Known robustness follow-ups (Phase 5): Code-node
+error handling, `$json` in "Run Once for All Items" mode (safe while 1 item/exec).
+
 ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 1a idempotency · 1b concurrency/no-double-book · 2 Google Calendar write · 3 webhook verification ·
 4 secret+PII handling · 5 handoff threshold · 6 error visibility · 7 n8n control-plane exposure ·
