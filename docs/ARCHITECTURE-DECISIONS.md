@@ -67,6 +67,7 @@
 | 2026-07-02 | **Demo identity = English UI · EUR · Europe/Vienna** — one consistent single market (Yigitcan's location + the Beauty precedent) | a coherent demo reads as a real product; scattered locale/tz/currency looks unfinished | mixed identity (en-IE locale + Istanbul tz + € prices) |
 | 2026-07-02 | **i18n (DE/EN) = OUT OF SCOPE (for now).** Architecture does not block it: UI copy comes from `config`/`messageTemplates`, so future DE/EN is a copy/i18n layer, not a code change — the `locale` field is already in place | ship one clean market now; the config-driven copy keeps the door open at zero rebuild cost | build a DE/EN toggle now (scope creep, no demand yet) |
 | 2026-07-04 | **Cancel + reschedule + reminders = IN SCOPE (v1 core)** — bot-automated; deviates from the MASTER-BRIEF NOT-build snapshot (same pattern as the Instagram row: brief stays locked, deviation recorded here). Full detail in the Final Feature Log (§6) | booking lifecycle is core product value; handoff-only cancel breaks "zero owner effort" | keep them handoff-only |
+| 2026-07-18 | **kill-switch + max-turns enforcement + `conversations.turn_count` pulled from Phase 5 into CP3** | a paid LLM must not be wired to inbound traffic with no brakes (MASTER-BRIEF §7 spend brakes); the guards run BEFORE the LLM call → 0 cost when tripped. The approved Phase-2 plan had placed these in Phase 5 — conscious deviation, recorded here (same pattern as the Instagram/cancel rows) | leave it brakeless until Phase 5 |
 
 ## 6. Final Feature Log (locked 2026-07-04)
 

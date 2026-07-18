@@ -53,6 +53,11 @@ are the engine's state (multi-turn + idempotency).
 | slot_date | text | nullable |
 | slot_time | text | nullable |
 | last_updated | datetime | UTC (for TTL/expiry) |
+| turn_count | number | default 0 — +1 on every inbound message; compared with config `bot.maxTurnsPerConversation` for the max-turns guard (CP3) |
+| last_intent | single line text | nullable — last classified intent (debug/analysis) (CP3) |
+
+> **CP3 prerequisite:** `turn_count` and `last_intent` must also be created as columns in the real Airtable
+> `conversations` table (Yigitcan) before the CP3 flow can write them.
 
 ## `processed_messages` (idempotency / dedupe)
 | Field | Type | Notes |

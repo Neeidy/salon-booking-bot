@@ -10,7 +10,7 @@
     "intent": {
       "type": "string",
       "description": "Allow-list only — no other action exists.",
-      "enum": ["book", "capture_lead", "answer_faq", "handoff", "unknown"]
+      "enum": ["book", "cancel", "reschedule", "capture_lead", "answer_faq", "handoff", "unknown"]
     },
     "confidence": {
       "type": "number",
@@ -26,7 +26,12 @@
         "date": { "type": ["string", "null"], "description": "ISO 8601 date (YYYY-MM-DD) or null" },
         "time": { "type": ["string", "null"], "description": "HH:MM (24h) or null" },
         "customerName": { "type": ["string", "null"] },
-        "notes": { "type": ["string", "null"] }
+        "notes": { "type": ["string", "null"] },
+        "faqTopic": {
+          "type": ["string", "null"],
+          "description": "For answer_faq only — the FAQ category. Combined with serviceId for price questions.",
+          "enum": ["price", "hours", "services", "address", "parking", "walkin", "other", null]
+        }
       }
     },
     "reply": {

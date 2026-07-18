@@ -62,7 +62,8 @@
       "properties": {
         "tone": { "type": "string" },
         "confidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
-        "maxTurnsPerConversation": { "type": "integer", "minimum": 1 }
+        "maxTurnsPerConversation": { "type": "integer", "minimum": 1 },
+        "killSwitch": { "type": "boolean", "description": "Emergency stop — when true the bot is handoff-only (no LLM, no writes)." }
       }
     },
     "messageTemplates": {

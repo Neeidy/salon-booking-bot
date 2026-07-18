@@ -32,7 +32,8 @@
   "bot": {
     "tone": "friendly, concise, speaks English",
     "confidenceThreshold": 0.7,
-    "maxTurnsPerConversation": 12
+    "maxTurnsPerConversation": 12,
+    "killSwitch": false
   },
   "messageTemplates": {
     "greeting": "Hi! Welcome to Demo Barber Co. How can I help?",
