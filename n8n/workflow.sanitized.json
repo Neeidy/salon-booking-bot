@@ -39,7 +39,7 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1456, 0],
+      "position": [1664, 0],
       "id": "35e6555e-2e67-45ae-9f86-9f79891b4dc5",
       "name": "Build Reply Payload"
     },
@@ -51,15 +51,15 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [1664, 0],
+      "position": [1872, 0],
       "id": "ed9845ad-c695-4184-a8bb-bb0e0b07830e",
       "name": "Send Reply To Origin"
     },
     {
       "parameters": {
-        "content": "CP0–CP2 — Salon Booking Bot core (Phase 2, checkpoints)\nFront gate: Receive → Load Config → Validate → Normalize\nState: Load State → Merge State → Save State (Airtable conversations, keyed by sender_key)\nReply: Build Reply → Respond. Reject (400) / Error (503) branches visible.\nMOCK config; no LLM yet (CP3). Adapter boundary = Normalize (Zernio in Phase 4).",
-        "height": 260,
-        "width": 420
+        "content": "## Salon Booking Bot — core (Phase 2)\nCP0 Echo: Webhook → Normalize (adapter boundary; sender_key = \"{channel}:{id}\") → Build Reply → Respond.\nCP1 Front gate: Load Config (MOCK) → Validate Payload → Reject 400.\nCP2 State: Load / Merge / Save State (Airtable conversations, keyed by sender_key; turn_count).\nCP3 (in progress) Guards: Check Bot Guards (kill-switch + max-turns) run BEFORE the LLM → Handoff Reply.\nError branches visible (400 / 503). LLM intent lands next in CP3. Zernio swaps in at Normalize (Phase 4).",
+        "height": 280,
+        "width": 460
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [-224, -288],
@@ -69,7 +69,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12 },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -129,7 +129,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null\n};\n\nreturn [{ json: { ...norm, state } }];"
+        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null,\n  turn_count: found ? (f.turn_count ?? 0) : 0,      // guard: state.turn_count < max — okunmazsa undefined → her mesaj handoff\n  last_intent: found ? (f.last_intent ?? null) : null\n};\n\nreturn [{ json: { ...norm, state } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -147,16 +147,19 @@
           "value": {
             "sender_key": "={{ $json.sender_key }}",
             "stage": "={{ $json.state.stage }}",
+            "turn_count": "={{ $json.state.turn_count + 1 }}",
             "last_updated": "={{ $now.toUTC().toISO() }}"
           },
           "matchingColumns": ["sender_key"],
           "schema": [
-            { "id": "id", "displayName": "id", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": true, "removed": true },
+            { "id": "id", "displayName": "id", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": true, "removed": false },
             { "id": "sender_key", "displayName": "sender_key", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
             { "id": "stage", "displayName": "stage", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "options", "options": [ { "name": "new", "value": "new" }, { "name": "collecting", "value": "collecting" }, { "name": "ready", "value": "ready" }, { "name": "done", "value": "done" }, { "name": "handoff", "value": "handoff" } ], "readOnly": false, "removed": false },
-            { "id": "slot_service", "displayName": "slot_service", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "slot_date", "displayName": "slot_date", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "slot_time", "displayName": "slot_time", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "slot_service", "displayName": "slot_service", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
+            { "id": "slot_date", "displayName": "slot_date", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
+            { "id": "slot_time", "displayName": "slot_time", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
+            { "id": "last_intent", "displayName": "last_intent", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
+            { "id": "turn_count", "displayName": "turn_count", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "number", "readOnly": false, "removed": false },
             { "id": "last_updated", "displayName": "last_updated", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "dateTime", "readOnly": false, "removed": false }
           ],
           "attemptToConvertTypes": false,
@@ -166,7 +169,7 @@
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
-      "position": [1248, 0],
+      "position": [1456, 0],
       "id": "9bf0a485-8e8e-4ec5-89fd-f8d940053f51",
       "name": "Save State",
       "credentials": {
@@ -182,20 +185,63 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [1360, 240],
+      "position": [1568, 240],
       "id": "00c7bed5-8213-4505-8ec0-1249d8eeb19e",
       "name": "Send Error Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1376, 512],
+      "id": "7c75a2dc-bc89-43d3-96de-cc1fd6a9462f",
+      "name": "Handoff Reply"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+          "conditions": [
+            { "id": "d86d10a0-6e38-4e87-b7cd-c15b8a07097d", "leftValue": "={{ $('Load Config').first().json.config.bot.killSwitch !== true }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } },
+            { "id": "44b9fba4-1b56-4c2c-af3c-48c586b581f3", "leftValue": "={{ $json.state.turn_count }}", "rightValue": "={{ $('Load Config').first().json.config.bot.maxTurnsPerConversation }}", "operator": { "type": "number", "operation": "lt" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1248, 0],
+      "id": "a913f217-7a83-4278-a0a1-b282ed44b8ec",
+      "name": "Check Bot Guards"
+    },
+    {
+      "parameters": {
+        "content": "## Guards — before the LLM (0 cost)\n**Check Bot Guards** runs before any LLM call:\n- `killSwitch` ON **or** `turn_count ≥ maxTurns` → **Handoff Reply** (200) — no LLM, no Save State (a trip is not a turn).\n- else → **Save State** (`turn_count +1`) → normal flow.\nConfig comes from `Load Config` (`bot.killSwitch`, `bot.maxTurnsPerConversation`).\n\n⚠️ Conscious gap (not a bug): while `stage = handoff` the bot re-sends the handoff\ntemplate on every message. The silent-lock (**Check Handoff Lock**) lands in **CP6**.",
+        "height": 352,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [896, 288],
+      "typeVersion": 1,
+      "id": "541d4b36-9222-44bd-b74b-1f269675f746",
+      "name": "Sticky Note1"
     }
   ],
   "connections": {
     "Receive Inbound Message": { "main": [[{ "node": "Load Config", "type": "main", "index": 0 }]] },
+    "Normalize Inbound": { "main": [[{ "node": "Load State", "type": "main", "index": 0 }]] },
+    "Build Reply Payload": { "main": [[{ "node": "Send Reply To Origin", "type": "main", "index": 0 }]] },
     "Load Config": { "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]] },
     "Validate Payload": { "main": [[{ "node": "Normalize Inbound", "type": "main", "index": 0 }], [{ "node": "Send Reject Response", "type": "main", "index": 0 }]] },
-    "Normalize Inbound": { "main": [[{ "node": "Load State", "type": "main", "index": 0 }]] },
     "Load State": { "main": [[{ "node": "Merge State", "type": "main", "index": 0 }], [{ "node": "Send Error Response", "type": "main", "index": 0 }]] },
-    "Merge State": { "main": [[{ "node": "Save State", "type": "main", "index": 0 }]] },
+    "Merge State": { "main": [[{ "node": "Check Bot Guards", "type": "main", "index": 0 }]] },
     "Save State": { "main": [[{ "node": "Build Reply Payload", "type": "main", "index": 0 }], [{ "node": "Send Error Response", "type": "main", "index": 0 }]] },
-    "Build Reply Payload": { "main": [[{ "node": "Send Reply To Origin", "type": "main", "index": 0 }]] }
+    "Check Bot Guards": { "main": [[{ "node": "Save State", "type": "main", "index": 0 }], [{ "node": "Handoff Reply", "type": "main", "index": 0 }]] }
   },
   "settings": {
     "executionOrder": "v1"
