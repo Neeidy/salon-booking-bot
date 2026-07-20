@@ -27,3 +27,9 @@ NEXT: <the single next step>
 
 **Why:** this project's credibility is its honesty (see [honesty-demos.md](honesty-demos.md)). A uniform,
 evidence-gated verdict is how a reviewer trusts the report without re-deriving it.
+
+## Evidence before abandoning a planned approach
+If the plan specifies an approach (library, node type, API feature) and the build wants to drop it,
+the report MUST include the **evidence** that justified dropping it — the command run and its actual
+output, not a conclusion. "X doesn't work here" without a shown check is not acceptable: it turns an
+untested assumption into a permanent design decision.
