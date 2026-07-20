@@ -10,7 +10,9 @@
   "unsure" path over trusting a raw self-score.
 - **Handoff = notify the owner** (visible alert) with the conversation context, and tell the customer a human
   will follow up. Never leave the customer in silence.
-- Jailbreak attempts, invalid intent JSON, and any error branch also route here.
+- Jailbreak attempts and invalid intent JSON route here. **Error branches are NOT automatically a
+  conversational handoff** — see 'Infrastructure failure ≠ conversational handoff' below for the
+  three classes and which one applies.
 
 **Why:** a wrong booking erodes trust more than an honest "let me get a person" — the handoff is a feature.
 

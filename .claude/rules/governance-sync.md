@@ -21,3 +21,7 @@ and section anchors that belong to a DIFFERENT repository. The build stopped unt
 5. **Declare deviations.** If the build departs from an approved plan, say so explicitly and record a
    line in the decision log — silent deviation is forbidden even when the new behaviour turns out to
    be better.
+6. **An edit that invalidates existing text must CORRECT it, not sit beside it.** When a new rule or
+   section supersedes an existing line, fix that line and state what changed and why. "Keep existing
+   content" never means "leave a now-false line" — a silent contradiction inside one file is silent
+   drift just like a cross-surface one.
