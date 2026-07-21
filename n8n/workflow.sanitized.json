@@ -10,7 +10,10 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [0, 16],
+      "position": [
+        0,
+        16
+      ],
       "id": "7b480c08-8217-4101-bcac-2c8d717405fa",
       "name": "Receive Inbound Message"
     },
@@ -20,7 +23,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [624, 16],
+      "position": [
+        624,
+        16
+      ],
       "id": "42983891-f17c-454d-b82e-1949a3a45098",
       "name": "Normalize Inbound"
     },
@@ -28,18 +34,46 @@
       "parameters": {
         "assignments": {
           "assignments": [
-            { "id": "225f9630-f1de-454f-8e4c-d21efcae3374", "name": "reply", "value": "={{ $('Merge State').first().json.text }}", "type": "string" },
-            { "id": "a260193f-a86b-4575-b603-aa9c55452dee", "name": "channel", "value": "={{ $('Merge State').first().json.channel }}", "type": "string" },
-            { "id": "d68e5925-2e65-46e7-999f-82b32431b9f7", "name": "sender_key", "value": "={{ $('Merge State').first().json.sender_key }}", "type": "string" },
-            { "id": "5b40d530-3820-44f5-a883-3b3e0afb5924", "name": "found", "value": "={{ $('Merge State').first().json.state.found }}", "type": "string" },
-            { "id": "a304c0e5-94d5-4fc2-870e-7232428d7e0e", "name": "stage", "value": "={{ $('Merge State').first().json.state.stage }}", "type": "string" }
+            {
+              "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
+              "name": "reply",
+              "value": "={{ $('Merge State').first().json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "a260193f-a86b-4575-b603-aa9c55452dee",
+              "name": "channel",
+              "value": "={{ $('Merge State').first().json.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "d68e5925-2e65-46e7-999f-82b32431b9f7",
+              "name": "sender_key",
+              "value": "={{ $('Merge State').first().json.sender_key }}",
+              "type": "string"
+            },
+            {
+              "id": "5b40d530-3820-44f5-a883-3b3e0afb5924",
+              "name": "found",
+              "value": "={{ $('Merge State').first().json.state.found }}",
+              "type": "string"
+            },
+            {
+              "id": "a304c0e5-94d5-4fc2-870e-7232428d7e0e",
+              "name": "stage",
+              "value": "={{ $('Merge State').first().json.state.stage }}",
+              "type": "string"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [2112, 16],
+      "position": [
+        2112,
+        16
+      ],
       "id": "35e6555e-2e67-45ae-9f86-9f79891b4dc5",
       "name": "Build Reply Payload"
     },
@@ -51,7 +85,10 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [2320, 16],
+      "position": [
+        2320,
+        16
+      ],
       "id": "ed9845ad-c695-4184-a8bb-bb0e0b07830e",
       "name": "Send Reply To Origin"
     },
@@ -62,7 +99,10 @@
         "width": 480
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [-224, -288],
+      "position": [
+        -224,
+        -288
+      ],
       "typeVersion": 1,
       "id": "4fb200a1-16c1-4b93-b708-9990ba3cb402",
       "name": "Sticky Note"
@@ -73,18 +113,52 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [208, 16],
+      "position": [
+        208,
+        16
+      ],
       "id": "46d66427-01a4-44e8-b2cd-4b6a546f392b",
       "name": "Load Config"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
           "conditions": [
-            { "id": "77d1bb26-d784-4087-87f7-9dae02bac8cb", "leftValue": "={{ $json.config.channels?.[$json.body?.channel]?.enabled === true }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } },
-            { "id": "ed46aaf8-7200-4f83-873d-1e8ad928054e", "leftValue": "={{ ($json.body?.text ?? '').toString().trim() }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty", "singleValue": true } },
-            { "id": "477df25c-1b0e-454f-b395-72ab634e833e", "leftValue": "={{ ($json.body?.text ?? '').toString().length }}", "rightValue": 1000, "operator": { "type": "number", "operation": "lte" } }
+            {
+              "id": "77d1bb26-d784-4087-87f7-9dae02bac8cb",
+              "leftValue": "={{ $json.config.channels?.[$json.body?.channel]?.enabled === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "ed46aaf8-7200-4f83-873d-1e8ad928054e",
+              "leftValue": "={{ ($json.body?.text ?? '').toString().trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "477df25c-1b0e-454f-b395-72ab634e833e",
+              "leftValue": "={{ ($json.body?.text ?? '').toString().length }}",
+              "rightValue": 1000,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -92,7 +166,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [416, 16],
+      "position": [
+        416,
+        16
+      ],
       "id": "b2e90b17-6568-4603-ac64-2b7fed999270",
       "name": "Validate Payload"
     },
@@ -100,30 +177,53 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { \"ok\": false, \"error\": \"invalid_payload\", \"handoff\": true } }}",
-        "options": { "responseCode": 400 }
+        "options": {
+          "responseCode": 400
+        }
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [528, 288],
+      "position": [
+        528,
+        288
+      ],
       "id": "a648a8d6-3037-4b19-8b7d-f266fcde98d5",
       "name": "Send Reject Response"
     },
     {
       "parameters": {
         "operation": "search",
-        "base": { "__rl": true, "value": "appXXXXXXXXXXXXXX", "mode": "list", "cachedResultName": "Barber Bot", "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX" },
-        "table": { "__rl": true, "value": "tblXXXXXXXXXXXXXX", "mode": "list", "cachedResultName": "Conversations", "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX" },
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
         "filterByFormula": "={{ '{sender_key} = \"' + $json.sender_key + '\"' }}",
         "options": {}
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
-      "position": [800, 16],
+      "position": [
+        800,
+        16
+      ],
       "id": "e9f40f4c-c03b-40c0-b83b-c700b38fa502",
       "name": "Load State",
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": { "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID", "name": "Airtable Personal Access Token account" }
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
       },
       "onError": "continueErrorOutput"
     },
@@ -133,15 +233,30 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [976, 16],
+      "position": [
+        976,
+        16
+      ],
       "id": "fb423cf5-37db-4df1-8584-87e913ddce66",
       "name": "Merge State"
     },
     {
       "parameters": {
         "operation": "upsert",
-        "base": { "__rl": true, "value": "appXXXXXXXXXXXXXX", "mode": "list", "cachedResultName": "Barber Bot", "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX" },
-        "table": { "__rl": true, "value": "tblXXXXXXXXXXXXXX", "mode": "list", "cachedResultName": "Conversations", "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX" },
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -150,17 +265,130 @@
             "turn_count": "={{ $json.state.turn_count + 1 }}",
             "last_updated": "={{ $now.toUTC().toISO() }}"
           },
-          "matchingColumns": ["sender_key"],
+          "matchingColumns": [
+            "sender_key"
+          ],
           "schema": [
-            { "id": "id", "displayName": "id", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": true, "removed": false },
-            { "id": "sender_key", "displayName": "sender_key", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
-            { "id": "stage", "displayName": "stage", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "options", "options": [ { "name": "new", "value": "new" }, { "name": "collecting", "value": "collecting" }, { "name": "ready", "value": "ready" }, { "name": "done", "value": "done" }, { "name": "handoff", "value": "handoff" } ], "readOnly": false, "removed": false },
-            { "id": "slot_service", "displayName": "slot_service", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
-            { "id": "slot_date", "displayName": "slot_date", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
-            { "id": "slot_time", "displayName": "slot_time", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
-            { "id": "last_intent", "displayName": "last_intent", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "string", "readOnly": false, "removed": true },
-            { "id": "turn_count", "displayName": "turn_count", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "number", "readOnly": false, "removed": false },
-            { "id": "last_updated", "displayName": "last_updated", "required": false, "defaultMatch": false, "canBeUsedToMatch": true, "display": true, "type": "dateTime", "readOnly": false, "removed": false }
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "sender_key",
+              "displayName": "sender_key",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "new",
+                  "value": "new"
+                },
+                {
+                  "name": "collecting",
+                  "value": "collecting"
+                },
+                {
+                  "name": "ready",
+                  "value": "ready"
+                },
+                {
+                  "name": "done",
+                  "value": "done"
+                },
+                {
+                  "name": "handoff",
+                  "value": "handoff"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "slot_service",
+              "displayName": "slot_service",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "slot_date",
+              "displayName": "slot_date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "slot_time",
+              "displayName": "slot_time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "last_intent",
+              "displayName": "last_intent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "turn_count",
+              "displayName": "turn_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -169,11 +397,17 @@
       },
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
-      "position": [1920, 16],
+      "position": [
+        1920,
+        16
+      ],
       "id": "9bf0a485-8e8e-4ec5-89fd-f8d940053f51",
       "name": "Save State",
       "credentials": {
-        "airtableTokenApi": { "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID", "name": "Airtable Personal Access Token account" }
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
       },
       "onError": "continueErrorOutput"
     },
@@ -181,11 +415,16 @@
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ { \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true } }}",
-        "options": { "responseCode": 503 }
+        "options": {
+          "responseCode": 503
+        }
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [2032, 512],
+      "position": [
+        2032,
+        512
+      ],
       "id": "00c7bed5-8213-4505-8ec0-1249d8eeb19e",
       "name": "Send Error Response"
     },
@@ -197,17 +436,42 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [1664, 336],
+      "position": [
+        1280,
+        416
+      ],
       "id": "7c75a2dc-bc89-43d3-96de-cc1fd6a9462f",
       "name": "Handoff Reply"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
           "conditions": [
-            { "id": "d86d10a0-6e38-4e87-b7cd-c15b8a07097d", "leftValue": "={{ $('Load Config').first().json.config.bot.killSwitch !== true }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } },
-            { "id": "44b9fba4-1b56-4c2c-af3c-48c586b581f3", "leftValue": "={{ $json.state.turn_count }}", "rightValue": "={{ $('Load Config').first().json.config.bot.maxTurnsPerConversation }}", "operator": { "type": "number", "operation": "lt" } }
+            {
+              "id": "d86d10a0-6e38-4e87-b7cd-c15b8a07097d",
+              "leftValue": "={{ $('Load Config').first().json.config.bot.killSwitch !== true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "44b9fba4-1b56-4c2c-af3c-48c586b581f3",
+              "leftValue": "={{ $json.state.turn_count }}",
+              "rightValue": "={{ $('Load Config').first().json.config.bot.maxTurnsPerConversation }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
           ],
           "combinator": "and"
         },
@@ -215,7 +479,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [1168, 16],
+      "position": [
+        1168,
+        16
+      ],
       "id": "a913f217-7a83-4278-a0a1-b282ed44b8ec",
       "name": "Check Bot Guards"
     },
@@ -226,7 +493,10 @@
         "width": 464
       },
       "type": "n8n-nodes-base.stickyNote",
-      "position": [896, 288],
+      "position": [
+        768,
+        352
+      ],
       "typeVersion": 1,
       "id": "541d4b36-9222-44bd-b74b-1f269675f746",
       "name": "Sticky Note1"
@@ -237,7 +507,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1360, 16],
+      "position": [
+        1360,
+        16
+      ],
       "id": "01e1c333-bad5-4c68-b73c-837edfa9c40d",
       "name": "Build LLM Request"
     },
@@ -250,21 +523,32 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "anthropic-version", "value": "2023-06-01" }
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json.request }}",
-        "options": { "timeout": 60000 }
+        "options": {
+          "timeout": 60000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
-      "position": [1552, 16],
+      "position": [
+        1552,
+        16
+      ],
       "id": "5bf5fb1b-9ca5-4c2f-a44d-58daf50e6a6a",
       "name": "Extract Intent",
       "credentials": {
-        "anthropicApi": { "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL_ID", "name": "Anthropic account" }
+        "anthropicApi": {
+          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
       },
       "onError": "continueErrorOutput"
     },
@@ -274,24 +558,214 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1744, 16],
+      "position": [
+        1744,
+        16
+      ],
       "id": "9c33b73b-854c-4e11-8936-a6b115ce07fd",
       "name": "Parse Intent"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"llm_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1664,
+        -352
+      ],
+      "id": "33cc6543-6df8-47b7-98a4-e15757168db4",
+      "name": "LLM Unavailable Reply"
+    },
+    {
+      "parameters": {
+        "content": "Extract Intent — ERROR output = LLM INFRA FAILURE\n(timeout / 5xx / rate-limit / quota).\n→ \"LLM Unavailable Reply\": 503 + error:\"llm_unavailable\",\n   polite customer reply kept. DISTINCT from the\n   conversational handoff (200, \"Handoff Reply\").\nCP5: Telegram owner-alert attaches to this node.\n\n⚠ A 5xx tells the caller to RETRY. Before Phase 4\n(Zernio calls this webhook and may retry on a 503) the\nstatus-code policy is reviewed; Phase-3 idempotency\n(processed_messages) covers those repeats.\nNote: all Respond nodes are the Phase-2 transport layer;\nin Phase 4 the reply is sent via the Zernio send API and\nthis webhook response becomes an ACK (adapter boundary, node 28).",
+        "height": 368,
+        "width": 480
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1152,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "ea0e091d-8183-4e69-a9b8-82b729f83913",
+      "name": "Sticky Note2"
     }
   ],
   "connections": {
-    "Receive Inbound Message": { "main": [[{ "node": "Load Config", "type": "main", "index": 0 }]] },
-    "Normalize Inbound": { "main": [[{ "node": "Load State", "type": "main", "index": 0 }]] },
-    "Build Reply Payload": { "main": [[{ "node": "Send Reply To Origin", "type": "main", "index": 0 }]] },
-    "Load Config": { "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]] },
-    "Validate Payload": { "main": [[{ "node": "Normalize Inbound", "type": "main", "index": 0 }], [{ "node": "Send Reject Response", "type": "main", "index": 0 }]] },
-    "Load State": { "main": [[{ "node": "Merge State", "type": "main", "index": 0 }], [{ "node": "Send Error Response", "type": "main", "index": 0 }]] },
-    "Merge State": { "main": [[{ "node": "Check Bot Guards", "type": "main", "index": 0 }]] },
-    "Save State": { "main": [[{ "node": "Build Reply Payload", "type": "main", "index": 0 }], [{ "node": "Send Error Response", "type": "main", "index": 0 }]] },
-    "Check Bot Guards": { "main": [[{ "node": "Build LLM Request", "type": "main", "index": 0 }], [{ "node": "Handoff Reply", "type": "main", "index": 0 }]] },
-    "Build LLM Request": { "main": [[{ "node": "Extract Intent", "type": "main", "index": 0 }]] },
-    "Extract Intent": { "main": [[{ "node": "Parse Intent", "type": "main", "index": 0 }], [{ "node": "Handoff Reply", "type": "main", "index": 0 }]] },
-    "Parse Intent": { "main": [[{ "node": "Save State", "type": "main", "index": 0 }]] }
+    "Receive Inbound Message": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Inbound": {
+      "main": [
+        [
+          {
+            "node": "Load State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reply Payload": {
+      "main": [
+        [
+          {
+            "node": "Send Reply To Origin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Reject Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load State": {
+      "main": [
+        [
+          {
+            "node": "Merge State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge State": {
+      "main": [
+        [
+          {
+            "node": "Check Bot Guards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save State": {
+      "main": [
+        [
+          {
+            "node": "Build Reply Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Bot Guards": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Request": {
+      "main": [
+        [
+          {
+            "node": "Extract Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Intent": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Unavailable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "settings": {
     "executionOrder": "v1"
