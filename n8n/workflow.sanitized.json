@@ -37,7 +37,7 @@
             {
               "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
               "name": "reply",
-              "value": "={{ $('Merge State').first().json.text }}",
+              "value": "={{ $json.fields.stage === 'handoff' ? $('Load Config').first().json.config.messageTemplates.handoff : ('[demo] classified as ' + $('Validate Intent').first().json.intent) }}",
               "type": "string"
             },
             {
@@ -61,7 +61,7 @@
             {
               "id": "a304c0e5-94d5-4fc2-870e-7232428d7e0e",
               "name": "stage",
-              "value": "={{ $('Merge State').first().json.state.stage }}",
+              "value": "={{ $json.fields.stage }}",
               "type": "string"
             }
           ]
@@ -71,7 +71,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2112,
+        2400,
         16
       ],
       "id": "35e6555e-2e67-45ae-9f86-9f79891b4dc5",
@@ -86,7 +86,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2320,
+        2576,
         16
       ],
       "id": "ed9845ad-c695-4184-a8bb-bb0e0b07830e",
@@ -94,14 +94,14 @@
     },
     {
       "parameters": {
-        "content": "## Salon Booking Bot — core (Phase 2)\nCP0 Echo: Webhook → Normalize (adapter boundary; sender_key = \"{channel}:{id}\") → Build Reply → Respond.\nCP1 Front gate: Load Config (MOCK) → Validate Payload → Reject 400.\nCP2 State: Load / Merge / Save State (Airtable conversations, keyed by sender_key; turn_count).\nCP3 Guards: Check Bot Guards (kill-switch + max-turns) run BEFORE the LLM → Handoff Reply.\nCP3 LLM intent: Build LLM Request ({today} + derived schema) → Extract Intent (HTTP → Anthropic, structured output) → Parse Intent (temp; Validate Intent + gate land in 3c).\nError branches visible (400 / 503). Zernio swaps in at Normalize (Phase 4).",
-        "height": 320,
-        "width": 480
+        "content": "## Salon Booking Bot — core (Phase 2)\nCP0 Echo: Webhook → Normalize (adapter boundary; sender_key = \"{channel}:{id}\") → Build Reply → Respond.\nCP1 Front gate: Load Config (MOCK) → Validate Payload → Reject 400.\nCP2 State: Load / Merge / Save State (Airtable conversations, keyed by sender_key; turn_count).\nCP3 Guards: Check Bot Guards (kill-switch + max-turns) run BEFORE the LLM → Handoff Reply (transient).\nCP3 LLM intent: Build LLM Request ({today} + derived schema) → Extract Intent (HTTP → Anthropic; error → LLM Unavailable Reply 503) → Validate Intent (ajv-standalone from committed schema) → Confidence & Intent Gate → Mark Handoff (stage=handoff) / Save State.\nThree handoff classes stay distinct: guard-trip (200, transient) · infra-unavailable (503) · intent-handoff (200, writes stage=handoff).\nError branches visible (400 / 503). Zernio swaps in at Normalize (Phase 4).\n",
+        "height": 464,
+        "width": 608
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -224,
-        -288
+        -320,
+        -464
       ],
       "typeVersion": 1,
       "id": "4fb200a1-16c1-4b93-b708-9990ba3cb402",
@@ -263,7 +263,8 @@
             "sender_key": "={{ $json.sender_key }}",
             "stage": "={{ $json.state.stage }}",
             "turn_count": "={{ $json.state.turn_count + 1 }}",
-            "last_updated": "={{ $now.toUTC().toISO() }}"
+            "last_updated": "={{ $now.toUTC().toISO() }}",
+            "last_intent": "={{ $json.state.last_intent }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -365,7 +366,7 @@
               "display": true,
               "type": "string",
               "readOnly": false,
-              "removed": true
+              "removed": false
             },
             {
               "id": "turn_count",
@@ -398,7 +399,7 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        1920,
+        2208,
         16
       ],
       "id": "9bf0a485-8e8e-4ec5-89fd-f8d940053f51",
@@ -596,6 +597,53 @@
       "typeVersion": 1,
       "id": "ea0e091d-8183-4e69-a9b8-82b729f83913",
       "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\nreturn [{ json: { ...j, state: { ...j.state, stage: 'handoff' } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        -64
+      ],
+      "id": "71a94cdb-797e-41ed-98f9-557fc4462dcf",
+      "name": "Mark Handoff"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3769e253-890d-4d85-9a3a-b818c41f0720",
+              "leftValue": "={{ $json.valid !== true || $json.confidence < $('Load Config').first().json.config.bot.confidenceThreshold || ['handoff','unknown','cancel','reschedule'].includes($json.intent) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1920,
+        16
+      ],
+      "id": "98998bee-198b-45c8-a086-49553701336b",
+      "name": "Confidence & Intent Gate"
     }
   ],
   "connections": {
@@ -756,6 +804,35 @@
       ]
     },
     "Validate Intent": {
+      "main": [
+        [
+          {
+            "node": "Confidence & Intent Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence & Intent Gate": {
+      "main": [
+        [
+          {
+            "node": "Mark Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Handoff": {
       "main": [
         [
           {
