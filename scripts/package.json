@@ -1,0 +1,12 @@
+{
+  "name": "salon-booking-bot-scripts",
+  "private": true,
+  "description": "Build-time tooling (NOT runtime): compile the ajv-standalone intent validator from the committed schema, and drift-check it against the committed workflow.",
+  "scripts": {
+    "compile-validator": "node compile-intent-validator.cjs",
+    "check-validator": "node compile-intent-validator.cjs --check"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
+  }
+}
