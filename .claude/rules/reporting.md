@@ -28,6 +28,16 @@ NEXT: <the single next step>
 **Why:** this project's credibility is its honesty (see [honesty-demos.md](honesty-demos.md)). A uniform,
 evidence-gated verdict is how a reviewer trusts the report without re-deriving it.
 
+## Live-state sync is part of closing a phase (no drift)
+When a checkpoint/phase closes, update BOTH live-state surfaces **in the same closing step** as the
+commit — never as a later task:
+1. **`docs/ROADMAP.md`** — flip the checkbox + record the commit hash (it is the single live phase source).
+2. **The resume-point note** (the project's progress memory) — new state + the single next step.
+
+If either surface still describes the *previous* state after the VERDICT block, the phase is **not done**.
+A live-state surface that lags the commit is silent drift — the same failure `governance-sync.md` forbids
+across surfaces, here across time. (Trigger: memory lagged a full checkpoint behind at CP4, 2026-07-26.)
+
 ## Evidence before abandoning a planned approach
 If the plan specifies an approach (library, node type, API feature) and the build wants to drop it,
 the report MUST include the **evidence** that justified dropping it — the command run and its actual
