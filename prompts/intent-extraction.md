@@ -98,3 +98,9 @@ Each shows a customer message → the exact JSON to return. (Relative dates assu
 - Config values ({...}) are injected from `client.config.json` at runtime; `{today}`/`{timezone}` are filled
   by CP3's request-builder so relative dates resolve to the shop's local day.
 - This canonical prompt stays in sync with `../schemas/intent.schema.json` (7-intent enum + `faqTopic`).
+- **CP4 stage-aware injection (rule-level):** when the conversation `stage` is `collecting`, the request-builder
+  appends a *booking-in-progress* context — the slots collected so far + "the customer's message most likely
+  supplies the missing detail(s); extract service/date/time/name and keep intent `book` unless they clearly
+  switch topic (a question, cancel, etc.)". This lets a bare follow-up like "tomorrow 3pm" be read as booking
+  slots across turns. It changes NOTHING about the allowed intents or the schema; when `stage != collecting`
+  the prompt is byte-identical to the above.
