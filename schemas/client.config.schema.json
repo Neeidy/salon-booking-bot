@@ -70,6 +70,16 @@
       "type": "object",
       "description": "Named reply templates; may contain {service},{date},{time} placeholders.",
       "additionalProperties": { "type": "string" }
+    },
+    "faq": {
+      "type": "object",
+      "description": "Free-text answers for FAQ topics NOT derivable from structured config (price/hours/services are computed from services[]/workingHours). A topic without an entry here → deterministic deflect via messageTemplates.faqUnknown (never an LLM guess).",
+      "additionalProperties": false,
+      "properties": {
+        "address": { "type": "string" },
+        "parking": { "type": "string" },
+        "walkin": { "type": "string" }
+      }
     }
   },
   "definitions": {

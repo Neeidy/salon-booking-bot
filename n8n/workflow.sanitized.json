@@ -37,7 +37,7 @@
             {
               "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
               "name": "reply",
-              "value": "={{ (() => {\n  const t = $('Load Config').first().json.config.messageTemplates;\n  const f = $json.fields;\n  if (f.stage === 'handoff')    return t.handoff;\n  if (f.stage === 'ready')      return 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting') return f.slot_service ? t.askDateTime : t.askService;\n  return '[demo] classified as ' + $('Validate Intent').first().json.intent;\n})() }}",
+              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  // FAQ: cevap dal-node'unda önceden hesaplandı → guard İÇİNDE oku (dal-dışı turda $('Answer FAQ') hiç değerlendirilmez → throw yok)\n  if (intent === 'answer_faq')  return $('Answer FAQ').first().json.computed_reply;\n  const f = $json.fields;\n  if (f.stage === 'handoff')    return t.handoff;\n  if (f.stage === 'ready')      return 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting') return f.slot_service ? t.askDateTime : t.askService;\n  return '[demo] classified as ' + intent;\n})() }}",
               "type": "string"
             },
             {
@@ -71,7 +71,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2980,
+        2992,
         16
       ],
       "id": "35e6555e-2e67-45ae-9f86-9f79891b4dc5",
@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -608,8 +608,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2140,
-        -128
+        2304,
+        -160
       ],
       "id": "71a94cdb-797e-41ed-98f9-557fc4462dcf",
       "name": "Mark Handoff"
@@ -673,6 +673,29 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8f08f32c-13e3-480c-9b12-09da0d2db54e",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "answer_faq",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -683,8 +706,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        2140,
-        176
+        2112,
+        96
       ],
       "id": "aea6bce4-1696-4e7d-8d63-b1dffee59595",
       "name": "Route Intent"
@@ -729,6 +752,19 @@
       ],
       "id": "c4e2880d-4e67-43cb-b67f-4a2206952c9e",
       "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Answer FAQ — deterministik (LLM DEĞİL): faqTopic'e göre config'den cevap üret.\n// computed_reply'ı SADECE item'a koyar; state'e/Airtable'a YAZMAZ (tek-turluk geçici çıktı).\nconst cfg = $('Load Config').first().json.config;\nconst slots = $json.slots || {};\nconst topic = slots.faqTopic;             // price|hours|services|address|parking|walkin|other|null\nconst serviceId = slots.serviceId;\n\nconst svc = cfg.services || [];\nconst money = (s) => s.priceEUR != null ? `€${s.priceEUR}` : 'price on request';\n\nlet answer;\nswitch (topic) {\n  case 'price': {\n    const one = serviceId ? svc.find(s => s.id === serviceId) : null;\n    answer = one\n      ? `${one.name} is ${money(one)}.`\n      : 'Our prices: ' + svc.map(s => `${s.name} ${money(s)}`).join(', ') + '.';\n    break;\n  }\n  case 'services':\n    answer = 'We offer: ' + svc.map(s => `${s.name} (${s.durationMin} min)`).join(', ') + '.';\n    break;\n  case 'hours': {\n    const days = ['mon','tue','wed','thu','fri','sat','sun'];\n    const label = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri', sat:'Sat', sun:'Sun' };\n    const wh = cfg.workingHours || {};\n    answer = 'Opening hours — ' + days\n      .map(d => `${label[d]}: ${(wh[d] && wh[d].length) ? wh[d].join(', ') : 'closed'}`)\n      .join(' · ') + '.';\n    break;\n  }\n  case 'address':\n  case 'parking':\n  case 'walkin':\n    answer = (cfg.faq && cfg.faq[topic]) || cfg.messageTemplates.faqUnknown;\n    break;\n  default:  // 'other', null veya beklenmedik → dürüst deflect, ASLA tahmin\n    answer = cfg.messageTemplates.faqUnknown;\n}\n\nreturn [{ json: { ...$json, computed_reply: answer } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        -208
+      ],
+      "id": "24340e05-8496-4515-b949-7bedb90e4dfd",
+      "name": "Answer FAQ"
     }
   ],
   "connections": {
@@ -939,7 +975,14 @@
         ],
         [
           {
-            "node": "Save State",
+            "node": "Answer FAQ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Handoff",
             "type": "main",
             "index": 0
           }
@@ -958,6 +1001,17 @@
       ]
     },
     "Slot Gate": {
+      "main": [
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer FAQ": {
       "main": [
         [
           {

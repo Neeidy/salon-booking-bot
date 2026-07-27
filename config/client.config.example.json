@@ -41,6 +41,13 @@
     "askDateTime": "What day and time works for you?",
     "bookingConfirmed": "You're booked: {service}, {date} {time}. See you then!",
     "handoff": "I'm passing you to a team member — we'll get back to you shortly.",
-    "outsideHours": "We're outside working hours right now. We've got your request and will reply soon."
+    "outsideHours": "We're outside working hours right now. We've got your request and will reply soon.",
+    "leadCaptured": "Thanks! We've got your details and someone from the team will reach out soon.",
+    "faqUnknown": "Good question — let me check with the team and get back to you on that."
+  },
+  "faq": {
+    "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
+    "parking": "Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.",
+    "walkin": "Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot."
   }
 }
