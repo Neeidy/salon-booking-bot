@@ -37,7 +37,7 @@
             {
               "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
               "name": "reply",
-              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  // FAQ: cevap dal-node'unda önceden hesaplandı → guard İÇİNDE oku (dal-dışı turda $('Answer FAQ') hiç değerlendirilmez → throw yok)\n  if (intent === 'answer_faq')  return $('Answer FAQ').first().json.computed_reply;\n  const f = $json.fields;\n  if (f.stage === 'handoff')    return t.handoff;\n  if (f.stage === 'ready')      return 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting') return f.slot_service ? t.askDateTime : t.askService;\n  return '[demo] classified as ' + intent;\n})() }}",
+              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  if (intent === 'answer_faq')    return $('Answer FAQ').first().json.computed_reply;\n  if (intent === 'capture_lead')  return $('Build Lead State').first().json.computed_reply;\n  const f = $json.fields;\n  if (f.stage === 'handoff')      return t.handoff;\n  if (f.stage === 'ready')        return 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting')   return f.slot_service ? t.askDateTime : t.askService;\n  return '[demo] classified as ' + intent;\n})() }}",
               "type": "string"
             },
             {
@@ -696,6 +696,29 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "80abe337-e96e-4e83-b212-7bf57f98a2cf",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "capture_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -765,6 +788,200 @@
       ],
       "id": "24340e05-8496-4515-b949-7bedb90e4dfd",
       "name": "Answer FAQ"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblYYYYYYYYYYYYYY",
+          "mode": "list",
+          "cachedResultName": "leads",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblYYYYYYYYYYYYYY"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ ($json.slots || {}).customerName || '' }}",
+            "phone": "={{ $json.channel === 'whatsapp' ? ($json.sender_key || '').split(':').slice(1).join(':') : '' }}",
+            "source": "={{ $json.channel }}",
+            "message": "={{ $json.text }}",
+            "status": "new",
+            "created_at": "={{ $now.toUTC().toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "whatsapp",
+                  "value": "whatsapp"
+                },
+                {
+                  "name": "widget",
+                  "value": "widget"
+                },
+                {
+                  "name": "instagram",
+                  "value": "instagram"
+                },
+                {
+                  "name": "",
+                  "value": ""
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "new",
+                  "value": "new"
+                },
+                {
+                  "name": "contacted",
+                  "value": "contacted"
+                },
+                {
+                  "name": "converted",
+                  "value": "converted"
+                },
+                {
+                  "name": "",
+                  "value": ""
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        2192,
+        -304
+      ],
+      "id": "7005062a-1934-45e7-b5ce-504e643fb7cc",
+      "name": "Capture Lead",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Lead State — Airtable create SONRASI: state'i (Validate Intent'ten) yeniden bağla + computed_reply=leadCaptured.\n// computed_reply Airtable'a YAZILMAZ; item'da taşınır, Build Reply guard'lı referansla okur.\nconst vi  = $('Validate Intent').first().json;   // channel, sender_key, intent='capture_lead', state{stage,slots,turn_count,last_intent}\nconst cfg = $('Load Config').first().json.config;\nreturn [{ json: {\n  channel: vi.channel,\n  sender_key: vi.sender_key,\n  intent: vi.intent,                 // 'capture_lead' → Build Reply guard'ı için\n  state: vi.state,                   // stage/slots/turn_count/last_intent='capture_lead' → Save State bunu yazar\n  computed_reply: cfg.messageTemplates.leadCaptured\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2576,
+        -432
+      ],
+      "id": "5c164916-cf6d-44c4-83ae-716949d5c7bf",
+      "name": "Build Lead State"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"lead_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2448,
+        -540
+      ],
+      "id": "2496b099-aa44-4dae-8ba0-33956c68c0b4",
+      "name": "Lead Unavailable Reply"
     }
   ],
   "connections": {
@@ -982,6 +1199,13 @@
         ],
         [
           {
+            "node": "Capture Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Mark Handoff",
             "type": "main",
             "index": 0
@@ -1012,6 +1236,35 @@
       ]
     },
     "Answer FAQ": {
+      "main": [
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Lead": {
+      "main": [
+        [
+          {
+            "node": "Build Lead State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lead Unavailable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Lead State": {
       "main": [
         [
           {
