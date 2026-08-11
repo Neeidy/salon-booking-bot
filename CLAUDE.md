@@ -39,5 +39,8 @@ built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)**
 ## Rules & commands
 Modular rules in [.claude/rules/](.claude/rules/); slash commands in [.claude/commands/](.claude/commands/).
 Start any phase with `/plan-flow`; before any commit run `/sanitize` and the `security-auditor` agent.
+**Commit/PR authorship — Yigitcan ONLY:** no Claude / Anthropic signature in any commit or PR — no
+`Co-Authored-By: Claude…` trailer, no "Generated with Claude Code", no Claude as a contributor
+(see [.claude/rules/git-github.md](.claude/rules/git-github.md)).
 **Every step/phase report ends with the mandatory VERDICT block** ([.claude/rules/reporting.md](.claude/rules/reporting.md)):
 "ready for review" = pushed; no unproven number in the main text (evidence-gated).

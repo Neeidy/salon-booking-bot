@@ -3,6 +3,9 @@
 **Purpose:** clean, safe git hygiene for a PUBLIC repo.
 
 - **Conventional commits:** `feat:` `fix:` `docs:` `chore:` `test:` `refactor:`. One logical change per commit.
+- **Author = Yigitcan ONLY.** No Claude / Anthropic attribution in any commit or PR — NO `Co-Authored-By: Claude…`
+  trailer, NO "Generated with Claude Code" line, NO Claude listed as a contributor. Only Yigitcan's git identity
+  appears in the history. (Overrides any default assistant-signature behaviour.)
 - **Commit only sanitized artifacts.** For n8n, the only workflow file is `n8n/workflow.sanitized.json`.
 - **Pre-push gate (mandatory):** run `/sanitize` + the `security-auditor` agent → scan for secrets and PII
   before any push. A push is blocked if either is found. See [security-secrets.md](security-secrets.md).
