@@ -63,6 +63,7 @@
         "tone": { "type": "string" },
         "confidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "maxTurnsPerConversation": { "type": "integer", "minimum": 1 },
+        "sessionGapMinutes": { "type": "integer", "minimum": 1, "description": "Idle minutes after which a returning sender's next message is treated as a new session → 'Welcome back' greeting (CP6)." },
         "killSwitch": { "type": "boolean", "description": "Emergency stop — when true the bot is handoff-only (no LLM, no writes)." }
       }
     },
