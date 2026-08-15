@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const b = $json.body ?? $json;\nconst channel = b.channel;\nconst senderId = channel === 'widget' ? b.sessionId : b.from;   // whatsapp → from\nif (!channel || !senderId) throw new Error('normalize: missing channel/senderId'); // fail-loud\nreturn [{ json: { channel, senderId, sender_key: `${channel}:${senderId}`, text: b.text } }];"
+        "jsCode": "const b = $json.body ?? $json;\nconst channel = b.channel;\nconst senderId = channel === 'widget' ? b.sessionId : b.from;   // whatsapp → from\nif (!channel || !senderId) throw new Error('normalize: missing channel/senderId'); // fail-loud\nconst message_id = b.messageId || b.message_id || null;\nreturn [{ json: { channel, senderId, sender_key: `${channel}:${senderId}`, text: b.text, message_id } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -157,6 +157,16 @@
               "operator": {
                 "type": "number",
                 "operation": "lte"
+              }
+            },
+            {
+              "id": "a1b2c3d4-e5f6-4788-9aaa-msgidrequired1",
+              "leftValue": "={{ ($json.body?.messageId ?? '').toString().trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
@@ -1282,7 +1292,7 @@
             "service": "={{ $('Build Event Request').first().json.booking.serviceName }}",
             "start_utc": "={{ $('Build Event Request').first().json.booking.startUTC }}",
             "end_utc": "={{ $('Build Event Request').first().json.booking.endUTC }}",
-            "gcal_event_id": "={{ $json.id }}",
+            "gcal_event_id": "={{ $json.gcal_event_id }}",
             "channel": "={{ $('Build Event Request').first().json.channel }}",
             "customer_name": "={{ $('Build Event Request').first().json.booking.customerName || '' }}",
             "status": "booked",
@@ -1427,7 +1437,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Booked State — GCal write OK (event id) -> booked + confirmation. gcal_event_id carried (mirror + cancel).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, gcal_event_id: eventId, computed_reply: reply } }];"
+        "jsCode": "// Build Booked State — GCal write OK (event id) -> booked + confirmation. gcal_event_id carried (mirror + cancel).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1465,7 +1475,7 @@
             },
             {
               "name": "maxResults",
-              "value": "25"
+              "value": "250"
             }
           ]
         },
@@ -1491,7 +1501,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Book Appointment').first().json.id;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = ev.start && (ev.start.dateTime || ev.start.date);\n  const e = ev.end && (ev.end.dateTime || ev.end.date);\n  if (!s || !e) return false;\n  return new Date(s).getTime() < ourEnd && new Date(e).getTime() > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
+        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Book Appointment').first().json.id;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #4: events.list is paginated (maxResults). A 30-min window over one chair cannot exceed it, but if a\n// nextPageToken ever comes back we cannot be sure there is no conflict → fail safe (yield + handoff), never\n// enter the happy path on an incomplete read.\nif ($json.nextPageToken) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1562,7 +1572,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Race-Lost State — lost the race AND successfully deleted OUR event (clean withdrawal).\n// Slot yielded to the other booking; customer handed to a human. No orphan (our event is gone).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, race_lost: true, gcal_event_id: null, computed_reply: reply } }];"
+        "jsCode": "// Build Race-Lost State — lost the race AND successfully deleted OUR event (clean withdrawal).\n// Slot yielded to the other booking; customer handed to a human. No orphan (our event is gone).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, race_lost: true, gcal_event_id: null, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1575,7 +1585,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply } }];"
+        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1588,7 +1598,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Verify-Unavailable State — the post-write verify READ failed (calendar unreachable).\n// The event IS written. We do NOT delete on a read-failure (could cancel a legit sole booking) and we do\n// NOT return 503 (a provider retry would double-book). Keep the event, hand off, flag distinctly for the owner.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.bookingNeedsConfirm) || \"Thanks! We're confirming your booking now — a team member will follow up shortly.\";\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, verify_unavailable: true, gcal_event_id: ourId, computed_reply: reply } }];"
+        "jsCode": "// Build Verify-Unavailable State — the post-write verify READ failed (calendar unreachable).\n// The event IS written. We do NOT delete on a read-failure (could cancel a legit sole booking) and we do\n// NOT return 503 (a provider retry would double-book). Keep the event, hand off, flag distinctly for the owner.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.bookingNeedsConfirm) || \"Thanks! We're confirming your booking now — a team member will follow up shortly.\";\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, verify_unavailable: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1616,7 +1626,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Mirror-Failed State — GCal event is written (authoritative) but the Airtable appointments MIRROR failed.\n// The booking IS real, so we still confirm to the customer; but flag mirror_failed + keep gcal_event_id so the\n// owner (Phase-5 alert) can repair the missing mirror row. Fail-loud on the mirror, never silent.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, mirror_failed: true, gcal_event_id: eventId, computed_reply: reply } }];"
+        "jsCode": "// Build Mirror-Failed State — GCal event is written (authoritative) but the Airtable appointments MIRROR failed.\n// The booking IS real, so we still confirm to the customer; but flag mirror_failed + keep gcal_event_id so the\n// owner (Phase-5 alert) can repair the missing mirror row. Fail-loud on the mirror, never silent.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, mirror_failed: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1626,6 +1636,256 @@
       ],
       "id": "e12bd3d1-e36a-4aeb-8e6a-6b4576b85e63",
       "name": "Build Mirror-Failed State"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblWWWWWWWWWWWWWW",
+          "mode": "list",
+          "cachedResultName": "processed_messages",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblWWWWWWWWWWWWWW"
+        },
+        "filterByFormula": "={{ '{message_id} = \"' + $json.message_id + '\"' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        180
+      ],
+      "id": "ac46977e-4de6-49b0-9fd5-51312261202a",
+      "name": "Check Processed",
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedupe Gate — Airtable search REPLACES the item, so re-attach the normalized payload from Normalize Inbound.\n// Empty search (alwaysOutputData) yields no record id → not a duplicate; a returned record id → already processed.\nconst norm = $('Normalize Inbound').first().json;\nconst hit = !!($json && $json.id);\nreturn [{ json: { ...norm, _duplicate: hit } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        180
+      ],
+      "id": "ed7aeb22-088f-4c57-b675-a9f7b686686e",
+      "name": "Dedupe Gate"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._duplicate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        180
+      ],
+      "id": "952911a1-ba39-4d11-870b-4fa95d9e61d8",
+      "name": "Is Duplicate"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'duplicate_ignored', sender_key: $json.sender_key }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        40
+      ],
+      "id": "7419186c-0128-4396-b42f-c1954cfc815e",
+      "name": "Idempotent Replay"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblWWWWWWWWWWWWWW",
+          "mode": "list",
+          "cachedResultName": "processed_messages",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblWWWWWWWWWWWWWW"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message_id": "={{ $('Normalize Inbound').first().json.message_id }}",
+            "sender_key": "={{ $('Normalize Inbound').first().json.sender_key }}",
+            "channel": "={{ $('Normalize Inbound').first().json.channel }}",
+            "created_at": "={{ $now.toUTC().toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "message_id",
+              "displayName": "message_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sender_key",
+              "displayName": "sender_key",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        4640,
+        480
+      ],
+      "id": "e07eb342-8ff3-460e-890a-8ede5d0e12e2",
+      "name": "Record Processed",
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "width": 520,
+        "height": 200,
+        "content": "## CP2c-i — Idempotency front-gate (message-ID dedupe)\nNormalize (+`message_id`, REQUIRED in Validate Payload → 400 if missing) → **Check Processed** (search `processed_messages`) → **Dedupe Gate** (re-attach payload + `_duplicate`) → **Is Duplicate**.\n- duplicate → **Idempotent Replay** (200 `duplicate_ignored`, no LLM / no write)\n- new → Load State (normal flow)\n\n**Record Processed** writes the id AFTER `Save State` success (parallel terminal branch) → a transient-failure retry is NOT blocked (only successfully-processed messages are recorded). Check Processed down → **503 state_unavailable** (never assume 'not duplicate'). Booking-layer insert-idempotency = CP2c-ii."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -60
+      ],
+      "id": "b26f6598-5ecf-40c1-a7c5-100dff6aa81c",
+      "name": "Sticky Note CP2c-i"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._post_write }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4640,
+        1360
+      ],
+      "id": "c1a55f1e-d1d2-4e3f-8a1b-0c2d3e4f5a6b",
+      "name": "Classify State-Write Failure"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ reply: $json.computed_reply, state_unsaved: true }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4880,
+        1280
+      ],
+      "id": "b00c1e00-a1b2-4c3d-8e4f-5a6b7c8d9e0f",
+      "name": "Booking State-Unsaved Reply"
     }
   ],
   "connections": {
@@ -1644,7 +1904,7 @@
       "main": [
         [
           {
-            "node": "Load State",
+            "node": "Check Processed",
             "type": "main",
             "index": 0
           }
@@ -1727,11 +1987,16 @@
             "node": "Build Reply Payload",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Record Processed",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
-            "node": "Send Error Response",
+            "node": "Classify State-Write Failure",
             "type": "main",
             "index": 0
           }
@@ -2170,6 +2435,71 @@
         [
           {
             "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Processed": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe Gate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Idempotent Replay",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify State-Write Failure": {
+      "main": [
+        [
+          {
+            "node": "Booking State-Unsaved Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Response",
             "type": "main",
             "index": 0
           }
