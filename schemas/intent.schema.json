@@ -10,7 +10,7 @@
     "intent": {
       "type": "string",
       "description": "Allow-list only — no other action exists.",
-      "enum": ["book", "cancel", "reschedule", "capture_lead", "answer_faq", "handoff", "unknown"]
+      "enum": ["book", "confirm", "cancel", "reschedule", "capture_lead", "answer_faq", "handoff", "unknown"]
     },
     "confidence": {
       "type": "number",
