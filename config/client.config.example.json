@@ -46,7 +46,9 @@
     "handoffLocked": "A team member is already helping you here — they'll reply shortly.",
     "outsideHours": "We're outside working hours right now. We've got your request and will reply soon.",
     "leadCaptured": "Thanks! We've got your details and someone from the team will reach out soon.",
-    "faqUnknown": "Good question — let me check with the team and get back to you on that."
+    "faqUnknown": "Good question — let me check with the team and get back to you on that.",
+    "slotJustTaken": "Sorry — that time was just taken. A team member will help you find another slot.",
+    "bookingNeedsConfirm": "Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it."
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
