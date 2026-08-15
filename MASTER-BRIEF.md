@@ -242,8 +242,12 @@ Verified at build time (Phase 0/4), **not** in the architecture phase:
   WhatsApp channel = generic Webhook + HTTP Request against REST (`n8n-nodes-zernio` not used → provider-agnostic).
   **Fallback if a client can't use it:** WhatsApp Cloud API (Meta) / 360dialog / Twilio — same 2 nodes, URL/mapping swap.
   *(Still open: does Zernio support Instagram DM? — confirm per-client at build.)*
-- **Google Calendar OAuth (per client)** — OAuth consent + Google "unverified app" warning, sensitive-scope
-  (calendar) verification, test-mode 100-user cap; or a service-account + calendar-share alternative.
-  Confirm the per-client auth path before Phase 3/4.
+- **Google Calendar** — **✅ RESOLVED 2026-08-15 — service account + calendar-share** (NOT per-client OAuth).
+  The client shares their calendar with the service-account email ("Make changes to events") → no consent
+  screen, no "unverified app" warning, no sensitive-scope verification, no 100-user cap (kills per-client
+  onboarding friction; fits Model 1). n8n path = **HTTP Request node + "Google Service Account" (`googleApi`)
+  credential** — the built-in Google Calendar node is OAuth2-only. `freeBusy` proven live on this instance
+  (200, exec 62, 2026-08-15). **Gotcha:** no `attendees` in `events.insert` (service account can't invite
+  without domain-wide delegation) — customer notice goes via the channel, not a Calendar invite. See ARCH-DEC §5.
 - **Airtable limits** — free base ≈ 1,000 records/base, API ≈ 5 req/s/base, automation/attachment caps.
   If bookings grow this becomes a ceiling → confirm the plan/tier at build.

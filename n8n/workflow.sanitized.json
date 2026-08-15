@@ -37,7 +37,7 @@
             {
               "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
               "name": "reply",
-              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  if (intent === 'answer_faq')    return $('Answer FAQ').first().json.computed_reply;\n  if (intent === 'capture_lead')  return $('Build Lead State').first().json.computed_reply;\n  const f = $json.fields;\n  const st = $('Merge State').first().json.state; // last_updated_prev = PRE-write snapshot (Merge runs before Save) → compares to the previous turn, not this one\n  let newSession = true;\n  if (st.last_updated_prev) {\n    const prev = DateTime.fromISO(st.last_updated_prev, { zone: 'utc' });\n    newSession = DateTime.utc().diff(prev, 'minutes').minutes > cfg.bot.sessionGapMinutes;\n  }\n  const greet = (st.found && newSession) ? 'Welcome back! ' : '';\n  if (f.stage === 'handoff')      return t.handoff;\n  if (f.stage === 'ready')        return greet + 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting')   return greet + (f.slot_service ? t.askDateTime : t.askService);\n  return greet + '[demo] classified as ' + intent;\n})() }}",
+              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  try { const av = $('Compute Availability').first().json; if (av && av.computed_reply) return av.computed_reply; } catch (e) {}\n  if (intent === 'answer_faq')    return $('Answer FAQ').first().json.computed_reply;\n  if (intent === 'capture_lead')  return $('Build Lead State').first().json.computed_reply;\n  const f = $json.fields;\n  const st = $('Merge State').first().json.state; // last_updated_prev = PRE-write snapshot (Merge runs before Save) → compares to the previous turn, not this one\n  let newSession = true;\n  if (st.last_updated_prev) {\n    const prev = DateTime.fromISO(st.last_updated_prev, { zone: 'utc' });\n    newSession = DateTime.utc().diff(prev, 'minutes').minutes > cfg.bot.sessionGapMinutes;\n  }\n  const greet = (st.found && newSession) ? 'Welcome back! ' : '';\n  if (f.stage === 'handoff')      return t.handoff;\n  // defensive fallback — the book flow now routes ready -> availability -> confirming, so this rarely fires\n  if (f.stage === 'ready')        return greet + 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting')   return greet + (f.slot_service ? t.askDateTime : t.askService);\n  return greet + '[demo] classified as ' + intent;\n})() }}",
               "type": "string"
             },
             {
@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -316,12 +316,20 @@
                   "value": "ready"
                 },
                 {
+                  "name": "confirming",
+                  "value": "confirming"
+                },
+                {
                   "name": "done",
                   "value": "done"
                 },
                 {
                   "name": "handoff",
                   "value": "handoff"
+                },
+                {
+                  "name": "",
+                  "value": ""
                 }
               ],
               "readOnly": false,
@@ -498,8 +506,8 @@
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        768,
-        352
+        368,
+        448
       ],
       "typeVersion": 1,
       "id": "541d4b36-9222-44bd-b74b-1f269675f746",
@@ -770,8 +778,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2320,
-        320
+        2240,
+        368
       ],
       "id": "c4e2880d-4e67-43cb-b67f-4a2206952c9e",
       "name": "Sticky Note3"
@@ -1041,11 +1049,133 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1040,
-        200
+        992,
+        224
       ],
       "id": "4f1b5e96-38ce-45e8-b31a-ec8cbaec73ae",
       "name": "Sticky Note CP6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "avgate-1",
+              "leftValue": "={{ $json.state.stage }}",
+              "rightValue": "ready",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        272
+      ],
+      "id": "15cd63b9-78f4-4956-9fdc-3be2240e4580",
+      "name": "Availability Gate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build FreeBusy Query — the requested day's UTC window (shop-tz aware, DST-correct) for freeBusy.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst date = $json.state.slots.date;\nconst dayStart = DateTime.fromISO(date, { zone: tz }).startOf('day').toUTC().toISO();\nconst dayEnd = DateTime.fromISO(date, { zone: tz }).endOf('day').toUTC().toISO();\nreturn [{ json: { ...$json, freebusy: { timeMin: dayStart, timeMax: dayEnd, calId: cfg.googleCalendarId } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        272
+      ],
+      "id": "e6eca1fb-31d1-452f-827a-004895871b51",
+      "name": "Build FreeBusy Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ timeMin: $json.freebusy.timeMin, timeMax: $json.freebusy.timeMax, items: [{ id: $json.freebusy.calId }] }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3264,
+        272
+      ],
+      "id": "5c399c4e-07c4-4f3f-9f1b-9b69517a44f7",
+      "name": "Get Calendar Busy",
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_WITH_GOOGLE_SA_CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute Availability — working hours (shop tz) minus GCal busy; does the slot fit? + alternatives. UTC/DST-correct.\nconst cfg = $('Load Config').first().json.config;\nconst gate = $('Slot Gate').first().json;\nconst st = gate.state;\nconst tz = cfg.business.timezone;\nconst slots = st.slots;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc ? svc.durationMin : 30;\nconst svcName = svc ? svc.name : (slots.serviceId || 'your service');\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst now = DateTime.now().setZone(tz);\nconst wdKey = ['mon','tue','wed','thu','fri','sat','sun'][start.weekday - 1];\nconst windows = (cfg.workingHours && cfg.workingHours[wdKey]) || [];\nconst wins = windows.map(w => { const p = w.split('-'); return { open: DateTime.fromISO(slots.date + 'T' + p[0], { zone: tz }), close: DateTime.fromISO(slots.date + 'T' + p[1], { zone: tz }) }; });\nconst cals = $json.calendars || {};\nconst firstCal = Object.values(cals)[0] || { busy: [] };\nif (firstCal.errors && firstCal.errors.length) throw new Error('calendar_error: ' + JSON.stringify(firstCal.errors)); // fail-loud: freeBusy 200 with errors is NOT 'available'\nconst busy = (firstCal.busy || []).map(b => ({ s: DateTime.fromISO(b.start), e: DateTime.fromISO(b.end) }));\nconst overlaps = (s, e) => busy.some(b => s < b.e && b.s < e);\nconst withinHours = (s, e) => wins.some(w => s >= w.open && e <= w.close);\nconst fmt = start.toFormat('cccc d LLL HH:mm');\nlet stage, reply, status;\nif (!slots.date || !slots.time || !start.isValid) { status = 'invalid'; stage = 'collecting'; reply = `Sorry, I couldn't read that date/time — what day and time would you like?`; }\nelse if (start < now) { status = 'past'; stage = 'collecting'; reply = `${fmt} has already passed — give me a future day and time.`; }\nelse if (wins.length === 0 || !withinHours(start, end)) { status = 'closed'; stage = 'collecting'; const hrs = windows.length ? windows.join(', ') : 'closed that day'; reply = `We're closed then — on ${start.toFormat('cccc')} we're open ${hrs}. What time works?`; }\nelse if (overlaps(start, end)) { status = 'busy'; stage = 'collecting'; const alts = []; for (const w of wins) { let t = w.open; while (t.plus({ minutes: dur }) <= w.close && alts.length < 3) { const te = t.plus({ minutes: dur }); if (t >= now && !overlaps(t, te)) alts.push(t.toFormat('HH:mm')); t = t.plus({ minutes: 30 }); } } reply = alts.length ? `${fmt} is taken. Free that day: ${alts.join(', ')}. Which works?` : `${fmt} is taken and that day is full — want another day?`; }\nelse { status = 'available'; stage = 'confirming'; reply = `${svcName}, ${fmt} — shall I book it? (yes / no)`; }\nreturn [{ json: { ...gate, state: { ...st, stage }, availability: { status }, computed_reply: reply } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        272
+      ],
+      "id": "5e6ad496-2477-4d6a-9e4e-fc95aac5d8ae",
+      "name": "Compute Availability",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: 'calendar_unavailable', reply: $('Load Config').first().json.config.messageTemplates.handoff } }}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        3264,
+        464
+      ],
+      "id": "4daf77d5-bc7d-4fdf-9e76-bcafe5798360",
+      "name": "Calendar Unavailable Reply"
+    },
+    {
+      "parameters": {
+        "content": "## Phase 3 · CP1 — Availability check (read-only)\n\nWhen slots are complete (`stage='ready'`) the bot checks the REAL Google Calendar BEFORE confirming — no write yet (that is CP2).\n\n`Availability Gate` (ready?) → `Build FreeBusy Query` (the requested day's UTC window, shop-tz / DST-correct) → `Get Calendar Busy` (**freeBusy** via HTTP + Google **service-account** credential — freeBusy leaks no event details) → `Compute Availability` (working hours − busy; does the service duration fit? + 2–3 alternatives).\n\nOutcomes: **available** → `stage='confirming'` + “… shall I book it?” · **busy** → alternatives · **closed / past** → re-ask.\n\nGCal down → **`Calendar Unavailable Reply`** (503, `error:calendar_unavailable` — infra class, distinct from a conversational handoff; owner-alert hooks it in Phase 5).\n\nThe confirmed “yes” → real write = **CP2** (write-then-verify + idempotency).",
+        "height": 340,
+        "width": 480,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        620
+      ],
+      "id": "e945c903-ed5c-4afb-9110-d6423b003a03",
+      "name": "Sticky Note CP1"
     }
   ],
   "connections": {
@@ -1292,7 +1422,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Availability Gate",
             "type": "main",
             "index": 0
           }
@@ -1351,6 +1481,71 @@
         [
           {
             "node": "Check Bot Guards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Availability Gate": {
+      "main": [
+        [
+          {
+            "node": "Build FreeBusy Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FreeBusy Query": {
+      "main": [
+        [
+          {
+            "node": "Get Calendar Busy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Calendar Busy": {
+      "main": [
+        [
+          {
+            "node": "Compute Availability",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calendar Unavailable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Availability": {
+      "main": [
+        [
+          {
+            "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calendar Unavailable Reply",
             "type": "main",
             "index": 0
           }

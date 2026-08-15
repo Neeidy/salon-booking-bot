@@ -16,6 +16,7 @@
         "locale": { "type": "string" }
       }
     },
+    "googleCalendarId": { "type": "string", "description": "Calendar the bot books into (freeBusy + events); a calendar shared with the service account. Real value in n8n Load Config; placeholder here." },
     "branding": {
       "type": "object",
       "properties": {

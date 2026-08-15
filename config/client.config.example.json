@@ -5,6 +5,7 @@
     "timezone": "Europe/Vienna",
     "locale": "en-AT"
   },
+  "googleCalendarId": "REPLACE_WITH_CALENDAR_ID@group.calendar.google.com",
   "branding": {
     "primaryColor": "#16150F",
     "accentColor": "#B4472E",
