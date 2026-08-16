@@ -168,6 +168,15 @@
                 "operation": "notEmpty",
                 "singleValue": true
               }
+            },
+            {
+              "id": "b2c3d4e5-f6a7-4899-8bbb-senderidguard1",
+              "leftValue": "={{ ($json.body?.channel === 'widget' ? $json.body?.sessionId : $json.body?.from) ?? '' }}",
+              "rightValue": "^[A-Za-z0-9:+._-]{3,80}$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
             }
           ],
           "combinator": "and"
@@ -1228,7 +1237,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc ? svc.durationMin : 30;\nconst svcName = svc ? svc.name : slots.serviceId;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n// CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n// (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n// retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\nconst bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\nconst eventId = Array.from(bkey).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');\nreturn [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId } } }];"
+        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc ? svc.durationMin : 30;\nconst svcName = svc ? svc.name : slots.serviceId;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n// CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n// (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n// retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\nconst bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\n// UTF-8 byte encoding (NOT charCodeAt — that truncates surrogate pairs, so 😀 and 😁 would collide to the\n// same id, letting a crafted sessionId reconcile onto another customer's event). TextEncoder is a global (no require).\nconst eventId = Array.from(new TextEncoder().encode(bkey)).map(b => b.toString(16).padStart(2, '0')).join('');\nreturn [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId } } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1845,7 +1854,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ (() => { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return JSON.stringify({ reply: r.computed_reply, state_unsaved: true, gcal_event_id: r.gcal_event_id || null }); } catch (e) {} } return JSON.stringify({ reply: 'Thanks — a team member will follow up shortly.', state_unsaved: true }); })() }}",
+        "responseBody": "={{ (() => { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State','Build Reconcile-Unresolved State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return JSON.stringify({ reply: r.computed_reply, state_unsaved: true, gcal_event_id: r.gcal_event_id || null }); } catch (e) {} } return JSON.stringify({ reply: 'Thanks — a team member will follow up shortly.', state_unsaved: true }); })() }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -2154,6 +2163,95 @@
       ],
       "id": "7ffb697d-ddf0-47bc-a0d0-8f8265b8b5a7",
       "name": "Sticky Note CP2c-ii"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.booking.eventId }}",
+              "rightValue": "^[0-9a-v]{5,1024}$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3700,
+        920
+      ],
+      "id": "4d4b3cf2-e5a6-42d4-a695-e61669f4dd42",
+      "name": "Event ID Valid?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify Reconcile Failure — Codex #1: the reconcile GET failed. A DEFINITE 404 means the event was never\n// created → safe to 503 (a retry is safe; nothing exists). Any other failure (timeout / transport / 5xx) is\n// UNRESOLVED: the event MIGHT exist, so we must NOT 503 (retry loop) → 200 handoff with the id visible.\n// Reconstruct context via node refs (the error item carries only the error, not our fields).\nconst be = $('Build Event Request').first().json;\nconst err = ($json && $json.error) || $json || {};\nconst code = String(err.httpCode || err.code || (err.context && err.context.httpCode) || '');\nconst msg = String(err.message || '');\nconst notFound = code === '404' || /not found|404/i.test(msg);\nreturn [{ json: { ...be, _reconcile_404: notFound } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        1640
+      ],
+      "id": "703a1a8c-17cf-4ad7-bf77-b6691cda6feb",
+      "name": "Classify Reconcile Failure"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._reconcile_404 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4020,
+        1640
+      ],
+      "id": "f5504cfd-b222-4dbd-acf9-eaf082e777ea",
+      "name": "Reconcile 404?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Reconcile-Unresolved State — the reconcile GET was UNRESOLVED (timeout / transport / 5xx); we cannot\n// confirm whether the event exists. Do NOT 503 (a retry loops — the deterministic id makes a 2nd insert 409,\n// not a double-book, but we still avoid the loop). Hand off with the id visible so the owner can reconcile.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst eventId = be.booking.eventId;\nconst reply = (cfg.messageTemplates.bookingNeedsConfirm) || \"Thanks! We're confirming your booking now — a team member will follow up shortly.\";\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, reconcile_unresolved: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        1700
+      ],
+      "id": "0e859576-9ce4-49fb-9d42-2e220e58c17c",
+      "name": "Build Reconcile-Unresolved State"
     }
   ],
   "connections": {
@@ -2546,7 +2644,7 @@
       "main": [
         [
           {
-            "node": "Book Appointment",
+            "node": "Event ID Valid?",
             "type": "main",
             "index": 0
           }
@@ -2790,7 +2888,7 @@
         ],
         [
           {
-            "node": "Calendar Unavailable Reply",
+            "node": "Classify Reconcile Failure",
             "type": "main",
             "index": 0
           }
@@ -2830,7 +2928,65 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event ID Valid?": {
+      "main": [
+        [
+          {
+            "node": "Book Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reconcile Failure": {
+      "main": [
+        [
+          {
+            "node": "Reconcile 404?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile 404?": {
+      "main": [
+        [
+          {
+            "node": "Calendar Unavailable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Reconcile-Unresolved State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reconcile-Unresolved State": {
+      "main": [
+        [
+          {
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
