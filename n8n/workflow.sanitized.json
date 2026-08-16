@@ -37,7 +37,7 @@
             {
               "id": "225f9630-f1de-454f-8e4c-d21efcae3374",
               "name": "reply",
-              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  try { const av = $('Compute Availability').first().json; if (av && av.computed_reply) return av.computed_reply; } catch (e) {}\n  if (intent === 'confirm') { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State','Build Cancelled State','Build Cancel-Unavailable State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return r.computed_reply; } catch (e) {} } }\n  if (intent === 'cancel') { for (const n of ['Build Cancel-Confirm State','Build No-Booking Reply','Build Cancel-Cutoff Reply','Build Cancel-NeedsHuman State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return r.computed_reply; } catch (e) {} } }\n  if (intent === 'answer_faq')    return $('Answer FAQ').first().json.computed_reply;\n  if (intent === 'capture_lead')  return $('Build Lead State').first().json.computed_reply;\n  const f = $json.fields;\n  const st = $('Merge State').first().json.state; // last_updated_prev = PRE-write snapshot (Merge runs before Save) → compares to the previous turn, not this one\n  let newSession = true;\n  if (st.last_updated_prev) {\n    const prev = DateTime.fromISO(st.last_updated_prev, { zone: 'utc' });\n    newSession = DateTime.utc().diff(prev, 'minutes').minutes > cfg.bot.sessionGapMinutes;\n  }\n  const greet = (st.found && newSession) ? 'Welcome back! ' : '';\n  if (f.stage === 'handoff')      return t.handoff;\n  // defensive fallback — the book flow now routes ready -> availability -> confirming, so this rarely fires\n  if (f.stage === 'ready')        return greet + 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting')   return greet + (f.slot_service ? t.askDateTime : t.askService);\n  return greet + '[demo] classified as ' + intent;\n})() }}",
+              "value": "={{ (() => {\n  const cfg = $('Load Config').first().json.config;\n  const t = cfg.messageTemplates;\n  const intent = $('Validate Intent').first().json.intent;\n  try { const av = $('Compute Availability').first().json; if (av && av.computed_reply) return av.computed_reply; } catch (e) {}\n  if (intent === 'confirm') { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State','Build Cancelled State','Build Cancel-NeedsHuman State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return r.computed_reply; } catch (e) {} } }\n  if (intent === 'cancel') { for (const n of ['Build Cancel-Confirm State','Build No-Booking Reply','Build Cancel-Cutoff Reply','Build Cancel-NeedsHuman State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return r.computed_reply; } catch (e) {} } }\n  if (intent === 'answer_faq')    return $('Answer FAQ').first().json.computed_reply;\n  if (intent === 'capture_lead')  return $('Build Lead State').first().json.computed_reply;\n  const f = $json.fields;\n  const st = $('Merge State').first().json.state; // last_updated_prev = PRE-write snapshot (Merge runs before Save) → compares to the previous turn, not this one\n  let newSession = true;\n  if (st.last_updated_prev) {\n    const prev = DateTime.fromISO(st.last_updated_prev, { zone: 'utc' });\n    newSession = DateTime.utc().diff(prev, 'minutes').minutes > cfg.bot.sessionGapMinutes;\n  }\n  const greet = (st.found && newSession) ? 'Welcome back! ' : '';\n  if (f.stage === 'handoff')      return t.handoff;\n  // defensive fallback — the book flow now routes ready -> availability -> confirming, so this rarely fires\n  if (f.stage === 'ready')        return greet + 'Great — ' + f.slot_service + ' on ' + f.slot_date + ' at ' + f.slot_time + '. (demo — booking confirmation is Phase 3)';\n  if (f.stage === 'collecting')   return greet + (f.slot_service ? t.askDateTime : t.askService);\n  return greet + '[demo] classified as ' + intent;\n})() }}",
               "type": "string"
             },
             {
@@ -248,7 +248,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null,\n  turn_count: found ? (f.turn_count ?? 0) : 0,      // guard: state.turn_count < max — okunmazsa undefined → her mesaj handoff\n  last_intent: found ? (f.last_intent ?? null) : null,\n  slots: {                                          // CP4: saklı slotları oku → deterministik biriktirme tabanı\n    serviceId: found ? (f.slot_service ?? null) : null,\n    date:      found ? (f.slot_date ?? null) : null,\n    time:      found ? (f.slot_time ?? null) : null\n  }\n};\n\nreturn [{ json: { ...norm, state } }];"
+        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null,\n  turn_count: found ? (f.turn_count ?? 0) : 0,      // guard: state.turn_count < max — okunmazsa undefined → her mesaj handoff\n  last_intent: found ? (f.last_intent ?? null) : null,\n  cancel_target_id: found ? (f.cancel_target_id ?? null) : null,   // CP3/Codex#8: bind 'yes' to the confirmed record\n  slots: {                                          // CP4: saklı slotları oku → deterministik biriktirme tabanı\n    serviceId: found ? (f.slot_service ?? null) : null,\n    date:      found ? (f.slot_date ?? null) : null,\n    time:      found ? (f.slot_time ?? null) : null\n  }\n};\n\nreturn [{ json: { ...norm, state } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -287,7 +287,8 @@
             "slot_service": "={{ $json.state.slots.serviceId || '' }}",
             "slot_date": "={{ $json.state.slots.date || '' }}",
             "slot_time": "={{ $json.state.slots.time || '' }}",
-            "gcal_event_id": "={{ $json.gcal_event_id || '' }}"
+            "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
+            "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -1336,7 +1337,8 @@
             "channel": "={{ $('Build Event Request').first().json.channel }}",
             "customer_name": "={{ $('Build Event Request').first().json.booking.customerName || '' }}",
             "status": "booked",
-            "created_at": "={{ $now.toUTC().toISO() }}"
+            "created_at": "={{ $now.toUTC().toISO() }}",
+            "calendar_id": "={{ $('Build Event Request').first().json.booking.calId }}"
           },
           "matchingColumns": [
             "gcal_event_id"
@@ -1925,7 +1927,8 @@
             "slot_service": "={{ $json.state.slots.serviceId }}",
             "slot_date": "={{ $json.state.slots.date }}",
             "slot_time": "={{ $json.state.slots.time }}",
-            "gcal_event_id": "={{ $json.gcal_event_id || '' }}"
+            "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
+            "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -2331,7 +2334,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Cancel Lookup — pick the sender's OWN next-upcoming booked appointment (IDOR-safe: Find Booking filtered by\n// sender_key). Decide the route: ok(ask/execute) / none / empty_id(needs_human) / cutoff. Reconstruct via node refs.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst now = Date.now();\nconst cutoffMs = (cfg.bot.cancellationCutoffHours || 0) * 3600 * 1000;\nconst mode = (vi.intent === 'confirm' && st.stage === 'cancel_confirming') ? 'execute' : 'ask';\nconst rows = $input.all().map(i => i.json).filter(r => r && r.id && r.fields);\nconst booked = rows.filter(r => r.fields.status === 'booked' && r.fields.start_utc)\n  .sort((a, b) => new Date(a.fields.start_utc) - new Date(b.fields.start_utc));\nlet outcome, target = null;\nif (booked.length === 0) outcome = 'none';\nelse {\n  const t = booked[0];\n  const gid = t.fields.gcal_event_id;\n  const startMs = new Date(t.fields.start_utc).getTime();\n  if (!gid) outcome = 'empty_id';\n  else if (startMs - now < cutoffMs) outcome = 'cutoff';\n  else { outcome = 'ok'; target = { recordId: t.id, gcal_event_id: gid, service: t.fields.service, start_utc: t.fields.start_utc }; }\n}\nconst route = outcome === 'ok' ? (mode === 'execute' ? 'execute' : 'confirm') : (outcome === 'empty_id' ? 'needs_human' : outcome);\nreturn [{ json: { ...vi, _cancel_route: route, _cancel_target: target, _cancel_count: booked.length } }];"
+        "jsCode": "// Cancel Lookup — ASK: pick the sender's OWN next-upcoming booked appt (IDOR-safe: Find Booking is filtered by\n// sender_key) and decide confirm/none/cutoff/needs_human. EXECUTE (\"yes\"): bind to the EXACT record confirmed last\n// turn (state.cancel_target_id) among the sender's booked rows — NEVER re-pick booked[0] (Codex #8: a booking added\n// between confirm and yes must not be deleted instead). Not found among booked -> needs_human. The structural safety\n// gate (start_utc/cutoff/event-id/calendar_id) is 'Validate Cancel Target', downstream, before any delete.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst now = Date.now();\nconst cutoffMs = (cfg.bot.cancellationCutoffHours || 0) * 3600 * 1000;\nconst mode = (vi.intent === 'confirm' && st.stage === 'cancel_confirming') ? 'execute' : 'ask';\nconst rows = $input.all().map(i => i.json).filter(r => r && r.id && r.fields);\nconst booked = rows.filter(r => r.fields.status === 'booked' && r.fields.start_utc)\n  .sort((a, b) => new Date(a.fields.start_utc) - new Date(b.fields.start_utc));\nconst mk = (t) => ({ recordId: t.id, gcal_event_id: t.fields.gcal_event_id, calendar_id: t.fields.calendar_id, service: t.fields.service, start_utc: t.fields.start_utc });\nlet outcome, target = null;\nif (mode === 'execute') {\n  const t = booked.find(r => r.id === st.cancel_target_id) || null;\n  if (!t) outcome = 'needs_human';           // confirmed row no longer booked / gone -> hand off, never guess\n  else { outcome = 'execute'; target = mk(t); }\n} else if (booked.length === 0) {\n  outcome = 'none';\n} else {\n  const t = booked[0];\n  const gid = t.fields.gcal_event_id;\n  const startMs = new Date(t.fields.start_utc).getTime();\n  if (!gid) outcome = 'empty_id';\n  else if (startMs - now < cutoffMs) outcome = 'cutoff';\n  else { outcome = 'confirm'; target = mk(t); }\n}\nconst route = (outcome === 'empty_id') ? 'needs_human' : outcome;   // confirm / execute / none / cutoff / needs_human\nreturn [{ json: { ...vi, _cancel_route: route, _cancel_target: target, _cancel_count: booked.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2473,7 +2476,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Cancel-Confirm State — confirm-before-delete: name the appointment (honesty), note multiple bookings.\n// stage=cancel_confirming; the execute turn RE-LOOKS-UP (Find Booking), so we persist no target here.\nconst cfg = $('Load Config').first().json.config;\nconst j = $json;\nconst t = j._cancel_target;\nconst tz = cfg.business.timezone;\nconst when = DateTime.fromISO(t.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst multi = j._cancel_count > 1 ? ` (you have ${j._cancel_count} bookings — this cancels the ${when} one)` : '';\nconst reply = `Cancel your ${t.service} on ${when}?${multi} Reply \"yes\" to cancel, or anything else to keep it.`;\nreturn [{ json: { ...j, state: { ...j.state, stage: 'cancel_confirming' }, computed_reply: reply } }];"
+        "jsCode": "// Build Cancel-Confirm State — confirm-before-delete: name the appointment (honesty), note multiple bookings.\n// stage=cancel_confirming; the execute turn RE-LOOKS-UP (Find Booking), so we persist no target here.\nconst cfg = $('Load Config').first().json.config;\nconst j = $json;\nconst t = j._cancel_target;\nconst tz = cfg.business.timezone;\nconst when = DateTime.fromISO(t.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst multi = j._cancel_count > 1 ? ` (you have ${j._cancel_count} bookings — this cancels the ${when} one)` : '';\nconst reply = `Cancel your ${t.service} on ${when}?${multi} Reply \"yes\" to cancel, or anything else to keep it.`;\nreturn [{ json: { ...j, state: { ...j.state, stage: 'cancel_confirming', cancel_target_id: t.recordId }, computed_reply: reply } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2572,10 +2575,16 @@
     {
       "parameters": {
         "method": "DELETE",
-        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($('Load Config').first().json.config.googleCalendarId) + '/events/' + $json._cancel_target.gcal_event_id }}",
+        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($json._cancel_target.calendar_id) + '/events/' + $json._cancel_target.gcal_event_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
           "timeout": 15000
         }
       },
@@ -2597,7 +2606,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Classify Cancel Delete — 204 = deleted; 404/410 = already gone (idempotent, treat as cancelled); other error\n// (5xx/timeout) = UNAVAILABLE (the event may still exist — do NOT tell the customer 'cancelled'). Node-ref context.\nconst cl = $('Cancel Lookup').first().json;\nconst err = ($json && $json.error) || null;\nlet outcome;\nif (!err) outcome = 'deleted';\nelse {\n  const code = String(err.httpCode || err.code || (err.context && err.context.httpCode) || '');\n  const txt = ((err.message || '') + ' ' + (err.description || '')).toLowerCase();\n  outcome = (code === '404' || code === '410' || txt.includes('not found') || txt.includes('could not be found') || txt.includes('deleted') || txt.includes('already')) ? 'gone' : 'unavailable';\n}\nreturn [{ json: { ...cl, _cancel_delete: outcome } }];"
+        "jsCode": "// Classify Cancel Delete — STRUCTURAL only (Codex #8): Delete Booking Event runs fullResponse+neverError, so any\n// HTTP response (incl. 4xx/5xx) reaches the success output carrying $json.statusCode, and only a transport error\n// (timeout/DNS) reaches the error output as $json.error. 204/200 = deleted; 404/410 = already gone (idempotent);\n// anything else (5xx / transport) = UNAVAILABLE — the event may still exist, so NEVER tell the customer 'cancelled'.\n// Never inspect the error TEXT: 'host not found' must not be misread as 'booking not found'.\nconst cl = $('Validate Cancel Target').first().json;\nconst err = ($json && $json.error) || null;\nlet outcome;\nif (err) outcome = 'unavailable';\nelse {\n  const sc = Number($json.statusCode);\n  if (sc === 204 || sc === 200) outcome = 'deleted';\n  else if (sc === 404 || sc === 410) outcome = 'gone';\n  else outcome = 'unavailable';\n}\nreturn [{ json: { ...cl, _cancel_delete: outcome } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2724,7 +2733,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Cancelled State — GCal event deleted (or already gone) -> booking cancelled. If the Airtable mirror update\n// failed, still confirm (GCal is source of truth) but flag it. Reconstruct via node refs.\nconst cfg = $('Load Config').first().json.config;\nconst t = $('Cancel Lookup').first().json._cancel_target;\nconst del = $('Classify Cancel Delete').first().json._cancel_delete;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst tz = cfg.business.timezone;\nconst when = DateTime.fromISO(t.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst mirrorFail = !!($json && $json.error);\nconst tmpl = del === 'gone' ? (cfg.messageTemplates.cancelAlreadyDone || 'That booking is already cancelled.') : (cfg.messageTemplates.cancelDone || 'Done — your {service} on {when} is cancelled.');\nconst reply = tmpl.split('{service}').join(t.service).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'cancelled' }, cancel_mirror_failed: mirrorFail, gcal_event_id: t.gcal_event_id, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Cancelled State — GCal event deleted (or already gone) -> booking cancelled. If the Airtable mirror update\n// failed, still confirm (GCal is source of truth) but flag it. Reconstruct via node refs.\nconst cfg = $('Load Config').first().json.config;\nconst t = $('Validate Cancel Target').first().json._cancel_target;\nconst del = $('Classify Cancel Delete').first().json._cancel_delete;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst tz = cfg.business.timezone;\nconst when = DateTime.fromISO(t.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst mirrorFail = !!($json && $json.error);\nconst tmpl = del === 'gone' ? (cfg.messageTemplates.cancelAlreadyDone || 'That booking is already cancelled.') : (cfg.messageTemplates.cancelDone || 'Done — your {service} on {when} is cancelled.');\nconst reply = tmpl.split('{service}').join(t.service).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'cancelled' }, cancel_mirror_failed: mirrorFail, gcal_event_id: t.gcal_event_id, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2737,16 +2746,66 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Cancel-Unavailable State — the GCal DELETE failed (5xx/timeout); the event may still exist, so do NOT\n// say 'cancelled'. Hand off; a retry re-deletes (DELETE is idempotent), so this stays safe.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff' }, cancel_delete_failed: true, computed_reply: (cfg.messageTemplates.cancelUnavailable || \"I couldn't reach the calendar to cancel just now — a team member will follow up.\") } }];"
+        "jsCode": "// Validate Cancel Target — the structural safety gate BEFORE any delete (Codex #8). Re-validate the bound target:\n// start_utc must be a real time (NaN must NOT pass the cutoff check open), still OUTSIDE the cancellation cutoff,\n// the gcal_event_id must match the stored id shape, and calendar_id must be present (pre-CP3 rows have none). Any\n// failure -> _cancel_valid=false -> never delete -> needs_human. Closes Codex #8: NaN-start, blank/short event id,\n// missing calendar_id, and confirm/execute target-binding (the id itself is bound in Cancel Lookup).\nconst cfg = $('Load Config').first().json.config;\nconst now = Date.now();\nconst cutoffMs = (cfg.bot.cancellationCutoffHours || 0) * 3600 * 1000;\nconst t = $json._cancel_target || {};\nconst gid = (t.gcal_event_id || '').trim();\nconst cal = (t.calendar_id || '').trim();\nconst startMs = new Date(t.start_utc).getTime();\nconst valid = Number.isFinite(startMs) && (startMs - now >= cutoffMs)\n  && /^[0-9a-v]{5,1024}$/.test(gid) && cal.length > 0;\nreturn [{ json: { ...$json, _cancel_valid: valid, _cancel_target: { ...t, gcal_event_id: gid, calendar_id: cal } } }];"
       },
+      "id": "b1c2d3e4-0000-4a11-9c11-validatetarget",
+      "name": "Validate Cancel Target",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        0
-      ],
-      "id": "build-cancel-unavailable-state",
-      "name": "Build Cancel-Unavailable State"
+        4448,
+        2848
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1d2e3f4-0000-4a22-9c22-cancelvalidck",
+              "leftValue": "={{ $json._cancel_valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "c1c2d3e4-0000-4a22-9c22-cancelvalidif",
+      "name": "Cancel Target Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4640,
+        2768
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: 'calendar_unavailable', cancel_delete_failed: true, reply: $('Load Config').first().json.config.messageTemplates.cancelUnavailable } }}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "id": "d1c2d3e4-0000-4a33-9c33-cancelunavail",
+      "name": "Cancel Delete Unavailable Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        5152,
+        2592
+      ]
     }
   ],
   "connections": {
@@ -3553,7 +3612,7 @@
         ],
         [
           {
-            "node": "Delete Booking Event",
+            "node": "Validate Cancel Target",
             "type": "main",
             "index": 0
           }
@@ -3665,7 +3724,7 @@
       "main": [
         [
           {
-            "node": "Build Cancel-Unavailable State",
+            "node": "Cancel Delete Unavailable Reply",
             "type": "main",
             "index": 0
           }
@@ -3708,11 +3767,29 @@
         ]
       ]
     },
-    "Build Cancel-Unavailable State": {
+    "Validate Cancel Target": {
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Cancel Target Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Target Valid?": {
+      "main": [
+        [
+          {
+            "node": "Delete Booking Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Cancel-NeedsHuman State",
             "type": "main",
             "index": 0
           }
