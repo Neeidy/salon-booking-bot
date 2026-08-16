@@ -807,7 +807,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Slot Gate — deterministik: required {service, date, time} tam mı? stage + next_ask hesapla.\nconst j = $json;\nconst s = (j.state && j.state.slots) || {};\nconst hasService = !!s.serviceId;\nconst hasDate    = !!s.date;\nconst hasTime    = !!s.time;\n\nlet next_ask = null;\nif (!hasService)               next_ask = 'service';\nelse if (!hasDate || !hasTime) next_ask = 'datetime';\n\nconst stage = next_ask ? 'collecting' : 'ready';\nreturn [{ json: { ...j, state: { ...j.state, stage }, next_ask } }];"
+        "jsCode": "// Slot Gate — deterministik: required {service, date, time} tam mı? stage + next_ask hesapla.\nconst j = $json;\nconst s = (j.state && j.state.slots) || {};\nconst hasService = !!s.serviceId;\nconst hasDate    = !!s.date && DateTime.fromISO(s.date).isValid; // NIT-3: reject a pattern-valid-but-fake date (e.g. 2026-02-30) here -> stays collecting + re-asks, never hits freeBusy (wrong 503)\nconst hasTime    = !!s.time;\n\nlet next_ask = null;\nif (!hasService)               next_ask = 'service';\nelse if (!hasDate || !hasTime) next_ask = 'datetime';\n\nconst stage = next_ask ? 'collecting' : 'ready';\nreturn [{ json: { ...j, state: { ...j.state, stage }, next_ask } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1393,8 +1393,8 @@
                   "value": "booked"
                 },
                 {
-                  "name": "cancalled",
-                  "value": "cancalled"
+                  "name": "cancelled",
+                  "value": "cancelled"
                 },
                 {
                   "name": "",
