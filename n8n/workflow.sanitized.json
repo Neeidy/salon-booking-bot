@@ -1228,7 +1228,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc ? svc.durationMin : 30;\nconst svcName = svc ? svc.name : slots.serviceId;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\nreturn [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm') } } }];"
+        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc ? svc.durationMin : 30;\nconst svcName = svc ? svc.name : slots.serviceId;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n// CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n// (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n// retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\nconst bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\nconst eventId = Array.from(bkey).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');\nreturn [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId } } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1247,7 +1247,7 @@
         "nodeCredentialType": "googleApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ summary: $json.booking.summary, start: { dateTime: $json.booking.startISO, timeZone: $json.booking.timeZone }, end: { dateTime: $json.booking.endISO, timeZone: $json.booking.timeZone } }) }}",
+        "jsonBody": "={{ JSON.stringify({ id: $json.booking.eventId, summary: $json.booking.summary, start: { dateTime: $json.booking.startISO, timeZone: $json.booking.timeZone }, end: { dateTime: $json.booking.endISO, timeZone: $json.booking.timeZone } }) }}",
         "options": {
           "timeout": 15000
         }
@@ -1270,7 +1270,7 @@
     },
     {
       "parameters": {
-        "operation": "create",
+        "operation": "upsert",
         "base": {
           "__rl": true,
           "value": "appXXXXXXXXXXXXXX",
@@ -1298,7 +1298,9 @@
             "status": "booked",
             "created_at": "={{ $now.toUTC().toISO() }}"
           },
-          "matchingColumns": [],
+          "matchingColumns": [
+            "gcal_event_id"
+          ],
           "schema": [
             {
               "id": "sender_key",
@@ -1437,7 +1439,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Booked State — GCal write OK (event id) -> booked + confirmation. gcal_event_id carried (mirror + cancel).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Booked State — GCal write OK (event id) -> booked + confirmation. gcal_event_id carried (mirror + cancel).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Build Event Request').first().json.booking.eventId || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1501,7 +1503,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Book Appointment').first().json.id;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
+        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Build Event Request').first().json.booking.eventId;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1547,7 +1549,7 @@
     {
       "parameters": {
         "method": "DELETE",
-        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($('Build Event Request').first().json.booking.calId) + '/events/' + $('Book Appointment').first().json.id }}",
+        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($('Build Event Request').first().json.booking.calId) + '/events/' + $('Build Event Request').first().json.booking.eventId }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "options": {
@@ -1585,7 +1587,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst vi = (() => { try { return $('Check Race').first().json.verify_incomplete === true; } catch (e) { return false; } })();\nconst reply = vi ? (cfg.messageTemplates.verifyIncomplete || 'We could not finish confirming that time just now — a team member will follow up to lock it in.') : ((cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.');\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Build Event Request').first().json.booking.eventId;\nconst vi = (() => { try { return $('Check Race').first().json.verify_incomplete === true; } catch (e) { return false; } })();\nconst reply = vi ? (cfg.messageTemplates.verifyIncomplete || 'We could not finish confirming that time just now — a team member will follow up to lock it in.') : ((cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.');\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1598,7 +1600,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Verify-Unavailable State — the post-write verify READ failed (calendar unreachable).\n// The event IS written. We do NOT delete on a read-failure (could cancel a legit sole booking) and we do\n// NOT return 503 (a provider retry would double-book). Keep the event, hand off, flag distinctly for the owner.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.bookingNeedsConfirm) || \"Thanks! We're confirming your booking now — a team member will follow up shortly.\";\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, verify_unavailable: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Verify-Unavailable State — the post-write verify READ failed (calendar unreachable).\n// The event IS written. We do NOT delete on a read-failure (could cancel a legit sole booking) and we do\n// NOT return 503 (a provider retry would double-book). Keep the event, hand off, flag distinctly for the owner.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Build Event Request').first().json.booking.eventId;\nconst reply = (cfg.messageTemplates.bookingNeedsConfirm) || \"Thanks! We're confirming your booking now — a team member will follow up shortly.\";\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, verify_unavailable: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1626,7 +1628,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Mirror-Failed State — GCal event is written (authoritative) but the Airtable appointments MIRROR failed.\n// The booking IS real, so we still confirm to the customer; but flag mirror_failed + keep gcal_event_id so the\n// owner (Phase-5 alert) can repair the missing mirror row. Fail-loud on the mirror, never silent.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Book Appointment').first().json.id || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, mirror_failed: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Mirror-Failed State — GCal event is written (authoritative) but the Airtable appointments MIRROR failed.\n// The booking IS real, so we still confirm to the customer; but flag mirror_failed + keep gcal_event_id so the\n// owner (Phase-5 alert) can repair the missing mirror row. Fail-loud on the mirror, never silent.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst eventId = $('Build Event Request').first().json.booking.eventId || null;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || `You're booked: {service}, {date} {time}. See you then!`).split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, mirror_failed: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2053,6 +2055,105 @@
         }
       },
       "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($('Build Event Request').first().json.booking.calId) + '/events/' + $('Build Event Request').first().json.booking.eventId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3808,
+        1360
+      ],
+      "id": "3dd12f69-6484-4cf2-b0ee-7c36e30e078c",
+      "name": "Get For Reconcile",
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_WITH_GOOGLE_SA_CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Reconcile — CP2c-ii: a duplicate-insert 409 (or a reconciled ambiguous failure) is idempotent ONLY if\n// the existing event with our deterministic id is LIVE (status != cancelled) AND covers our EXACT slot. A\n// race-lost delete leaves the id reserved as a cancelled tombstone → an unverified 409 would falsely report\n// \"booked\". Reconstruct context via node refs; compare times by epoch (Google omits milliseconds).\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ev = $json;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\nconst evStart = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime).getTime() : null;\nconst evEnd = ev.end && ev.end.dateTime ? new Date(ev.end.dateTime).getTime() : null;\nconst ok = ev.status !== 'cancelled' && evStart === ourStart && evEnd === ourEnd;\nreturn [{ json: { ...be, _reconcile_ok: ok } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3950,
+        1480
+      ],
+      "id": "3e0661c9-2e69-422f-b246-39799fcbd013",
+      "name": "Verify Reconcile"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._reconcile_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4020,
+        1360
+      ],
+      "id": "e3acd7ea-2be7-4370-a675-31589465b684",
+      "name": "Reconcile Gate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Reconcile-Handoff State — the deterministic event id exists but as a CANCELLED tombstone (a prior\n// booking for this exact slot was deleted, e.g. a CP2b race-loss). We cannot reuse the id and made no new\n// booking → hand off. Context rebuilt via node refs (this is an error/branch path — the incoming item is the\n// GCal event, not our state).\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, reconcile_conflict: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        1480
+      ],
+      "id": "9400fd10-6bc6-480b-bf20-67bef3ebb902",
+      "name": "Build Reconcile-Handoff State"
+    },
+    {
+      "parameters": {
+        "width": 480,
+        "height": 240,
+        "content": "## CP2c-ii — booking-layer insert-idempotency\n**Deterministic event id** = hex(`sender_key|date|time|service`) set in Build Event Request → Book Appointment sends it as the event `id`. A duplicate insert (retry / lost response) → **409**.\n\nBook Appointment error → **Get For Reconcile** (GET by that id) → **Verify Reconcile** (status != cancelled AND start/end match, epoch):\n- ok → **Reconcile Gate** true → Verify Slot (idempotent — no 2nd event)\n- cancelled tombstone / mismatch → **Build Reconcile-Handoff State** → handoff\n- GET fails / 404 (never created) → Calendar Unavailable Reply **503** (retry safe)\n\n**Never 503 before the GET reconcile.** Downstream reads `Build Event Request.booking.eventId` (exists on the 409 path). Write Appointment is upsert-on-gcal_event_id (mirror idempotent)."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3760,
+        1560
+      ],
+      "id": "7ffb697d-ddf0-47bc-a0d0-8f8265b8b5a7",
+      "name": "Sticky Note CP2c-ii"
     }
   ],
   "connections": {
@@ -2463,7 +2564,7 @@
         ],
         [
           {
-            "node": "Calendar Unavailable Reply",
+            "node": "Get For Reconcile",
             "type": "main",
             "index": 0
           }
@@ -2672,6 +2773,64 @@
         [
           {
             "node": "Booking State-Unsaved Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get For Reconcile": {
+      "main": [
+        [
+          {
+            "node": "Verify Reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calendar Unavailable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Reconcile": {
+      "main": [
+        [
+          {
+            "node": "Reconcile Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile Gate": {
+      "main": [
+        [
+          {
+            "node": "Verify Slot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Reconcile-Handoff State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reconcile-Handoff State": {
+      "main": [
+        [
+          {
+            "node": "Save State",
             "type": "main",
             "index": 0
           }
