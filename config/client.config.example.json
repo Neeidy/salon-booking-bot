@@ -35,6 +35,7 @@
     "confidenceThreshold": 0.7,
     "maxTurnsPerConversation": 12,
     "sessionGapMinutes": 30,
+    "cancellationCutoffHours": 2,
     "killSwitch": false
   },
   "messageTemplates": {
@@ -49,7 +50,14 @@
     "faqUnknown": "Good question — let me check with the team and get back to you on that.",
     "slotJustTaken": "Sorry — that time was just taken. A team member will help you find another slot.",
     "bookingNeedsConfirm": "Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.",
-    "verifyIncomplete": "We couldn't finish confirming that time just now — a team member will follow up to lock it in."
+    "verifyIncomplete": "We couldn't finish confirming that time just now — a team member will follow up to lock it in.",
+    "cancelNoBooking": "You don't have an active booking to cancel.",
+    "cancelCutoff": "That booking is too close to its time to cancel here — please call us and we'll sort it out.",
+    "cancelUnavailable": "I couldn't reach the calendar to cancel just now — a team member will follow up shortly.",
+    "cancelNeedsHuman": "I found your booking but can't cancel it automatically — a team member will cancel it for you.",
+    "cancelDone": "Done — your {service} on {when} is cancelled.",
+    "cancelAlreadyDone": "That booking is already cancelled — nothing more to do.",
+    "cancelAborted": "No problem — your booking stands."
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",

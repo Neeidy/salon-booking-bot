@@ -143,6 +143,11 @@ This repository is **public**, so it is built as if it were.
 - **A finding from this build, recorded honestly:** the LLM webhook was discovered publicly reachable
   with no rate limit or spend cap. It was taken offline immediately and re-publishing is gated behind
   the Phase-5 brakes. Documented in [`docs/ARCHITECTURE-DECISIONS.md`](docs/ARCHITECTURE-DECISIONS.md).
+- **Cancel identity (honest limit):** a customer can only cancel their OWN booking — cancel looks up
+  appointments by the channel-authenticated `sender_key`, never a customer-supplied booking id, so IDOR
+  is structurally impossible. On the widget, though, `sender_key` derives from a **client-supplied
+  `sessionId`** — session-token strength, not a verified identity. A real signed widget session (Phase 6)
+  plus endpoint rate-limiting (Phase 5) harden this; recorded in `docs/ARCHITECTURE-DECISIONS.md` §5.
 
 ---
 
