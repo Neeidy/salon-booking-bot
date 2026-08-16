@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n  bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1501,7 +1501,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Book Appointment').first().json.id;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #4: events.list is paginated (maxResults). A 30-min window over one chair cannot exceed it, but if a\n// nextPageToken ever comes back we cannot be sure there is no conflict → fail safe (yield + handoff), never\n// enter the happy path on an incomplete read.\nif ($json.nextPageToken) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
+        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Book Appointment').first().json.id;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1572,7 +1572,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Race-Lost State — lost the race AND successfully deleted OUR event (clean withdrawal).\n// Slot yielded to the other booking; customer handed to a human. No orphan (our event is gone).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, race_lost: true, gcal_event_id: null, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Race-Lost State — lost the race AND successfully deleted OUR event (clean withdrawal).\n// Slot yielded to the other booking; customer handed to a human. No orphan (our event is gone).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst vi = (() => { try { return $('Check Race').first().json.verify_incomplete === true; } catch (e) { return false; } })();\nconst reply = vi ? (cfg.messageTemplates.verifyIncomplete || 'We could not finish confirming that time just now — a team member will follow up to lock it in.') : ((cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.');\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, race_lost: true, gcal_event_id: null, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1585,7 +1585,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst reply = (cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.';\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Orphan State — lost the race but the DELETE of our event FAILED → our event is still on the calendar.\n// Visible, recoverable double-book: persist gcal_event_id so the owner can delete the stray event by hand.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst ourId = $('Book Appointment').first().json.id;\nconst vi = (() => { try { return $('Check Race').first().json.verify_incomplete === true; } catch (e) { return false; } })();\nconst reply = vi ? (cfg.messageTemplates.verifyIncomplete || 'We could not finish confirming that time just now — a team member will follow up to lock it in.') : ((cfg.messageTemplates.slotJustTaken) || 'Sorry — that time was just taken. A team member will help you find another slot.');\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, orphan_event: true, gcal_event_id: ourId, computed_reply: reply, _post_write: true } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1842,40 +1842,8 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json._post_write }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        }
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        4640,
-        1360
-      ],
-      "id": "c1a55f1e-d1d2-4e3f-8a1b-0c2d3e4f5a6b",
-      "name": "Classify State-Write Failure"
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ reply: $json.computed_reply, state_unsaved: true }) }}",
+        "responseBody": "={{ (() => { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return JSON.stringify({ reply: r.computed_reply, state_unsaved: true, gcal_event_id: r.gcal_event_id || null }); } catch (e) {} } return JSON.stringify({ reply: 'Thanks — a team member will follow up shortly.', state_unsaved: true }); })() }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
@@ -1886,6 +1854,205 @@
       ],
       "id": "b00c1e00-a1b2-4c3d-8e4f-5a6b7c8d9e0f",
       "name": "Booking State-Unsaved Reply"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender_key": "={{ $json.sender_key }}",
+            "stage": "={{ $json.state.stage }}",
+            "turn_count": "={{ $json.state.turn_count + 1 }}",
+            "last_updated": "={{ $now.toUTC().toISO() }}",
+            "last_intent": "={{ $json.state.last_intent }}",
+            "slot_service": "={{ $json.state.slots.serviceId }}",
+            "slot_date": "={{ $json.state.slots.date }}",
+            "slot_time": "={{ $json.state.slots.time }}",
+            "gcal_event_id": "={{ $json.gcal_event_id || '' }}"
+          },
+          "matchingColumns": [
+            "sender_key"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "sender_key",
+              "displayName": "sender_key",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "stage",
+              "displayName": "stage",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "new",
+                  "value": "new"
+                },
+                {
+                  "name": "collecting",
+                  "value": "collecting"
+                },
+                {
+                  "name": "ready",
+                  "value": "ready"
+                },
+                {
+                  "name": "confirming",
+                  "value": "confirming"
+                },
+                {
+                  "name": "booked",
+                  "value": "booked"
+                },
+                {
+                  "name": "done",
+                  "value": "done"
+                },
+                {
+                  "name": "handoff",
+                  "value": "handoff"
+                },
+                {
+                  "name": "",
+                  "value": ""
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "slot_service",
+              "displayName": "slot_service",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "slot_date",
+              "displayName": "slot_date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "slot_time",
+              "displayName": "slot_time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_intent",
+              "displayName": "last_intent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "turn_count",
+              "displayName": "turn_count",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "gcal_event_id",
+              "displayName": "gcal_event_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        4480,
+        940
+      ],
+      "id": "f852a418-bbeb-4277-9934-d9fa818fd03a",
+      "name": "Save State (Post-Write)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
     }
   ],
   "connections": {
@@ -1996,7 +2163,7 @@
         ],
         [
           {
-            "node": "Classify State-Write Failure",
+            "node": "Send Error Response",
             "type": "main",
             "index": 0
           }
@@ -2325,7 +2492,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
@@ -2401,7 +2568,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
@@ -2412,7 +2579,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
@@ -2423,7 +2590,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
@@ -2434,7 +2601,7 @@
       "main": [
         [
           {
-            "node": "Save State",
+            "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
           }
@@ -2488,18 +2655,23 @@
         ]
       ]
     },
-    "Classify State-Write Failure": {
+    "Save State (Post-Write)": {
       "main": [
         [
           {
-            "node": "Booking State-Unsaved Reply",
+            "node": "Build Reply Payload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Record Processed",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send Error Response",
+            "node": "Booking State-Unsaved Reply",
             "type": "main",
             "index": 0
           }
