@@ -57,7 +57,8 @@
     "cancelNeedsHuman": "I found your booking but can't cancel it automatically — a team member will cancel it for you.",
     "cancelDone": "Done — your {service} on {when} is cancelled.",
     "cancelAlreadyDone": "That booking is already cancelled — nothing more to do.",
-    "cancelAborted": "No problem — your booking stands."
+    "cancelAborted": "No problem — your booking stands.",
+    "cancelTargetGone": "I couldn't find that booking to cancel anymore — a team member will follow up shortly."
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
