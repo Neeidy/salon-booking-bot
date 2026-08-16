@@ -65,3 +65,7 @@ CP sequence: **CP1 availability (read-only)** → CP2 booking write (write-then-
 1a idempotency · 1b concurrency/no-double-book · 2 Google Calendar write · 3 webhook verification ·
 4 secret+PII handling · 5 handoff threshold · 6 error visibility · 7 n8n control-plane exposure ·
 **8 booking mutation (cancel/reschedule)** · **9 dashboard auth** — see [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §7 (added 2026-07-04).
+
+- ✅ **1b concurrency / no-double-book — CLOSED (2026-08-16, Codex L3).** 5 rounds, 8 real defects found + fixed (incl. the root cause: serviceId allow-list was missing → an invented service could book); accepted tier limits documented; "all CRITICAL and HIGH closed: YES". Full log in [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §5.
+- ☐ **1a idempotency** — implemented in CP2c-i (`processed_messages` message-ID dedupe); Codex audit not separately run (covered incidentally in the 1b rounds).
+- ☐ **8 booking mutation (cancel/reschedule)** — Phase 3 CP3/CP4 (upcoming).
