@@ -1,0 +1,88 @@
+# Regression suite — salon-booking-bot (n8n `Salon Booking Bot — Main`)
+
+> **Purpose:** the named, re-runnable behavioural baseline. Run this at the start of CP4 and after
+> **every** refactor step — the flow must still produce the same customer reply AND the same node
+> path (especially the nodes that MUST NOT run). A refactor that changes any "must-not-run" is a
+> regression, not a cleanup.
+>
+> **How verification works.** Two layers per scenario:
+> 1. **Reply** — the JSON `reply` (or HTTP status) the webhook returns. Automatable (`run-regression.sh`).
+> 2. **Node path** — which nodes executed, via the n8n execution API. The critical column is
+>    **MUST-NOT-RUN** (e.g. `Delete Booking Event` must be absent on every abort/needs-human path).
+>    Checked from `n8n_executions get` (or the editor's execution log).
+>
+> **Endpoints.** Published production webhook: `POST https://<n8n-host>/webhook/barber-inbound`
+> (no arming; pass the host via `WEBHOOK_URL` — not hardcoded, this is a public template). Draft test
+> webhook: `…/webhook-test/…` (needs one "Execute workflow" per call).
+> `sender_key = "widget:{sessionId}"`. `messageId` MUST be unique per message (idempotency dedupe).
+>
+> **Setup note.** Scenarios marked ⚙ need Airtable state injected first (a booked `appointments`
+> row, or a crafted `conversations` row). `appointments` valid-mock row = `{sender_key, service:"Haircut",
+> start_utc (future weekday, outside cutoff), end_utc, gcal_event_id (real hex OR shape-valid fake
+> "a1b2c3d4e5"), calendar_id (real cal), channel:"widget", status:"booked"}`. A **shape-valid fake**
+> gid is used when the delete must NOT actually fire (the row is there only to be bound/validated).
+>
+> **Config baseline:** services `haircut`/`beard`/`haircut_beard`; hours Mon–Sat; `cancellationCutoffHours:2`.
+
+---
+
+## Scenario table
+
+| # | Name | Setup | Message sequence (session) | Expected reply | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|---|---|---|
+| 1 | **booking happy** | — | `book haircut on <wkday> 14:00` → `yes` | T1 "…shall I book it?" · T2 "You're booked: …" | Merge Slots · Slot Gate · Availability Gate · Build Event Request · Book Appointment · Verify Slot · Write Appointment · Build Booked State · Save State (Post-Write) | Delete Booking Event · Mark Handoff |
+| 2 | **race / no-double-book** ⚙(concurrent) | pre-existing overlapping event on the calendar for the slot | `book … <slot>` → `yes` | "Sorry — that time was just taken…" (`slotJustTaken`) | Verify Slot · Check Race · Race Gate(→lost) · Cancel Our Event · Build Race-Lost State | Write Appointment(as booked-success) — the event we inserted is DELETED, the pre-existing survives |
+| 3 | **idempotency (double webhook)** | — | send the SAME `messageId` twice | 2nd call → `{"status":"duplicate_ignored"}` (distinct short-circuit — NOT a replay of the prior reply; see Step-2 note: `booking-integrity.md` says "return the prior result") | Check Processed · Dedupe Gate · Is Duplicate(true) · Idempotent Replay | any state-mutating node on the 2nd call (no 2nd Write/Delete) |
+| 4 | **cancel happy (204)** | book first (sc.1) | `cancel my appointment` → `yes` | T1 "Cancel your Haircut on …?" · T2 "Done — your … is cancelled." | Route Intent(cancel)→Find Booking→Cancel Lookup→Cancel Route→Build Cancel-Confirm State ; then Confirm Router(true)→**Confirm Fresh?(true)**→Find Booking→Cancel Lookup(execute)→Cancel Route→Validate Cancel Target→Cancel Target Valid?(true)→**Re-read Cancel State**→**Verify Confirm Live**→**Confirm Live?(true)**→Delete Booking Event(204)→Classify Cancel Delete(deleted)→Update Appointment Cancelled→Build Cancelled State | Build Cancel-Aborted State |
+| 5 | **cancel BIND (booked[0] ≠ target)** ⚙ | book A (later); confirm-cancel A; then inject B (earlier, same sender_key, shape-valid fake gid) | `cancel`→`yes` (A) → [inject B] → `yes` | "Done — your Haircut on **A's time** is cancelled." | Cancel Lookup(execute) binds `cancel_target_id`=A ; Delete uses A's real gid | Delete of B (B stays `booked`) |
+| 6 | **401 → unavailable** ⚙(auth-strip) | book; cancel-confirm; strip Delete node auth (`authentication:none`) | `yes` | HTTP **503** `{error:"calendar_unavailable", cancel_delete_failed:true, reply:cancelUnavailable}` — NOT "already cancelled", NOT "cancelled" | Delete Booking Event(statusCode 401)→Classify Cancel Delete(**unavailable**)→Cancel Delete Gate(true)→Cancel Delete Unavailable Reply | Update Appointment Cancelled · Save State (no state write — stage stays cancel_confirming) |
+| 7 | **retry after unavailable → 204** ⚙ | continue sc.6, restore auth | `yes` (again) | "Done — … cancelled." (stage was NOT locked; retry reaches execute) | Confirm Router→Confirm Fresh?(true)→…→Delete(204) | Handoff Lock Reply |
+| 8 | **Validate reject — calendar_id empty** ⚙ | inject booked row with `calendar_id` = "" (real-ish gid) | `cancel`→`yes` | cancelNeedsHuman ("I found your booking but can't cancel it automatically…") | Cancel Target Valid?(false)→Build Cancel-NeedsHuman State | Delete Booking Event · Re-read Cancel State |
+| 9 | **Validate reject — gid whitespace** ⚙ | inject booked row with `gcal_event_id`="   " | `cancel` | cancelNeedsHuman — **no confirm prompt is built** (ask-mode structOk) | Cancel Lookup(ask, needs_human)→Cancel Route→Build Cancel-NeedsHuman State ; stage→handoff | a `cancel_confirming` prompt · Delete |
+| 10 | **Validate reject — legacy tc=0/null** ⚙ | inject `conversations` row `{stage:cancel_confirming, cancel_target_id, turn_count:0}` with **no** `confirm_turn`, + booked appt | `yes` | cancelAborted ("No problem — your booking stands.") | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Find Booking · Delete Booking Event |
+| 11 | **confirm TTL — fresh passes** | = sc.4 (the immediate `yes` after the confirm prompt) | see sc.4 | "Done — cancelled." | Confirm Fresh?(**true**) | Build Cancel-Aborted State |
+| 12 | **confirm TTL — stale drops** ⚙ | inject `{stage:cancel_confirming, cancel_target_id, turn_count:6, confirm_turn:"5"}` + booked appt | `yes` | cancelAborted | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Delete Booking Event |
+| 13 | **Abort — FAQ intervenes** | book; `cancel` (confirm prompt) | `cancel`→ `what are your prices?` | "No problem — your booking stands." (cancel aborted; FAQ **not** answered) | Abort Cancel?(true)→Build Cancel-Aborted State | Answer FAQ · Route Intent · Delete |
+| 14 | **Abort — lead intervenes** | book; `cancel` | `cancel`→ `can someone call me back about a package?` | "No problem — your booking stands." | Abort Cancel?(true)→Build Cancel-Aborted State | Capture Lead · Delete |
+| 15 | **cancelTargetGone** ⚙ | book; `cancel` (confirm); **delete the appt row**; `yes` | `cancel`→[delete row]→`yes` | "I couldn't find that booking to cancel anymore…" (`cancelTargetGone`) — NOT "I found your booking" | Cancel Lookup(execute, `_cancel_target_gone:true`)→Build Cancel-NeedsHuman State(neutral) | Delete Booking Event |
+| 16 | **FAQ** | — | `what are your prices?` | config price line ("Our prices: Haircut €25 …") | Route Intent(faq)→Answer FAQ→Save State | any LLM-authored answer · Delete |
+| 17 | **lead** | — | `can someone call me back about a package?` | `leadCaptured` ("Thanks! We've got your details…") | Route Intent(lead)→Capture Lead→Build Lead State→Save State | booking nodes |
+| 18 | **handoff (intent-handoff)** | — | `I want to reschedule to next week` (reschedule → handoff) OR a low-confidence msg | `handoff` ("I'm passing you to a team member…"); Airtable `stage=handoff` | Confidence & Intent Gate(true)→Mark Handoff→Save State | booking/cancel mutations |
+| 19 | **guard-trip** ⚙(config) | set `bot.killSwitch:true` (or exceed `maxTurnsPerConversation`) | any message | `handoff` (200), **0 LLM cost** | Check Bot Guards(false)→Handoff Reply | Build LLM Request · Extract Intent (no paid call) |
+
+**Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment).
+
+---
+
+## Baseline run
+
+**Commit bcc8058 · 2026-08-17 · published production webhook.**
+
+**Automated (curl-only subset, `run-regression.sh`): 9/9 PASS, 0 FAIL** —
+#1 booking happy · #4 cancel happy (204) · #11 confirm-TTL fresh · #16 FAQ · #17 lead ·
+#18 handoff · #13 Abort-FAQ · #3 idempotency.
+Two would-be failures on the first run were **harness bugs, not flow regressions**, now fixed:
+(a) idempotency returns `duplicate_ignored` (not a replay) — expectation corrected; (b) the Abort
+scenario left its 16:00 booking, so a re-run's booking correctly **lost the race** — the harness now
+self-cleans that booking. The flow behaved correctly in both.
+
+**⚙ Setup-heavy (assisted, verified this session via the execution API):**
+
+| # | Scenario | Evidence | On current 92-node flow? |
+|---|---|---|---|
+| 10 | Validate reject — legacy tc=0/null → abort, no delete | exec **149** | ✅ yes (bcc8058) |
+| 4/11 | cancel happy + re-read path → 204 | exec **153** | ✅ yes (bcc8058) |
+| 12 | confirm-TTL stale → abort | unit 17/17 + exec 141 (logic = same gate as exec 149) | gate re-verified 149 |
+| 8/9 | Validate reject calendar_id-empty / gid-whitespace | exec **124 / 126** | Validate logic unchanged since |
+| 5 | cancel BIND (booked[0]≠target) | exec **111** | Cancel Lookup bind unchanged |
+| 6/7 | 401→unavailable / retry→204 | exec **115 / 122** | Classify unchanged; delete now behind re-read |
+| 15 | cancelTargetGone | exec **147** | gone-flag unchanged |
+| 2 | race / no-double-book | exec **77** (CP2b) + observed live here (a leftover booking made a re-run lose the race) | booking path unchanged |
+| 19 | guard-trip | exec **34** (CP3) | guards unchanged |
+
+**Honest gap:** #2 race (true concurrency) and #6/#19 (credential/config manipulation) are not in the
+automated harness — they need injected state or a live drill. The re-audit only touched `Confirm Fresh?`
++ the pre-delete re-read; scenarios whose logic it did not touch are cited from their original proof.
+
+**BASELINE = healthy.** Re-run `run-regression.sh` at the start of CP4 and after every refactor step;
+any drop from 9/9, or any MUST-NOT-RUN node appearing, is a regression.
