@@ -2116,6 +2116,12 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleApi",
         "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
           "timeout": 15000
         }
       },
@@ -2137,7 +2143,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Verify Reconcile — CP2c-ii: a duplicate-insert 409 (or a reconciled ambiguous failure) is idempotent ONLY if\n// the existing event with our deterministic id is LIVE (status != cancelled) AND covers our EXACT slot. A\n// race-lost delete leaves the id reserved as a cancelled tombstone → an unverified 409 would falsely report\n// \"booked\". Reconstruct context via node refs; compare times by epoch (Google omits milliseconds).\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ev = $json;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\nconst evStart = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime).getTime() : null;\nconst evEnd = ev.end && ev.end.dateTime ? new Date(ev.end.dateTime).getTime() : null;\nconst ok = ev.status !== 'cancelled' && evStart === ourStart && evEnd === ourEnd;\nreturn [{ json: { ...be, _reconcile_ok: ok } }];"
+        "jsCode": "// Verify Reconcile — CP2c-ii: a duplicate-insert 409 (or a reconciled ambiguous failure) is idempotent ONLY if\n// the existing event with our deterministic id is LIVE (status != cancelled) AND covers our EXACT slot. A\n// race-lost delete leaves the id reserved as a cancelled tombstone → an unverified 409 would falsely report\n// \"booked\". Reconstruct context via node refs; compare times by epoch (Google omits milliseconds).\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ev = $json.body;   // Step 1: Get For Reconcile now returns fullResponse -> the event is under .body\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\nconst evStart = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime).getTime() : null;\nconst evEnd = ev.end && ev.end.dateTime ? new Date(ev.end.dateTime).getTime() : null;\nconst ok = ev.status !== 'cancelled' && evStart === ourStart && evEnd === ourEnd;\nreturn [{ json: { ...be, _reconcile_ok: ok } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2241,7 +2247,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Classify Reconcile Failure — Codex #1: the reconcile GET failed. A DEFINITE 404 means the event was never\n// created → safe to 503 (a retry is safe; nothing exists). Any other failure (timeout / transport / 5xx) is\n// UNRESOLVED: the event MIGHT exist, so we must NOT 503 (retry loop) → 200 handoff with the id visible.\n// Reconstruct context via node refs (the error item carries only the error, not our fields).\nconst be = $('Build Event Request').first().json;\nconst err = ($json && $json.error) || $json || {};\nconst code = String(err.httpCode || err.code || (err.context && err.context.httpCode) || '');\nconst msg = String(err.message || '');\nconst notFound = code === '404' || /not found|404/i.test(msg);\nreturn [{ json: { ...be, _reconcile_404: notFound } }];"
+        "jsCode": "// Classify Reconcile Failure — STRUCTURAL only (statusCode). Get For Reconcile runs fullResponse+neverError, so\n// ANY HTTP response reaches the success output carrying $json.statusCode, and only a transport error reaches the\n// error output as $json.error. 200/204 = ok (the event exists → Verify Reconcile checks $json.body against our\n// slot); 404/410 = gone (the insert never landed → retry-safe 503); EVERYTHING ELSE = unavailable. FAIL-CLOSED:\n// no statusCode / non-number / transport / 401·403 / other 4xx / 5xx all fall to 'unavailable' (a visible handoff)\n// — uncertainty NEVER becomes 'ok' or 'gone' (never a false \"already there / never created\"). No error TEXT is read.\nconst err = ($json && $json.error) || null;\nlet cls;\nif (err) cls = 'unavailable';\nelse {\n  const sc = Number($json.statusCode);\n  if (sc === 200 || sc === 204) cls = 'ok';\n  else if (sc === 404 || sc === 410) cls = 'gone';\n  else cls = 'unavailable';\n}\nreturn [{ json: { ...$json, _reconcile_class: cls } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2263,12 +2269,12 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json._reconcile_404 }}",
-              "rightValue": "",
+              "id": "condition-1786841125810-ppyrgs5d4",
+              "leftValue": "={{ $json._reconcile_class }}",
+              "rightValue": "gone",
               "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
+                "type": "string",
+                "operation": "equals"
               }
             }
           ],
@@ -2978,6 +2984,38 @@
         4820,
         2440
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ro000001-0000-4a55-9c55-reconcileok",
+              "leftValue": "={{ $json._reconcile_class }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "57779d7a-fe07-4e8c-93ef-476a814b7c4b",
+      "name": "Reconcile OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6000,
+        2016
+      ]
     }
   ],
   "connections": {
@@ -3614,7 +3652,7 @@
       "main": [
         [
           {
-            "node": "Verify Reconcile",
+            "node": "Classify Reconcile Failure",
             "type": "main",
             "index": 0
           }
@@ -3690,7 +3728,7 @@
       "main": [
         [
           {
-            "node": "Reconcile 404?",
+            "node": "Reconcile OK?",
             "type": "main",
             "index": 0
           }
@@ -4056,6 +4094,24 @@
         [
           {
             "node": "Build Cancel-Aborted State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile OK?": {
+      "main": [
+        [
+          {
+            "node": "Verify Reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reconcile 404?",
             "type": "main",
             "index": 0
           }

@@ -117,4 +117,21 @@ automated harness — they need injected state or a live drill. The re-audit onl
 + the pre-delete re-read; scenarios whose logic it did not touch are cited from their original proof.
 
 **BASELINE = healthy.** Re-run `run-regression.sh` at the start of CP4 and after every refactor step;
-any drop from 9/9, or any MUST-NOT-RUN node appearing, is a regression.
+any drop from 12/12, or any MUST-NOT-RUN node appearing, is a regression.
+
+### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
+
+The reconcile path only runs when `Book Appointment` errors, so it is not curl-only. Step 1 (c1) made
+`Classify Reconcile Failure` structural (statusCode → `ok`/`gone`/`unavailable`, fail-closed). Live-proven
+this session: the **ok** path (exec 240 — a real 409 tombstone → Get 200 → class `ok` → Verify Reconcile
+reads `$json.body` → cancelled → handoff). **NOT yet live-triggered — MUST run in Phase 7's controlled
+infra-drill session** (isolated auth manipulation, one publish window, restore-gate a/b/c):
+
+| Drill | Setup | Expected | Verify |
+|---|---|---|---|
+| **reconcile D1 — gone/404** | `Book Appointment` auth→`none` (Book 401, no event created) → book once | `Get For Reconcile` **404** → `Classify` **gone** → `Reconcile 404?`[true] → `Calendar Unavailable Reply` 503 (retry-safe). Restore Book auth + gate (a config · b live 2xx · c grep auth:none→0) | exec: Get statusCode 404 · `_reconcile_class:"gone"` · no "already exists / never created" text output; failure visible |
+| **reconcile D2 — unavailable/401** | `Get For Reconcile` auth→`none`; trigger a Book error to reach Get | `Get` **401/403** → `Classify` **unavailable** → `Reconcile 404?`[false] → `Build Reconcile-Unresolved State` 200 handoff. Invariant: statusCode ∉ {200,204,404,410} ⇒ unavailable (403 also passes). Restore Get auth + gate | exec: Get statusCode 401 · `_reconcile_class:"unavailable"` · handoff, id visible |
+
+Reason deferred to Phase 7 (ARCHITECTURE-DECISIONS §5, 2026-08-17): the auth-break + 4-publish + clobber
+risk of running these mid-refactor outweighs the residual; classifier is unit-proven (17/17) + the
+`_reconcile_class` field/value contract is statically verified. **The phase may move; the gate may not.**
