@@ -2821,11 +2821,12 @@
           "conditions": [
             {
               "id": "cf000001-0000-4a11-9c11-confirmfresh",
-              "leftValue": "={{ Number($json.state.turn_count) }}",
-              "rightValue": "={{ Number($json.state.confirm_turn) }}",
+              "leftValue": "={{ (() => { const tc = $json.state.turn_count; const ct = $json.state.confirm_turn; if (typeof tc !== 'number' || !Number.isSafeInteger(tc) || tc <= 0) return false; if (typeof ct !== 'string' || !/^[1-9][0-9]*$/.test(ct)) return false; return String(tc) === ct; })() }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -2893,6 +2894,89 @@
       "position": [
         4256,
         3400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
+        "filterByFormula": "={{ '{sender_key} = \"' + $json.sender_key + '\"' }}",
+        "options": {}
+      },
+      "id": "ecb51dae-cb7d-4ca4-a5c4-26e2a9983bd7",
+      "name": "Re-read Cancel State",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        4560,
+        2352
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Confirm Live — HIGH mitigation (Codex PART-B re-audit): re-read the conversation IMMEDIATELY before the\n// DELETE and re-check the confirmation is still live (stage=cancel_confirming AND confirm_turn unchanged & canonical).\n// A concurrent turn that already consumed the confirm changed the stage/turn -> _confirm_live=false -> NO delete.\n// NOT atomic (narrows the race from the whole execution to two nodes); the full fix = per-sender serialization /\n// atomic compare-and-consume across the whole state model = Phase 5, not a CP3 patch.\nconst vct = $('Validate Cancel Target').first().json;   // carries _cancel_target for the delete URL\nconst turnCt = $('Validate Intent').first().json.state.confirm_turn;\nconst rows = $input.all().map(i => i.json).filter(r => r && r.id && r.fields);\nconst rer = rows[0] || null;\nconst live = !!(rer && rer.fields.stage === 'cancel_confirming' && typeof turnCt === 'string' && /^[1-9][0-9]*$/.test(turnCt) && rer.fields.confirm_turn === turnCt);\nreturn [{ json: { ...vct, _confirm_live: live } }];"
+      },
+      "id": "1030b5cf-6ddc-46bb-85e5-6cccee87ba44",
+      "name": "Verify Confirm Live",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4720,
+        2352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cl000001-0000-4a44-9c44-confirmlive",
+              "leftValue": "={{ $json._confirm_live }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "1504a3a1-d457-48e5-a949-c3b462c8886f",
+      "name": "Confirm Live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4820,
+        2440
       ]
     }
   ],
@@ -3870,7 +3954,7 @@
       "main": [
         [
           {
-            "node": "Delete Booking Event",
+            "node": "Re-read Cancel State",
             "type": "main",
             "index": 0
           }
@@ -3925,6 +4009,53 @@
         [
           {
             "node": "Save State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-read Cancel State": {
+      "main": [
+        [
+          {
+            "node": "Verify Confirm Live",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Cancel-Aborted State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Confirm Live": {
+      "main": [
+        [
+          {
+            "node": "Confirm Live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Live?": {
+      "main": [
+        [
+          {
+            "node": "Delete Booking Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Cancel-Aborted State",
             "type": "main",
             "index": 0
           }

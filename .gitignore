@@ -57,6 +57,11 @@ tests/**/*.pii.*
 # Local headless-render previews (temporary Playwright output — never committed)
 design/mockups/preview/
 
+# Scratch / working files (raw diffs, temp dumps — never committed)
+scratchpad_diff.txt
+*.scratch
+scratch/
+
 # NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).
 # design/mockups/variants/ holds the DELIVERED Phase-1 surface mockups (landing, then
 # widget + dashboard) — committed for Cowork to review from git.
