@@ -3016,6 +3016,22 @@
         6000,
         2016
       ]
+    },
+    {
+      "parameters": {
+        "content": "## Cancel-confirm lifecycle — fail-closed\nA \"yes\" here DELETES a real calendar event, so every gate defaults to\n\"do nothing / booking stands\". Three look-alike gates — don't confuse them:\n\n- **Confirm Router** — `stage === 'cancel_confirming'`? Is this message landing on a\n  thread that is awaiting a cancel confirmation at all. (in vs. normal routing)\n- **Confirm Fresh?** — is that confirmation still inside its 1-turn TTL?\n- **Confirm Live?** — right before the DELETE, does the booking still exist and still\n  bind to the same target?\n\n**TTL — why `confirm_turn`.** On the confirm prompt we stamp `confirm_turn` = the turn\nthe \"yes\" must land on. Confirm Fresh? passes ONLY when `turn_count === confirm_turn`.\nA \"yes\" that arrives a turn later (or a replayed/stale message) → abort, never delete.\n\n**Fail-CLOSED — validate BEFORE you coerce.** Confirm Fresh? type-checks first\n(`turn_count` positive safe-int; `confirm_turn` canonical `/^[1-9][0-9]*$/` string), THEN\ncompares as strings. Never `Number()` first: `Number(null)===0` / `Number('')===0` — a\nlegacy row with no/0 `confirm_turn` would falsely read as \"turn 0 == turn 0\" and delete.\nnull / '' / 0 / type-mismatch all → Build Cancel-Aborted State (booking stands).\n\n**Pre-delete re-read — what it does & does NOT do.** Re-read Cancel State → Verify\nConfirm Live → Confirm Live? re-reads the conversation row IMMEDIATELY before the DELETE,\nso a state changed since the confirm (already consumed / rebound) stops the delete. This\nis NOT an atomic lock — it narrows the race from the whole run to two nodes; a tight\nconcurrent race remains. Full fix = per-sender serialization → **Phase 5**.\n\n**Abort Cancel?** — `stage===cancel_confirming` AND `intent!=='confirm'`: they said\nsomething other than \"yes\" while awaiting confirmation → drop the pending cancel.",
+        "height": 1000,
+        "width": 640,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3280,
+        2560
+      ],
+      "typeVersion": 1,
+      "id": "de2191a4-7b45-4d6d-8c99-1adc8f1850f9",
+      "name": "Sticky Note Cancel-Confirm"
     }
   ],
   "connections": {
