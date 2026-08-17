@@ -62,6 +62,11 @@ scratchpad_diff.txt
 *.scratch
 scratch/
 
+# n8n rollback snapshots — FULL export (real credential/base/table ids) → NEVER committed.
+# These are the known-good restore points for refactor rollback (see docs/n8n-rollback.md).
+n8n/.snapshots/
+*.local.json
+
 # NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).
 # design/mockups/variants/ holds the DELIVERED Phase-1 surface mockups (landing, then
 # widget + dashboard) — committed for Cowork to review from git.

@@ -64,6 +64,21 @@ I="reg-idem-$RUN"; MID="$I-dup"
 fire "$I" "what are your prices?" "$MID" >/dev/null      # 1st: processed
 assert "3 idempotent 2nd ignored" "$(fire "$I" "what are your prices?" "$MID")" "duplicate_ignored"
 
+echo "== invalid payload -> 400 (Validate Payload reject) =="
+BAD="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' \
+       -d "{\"channel\":\"widget\",\"sessionId\":\"regbad-$RUN\",\"text\":\"hi\"}")"   # no messageId -> reject
+N=$((N+1)); if [ "$BAD" = "400" ]; then PASS=$((PASS+1)); echo "PASS  20 invalid payload 400"
+else FAIL=$((FAIL+1)); echo "FAIL  20 invalid payload (got HTTP $BAD, want 400)"; fi
+
+echo "== cancel with NO booking -> cancelNoBooking =="
+NB="reg-nobk-$RUN"
+assert "21 cancel no-booking" "$(fire "$NB" "cancel my appointment" "$NB-1")" "active booking"
+
+echo "== handoff lock (2nd message on a handed-off session) =="
+HL="reg-lock-$RUN"
+fire "$HL" "I want to reschedule to next week" "$HL-1" >/dev/null   # reschedule -> stage=handoff
+assert "22 handoff lock" "$(fire "$HL" "actually what are your hours?" "$HL-2")" "already helping"
+
 echo
 echo "== BASELINE (curl-only subset): $PASS/$N passed, $FAIL failed =="
 echo "== ⚙ setup-heavy scenarios (race · 401 · Validate rejects · legacy tc=0 · TTL stale · bind · cancelTargetGone · guard-trip) are run assisted — see tests/regression-suite.md =="

@@ -49,6 +49,10 @@
 | 17 | **lead** | — | `can someone call me back about a package?` | `leadCaptured` ("Thanks! We've got your details…") | Route Intent(lead)→Capture Lead→Build Lead State→Save State | booking nodes |
 | 18 | **handoff (intent-handoff)** | — | `I want to reschedule to next week` (reschedule → handoff) OR a low-confidence msg | `handoff` ("I'm passing you to a team member…"); Airtable `stage=handoff` | Confidence & Intent Gate(true)→Mark Handoff→Save State | booking/cancel mutations |
 | 19 | **guard-trip** ⚙(config) | set `bot.killSwitch:true` (or exceed `maxTurnsPerConversation`) | any message | `handoff` (200), **0 LLM cost** | Check Bot Guards(false)→Handoff Reply | Build LLM Request · Extract Intent (no paid call) |
+| 20 | **invalid payload → 400** | — | POST a body with **no `messageId`** (or empty text / bad senderId / disabled channel) | HTTP **400** (`Send Reject Response`) | Validate Payload(false)→Send Reject Response | Normalize Inbound · any downstream |
+| 21 | **cancel, no booking** | — (fresh session, never booked) | `cancel my appointment` | `cancelNoBooking` ("You don't have an active booking to cancel.") | Route Intent(cancel)→Find Booking(0)→Cancel Lookup('none')→Cancel Route→Build No-Booking Reply | Delete Booking Event · a confirm prompt |
+| 22 | **handoff lock** | — | `reschedule to next week` (→handoff) → then any 2nd message | 2nd → `{locked:true, "A team member is already helping…"}` (`Handoff Lock Reply`) | Merge State→Check Handoff Lock(true)→Handoff Lock Reply | Check Bot Guards · Build LLM Request (bot stays silent, 0 cost) |
+| 23 | **cancel within cutoff** ⚙ | inject booked row with `start_utc` **< 2h** from now | `cancel my appointment` | `cancelCutoff` ("too close to its time to cancel here…") | Cancel Lookup('cutoff')→Cancel Route→Build Cancel-Cutoff Reply | a confirm prompt · Delete |
 
 **Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment).
 
@@ -58,13 +62,41 @@
 
 **Commit bcc8058 · 2026-08-17 · published production webhook.**
 
-**Automated (curl-only subset, `run-regression.sh`): 9/9 PASS, 0 FAIL** —
-#1 booking happy · #4 cancel happy (204) · #11 confirm-TTL fresh · #16 FAQ · #17 lead ·
-#18 handoff · #13 Abort-FAQ · #3 idempotency.
-Two would-be failures on the first run were **harness bugs, not flow regressions**, now fixed:
-(a) idempotency returns `duplicate_ignored` (not a replay) — expectation corrected; (b) the Abort
-scenario left its 16:00 booking, so a re-run's booking correctly **lost the race** — the harness now
-self-cleans that booking. The flow behaved correctly in both.
+**Automated (curl-only subset, `run-regression.sh`): 12/12 PASS, 0 FAIL** —
+#1 booking · #4 cancel happy (204) · #11 confirm-TTL fresh · #16 FAQ · #17 lead · #18 handoff ·
+#13 Abort-FAQ · #3 idempotency · **#20 invalid-payload 400 · #21 cancel-no-booking · #22 handoff-lock**.
+Harness bugs found + fixed on the way (flow was correct each time): (a) idempotency returns
+`duplicate_ignored`, not a replay — expectation corrected; (b) the Abort scenario left its 16:00
+booking so a re-run correctly **lost the race** — the harness now self-cleans that booking.
+
+### Exit & branch coverage map (Ö2 — every reply exit + branch accounted for)
+
+**11 reply exits:** 6 covered by automated/assisted scenarios; 5 are infra-outage exits (503) that need
+a credential/service failure injected → spec'd as ⚙ infra-drills, not in the curl-only harness.
+
+| Reply exit (HTTP) | Fed by | Covered |
+|---|---|---|
+| Send Reply To Origin (200) | Build Reply Payload | ✅ #1/#4/#16/#17 |
+| Send Reject Response (400) | Validate Payload[false] | ✅ #20 |
+| Idempotent Replay (200) | Is Duplicate[true] | ✅ #3 |
+| Handoff Lock Reply (200) | Check Handoff Lock[true] | ✅ #22 |
+| Handoff Reply (200, guard-trip) | Check Bot Guards[false] | ⚙ #19 |
+| Cancel Delete Unavailable Reply (503) | Cancel Delete Gate[unavail] | ⚙ #6 |
+| Send Error Response (503 `state_unavailable`) | Load/Save State · Check Processed · Find Booking [error] | ⚙ **infra-drill** (Airtable down) |
+| LLM Unavailable Reply (503) | Extract Intent[error] | ⚙ **infra-drill** (LLM down) |
+| Lead Unavailable Reply (503) | Capture Lead[error] | ⚙ **infra-drill** (Airtable lead-write fail) |
+| Calendar Unavailable Reply (503) | Get Calendar Busy · Compute Availability · Reconcile 404?[def] | ⚙ **infra-drill** (freeBusy down / ambiguous-insert reconcile) |
+| Booking State-Unsaved Reply (200) | Save State (Post-Write)[error] | ⚙ **infra-drill** (post-write Airtable fail) |
+
+**18 branch nodes** (16 IF + 2 Switch): every output is now reached by a scenario except the pure
+infra-error branches above. Newly covered by #20–#23: `Validate Payload[false]`, `Check Handoff Lock[true]`,
+`Cancel Route[none]`, `Cancel Route[cutoff]`. Edge branches `Event ID Valid?[false]` (malformed event id →
+handoff — proven earlier by the astral-sender guard, exec on CP2c) and the `Reconcile Gate`/`Reconcile 404?`
+pair (ambiguous 409/timeout insert) are ⚙ edge-drills, spec'd, not automated.
+
+**Honest gap (unchanged):** the 5 infra-503 exits + guard-trip + reconcile need injected failures/config;
+they are documented drills, not curl-only. The confirmation-lifecycle, cancel, booking, idempotency, routing,
+and handoff-class branches are all covered.
 
 **⚙ Setup-heavy (assisted, verified this session via the execution API):**
 
