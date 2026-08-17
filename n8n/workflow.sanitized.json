@@ -289,7 +289,8 @@
             "slot_time": "={{ $json.state.slots.time || '' }}",
             "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
             "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
-            "confirm_turn": "={{ $json.state.confirm_turn || '' }}"
+            "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
+            "computed_reply": "={{ $json.computed_reply || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -656,7 +657,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const j = $json;\nreturn [{ json: { ...j, state: { ...j.state, stage: 'handoff' } } }];"
+        "jsCode": "const j = $json;\nconst cfg = $('Load Config').first().json.config;\n// computed_reply = per-turn reply (Refactor #5 thin reader): a generic handoff mirrors the pre-refactor\n// Build Reply Payload behaviour (stage==='handoff' -> t.handoff).\nreturn [{ json: { ...j, state: { ...j.state, stage: 'handoff' }, computed_reply: cfg.messageTemplates.handoff } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -849,7 +850,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Slot Gate — deterministik: required {service, date, time} tam mı? stage + next_ask hesapla.\nconst j = $json;\nconst cfg = $('Load Config').first().json.config;\nconst s = (j.state && j.state.slots) || {};\nconst hasService = !!s.serviceId && (cfg.services || []).some(sv => sv.id === s.serviceId); // enforce config allow-list (Codex root-cause: an invented serviceId must NOT count as filled)\nconst hasDate    = !!s.date && DateTime.fromISO(s.date).isValid; // NIT-3: reject a pattern-valid-but-fake date (e.g. 2026-02-30) here -> stays collecting + re-asks, never hits freeBusy (wrong 503)\nconst hasTime    = !!s.time;\n\nlet next_ask = null;\nif (!hasService)               next_ask = 'service';\nelse if (!hasDate || !hasTime) next_ask = 'datetime';\n\nconst stage = next_ask ? 'collecting' : 'ready';\nreturn [{ json: { ...j, state: { ...j.state, stage }, next_ask } }];"
+        "jsCode": "// Slot Gate — deterministik: required {service, date, time} tam mı? stage + next_ask hesapla.\nconst j = $json;\nconst cfg = $('Load Config').first().json.config;\nconst s = (j.state && j.state.slots) || {};\nconst hasService = !!s.serviceId && (cfg.services || []).some(sv => sv.id === s.serviceId); // enforce config allow-list (Codex root-cause: an invented serviceId must NOT count as filled)\nconst hasDate    = !!s.date && DateTime.fromISO(s.date).isValid; // NIT-3: reject a pattern-valid-but-fake date (e.g. 2026-02-30) here -> stays collecting + re-asks, never hits freeBusy (wrong 503)\nconst hasTime    = !!s.time;\n\nlet next_ask = null;\nif (!hasService)               next_ask = 'service';\nelse if (!hasDate || !hasTime) next_ask = 'datetime';\n\nconst stage = next_ask ? 'collecting' : 'ready';\n// computed_reply (Refactor #5): the collecting ask WITHOUT greet — the thin-reader Build Reply Payload\n// prepends \"Welcome back!\" only on stage==='collecting' (behaviour preserved). On 'ready' the reply is\n// produced downstream by Compute Availability, so leave it empty here (Save State writes '' via || '').\nconst t = cfg.messageTemplates;\nconst computed_reply = stage === 'collecting' ? (next_ask === 'service' ? t.askService : t.askDateTime) : '';\nreturn [{ json: { ...j, state: { ...j.state, stage }, next_ask, computed_reply } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1930,7 +1931,8 @@
             "slot_time": "={{ $json.state.slots.time }}",
             "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
             "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
-            "confirm_turn": "={{ $json.state.confirm_turn || '' }}"
+            "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
+            "computed_reply": "={{ $json.computed_reply || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -2188,7 +2190,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Reconcile-Handoff State — the deterministic event id exists but as a CANCELLED tombstone (a prior\n// booking for this exact slot was deleted, e.g. a CP2b race-loss). We cannot reuse the id and made no new\n// booking → hand off. Context rebuilt via node refs (this is an error/branch path — the incoming item is the\n// GCal event, not our state).\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, reconcile_conflict: true } }];"
+        "jsCode": "// Build Reconcile-Handoff State — the deterministic event id exists but as a CANCELLED tombstone (a prior\n// booking for this exact slot was deleted, e.g. a CP2b race-loss). We cannot reuse the id and made no new\n// booking → hand off. Context rebuilt via node refs (this is an error/branch path — the incoming item is the\n// GCal event, not our state).\nconst be = $('Build Event Request').first().json;\nconst st = be.state;\nconst cfg = $('Load Config').first().json.config;\n// computed_reply (Refactor #5): preserve the pre-refactor reply on this path (was generic t.handoff via stage).\nreturn [{ json: { ...be, state: { ...st, stage: 'handoff' }, reconcile_conflict: true, computed_reply: cfg.messageTemplates.handoff } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
