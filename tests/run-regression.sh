@@ -32,18 +32,18 @@ WK="2026-08-26"   # a Wednesday (weekday, open) — bump if in the past
 #   4 cancel prompt "Cancel your"      STRONG — Build Cancel-Confirm only
 #   4 cancelled    "is cancelled"      STRONG — cancelDone only ("already cancelled" lacks the contiguous "is cancelled")
 #  16 faq price    "Haircut €25"       STRONG — tightened from "prices" to assert the real config price flows (deterministic)
-#  17 lead         "team"              WEAK  — leadCaptured AND handoff BOTH contain "team", and the ambiguous
-#                                              message classifies as handoff live (observed). A real fix needs a
-#                                              message that reliably triggers capture_lead + a leadCaptured-specific
-#                                              needle ("got your details"); that requires a live LLM check, not a
-#                                              blind static change. GATED on the sub-step-2 publish window.
+#  17 lead         "got your details"  STRONG — leadCaptured only; message "Do you do hair coloring? I'm
+#                                              interested" reliably classifies capture_lead (verified live in the
+#                                              sub-step-2 window; the old "package call-back" message was ambiguous
+#                                              and drifted to handoff, and the old "team" needle passed on both).
 #  18 handoff      "team member"       STRONG — reschedule deterministically -> handoff -> t.handoff
 #  13 abort        "booking stands"    STRONG — cancelAborted only
 #   3 idempotent   "duplicate_ignored" STRONG — distinct short-circuit JSON
 #  20 invalid      HTTP 400            STRONG — status code, not a string
 #  21 no-booking   "active booking"    STRONG — cancelNoBooking only
 #  22 lock         "already helping"   STRONG — handoffLocked only
-# Verdict: 11/12 exit-specific; #17 (lead) weak — fix gated on a live capture_lead check (do NOT tighten blind).
+# Verdict: 12/12 exit-specific (all assertions FAIL on wrong behaviour). #17 tightened 2026-08-18 after a live
+# capture_lead check.
 
 echo "== booking happy =="
 S="reg-book-$RUN"
@@ -60,7 +60,7 @@ assert "16 faq price"    "$(fire "$F" "what are your prices?" "$F-1")" "Haircut 
 
 echo "== lead =="
 L="reg-lead-$RUN"
-assert "17 lead"         "$(fire "$L" "Can someone call me back about a package?" "$L-1")" "team"   # WEAK — see assertion audit above; fix gated on a live capture_lead check (sub-step-2 window)
+assert "17 lead"         "$(fire "$L" "Do you do hair coloring? I'm interested" "$L-1")" "got your details"   # exit-specific: leadCaptured only; message reliably classifies capture_lead (verified live)
 
 echo "== handoff (reschedule -> handoff) =="
 H="reg-ho-$RUN"
