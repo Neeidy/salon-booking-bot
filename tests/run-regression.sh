@@ -25,6 +25,26 @@ assert() { # name reply needle
 
 WK="2026-08-26"   # a Wednesday (weekday, open) — bump if in the past
 
+# --- Assertion-strength audit (2026-08-17) — "would this assertion FAIL if the behaviour were WRONG?" ---
+# The 12/12 pass is the safety gate for the whole #5 refactor, so each needle must be exit-specific.
+#   1 book prompt  "shall I book"      STRONG — only the availability confirm-ask contains it
+#   1 booked       "You're booked"     STRONG — bookingConfirmed only
+#   4 cancel prompt "Cancel your"      STRONG — Build Cancel-Confirm only
+#   4 cancelled    "is cancelled"      STRONG — cancelDone only ("already cancelled" lacks the contiguous "is cancelled")
+#  16 faq price    "Haircut €25"       STRONG — tightened from "prices" to assert the real config price flows (deterministic)
+#  17 lead         "team"              WEAK  — leadCaptured AND handoff BOTH contain "team", and the ambiguous
+#                                              message classifies as handoff live (observed). A real fix needs a
+#                                              message that reliably triggers capture_lead + a leadCaptured-specific
+#                                              needle ("got your details"); that requires a live LLM check, not a
+#                                              blind static change. GATED on the sub-step-2 publish window.
+#  18 handoff      "team member"       STRONG — reschedule deterministically -> handoff -> t.handoff
+#  13 abort        "booking stands"    STRONG — cancelAborted only
+#   3 idempotent   "duplicate_ignored" STRONG — distinct short-circuit JSON
+#  20 invalid      HTTP 400            STRONG — status code, not a string
+#  21 no-booking   "active booking"    STRONG — cancelNoBooking only
+#  22 lock         "already helping"   STRONG — handoffLocked only
+# Verdict: 11/12 exit-specific; #17 (lead) weak — fix gated on a live capture_lead check (do NOT tighten blind).
+
 echo "== booking happy =="
 S="reg-book-$RUN"
 assert "1 book prompt"   "$(fire "$S" "Book a haircut on $WK at 14:00 please" "$S-1")" "shall I book"
@@ -36,11 +56,11 @@ assert "4 cancelled 204" "$(fire "$S" "yes" "$S-4")" "is cancelled"
 
 echo "== FAQ =="
 F="reg-faq-$RUN"
-assert "16 faq price"    "$(fire "$F" "what are your prices?" "$F-1")" "prices"
+assert "16 faq price"    "$(fire "$F" "what are your prices?" "$F-1")" "Haircut €25"   # tightened: assert the real config price, not just the word "prices"
 
 echo "== lead =="
 L="reg-lead-$RUN"
-assert "17 lead"         "$(fire "$L" "Can someone call me back about a package?" "$L-1")" "team"
+assert "17 lead"         "$(fire "$L" "Can someone call me back about a package?" "$L-1")" "team"   # WEAK — see assertion audit above; fix gated on a live capture_lead check (sub-step-2 window)
 
 echo "== handoff (reschedule -> handoff) =="
 H="reg-ho-$RUN"
