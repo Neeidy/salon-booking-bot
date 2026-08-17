@@ -23,6 +23,9 @@ Scan before any push / screenshot / export:
 - **computed_reply coverage (Refactor #5):** run `python3 scripts/check-computed-reply-coverage.py` — every
   reply-producing builder must set `computed_reply` (the thin-reader reads the reply from that column). Non-zero
   exit = a builder drifted; report it (not a secret finding, but a correctness gate for n8n commits).
+- **cancel-validation parity (Refactor #4):** run `python3 scripts/check-cancel-validation-parity.py` — the
+  duplicated cancel-validation rules (gid regex, confirm_turn regex, cancel-target structural checks) must not
+  drift across nodes. Non-zero exit = a copy drifted; report it (correctness gate for n8n commits).
 
 Report each finding with file:line and severity. **Block the push** if any secret or PII is found.
 Default to suspicion: if unsure whether something is sensitive, flag it.

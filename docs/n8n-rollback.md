@@ -88,8 +88,13 @@ so drift means auditing something that is not the running system. Two machine ch
    asserts EVERY reply-producing builder (nearest Code ancestor of a Save State) sets `computed_reply`. The
    thin-reader Build Reply Payload reads the reply from that column, so a builder that forgets it emits an
    empty reply. Exit 1 = a builder drifted → **fix before commit**. Catches CP4's new reschedule builders.
+4. **cancel-validation parity** (Refactor #4 invariant) — `python3 scripts/check-cancel-validation-parity.py`
+   asserts the cancel-validation rules (duplicated because n8n Code nodes can't share a helper) never drift:
+   the gid shape regex `^[0-9a-v]{5,1024}$` is identical in all 3 uses, the `confirm_turn` regex `^[1-9][0-9]*$`
+   in both confirm gates, and Cancel Lookup (ask `structOk`) + Validate Cancel Target both check {finite
+   start_utc, gid shape, calendar_id present}. Exit 1 = a copy drifted → **fix before commit**.
 
-All three run again inside the `security-auditor` pre-push pass. A step is not closed until all are green.
+All four run again inside the `security-auditor` pre-push pass. A step is not closed until all are green.
 
 ## Standing rules (Ö3–Ö5) during refactor
 - **Isolation (Ö3):** refactor test traffic uses a dedicated `sender_key` prefix; every Airtable row
