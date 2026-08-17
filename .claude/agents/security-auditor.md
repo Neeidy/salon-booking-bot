@@ -14,6 +14,11 @@ Scan before any push / screenshot / export:
 - **n8n:** only `workflow.sanitized.json` is committed; raw exports are gitignored.
 - **Webhook verification:** Zernio HMAC present; website widget has rate-limit + bot-protection (no shared secret in browser).
 - **Control-plane:** n8n editor/admin UI is not exposed publicly (webhook endpoints only).
+- **Production host leak (machine check):** the real n8n instance host must appear in NO tracked file.
+  Run `bash scripts/check-no-host-leak.sh` — it reads the host from `$N8N_HOST` or the gitignored
+  `CLAUDE.local.md` (`N8N_HOST=`) and git-greps tracked files; a non-zero exit is a **FAIL**. Never write
+  the literal host into any committed file (that leaks it). The webhook PATH (`barber-inbound`) is an
+  accepted template path; the HOST is not.
 
 Report each finding with file:line and severity. **Block the push** if any secret or PII is found.
 Default to suspicion: if unsure whether something is sensitive, flag it.

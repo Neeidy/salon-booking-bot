@@ -72,6 +72,21 @@ The other **5 infra-503 exits + guard-trip + the reconcile pair are `b1`'s highe
 no commit for the `b1` step until every one passes.** (Same discipline applies to any step that edits a
 node feeding a reply exit.)
 
+## Close gate — run AFTER publish + suite, BEFORE commit (every refactor step)
+The committed `n8n/workflow.sanitized.json` is now HAND-MAINTAINED (surgical, sanitized-preserving
+edits — a raw full export is unreliable: the compiled ajv validator in `Validate Intent` bloats/mangles).
+A hand-built artifact can silently drift from the live workflow, and Codex (L3) audits the committed file —
+so drift means auditing something that is not the running system. Two machine checks close every step:
+
+1. **Live↔committed parity** — `N8N_API_URL=… N8N_API_KEY=… python3 scripts/check-live-parity.py`
+   compares node count · node-name set · connection topology (never the heavy Code bodies). Exit 0 = OK,
+   1 = DRIFT → **stop and reconcile before commit**. (Host is behind Cloudflare; the script sends a
+   browser User-Agent to clear the 1010 browser-integrity block — the API key still authenticates.)
+2. **Host-leak guard** — `bash scripts/check-no-host-leak.sh` (reads the real host from `$N8N_HOST` /
+   gitignored `CLAUDE.local.md`, git-greps tracked files). Exit 0 = clean, 1 = LEAK → **fix before commit**.
+
+Both run again inside the `security-auditor` pre-push pass. A step is not closed until both are green.
+
 ## Standing rules (Ö3–Ö5) during refactor
 - **Isolation (Ö3):** refactor test traffic uses a dedicated `sender_key` prefix; every Airtable row
   and GCal event it creates is cleaned at the end of the step (the harness self-cancels its bookings so
