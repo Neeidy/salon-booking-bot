@@ -20,5 +20,9 @@ Scan before any push / screenshot / export:
   the literal host into any committed file (that leaks it). The webhook PATH (`barber-inbound`) is an
   accepted template path; the HOST is not.
 
+- **computed_reply coverage (Refactor #5):** run `python3 scripts/check-computed-reply-coverage.py` — every
+  reply-producing builder must set `computed_reply` (the thin-reader reads the reply from that column). Non-zero
+  exit = a builder drifted; report it (not a secret finding, but a correctness gate for n8n commits).
+
 Report each finding with file:line and severity. **Block the push** if any secret or PII is found.
 Default to suspicion: if unsure whether something is sensitive, flag it.

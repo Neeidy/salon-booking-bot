@@ -58,7 +58,8 @@
     "cancelDone": "Done — your {service} on {when} is cancelled.",
     "cancelAlreadyDone": "That booking is already cancelled — nothing more to do.",
     "cancelAborted": "No problem — your booking stands.",
-    "cancelTargetGone": "I couldn't find that booking to cancel anymore — a team member will follow up shortly."
+    "cancelTargetGone": "I couldn't find that booking to cancel anymore — a team member will follow up shortly.",
+    "notUnderstood": "Sorry — I didn't catch that. Could you rephrase?"
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",

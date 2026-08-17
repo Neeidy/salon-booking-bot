@@ -84,8 +84,12 @@ so drift means auditing something that is not the running system. Two machine ch
    browser User-Agent to clear the 1010 browser-integrity block — the API key still authenticates.)
 2. **Host-leak guard** — `bash scripts/check-no-host-leak.sh` (reads the real host from `$N8N_HOST` /
    gitignored `CLAUDE.local.md`, git-greps tracked files). Exit 0 = clean, 1 = LEAK → **fix before commit**.
+3. **computed_reply coverage** (Refactor #5 invariant) — `python3 scripts/check-computed-reply-coverage.py`
+   asserts EVERY reply-producing builder (nearest Code ancestor of a Save State) sets `computed_reply`. The
+   thin-reader Build Reply Payload reads the reply from that column, so a builder that forgets it emits an
+   empty reply. Exit 1 = a builder drifted → **fix before commit**. Catches CP4's new reschedule builders.
 
-Both run again inside the `security-auditor` pre-push pass. A step is not closed until both are green.
+All three run again inside the `security-auditor` pre-push pass. A step is not closed until all are green.
 
 ## Standing rules (Ö3–Ö5) during refactor
 - **Isolation (Ö3):** refactor test traffic uses a dedicated `sender_key` prefix; every Airtable row
