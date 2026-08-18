@@ -36,7 +36,7 @@ WK="2026-08-26"   # a Wednesday (weekday, open) — bump if in the past
 #                                              interested" reliably classifies capture_lead (verified live in the
 #                                              sub-step-2 window; the old "package call-back" message was ambiguous
 #                                              and drifted to handoff, and the old "team" needle passed on both).
-#  18 handoff      "team member"       STRONG — reschedule deterministically -> handoff -> t.handoff
+#  18 handoff      "team member"       STRONG — gibberish -> unknown/low-conf -> handoff -> t.handoff (reschedule is a real action since CP4)
 #  13 abort        "booking stands"    STRONG — cancelAborted only
 #   3 idempotent   "duplicate_ignored" STRONG — distinct short-circuit JSON
 #  20 invalid      HTTP 400            STRONG — status code, not a string
@@ -62,9 +62,9 @@ echo "== lead =="
 L="reg-lead-$RUN"
 assert "17 lead"         "$(fire "$L" "Do you do hair coloring? I'm interested" "$L-1")" "got your details"   # exit-specific: leadCaptured only; message reliably classifies capture_lead (verified live)
 
-echo "== handoff (reschedule -> handoff) =="
+echo "== handoff (unknown/low-conf -> handoff) =="
 H="reg-ho-$RUN"
-assert "18 handoff"      "$(fire "$H" "I want to reschedule to next week" "$H-1")" "team member"
+assert "18 handoff"      "$(fire "$H" "asdfgh qwerty zzz ???" "$H-1")" "team member"
 
 echo "== Abort: FAQ intervenes mid cancel-confirm =="
 # NOTE isolation: this scenario books a slot and then ABORTS the cancel (booking stands), so it must
@@ -96,7 +96,7 @@ assert "21 cancel no-booking" "$(fire "$NB" "cancel my appointment" "$NB-1")" "a
 
 echo "== handoff lock (2nd message on a handed-off session) =="
 HL="reg-lock-$RUN"
-fire "$HL" "I want to reschedule to next week" "$HL-1" >/dev/null   # reschedule -> stage=handoff
+fire "$HL" "asdfgh qwerty zzz ???" "$HL-1" >/dev/null   # unknown/low-conf -> stage=handoff (reschedule is a real action since CP4)
 assert "22 handoff lock" "$(fire "$HL" "actually what are your hours?" "$HL-2")" "already helping"
 
 echo
