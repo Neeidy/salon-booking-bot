@@ -6,10 +6,17 @@
 # Concepts guarded:
 #   1. gid shape regex  ^[0-9a-v]{5,1024}$  — MUST be identical everywhere; 4x
 #      (Event ID Valid?, Cancel Lookup ask structOk, Validate Cancel Target, Reschedule Lookup — CP4).
-#   2. confirm_turn canonical regex  ^[1-9][0-9]*$  — 2x (Confirm Fresh?, Verify Confirm Live).
-#      (CP4 sub-step 2 adds Reschedule Fresh? as a 3rd — bump to 3 then.)
+#   2. confirm_turn canonical regex  ^[1-9][0-9]*$  — 3x (Confirm Fresh?, Verify Confirm Live,
+#      Reschedule Fresh? — CP4 sub-step 2).
 #   3. cancel-target structural rule parity — Cancel Lookup (ask structOk), Validate Cancel Target, AND
 #      Reschedule Lookup (CP4) must ALL validate {finite start_utc, gid shape, calendar_id present}.
+#   4. confirm-TTL byte-identity — Confirm Fresh? and Reschedule Fresh? share ONE TTL expression
+#      (clarification 1: reschedule reuses the cancel-confirm TTL verbatim); the two IF leftValues MUST match.
+#   5. *_confirming ↔ stageContext branch — EVERY *_confirming stage keyed on in an IF/Switch routing
+#      condition MUST have a matching branch in Build LLM Request's stageContext ternary. Without it a "yes"
+#      on that stage cannot be classified as confirm → it silently falls to handoff. (This is not
+#      speculative: reschedule_confirming was routed but had no stageContext branch, so a reschedule "yes"
+#      handed off — the exact failure this guard now forbids. 2026-08-18.)
 #
 # Prove-it: break a copy and the guard FAILs (a guard never seen to FAIL is an assumed guard — learned at #5).
 # Exit 0 = parity OK, 1 = drift. Run at every close gate / pre-push (with the #5 coverage guard).
@@ -55,8 +62,8 @@ if set(gid_forms) != {('5', '1024')}:
 elif gid_forms[('5', '1024')] != 4:
     fails.append(f"gid shape regex count {gid_forms[('5', '1024')]} != 4 — expected in {GID_NODES}, found in {sorted(set(gid_seen))}")
 
-# 2) confirm_turn canonical regex ^[1-9][0-9]*$ — exactly the two confirm gates
-CT_NODES = ['Confirm Fresh?', 'Verify Confirm Live']
+# 2) confirm_turn canonical regex ^[1-9][0-9]*$ — exactly the three confirm-freshness gates
+CT_NODES = ['Confirm Fresh?', 'Verify Confirm Live', 'Reschedule Fresh?']
 ct_seen = sorted(name for name, t in ALL.items() if re.search(r'\[1-9\]\[0-9\]\*', t))
 if ct_seen != sorted(CT_NODES):
     fails.append(f"confirm_turn canonical regex ^[1-9][0-9]*$ nodes {ct_seen} != {sorted(CT_NODES)} (a weakened/moved confirm-turn check?)")
@@ -74,6 +81,51 @@ for name in ['Cancel Lookup', 'Validate Cancel Target', 'Reschedule Lookup']:
     if missing:
         fails.append(f"cancel-target rule DRIFT in '{name}': missing {missing}")
 
+
+def if_leftvalue(name):
+    """First IF condition's leftValue expression, or None if the node/condition is absent."""
+    n = by.get(name)
+    if not n:
+        return None
+    for c in (n.get('parameters', {}).get('conditions', {}) or {}).get('conditions', []) or []:
+        return c.get('leftValue', '')
+    return None
+
+
+# 4) confirm-TTL byte-identity — Confirm Fresh? and Reschedule Fresh? must share ONE TTL expression
+cf_ttl = if_leftvalue('Confirm Fresh?')
+rf_ttl = if_leftvalue('Reschedule Fresh?')
+if cf_ttl is None or rf_ttl is None:
+    fails.append(f"confirm-TTL nodes missing (Confirm Fresh?={cf_ttl is not None}, Reschedule Fresh?={rf_ttl is not None})")
+elif cf_ttl != rf_ttl:
+    fails.append("confirm-TTL DRIFT — Confirm Fresh? and Reschedule Fresh? leftValue not byte-identical "
+                 "(reschedule must reuse the cancel-confirm TTL verbatim)")
+
+# 5) *_confirming ↔ stageContext — every *_confirming stage keyed in an IF/Switch routing condition
+#    must have a matching branch in Build LLM Request's stageContext ternary.
+routed = set()
+for n in w['nodes']:
+    if n['type'] not in ('n8n-nodes-base.if', 'n8n-nodes-base.switch'):
+        continue
+    p = n.get('parameters', {})
+    blobs = []
+    conds = p.get('conditions')
+    if isinstance(conds, dict):
+        blobs += [str(c.get('rightValue', '')) for c in (conds.get('conditions', []) or [])]
+    rules = p.get('rules')
+    if isinstance(rules, dict):
+        for r in rules.get('values', []) or []:
+            blobs += [str(c.get('rightValue', '')) for c in ((r.get('conditions', {}) or {}).get('conditions', []) or [])]
+    for b in blobs:
+        routed.update(re.findall(r'\b(\w+_confirming)\b', b))
+blr = by.get('Build LLM Request', {}).get('parameters', {}).get('jsCode', '')
+ctx = set(re.findall(r"st\.stage\s*===\s*'(\w+_confirming)'", blr))
+missing_ctx = routed - ctx
+if missing_ctx:
+    fails.append(f"routed *_confirming stage(s) {sorted(missing_ctx)} have NO Build LLM Request stageContext "
+                 f"branch — a 'yes' there cannot classify as confirm and silently hands off (routed={sorted(routed)}, "
+                 f"stageContext={sorted(ctx)})")
+
 if fails:
     print('DRIFT — cancel-validation single-source violated:')
     for f in fails:
@@ -81,6 +133,8 @@ if fails:
     sys.exit(1)
 
 print('cancel-validation parity OK — gid regex 4x identical [0-9a-v]{5,1024} (incl. Reschedule Lookup); '
-      'confirm_turn regex 2x ^[1-9][0-9]*$; Cancel Lookup + Validate Cancel Target + Reschedule Lookup all '
-      'check {finite start_utc, gid shape, calendar_id present}')
+      'confirm_turn regex 3x ^[1-9][0-9]*$ (Confirm Fresh?, Verify Confirm Live, Reschedule Fresh?); '
+      'Cancel Lookup + Validate Cancel Target + Reschedule Lookup all check {finite start_utc, gid shape, '
+      'calendar_id present}; Confirm Fresh?==Reschedule Fresh? TTL byte-identical; '
+      f'routed *_confirming {sorted(routed)} all have a Build LLM Request stageContext branch')
 sys.exit(0)
