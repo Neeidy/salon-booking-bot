@@ -64,7 +64,8 @@
     "rescheduleCutoff": "That booking is too close to its time to reschedule here — please call us and we'll sort it out.",
     "rescheduleNeedsHuman": "I found your booking but can't reschedule it automatically — a team member will help you move it.",
     "rescheduleAskSlot": "Sure — what new day and time would you like to move it to?",
-    "rescheduleAborted": "No problem — your booking stays as it is."
+    "rescheduleAborted": "No problem — your booking stays as it is.",
+    "rescheduleInsertFailed": "Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up."
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
