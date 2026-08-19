@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleDone: \"Moved — your {service} is now {when}.\",\n      rescheduleMirrorFailed: \"Your booking change is being finalized — a team member will confirm the new time shortly.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -3335,19 +3335,6 @@
       }
     },
     {
-      "id": "c23bdd66-c729-4008-9b63-e57444060d1c",
-      "name": "Build Reschedule-Executing State",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        6048,
-        4300
-      ],
-      "parameters": {
-        "jsCode": "// Build Reschedule-Executing State — TEMP (sub-step 2): the reschedule confirm passed (yes + fresh TTL). Sub-step 3\n// replaces this with the real execute (insert-new -> update-row -> delete-old, book-new-first). For now, hand off\n// with context so a 'yes' is never dropped.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff' }, computed_reply: \"Great — I'm moving your booking now; a team member will confirm it's done.\" } }];"
-      }
-    },
-    {
       "parameters": {
         "operation": "search",
         "base": {
@@ -3655,6 +3642,228 @@
       "position": [
         7392,
         4880
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblZZZZZZZZZZZZZZ",
+          "mode": "list",
+          "cachedResultName": "appointments",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblZZZZZZZZZZZZZZ"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json._reschedule_target.recordId }}",
+            "gcal_event_id": "={{ $json.booking.eventId }}",
+            "start_utc": "={{ $json.booking.startUTC }}",
+            "end_utc": "={{ $json.booking.endUTC }}",
+            "calendar_id": "={{ $json.booking.calId }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "gcal_event_id",
+              "displayName": "gcal_event_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "start_utc",
+              "displayName": "start_utc",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "end_utc",
+              "displayName": "end_utc",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "calendar_id",
+              "displayName": "calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9d903d9-8fc4-4025-8cf5-c2d245413faa",
+      "name": "Update Appointment (Reschedule)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        6944,
+        5250
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent($('Build Reschedule Event Request').first().json._reschedule_target.calendar_id) + '/events/' + $('Build Reschedule Event Request').first().json._reschedule_target.gcal_event_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "20ae9ade-d6a1-44a6-a36b-632121daa5e6",
+      "name": "Delete Old Event (Reschedule)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7168,
+        5250
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_WITH_GOOGLE_SA_CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify Reschedule Delete — STRUCTURAL only (statusCode). Delete Old Event runs fullResponse+neverError,\n// so any HTTP status reaches success output as $json.statusCode; only a transport error (timeout/DNS) reaches\n// error output as $json.error. 204/200 = done (old removed); 404/410 = gone (old already absent — still a\n// successful move); anything else = unavailable (the OLD event may still linger). NEVER inspect error text.\nconst base = $('Build Reschedule Event Request').first().json;\nconst err = ($json && $json.error) || null;\nlet outcome;\nif (err) outcome = 'unavailable';\nelse {\n  const sc = Number($json.statusCode);\n  if (sc === 204 || sc === 200) outcome = 'done';\n  else if (sc === 404 || sc === 410) outcome = 'gone';\n  else outcome = 'unavailable';\n}\nreturn [{ json: { ...base, _reschedule_delete: outcome } }];"
+      },
+      "id": "91db3945-892f-44dc-9c96-d379c7a2397f",
+      "name": "Classify Reschedule Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7392,
+        5250
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._reschedule_delete }}",
+              "rightValue": "unavailable",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "cond-resched-del-1adca0cb8b"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bcb2b227-7802-46ab-bebe-2f0a0a0d06d0",
+      "name": "Reschedule Delete Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7616,
+        5250
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Reschedule-Done State — the move is committed: row points at the NEW event and the OLD event was\n// deleted (204/200) or was already gone (404/410 — still a success). stage=booked, carry the NEW gcal id,\n// clear the confirm state. \"Moved — your {service} is now {when}.\"\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst eventId = b.eventId || null;\nconst when = b.dateStr + ' ' + b.timeStr;\nconst reply = (cfg.messageTemplates.rescheduleDone || 'Moved — your {service} is now {when}.').split('{service}').join(b.serviceName).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'booked', cancel_target_id: '', confirm_turn: '' }, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+      },
+      "id": "94bc1763-9393-4d5c-9b5f-398fd3a19078",
+      "name": "Build Reschedule-Done State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7840,
+        5170
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Reschedule Orphan State — the row is updated to the NEW event and the NEW event exists, so the move\n// succeeded for the customer; but deleting the OLD event was UNAVAILABLE, so it lingers on the calendar.\n// Tell the customer the truth — it moved — and hand off with reschedule_orphan so the owner removes the stray\n// OLD event (visible, recoverable — never silent).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst eventId = b.eventId || null;\nconst when = b.dateStr + ' ' + b.timeStr;\nconst reply = (cfg.messageTemplates.rescheduleDone || 'Moved — your {service} is now {when}.').split('{service}').join(b.serviceName).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff', cancel_target_id: '', confirm_turn: '' }, reschedule_orphan: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+      },
+      "id": "7fbb23e7-7f73-4df3-a0ac-e83a2f2dec6f",
+      "name": "Build Reschedule Orphan State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7840,
+        5350
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Reschedule Mirror-Failed State — the NEW event is booked+verified, but the Airtable appointments row\n// UPDATE failed, so the row still points at the OLD event (stale) while both events exist. The DB is\n// inconsistent, so we do NOT claim a clean move; hand off with reschedule_mirror_failed + the NEW gcal id so a\n// human reconciles. Reads Build Reschedule Event Request + Validate Intent (the error item carries no fields).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Reschedule Event Request').first().json;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst eventId = be.booking.eventId || null;\nconst reply = cfg.messageTemplates.rescheduleMirrorFailed || 'Your booking change is being finalized — a team member will confirm the new time shortly.';\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff' }, reschedule_mirror_failed: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+      },
+      "id": "38145e4f-2ddc-404e-8a30-e5e9f0b38231",
+      "name": "Build Reschedule Mirror-Failed State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6944,
+        5430
       ]
     }
   ],
@@ -4924,17 +5133,6 @@
         ]
       ]
     },
-    "Build Reschedule-Executing State": {
-      "main": [
-        [
-          {
-            "node": "Save State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Find Old Booking (Reschedule)": {
       "main": [
         [
@@ -5073,7 +5271,7 @@
         ],
         [
           {
-            "node": "Build Reschedule-Executing State",
+            "node": "Update Appointment (Reschedule)",
             "type": "main",
             "index": 0
           }
@@ -5121,6 +5319,104 @@
       ]
     },
     "Build Reschedule Race-Orphan State": {
+      "main": [
+        [
+          {
+            "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Appointment (Reschedule)": {
+      "main": [
+        [
+          {
+            "node": "Delete Old Event (Reschedule)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Reschedule Mirror-Failed State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Old Event (Reschedule)": {
+      "main": [
+        [
+          {
+            "node": "Classify Reschedule Delete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Reschedule Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reschedule Delete": {
+      "main": [
+        [
+          {
+            "node": "Reschedule Delete Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule Delete Gate": {
+      "main": [
+        [
+          {
+            "node": "Build Reschedule Orphan State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Reschedule-Done State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reschedule-Done State": {
+      "main": [
+        [
+          {
+            "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reschedule Orphan State": {
+      "main": [
+        [
+          {
+            "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reschedule Mirror-Failed State": {
       "main": [
         [
           {

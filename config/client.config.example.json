@@ -65,7 +65,9 @@
     "rescheduleNeedsHuman": "I found your booking but can't reschedule it automatically — a team member will help you move it.",
     "rescheduleAskSlot": "Sure — what new day and time would you like to move it to?",
     "rescheduleAborted": "No problem — your booking stays as it is.",
-    "rescheduleInsertFailed": "Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up."
+    "rescheduleInsertFailed": "Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.",
+    "rescheduleDone": "Moved — your {service} is now {when}.",
+    "rescheduleMirrorFailed": "Your booking change is being finalized — a team member will confirm the new time shortly."
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
