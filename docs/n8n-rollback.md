@@ -93,8 +93,15 @@ so drift means auditing something that is not the running system. Two machine ch
    the gid shape regex `^[0-9a-v]{5,1024}$` is identical in all 3 uses, the `confirm_turn` regex `^[1-9][0-9]*$`
    in both confirm gates, and Cancel Lookup (ask `structOk`) + Validate Cancel Target both check {finite
    start_utc, gid shape, calendar_id present}. Exit 1 = a copy drifted → **fix before commit**.
+5. **content parity** (CP4 sub-step 3) — `N8N_API_URL=… N8N_API_KEY=… python3 scripts/check-content-parity.py`
+   compares, per executable node, a normalized projection of `parameters` + `credentials` (sanitize
+   placeholders + n8n serialization noise — `__rl` display cache, empty `options`, condition `id`/meta,
+   omitted-GET method, trailing whitespace — are normalized; sticky notes excluded). Catches the drift the
+   STRUCTURAL parity (#1) is blind to: a changed Code body, mapping, condition, or HTTP option. Exit 1 =
+   DRIFT (prints node + field) → **reconcile before commit**. (On its first run it caught a real live
+   regression — `Get Calendar Busy` had silently lost its 15 s timeout; #1 could not see it.)
 
-All four run again inside the `security-auditor` pre-push pass. A step is not closed until all are green.
+All five run again inside the `security-auditor` pre-push pass. A step is not closed until all are green.
 
 ## Standing rules (Ö3–Ö5) during refactor
 - **Isolation (Ö3):** refactor test traffic uses a dedicated `sender_key` prefix; every Airtable row

@@ -26,6 +26,12 @@ Scan before any push / screenshot / export:
 - **cancel-validation parity (Refactor #4):** run `python3 scripts/check-cancel-validation-parity.py` — the
   duplicated cancel-validation rules (gid regex, confirm_turn regex, cancel-target structural checks) must not
   drift across nodes. Non-zero exit = a copy drifted; report it (correctness gate for n8n commits).
+- **content parity (CP4 sub-step 3):** run `N8N_API_URL=… N8N_API_KEY=… python3 scripts/check-content-parity.py`
+  — per executable node, the committed `parameters`/`credentials` must match the LIVE workflow (sanitize
+  placeholders + n8n serialization noise normalized; sticky notes excluded). Catches a changed Code body /
+  mapping / condition / HTTP option that the structural parity (`check-live-parity.py`) cannot see. Non-zero
+  exit = DRIFT (node + field printed); report it — the committed file is what Codex audits, so it must equal
+  the running system.
 
 Report each finding with file:line and severity. **Block the push** if any secret or PII is found.
 Default to suspicion: if unsure whether something is sensitive, flag it.
