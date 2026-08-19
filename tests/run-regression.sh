@@ -128,6 +128,26 @@ assert "27 reschedule abort" "$(fire "$RA" "what are your prices?" "$RA-4")" "bo
 fire "$RA" "cancel my appointment" "$RA-c1" >/dev/null
 fire "$RA" "yes" "$RA-c2" >/dev/null
 
+# --- Pre-hours class fix (Task 2): a REJECTED availability slot (closed/past/invalid/busy) is cleared in
+# Compute Availability AND a fail-closed gate in Build Event Request routes a stray "yes" to handoff — never
+# a booking on the rejected slot. closed/past/invalid create NO booking (handoff) → self-clean; busy needs a
+# blocker booking → ⚙ (see tests/regression-suite.md). The needle "team member" is the handoff reply, which a
+# real booking ("You're booked …") never contains — so it proves the stray "yes" did NOT book.
+echo "== pre-hours: closed-hour re-ask then stray yes -> handoff, NO booking =="
+PHC="reg-phc-$RUN"
+fire "$PHC" "Book a haircut on $WK at 09:00 please" "$PHC-1" >/dev/null   # 09:00 < opening 10:00 -> closed
+assert "37 pre-hours closed -> no book" "$(fire "$PHC" "yes" "$PHC-2")" "team member"
+
+echo "== pre-hours: past slot re-ask then stray yes -> handoff, NO booking =="
+PHP="reg-php-$RUN"
+fire "$PHP" "Book a haircut on 2020-01-01 at 12:00 please" "$PHP-1" >/dev/null
+assert "38 pre-hours past -> no book" "$(fire "$PHP" "yes" "$PHP-2")" "team member"
+
+echo "== pre-hours: invalid date re-ask then stray yes -> handoff, NO booking =="
+PHI="reg-phi-$RUN"
+fire "$PHI" "Book a haircut on 2026-02-30 at 12:00 please" "$PHI-1" >/dev/null
+assert "39 pre-hours invalid -> no book" "$(fire "$PHI" "yes" "$PHI-2")" "team member"
+
 echo
 echo "== BASELINE (curl-only subset): $PASS/$N passed, $FAIL failed =="
 echo "== ⚙ setup-heavy scenarios (race · 401 · Validate rejects · legacy tc=0 · TTL stale · bind · cancelTargetGone · guard-trip · reschedule failure paths + past-guard) are run assisted — see tests/regression-suite.md =="

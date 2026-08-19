@@ -74,19 +74,41 @@
 
 **Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment). Reschedule: #28/#29/#31/#32/#34/#36 hand off (`stage=handoff`) with context; #25/#33 finish `stage=booked`; #27/#36 abort to `stage=new`.
 
+### Pre-hours class fix — a REJECTED availability slot must not remain bookable
+
+Compute Availability CLEARS the rejected slot on every non-available status, and Build Event Request has a
+fail-closed booking-confirm gate (`stage='confirming'` + complete slot; else emit an empty eventId → the
+existing `Event ID Valid?[false]→Mark Handoff` branch). A stray "yes" after a rejected slot **hands off,
+never books**. Needle "team member" = the handoff reply (a real booking "You're booked…" never contains it).
+
+| # | Name | Setup | Message sequence (session) | Expected reply | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|---|---|---|
+| 37 | **pre-hours: closed → no book** | — | `Book … <before opening>` → `yes` | T1 "We're closed then — …" · T2 handoff ("…passing you to a team member…") | Compute Availability('closed', slot time CLEARED)→…; then Build Event Request(gate → `eventId:''`)→Event ID Valid?(false)→Mark Handoff | Book Appointment · Write Appointment — **no appointments row** |
+| 38 | **pre-hours: past → no book** | — | `Book … <past date>` → `yes` | T1 "…has already passed…" · T2 handoff | Compute Availability('past', date+time CLEARED)→…→Mark Handoff | Book Appointment |
+| 39 | **pre-hours: invalid date → no book** | — | `Book … 2026-02-30 …` → `yes` | T1 re-ask ("What day and time works…") · T2 handoff | Slot Gate(collecting; 2026-02-30 caught here)→…; stray `yes` → Build Event Request(gate)→Mark Handoff | Book Appointment |
+| 40 | **pre-hours: busy → no book** ⚙(blocker) | a 2nd sender books slot X first | `Book … X` → `yes` | T1 "X is taken. Free that day: … Which works?" · T2 handoff | Compute Availability('busy', time CLEARED)→…→Mark Handoff | Book Appointment on X |
+
+**Evidence (execution API + Airtable column, 2026-08-19):** closed = exec **690** (Compute Availability
+`slots.time:null`, Save State drops `slot_time`; stage=collecting) + exec **691** (Build Event Request →
+`booking.eventId:""` → Event ID Valid?(false) → Mark Handoff; **Book Appointment absent**). past · invalid ·
+busy verified the same turn; **zero appointments rows** created across all four (column-verified). #37–#39
+are in `run-regression.sh` (self-clean: they create no booking); #40 needs a blocker booking → ⚙.
+
 ---
 
 ## Baseline run
 
 **CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
 
-**Automated (curl-only subset, `run-regression.sh`): 15/15 PASS, 0 FAIL** —
+**Automated (curl-only subset, `run-regression.sh`): 18/18 PASS, 0 FAIL** —
 #1 booking · #4 cancel happy (204) · #11 confirm-TTL fresh · #16 FAQ · #17 lead · #18 handoff ·
 #13 Abort-FAQ · #3 idempotency · #20 invalid-payload 400 · #21 cancel-no-booking · #22 handoff-lock ·
-**#24 reschedule-no-booking · #25 reschedule-happy (end-to-end move → "Moved") · #27 reschedule-abort**.
-The 3 reschedule scenarios self-clean (happy cancels the MOVED booking; abort cancels the standing one).
-The reschedule FAILURE paths (#28–#36) need injected Airtable state / stripped auth (and #28 past-guard
-hands off → locked, so curl cannot self-clean it) → they are ⚙, verified via the execution API (below).
+#24 reschedule-no-booking · #25 reschedule-happy (end-to-end move → "Moved") · #27 reschedule-abort ·
+**#37 pre-hours-closed · #38 pre-hours-past · #39 pre-hours-invalid** (stray "yes" → handoff, never a booking).
+The 3 reschedule scenarios self-clean (happy cancels the MOVED booking; abort cancels the standing one); the
+pre-hours scenarios create no booking (handoff). The reschedule FAILURE paths (#28–#36) need injected Airtable
+state / stripped auth (and #28 past-guard hands off → locked, so curl cannot self-clean it), and #40 pre-hours
+busy needs a blocker booking → they are ⚙, verified via the execution API (below).
 Harness bugs found + fixed on the way (flow was correct each time): (a) idempotency returns
 `duplicate_ignored`, not a replay — expectation corrected; (b) the Abort scenario left its 16:00
 booking so a re-run correctly **lost the race** — the harness now self-cleans that booking.
@@ -158,7 +180,7 @@ injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + 
 2nd event; orphan events are cleaned by re-pointing the row and bot-cancelling again).
 
 **BASELINE = healthy.** Re-run `run-regression.sh` at the start of a phase and after every step;
-any drop from 15/15, or any MUST-NOT-RUN node appearing, is a regression.
+any drop from 18/18, or any MUST-NOT-RUN node appearing, is a regression.
 
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 

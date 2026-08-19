@@ -132,6 +132,9 @@ Multi-turn slot-fill accumulates deterministically (a mid-booking FAQ never wipe
 are complete the bot checks the **real** calendar (`freeBusy`, no event-detail leak) **before** confirming —
 available → `stage=confirming` + a confirm ask; busy → alternatives; closed/past → re-ask. GCal down or a
 `freeBusy` `errors` payload → **503** (never a false "available"). **No write yet** — the write is Lane 5.
+**Rejected-slot clear (fail-closed):** every non-available status (`closed`/`past`/`invalid`/`busy`) CLEARS the
+rejected slot from state (invalid/past drop date+time; closed/busy keep the open date, drop the time), so a
+later stray "yes" has no bookable slot — paired with the Lane 5 booking-confirm gate.
 
 ---
 
@@ -140,9 +143,9 @@ available → `stage=confirming` + a confirm ask; busy → alternatives; closed/
 ```mermaid
 flowchart TD
   CR{Confirm Router<br/>stage == cancel_confirming?} -->|yes, cancel path| CF[→ Lane 6: Confirm Fresh?]
-  CR -->|no, book confirm| BER[Build Event Request<br/>deterministic event id = hex booking-key]
+  CR -->|no, book confirm| BER[Build Event Request<br/>fail-closed gate: stage=confirming + complete slot<br/>else eventId='' · deterministic id = hex booking-key]
   BER --> EIV{Event ID Valid?}
-  EIV -->|bad id| MH[Mark Handoff]
+  EIV -->|bad id / unvalidated confirm| MH[Mark Handoff]
   EIV -->|ok| BA[Book Appointment<br/>GCal events.insert · id]
   BA -->|success| VS[Verify Slot<br/>events.list over window]
   BA -.->|error / 409| GFR[Get For Reconcile<br/>GET by id · fullResponse+neverError]

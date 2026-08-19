@@ -414,6 +414,7 @@
 ### `tests/regression-suite.md`
   - ## Scenario table
   - ### Reschedule (CP4 sub-step 3 — insert-new + verify/race + commit; book-new-first). "R:" prefixes the reschedule execute nodes.
+  - ### Pre-hours class fix — a REJECTED availability slot must not remain bookable
   - ## Baseline run
   - ### Exit & branch coverage map (Ö2 — every reply exit + branch accounted for)
   - ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
