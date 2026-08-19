@@ -107,3 +107,27 @@ All four run again inside the `security-auditor` pre-push pass. A step is not cl
 ## Rehearsal log
 A rollback rehearsal (snapshot → trivial change → restore → publish → suite 12/12) is recorded in the
 commit that adds this file; re-rehearse if the n8n host or credential set changes.
+
+## ⚠ API save blocked by `settings must NOT have additional properties` (2026-08-18)
+**Symptom.** Every MCP save (`n8n_update_partial_workflow`, any op — even a one-field `patchNodeField`)
+fails with `Invalid request: request/body/settings must NOT have additional properties` (400,
+`rollbackPerformed:false`, nothing applied).
+
+**Cause.** This n8n instance stores UI-added workflow-settings keys the **public API PUT schema rejects**:
+`binaryMode`, `availableInMCP`, `timeSavedMode`, `callerPolicy` (alongside the allowed `executionOrder`).
+The MCP tool reads the workflow back and re-sends those keys verbatim → the API rejects the body. n8n
+**re-adds these defaults server-side on every save**, so the MCP path stays broken permanently (and a UI
+save re-adds them too). This is not credential/permission related.
+
+**Fix — save via the raw public API with a cleaned settings body (MCP cannot do this):**
+`GET /api/v1/workflows/{id}` → build `{name, nodes, connections, settings:{executionOrder:"v1"}}`
+(drop every other top-level key AND the 4 extra settings keys) → `PUT /api/v1/workflows/{id}`.
+The API accepts the clean body and re-adds the 4 defaults itself; the request succeeds (HTTP 200). Auth =
+`X-N8N-API-KEY` + a browser `User-Agent` (Cloudflare 1010), same as `scripts/check-live-parity.py`. Verify
+after: node count unchanged, `active:true`, node params byte-faithful vs the pre-PUT GET, suite 12/12.
+
+**Operating note.** The editor stays **closed** (relaxed-model). While this instance behaves this way, all
+live edits go through the raw-API PUT, not MCP `n8n_update_partial_workflow`. (A future n8n-mcp that strips
+unknown settings before PUT would restore the MCP path.) Behaviour impact of dropping the 4 keys: **none for
+this bot** — no binary data, not called as a sub-workflow, MCP-exposure off, `timeSavedMode` is a metrics
+display toggle. Original values snapshotted in `n8n/.snapshots/substep3-workflow-settings.local.json`.
