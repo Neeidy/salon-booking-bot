@@ -99,7 +99,36 @@ HL="reg-lock-$RUN"
 fire "$HL" "asdfgh qwerty zzz ???" "$HL-1" >/dev/null   # unknown/low-conf -> stage=handoff (reschedule is a real action since CP4)
 assert "22 handoff lock" "$(fire "$HL" "actually what are your hours?" "$HL-2")" "already helping"
 
+# --- Reschedule (CP4) — the curl-only self-cleaning subset. The failure paths (target-invalid,
+# insert-fail, race-lost, verify-unavailable, delete-404, delete-unavailable, mirror-failed,
+# stale-TTL, past-guard) need injected Airtable state / stripped auth (and past-guard hands off →
+# locked, so curl cannot self-clean it) → they are ⚙ in tests/regression-suite.md, verified via the
+# execution API. Reschedule slots (10:00/10:30 · 11:30/12:00) avoid the booking slots (14:00/16:00).
+echo "== reschedule: no booking -> rescheduleNoBooking =="
+RNB="reg-rnb-$RUN"
+assert "24 reschedule no-booking" "$(fire "$RNB" "reschedule my appointment" "$RNB-1")" "booking to reschedule"
+
+echo "== reschedule happy (book -> move -> Moved) =="
+RH="reg-rh-$RUN"
+fire "$RH" "Book a haircut on $WK at 10:00 please" "$RH-1" >/dev/null
+fire "$RH" "yes" "$RH-2" >/dev/null
+fire "$RH" "Move my appointment to $WK at 10:30" "$RH-3" >/dev/null
+assert "25 reschedule happy -> Moved" "$(fire "$RH" "yes" "$RH-4")" "Moved"
+# cleanup — cancel the MOVED (10:30) booking so no GCal event lingers
+fire "$RH" "cancel my appointment" "$RH-c1" >/dev/null
+fire "$RH" "yes" "$RH-c2" >/dev/null
+
+echo "== reschedule abort (FAQ intervenes mid reschedule-confirm) =="
+RA="reg-ra-$RUN"
+fire "$RA" "Book a haircut on $WK at 11:30 please" "$RA-1" >/dev/null
+fire "$RA" "yes" "$RA-2" >/dev/null
+fire "$RA" "Move my appointment to $WK at 12:00" "$RA-3" >/dev/null   # -> reschedule_confirming
+assert "27 reschedule abort" "$(fire "$RA" "what are your prices?" "$RA-4")" "booking stays"
+# cleanup — the booking stands at 11:30 (aborted, no move); cancel it
+fire "$RA" "cancel my appointment" "$RA-c1" >/dev/null
+fire "$RA" "yes" "$RA-c2" >/dev/null
+
 echo
 echo "== BASELINE (curl-only subset): $PASS/$N passed, $FAIL failed =="
-echo "== ⚙ setup-heavy scenarios (race · 401 · Validate rejects · legacy tc=0 · TTL stale · bind · cancelTargetGone · guard-trip) are run assisted — see tests/regression-suite.md =="
+echo "== ⚙ setup-heavy scenarios (race · 401 · Validate rejects · legacy tc=0 · TTL stale · bind · cancelTargetGone · guard-trip · reschedule failure paths + past-guard) are run assisted — see tests/regression-suite.md =="
 [ "$FAIL" -eq 0 ]

@@ -54,17 +54,39 @@
 | 22 | **handoff lock** | — | `reschedule to next week` (→handoff) → then any 2nd message | 2nd → `{locked:true, "A team member is already helping…"}` (`Handoff Lock Reply`) | Merge State→Check Handoff Lock(true)→Handoff Lock Reply | Check Bot Guards · Build LLM Request (bot stays silent, 0 cost) |
 | 23 | **cancel within cutoff** ⚙ | inject booked row with `start_utc` **< 2h** from now | `cancel my appointment` | `cancelCutoff` ("too close to its time to cancel here…") | Cancel Lookup('cutoff')→Cancel Route→Build Cancel-Cutoff Reply | a confirm prompt · Delete |
 
-**Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment).
+### Reschedule (CP4 sub-step 3 — insert-new + verify/race + commit; book-new-first). "R:" prefixes the reschedule execute nodes.
+
+| # | Name | Setup (+ restore) | Message sequence (session) | Expected reply | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|---|---|---|
+| 24 | **reschedule, no booking** | — (fresh session) | `reschedule my appointment` | `rescheduleNoBooking` ("You don't have a booking to reschedule.") | Route Intent(reschedule)→Find Booking (Reschedule)(0)→Reschedule Lookup('none')→…→handoff | any R: execute node · Delete Old Event (Reschedule) |
+| 25 | **reschedule happy (end-to-end move)** | book slot A first | `Move … to <B>` → `yes` | T3 "Move your Haircut from A to B?" · T4 **"Moved — your Haircut is now B."** (`rescheduleDone`, stage=booked) | Reschedule Fresh?(true)→Find Old Booking (R)→Validate Reschedule Target(valid)→Build Reschedule Event Request→Book Reschedule Appointment→Verify Slot (R)→Check Race (R)(won)→Update Appointment (R)→Delete Old Event (R)(204)→Classify Reschedule Delete(done)→Build Reschedule-Done State | Build Reschedule Insert-Failed/NeedsHuman/Race-Lost/Orphan/Mirror-Failed State · Build Reschedule-Aborted State |
+| 26 | **reschedule available → confirm-ask** | book slot A | `Move … to <free B>` | "Move your Haircut from A to B? Reply \"yes\"…" — `stage=reschedule_confirming`, `confirm_turn` set | Compute Reschedule Availability('available')→confirm-ask | any R: execute node (no move on the ASK turn) |
+| 27 | **reschedule abort (FAQ intervenes)** | book slot A; ask reschedule to B (confirm prompt) | `Move … to B` → `what are your prices?` | `rescheduleAborted` ("No problem — your booking stays as it is.") — FAQ **not** answered | Abort Reschedule?(true)→Build Reschedule-Aborted State (clears confirm state) | Answer FAQ · any R: execute node |
+| 28 | **reschedule past-guard** ⚙(handoff→locked, curl cannot self-clean) | book slot A | `Move … to <past date>` | "<when> has already passed — a team member will help you pick a new time." (handoff) | Compute Reschedule Availability('past')→handoff | any R: execute node |
+| 29 | **reschedule target-invalid → NeedsHuman** ⚙(inject; restore: none — row deleted at cleanup) | book A; ask reschedule to B (confirm); **blank the appt row `calendar_id`** (or delete the row) | `yes` | `rescheduleNeedsHuman` ("I found your booking but can't reschedule it automatically…") | Validate Reschedule Target(`_reschedule_valid:false`)→Reschedule Target Valid?(false)→Build Reschedule-NeedsHuman State | Book Reschedule Appointment (**NO insert**) · Delete Old Event (R) |
+| 30 | **reschedule insert-fail → original stands** ⚙(auth-strip; restore Book Reschedule auth → live 2xx) | book A; ask reschedule to B; strip `Book Reschedule Appointment` auth (`authentication:none`) | `yes` | `rescheduleInsertFailed` ("Sorry — I couldn't move your booking; your original appointment still stands…") | Book Reschedule Appointment(401 error out1)→Build Reschedule Insert-Failed State→Save State (Post-Write) | Verify Slot (R) · Update Appointment (R) · Delete Old Event (R) — OLD row + event untouched |
+| 31 | **reschedule race-lost** ⚙(2nd sender fills B before `yes`) | book A; ask reschedule to B; a **2nd sender books B** | `yes` | `slotJustTaken` ("Sorry — that time was just taken…") | Verify Slot (R)→Check Race (R)(`race_lost:true`)→Race Gate (R)(lost)→Cancel New Event (R)(204, deletes OUR new event)→Build Reschedule Race-Lost State | Update Appointment (R) · Delete Old Event (R) — OLD row + event untouched; the 2nd sender's event survives |
+| 32 | **reschedule verify-unavailable** ⚙(auth-strip; restore Verify Slot (R) auth → 2xx) | book A; ask reschedule to B; strip `Verify Slot (Reschedule)` auth | `yes` | `verifyIncomplete` ("We couldn't finish confirming that time just now…") | Book Reschedule Appointment(ok)→Verify Slot (R)(error out1)→Build Reschedule Verify-Unavailable State(`verify_unavailable`, NEW event KEPT) | Check Race (R) · Cancel New Event (R) · Delete Old Event (R) — never delete on an unverified read; OLD intact |
+| 33 | **reschedule delete-old 404/gone → success** ⚙(inject fake OLD gid; restore: none — cleanup deletes rows) | book A; ask reschedule to B; set the appt row `gcal_event_id` to a **valid-shaped nonexistent** id | `yes` | `rescheduleDone` ("Moved — …") — a 404 on the OLD delete is a **success**, never a "couldn't move" | Delete Old Event (R)(404)→Classify Reschedule Delete(**gone**)→Reschedule Delete Gate(done/gone)→Build Reschedule-Done State | Build Reschedule Orphan State · any "couldn't move" message |
+| 34 | **reschedule delete-old unavailable → orphan** ⚙(auth-strip; restore Delete Old Event (R) auth → 2xx) | book A; ask reschedule to B; strip `Delete Old Event (Reschedule)` auth | `yes` | `rescheduleDone` ("Moved — …") — honest, it WAS moved; `stage=handoff` + `reschedule_orphan` owner flag | Update Appointment (R)(ok)→Delete Old Event (R)(401)→Classify Reschedule Delete(**unavailable**)→Reschedule Delete Gate(unavailable)→Build Reschedule Orphan State | Build Reschedule-Done State — two events exist (OLD lingers), row→NEW |
+| 35 | **reschedule update-row fail → mirror-failed** ⚙(break Update Appointment (R) table id; restore table → 2xx) | book A; ask reschedule to B; set `Update Appointment (Reschedule)` table to a bad id | `yes` | `rescheduleMirrorFailed` ("Your booking change is being finalized — a team member will confirm…") | Update Appointment (R)(error out1)→Build Reschedule Mirror-Failed State(`reschedule_mirror_failed`, NEW event exists) | Delete Old Event (R) (**does NOT run**) — row stays stale (OLD), NEW event exists |
+| 36 | **reschedule stale-TTL → aborted** ⚙(inject stale `confirm_turn`) | book A; ask reschedule to B; set the conversation `confirm_turn` to a stale value (≠ turn_count) | `yes` | `rescheduleAborted` ("No problem — your booking stays as it is.") — fail-closed, NO move | Reschedule Router(true)→Reschedule Fresh?(**false**)→Build Reschedule-Aborted State | Find Old Booking (R) · Book Reschedule Appointment · any R: execute node — nothing moves |
+
+**Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment). Reschedule: #28/#29/#31/#32/#34/#36 hand off (`stage=handoff`) with context; #25/#33 finish `stage=booked`; #27/#36 abort to `stage=new`.
 
 ---
 
 ## Baseline run
 
-**Commit bcc8058 · 2026-08-17 · published production webhook.**
+**CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
 
-**Automated (curl-only subset, `run-regression.sh`): 12/12 PASS, 0 FAIL** —
+**Automated (curl-only subset, `run-regression.sh`): 15/15 PASS, 0 FAIL** —
 #1 booking · #4 cancel happy (204) · #11 confirm-TTL fresh · #16 FAQ · #17 lead · #18 handoff ·
-#13 Abort-FAQ · #3 idempotency · **#20 invalid-payload 400 · #21 cancel-no-booking · #22 handoff-lock**.
+#13 Abort-FAQ · #3 idempotency · #20 invalid-payload 400 · #21 cancel-no-booking · #22 handoff-lock ·
+**#24 reschedule-no-booking · #25 reschedule-happy (end-to-end move → "Moved") · #27 reschedule-abort**.
+The 3 reschedule scenarios self-clean (happy cancels the MOVED booking; abort cancels the standing one).
+The reschedule FAILURE paths (#28–#36) need injected Airtable state / stripped auth (and #28 past-guard
+hands off → locked, so curl cannot self-clean it) → they are ⚙, verified via the execution API (below).
 Harness bugs found + fixed on the way (flow was correct each time): (a) idempotency returns
 `duplicate_ignored`, not a replay — expectation corrected; (b) the Abort scenario left its 16:00
 booking so a re-run correctly **lost the race** — the harness now self-cleans that booking.
@@ -116,8 +138,27 @@ and handoff-class branches are all covered.
 automated harness — they need injected state or a live drill. The re-audit only touched `Confirm Fresh?`
 + the pre-delete re-read; scenarios whose logic it did not touch are cited from their original proof.
 
-**BASELINE = healthy.** Re-run `run-regression.sh` at the start of CP4 and after every refactor step;
-any drop from 12/12, or any MUST-NOT-RUN node appearing, is a regression.
+**⚙ Reschedule setup-heavy (assisted, verified 2026-08-19 via the execution API + Airtable column, never the reply):**
+
+| # | Scenario | Evidence (exec) | Verified |
+|---|---|---|---|
+| 29 | target-invalid → NeedsHuman, NO insert | **497** | `_reschedule_valid:false` → Build Reschedule-NeedsHuman State; Book Reschedule Appointment did NOT run |
+| 30 | insert-fail → original stands | **501** | Book Reschedule 401 out1 → Insert-Failed → Save State (Post-Write); OLD row + event untouched |
+| 31 | race-lost → slotJustTaken | **538** | `race_lost:true`/`race_other_count:1` → Cancel New Event (R) 204 (OUR new event) → Race-Lost; OLD intact |
+| 25/26 | race-WIN + happy commit | **532 / 577** | 532: `race_lost:false`, Race Gate won, Cancel New Event did NOT run. 577: Update ran BEFORE Delete; OLD 204-deleted, NEW exists, row=B, stage=booked, "Moved" |
+| 32 | verify-unavailable → NEW kept | **542** | Verify Slot (R) 403 out1 → Verify-Unavailable (`verify_unavailable`, NEW kept); Check Race did NOT run; OLD intact |
+| 33 | delete-old 404/gone → success | **588** | fake OLD gid → Delete 404 → Classify `gone` → Done, "Moved", NO false error |
+| 34 | delete-old unavailable → orphan | **592** | Delete 401 → Classify `unavailable` → Orphan (`reschedule_orphan`, two events, row→NEW, honest "moved") |
+| 35 | update-row fail → mirror-failed | **596** | Update table broken → error out1 → Mirror-Failed; Delete did NOT run; NEW exists, row stale |
+| 36 | stale-TTL → aborted | **600** | injected stale `confirm_turn` → Reschedule Fresh?(false) → Aborted; NO R: execute node ran; old intact |
+
+Every auth/table-break drill was **restored** (Book/Verify/Delete auth → `predefinedCredentialType`; Update
+table id → real) and re-verified (live 2xx, suite 15/15, content-parity byte-for-byte, committed
+injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + delete (reschedule creates a
+2nd event; orphan events are cleaned by re-pointing the row and bot-cancelling again).
+
+**BASELINE = healthy.** Re-run `run-regression.sh` at the start of a phase and after every step;
+any drop from 15/15, or any MUST-NOT-RUN node appearing, is a regression.
 
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 

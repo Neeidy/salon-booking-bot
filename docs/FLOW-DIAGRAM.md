@@ -19,10 +19,12 @@ flowchart LR
   L3 --> L4[Lane 4<br/>Booking: slots → availability]
   L4 --> L5[Lane 5<br/>Confirm → write-then-verify → reconcile]
   L3 --> L6[Lane 6<br/>Cancel: fail-closed confirm lifecycle]
+  L3 --> L8[Lane 8<br/>Reschedule: discovery → confirm → book-new-first execute]
   L3 --> L7[Lane 7<br/>FAQ · Lead]
   L4 --> R[Reply lane<br/>Save State → Build Reply Payload → Respond]
   L5 --> R
   L6 --> R
+  L8 --> R
   L7 --> R
 ```
 
@@ -228,6 +230,85 @@ the two duplicated validators (`Cancel Lookup` structOk + `Validate Cancel Targe
 
 ---
 
+## Lane 8 — Reschedule: discovery + fail-closed confirm (CP4)
+
+```mermaid
+flowchart TD
+  RIR[Route Intent · reschedule] --> FBR[Find Booking (Reschedule)<br/>Airtable by sender_key + booked · IDOR-safe]
+  FBR -.->|Airtable down| ERR[/Send Error Response 503/]
+  FBR --> RL[Reschedule Lookup<br/>next-upcoming · structOk · cutoff · read NEW slot from LLM]
+  RL --> RCH{Reschedule Check?}
+  RCH --> BRF[Build Reschedule FreeBusy] --> GRB[Get Reschedule Busy<br/>GCal freeBusy]
+  GRB --> CRA[Compute Reschedule Availability]
+  CRA -->|available| ASK[stage=reschedule_confirming<br/>confirm-ask · confirm_turn · cancel_target_id=OLD recordId]
+  CRA -.->|busy / past / closed / invalid / no-booking| HO[handoff with context]
+  ASK --> SS[→ Save State]
+  HO --> SS
+
+  CR{Confirm Router · cancel_confirming?} -->|no| RR{Reschedule Router · reschedule_confirming?}
+  RR -->|no| BER[→ Lane 5: Build Event Request · book confirm]
+  RR -->|yes| RF{Reschedule Fresh?<br/>turn_count === confirm_turn · byte-identical to Confirm Fresh?}
+  RF -.->|stale / legacy| BRA[Build Reschedule-Aborted State<br/>booking stays]
+  RF -->|fresh| EX[→ Lane 8b: EXECUTE]
+  BRA --> SS
+```
+
+The reschedule confirm lifecycle mirrors cancel exactly: its own **`Reschedule Fresh?`** 1-turn TTL gate
+(byte-identical to `Confirm Fresh?`, enforced by `check-cancel-validation-parity.py`), and **`Abort
+Reschedule?`** (Lane 2) drops a pending reschedule if a non-confirm intent arrives. Every non-available
+discovery outcome hands off with context — the availability rules are the booking rules (no min-lead-time,
+ARCH-DEC §5).
+
+## Lane 8b — Reschedule EXECUTE: book-new-first → verify/race → commit
+
+```mermaid
+flowchart TD
+  EX[from Reschedule Fresh? · fresh] --> FOB[Find Old Booking (Reschedule)<br/>Validate Intent sender_key · booked]
+  FOB -.->|Airtable down| ERR[/Send Error Response 503/]
+  FOB --> VRT[Validate Reschedule Target<br/>bind cancel_target_id · structOk · cutoff]
+  VRT --> RTV{Reschedule Target Valid?}
+  RTV -.->|false| BNH[Build Reschedule-NeedsHuman State<br/>NO insert · NO delete]
+  RTV -->|true| BREQ["Build Reschedule Event Request<br/>NEW slot · new deterministic id · ...$json keeps _reschedule_target"]
+  BREQ --> BK[Book Reschedule Appointment<br/>GCal insert the NEW event]
+  BK -.->|error / 409| BIF[[Build Reschedule Insert-Failed State<br/>original stands · book-new-first = old intact]]
+  BK -->|success| VSR[Verify Slot (Reschedule)<br/>events.list over the NEW window]
+  VSR -.->|read fail| BVU[Build Reschedule Verify-Unavailable State<br/>NEW kept · OLD intact · never delete on unverified read]
+  VSR --> CRR[Check Race (Reschedule)<br/>drop cancelled+transparent+OUR new id · any OTHER overlap = lost]
+  CRR --> RGR{Race Gate (Reschedule)}
+  RGR -.->|lost| CNE[Cancel New Event (Reschedule)<br/>DELETE OUR new event only]
+  CNE -->|deleted| BRL[[Build Reschedule Race-Lost State<br/>slotJustTaken · OLD intact]]
+  CNE -.->|delete fail| BRO[Build Reschedule Race-Orphan State<br/>orphan_event]
+  RGR -->|won| UAR[Update Appointment (Reschedule)<br/>row → NEW event · FIRST]
+  UAR -.->|mirror fail| BMF[[Build Reschedule Mirror-Failed State<br/>NEW exists · row stale · reschedule_mirror_failed]]
+  UAR --> DOE[Delete Old Event (Reschedule)<br/>DELETE OLD · SECOND · fullResponse+neverError · both outputs → Classify]
+  DOE --> CRD[Classify Reschedule Delete<br/>statusCode ONLY: 204/200 done · 404/410 gone · else unavailable]
+  CRD --> RDG{Reschedule Delete Gate · unavailable?}
+  RDG -.->|unavailable| BORP[[Build Reschedule Orphan State<br/>OLD lingers · reschedule_orphan · honest 'moved']]
+  RDG -->|done/gone| BRD[Build Reschedule-Done State<br/>stage=booked · new gcal id · rescheduleDone]
+  BNH --> SS[→ Save State]
+  BIF --> SPW[→ Save State Post-Write]
+  BVU --> SPW
+  BRL --> SPW
+  BRO --> SPW
+  BMF --> SPW
+  BORP --> SPW
+  BRD --> SPW
+```
+
+**Book-new-first** is the core invariant: open the NEW booking, verify it, win the race, THEN commit — so at
+every intermediate failure point the customer still holds a valid booking. **Order within the commit is
+mandatory: `Update Appointment (Reschedule)` (row → NEW event) runs BEFORE `Delete Old Event (Reschedule)`**,
+so the row always references a real, existing event (and Delete reads the OLD target from the `Build
+Reschedule Event Request` node-ref, because the Airtable update already replaced `$json`). Classify is
+**statusCode-only** (a 404 = the OLD event already gone = a *successful* move, never a "couldn't move"). The
+three named failure branches: **insert-failed** (NEW insert fails → original stands, no reconcile — message
+dedup + book-new-first make it safe) · **race-lost** (another booking took the NEW slot → delete OUR new
+event, OLD untouched) · **orphan / mirror-failed** (the move succeeded but a mirror step is inconsistent →
+handoff with a visible owner flag; the customer is told the truth). Every failure builder sets
+`computed_reply` and routes to **Save State (Post-Write)** — never a silent drop.
+
+---
+
 ## Reply lane — one exit for every conversational reply
 
 ```mermaid
@@ -257,4 +338,6 @@ transient-failure retry is not blocked. The 11 direct `respondToWebhook` nodes (
 - **Three handoff classes never merge** — guard-trip (200) · infra (5xx) · intent-handoff (200, writes state).
 - **Zero double-book** — idempotency (dedupe + deterministic event id) + write-then-verify.
 - **Fail-closed cancel** — a "yes" deletes a real event, so every cancel gate defaults to "do nothing".
+- **Book-new-first reschedule** — open + verify the NEW booking before touching the OLD one; commit is
+  update-row-then-delete-old; every intermediate failure leaves the customer on a valid booking.
 - **One reply source** — `computed_reply` column, guarded by two drift-guards (#4, #5).
