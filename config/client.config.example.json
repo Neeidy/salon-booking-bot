@@ -36,6 +36,7 @@
     "maxTurnsPerConversation": 12,
     "sessionGapMinutes": 30,
     "cancellationCutoffHours": 2,
+    "reminderHoursBefore": 24,
     "killSwitch": false
   },
   "messageTemplates": {
@@ -67,7 +68,8 @@
     "rescheduleAborted": "No problem — your booking stays as it is.",
     "rescheduleInsertFailed": "Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.",
     "rescheduleDone": "Moved — your {service} is now {when}.",
-    "rescheduleMirrorFailed": "Your booking change is being finalized — a team member will confirm the new time shortly."
+    "rescheduleMirrorFailed": "Your booking change is being finalized — a team member will confirm the new time shortly.",
+    "reminder": "Reminder: your {service} is booked for {when}. See you soon!"
   },
   "faq": {
     "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",

@@ -65,6 +65,8 @@
         "confidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "maxTurnsPerConversation": { "type": "integer", "minimum": 1 },
         "sessionGapMinutes": { "type": "integer", "minimum": 1, "description": "Idle minutes after which a returning sender's next message is treated as a new session → 'Welcome back' greeting (CP6)." },
+        "cancellationCutoffHours": { "type": "integer", "minimum": 0, "description": "Hours before start_utc within which a booking can no longer be cancelled/rescheduled by the bot (→ call the shop) (CP3/CP4)." },
+        "reminderHoursBefore": { "type": "integer", "minimum": 1, "description": "Hours before start_utc to send the single appointment reminder (CP5). The reminders workflow selects booked, not-yet-reminded appointments starting within this window." },
         "killSwitch": { "type": "boolean", "description": "Emergency stop — when true the bot is handoff-only (no LLM, no writes)." }
       }
     },

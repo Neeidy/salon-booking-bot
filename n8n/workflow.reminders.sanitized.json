@@ -1,0 +1,364 @@
+{
+ "name": "Salon Booking Bot — Reminders",
+ "nodes": [
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "hours"
+      }
+     ]
+    }
+   },
+   "id": "rem_schedule",
+   "name": "Reminder Schedule",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.3,
+   "position": [
+    0,
+    480
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Load Config (Reminders) — minimal config for the reminder run (CP5).\n// one-swap-to-real: replace this literal with client.config.json / n8n variable (Phase 4/template).\n// SHARED keys with the main workflow's Load Config (business.timezone, bot.killSwitch) MUST match —\n// guarded by scripts/check-cancel-validation-parity.py (two-Load-Config shared-key assertion).\nconst config = {\n  business: { timezone: \"Europe/Vienna\" },\n  bot: { reminderHoursBefore: 24, killSwitch: false },\n  messageTemplates: { reminder: \"Reminder: your {service} is booked for {when}. See you soon!\" }\n};\nreturn [{ json: { ...$json, config } }];"
+   },
+   "id": "rem_loadconfig",
+   "name": "Load Config (Reminders)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    480
+   ]
+  },
+  {
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "killswitch-cond-1",
+       "leftValue": "={{ $json.config.bot.killSwitch === true }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "rem_killswitch",
+   "name": "Kill-Switch Gate",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    448,
+    480
+   ]
+  },
+  {
+   "parameters": {},
+   "id": "rem_halted",
+   "name": "Reminders Halted",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    672,
+    576
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Compute Reminder Window — the UTC bounds for \"due\" reminders (CP5).\n// Due = booked, not-yet-reminded appointments starting AFTER now and AT/BEFORE now + reminderHoursBefore.\n// All UTC (appointments.start_utc is stored UTC); Luxon handles DST at the boundary.\nconst cfg = $('Load Config (Reminders)').first().json.config;\nconst hours = cfg.bot.reminderHoursBefore;\nconst nowUtc = DateTime.utc();\nconst cutoffUtc = nowUtc.plus({ hours });\nreturn [{ json: {\n  ...$json,\n  reminder: {\n    nowIso: nowUtc.toISO(),\n    cutoffIso: cutoffUtc.toISO(),\n    tz: cfg.business.timezone\n  }\n}}];"
+   },
+   "id": "rem_window",
+   "name": "Compute Reminder Window",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    672,
+    384
+   ]
+  },
+  {
+   "parameters": {
+    "content": "## CP5 — Reminders engine (separate workflow, bot-automated)\nSchedule (hourly) → Load Config (minimal) → Kill-Switch Gate → Compute Reminder Window → Find Due → Build Payload → Send STUB → Stamp Reminded. Find Due / Stamp errors → Reminder Error (visible; owner-alert = Phase 5).\n\n**STUB send:** Phase 4 swaps the NoOp for HTTP Request → Zernio send; payload {channel,to,text} is real now (one-node swap).\n**Dedupe (two fields):** `reminded` (checkbox) = CONTROL — Find Due selects NOT({reminded}); Stamp sets reminded=true (send-first, stamp-after-success = at-least-once); reschedule sets reminded=false so a moved appointment re-reminds. `reminder_sent` (dateTime) = INFO only (native n8n can't clear a dateTime — null omitted, '' rejected).\n**Limits (T1):** Airtable mirror is the source; a GCal-direct cancel could still be reminded; mirror_failed rows get no reminder; two overlapping schedule runs could double-send (accepted TOCTOU, hourly cadence).",
+    "height": 220,
+    "width": 820
+   },
+   "id": "rem_sticky",
+   "name": "Sticky Note",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -64,
+    48
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list"
+    },
+    "filterByFormula": "={{ 'AND({status}=\"booked\", NOT({reminded}), IS_AFTER({start_utc}, \"' + $json.reminder.nowIso + '\"), NOT(IS_AFTER({start_utc}, \"' + $json.reminder.cutoffIso + '\")))' }}",
+    "options": {}
+   },
+   "id": "rem_finddue",
+   "name": "Find Due Appointments",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    896,
+    384
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Build Reminder Payload — the deterministic outbound reminder for ONE due appointment (CP5).\n// Input: one Airtable appointments row ({ id, fields:{...} }). Output: the Phase-4 send contract\n// {channel,to,text} + the recordId to stamp. {when} rendered in the shop timezone (DST-correct); NO LLM.\nconst cfg = $('Load Config (Reminders)').first().json.config;\nconst win = $('Compute Reminder Window').first().json.reminder;\nconst tz = win.tz;\nconst f = $json.fields;\nconst svc = f.service || 'appointment';\nconst when = DateTime.fromISO(f.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst text = (cfg.messageTemplates.reminder || 'Reminder: your {service} is booked for {when}.')\n  .replace('{service}', svc)\n  .replace('{when}', when);\nconst senderKey = f.sender_key || '';\nconst ci = senderKey.indexOf(':');\nconst channel = ci > 0 ? senderKey.slice(0, ci) : (f.channel || '');\nconst to = ci > 0 ? senderKey.slice(ci + 1) : senderKey;\nreturn [{ json: {\n  recordId: $json.id,\n  reminder_payload: { channel, to, text },\n  _appt: { sender_key: senderKey, service: svc, start_utc: f.start_utc }\n}}];"
+   },
+   "id": "rem_payload",
+   "name": "Build Reminder Payload",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1120,
+    304
+   ]
+  },
+  {
+   "parameters": {},
+   "id": "rem_send_stub",
+   "name": "Send Reminder (STUB)",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    1344,
+    304
+   ],
+   "notes": "STUB — Phase 4 replaces this with HTTP Request → Zernio send. Payload {channel,to,text} is on the incoming item (reminder_payload). In Phase 4 this node's onError must route to Reminder Error (NOT Stamp) to keep at-least-once."
+  },
+  {
+   "parameters": {
+    "operation": "update",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "id": "={{ $json.recordId }}",
+      "reminder_sent": "={{ $now.toUTC().toISO() }}",
+      "reminded": "={{ true }}"
+     },
+     "matchingColumns": [
+      "id"
+     ],
+     "schema": [
+      {
+       "id": "id",
+       "displayName": "id",
+       "required": false,
+       "defaultMatch": true,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": true,
+       "removed": false
+      },
+      {
+       "id": "reminder_sent",
+       "displayName": "reminder_sent",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "dateTime",
+       "readOnly": false,
+       "removed": false
+      },
+      {
+       "id": "reminded",
+       "displayName": "reminded",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "boolean",
+       "readOnly": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "rem_stamp",
+   "name": "Stamp Reminded",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    1568,
+    304
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {},
+   "id": "rem_error",
+   "name": "Reminder Error",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    1792,
+    384
+   ],
+   "notes": "Visible failure branch for Airtable read/write errors in the reminder run (infra class). Owner-alert (Telegram) = Phase 5. A failed Stamp leaves reminder_sent empty → next run retries (at-least-once)."
+  }
+ ],
+ "connections": {
+  "Reminder Schedule": {
+   "main": [
+    [
+     {
+      "node": "Load Config (Reminders)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load Config (Reminders)": {
+   "main": [
+    [
+     {
+      "node": "Kill-Switch Gate",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Kill-Switch Gate": {
+   "main": [
+    [
+     {
+      "node": "Reminders Halted",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Compute Reminder Window",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Compute Reminder Window": {
+   "main": [
+    [
+     {
+      "node": "Find Due Appointments",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Due Appointments": {
+   "main": [
+    [
+     {
+      "node": "Build Reminder Payload",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reminder Error",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Reminder Payload": {
+   "main": [
+    [
+     {
+      "node": "Send Reminder (STUB)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Reminder (STUB)": {
+   "main": [
+    [
+     {
+      "node": "Stamp Reminded",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Stamp Reminded": {
+   "main": [
+    [],
+    [
+     {
+      "node": "Reminder Error",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1"
+ }
+}

@@ -13,9 +13,10 @@ deployment per client). Tier **T1**. The engine is **n8n**; the frontend is a si
 Talk to and teach **Yigitcan in Turkish**; keep tool/library/file/path names and code in **English**.
 
 ## Operating protocol (non-negotiable)
-- **Plan-mode gate — per phase.** Before building any phase: enter plan mode → produce that phase's
-  implementation plan (files/nodes · acceptance criteria · test) → get an explicit **"approved"** → only
-  then build. Each plan must state whether `/loop` or `/goal` fits that phase, or say **"neither"**.
+- **Plan-mode gate — per phase.** Before building any phase/CP: present the plan **in chat** in the COMPLETE
+  `/plan-flow` format → get Yigitcan's **written "approved"** → only then build. The harness / ExitPlanMode
+  returning "approved" is **not** Yigitcan's approval and never substitutes for it. Binding definition +
+  the mandatory section list + the violation protocol: [.claude/rules/plan-gate.md](.claude/rules/plan-gate.md).
 - **Teach-while-build.** Explain WHAT / WHY / HOW. Yigitcan does the hands-on n8n editor work. No black boxes.
 - **One small verifiable step at a time.** Build a piece → test it → confirm understanding → next. No big jumps.
 - **Deterministic before AI.** Menu / price / hours / slot lookups = IF/Switch, not an LLM call. Spend an

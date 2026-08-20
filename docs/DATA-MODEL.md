@@ -27,17 +27,22 @@ are the engine's state (multi-turn + idempotency).
 | created_at | datetime | UTC |
 
 ## `appointments`
+> Field names reflect the **live Airtable base** (corrected CP5 2026-08-20 — the earlier
+> `customer_phone`/`service_id` names never matched the running system; see decision log).
+
 | Field | Type | Notes |
 |---|---|---|
-| id | autonumber | PK |
-| customer_phone | text | link to customer (PII) |
-| service_id | text | from client.config services |
+| sender_key | text | `"{channel}:{id}"` — the booking's owner; the IDOR-safe cancel/reschedule lookup key (never a customer-supplied id) (PII) |
+| service | text | service name, from client.config services |
 | start_utc | datetime | **UTC** — display in shop tz |
 | end_utc | datetime | UTC |
-| gcal_event_id | text | Google Calendar event id (re-verify · undo · cancel/reschedule delete) |
-| channel | single-select | whatsapp \| widget \| instagram — origin channel of the booking (reply-to-origin; shown on the owner dashboard) |
-| status | single-select | booked \| cancelled \| rescheduled \| handoff |
-| reminder_sent | datetime | nullable — set when the reminder fired (config `bot.reminderHoursBefore` before `start_utc`); Phase 3 |
+| gcal_event_id | text | Google Calendar event id (re-verify · cancel/reschedule delete) |
+| calendar_id | text | the GCal calendar the event lives on, stored at booking (CP3/Codex#8) — cancel/reschedule delete uses the STORED calendar+event pair, so a later config-calendar change can't delete on the wrong calendar |
+| channel | text | origin channel — whatsapp \| widget \| instagram |
+| customer_name | text | nullable (PII) |
+| status | single-select | booked \| cancelled |
+| **reminded** | checkbox | **CONTROL** — the reminder dedupe flag (CP5). Reminders selects `NOT({reminded})`; Stamp sets `true`; **reschedule sets `false`** so a moved appointment re-reminds. It is a boolean because native n8n cannot clear a dateTime (null is omitted, `''` is rejected → a `reminder_sent` clear would 422 into Mirror-Failed). |
+| reminder_sent | datetime | **INFO** (nullable) — when the last reminder fired (`bot.reminderHoursBefore` before `start_utc`). NOT the dedupe key (`reminded` is); reschedule does **not** touch it, so it honestly records the last send (CP5). |
 | created_at | datetime | UTC |
 
 > **Availability source of truth = Google Calendar** (owner "busy" blocks live in GCal too); Airtable

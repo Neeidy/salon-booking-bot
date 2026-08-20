@@ -22,7 +22,7 @@
 #
 # Prove-it: break a copy and the guard FAILs (a guard never seen to FAIL is an assumed guard — learned at #5).
 # Exit 0 = parity OK, 1 = drift. Run at every close gate / pre-push (with the #5 coverage guard).
-import json, sys, re, collections
+import json, sys, re, collections, os
 
 PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.sanitized.json'
 w = json.load(open(PATH, encoding='utf-8'))
@@ -128,6 +128,35 @@ if missing_ctx:
                  f"branch — a 'yes' there cannot classify as confirm and silently hands off (routed={sorted(routed)}, "
                  f"stageContext={sorted(ctx)})")
 
+# 6) two-Load-Config shared-key parity (CP5) — the reminders workflow carries a THIRD inline config copy
+#    (config-lives-in-two-places → now three). The keys SHARED by both Load Configs (business.timezone,
+#    bot.killSwitch) MUST be identical, or the two workflows silently diverge: content-parity can't catch it
+#    (each workflow is compared only to its OWN committed file, never to the other one). We hit this drift
+#    class once (repo <-> Load-Config node). Kill-switch especially must be one truth — a bot halted on the
+#    inbound side but still firing reminders is exactly the split this forbids.
+REM_PATH = os.environ.get('REMINDERS_SANITIZED', 'n8n/workflow.reminders.sanitized.json')
+
+
+def load_config_shared(jscode):
+    tz = re.search(r'timezone:\s*"([^"]+)"', jscode)
+    ks = re.search(r'killSwitch:\s*(true|false)', jscode)
+    return (tz.group(1) if tz else None, ks.group(1) if ks else None)
+
+
+main_lc = (by.get('Load Config', {}).get('parameters', {}) or {}).get('jsCode', '')
+try:
+    rem_by = {n['name']: n for n in json.load(open(REM_PATH, encoding='utf-8'))['nodes']}
+    rem_lc = (rem_by.get('Load Config (Reminders)', {}).get('parameters', {}) or {}).get('jsCode', '')
+except FileNotFoundError:
+    rem_lc = None
+if not main_lc or not rem_lc:
+    fails.append(f"two-Load-Config check: missing 'Load Config' in {PATH} (found={bool(main_lc)}) or "
+                 f"'Load Config (Reminders)' in {REM_PATH} (found={bool(rem_lc)})")
+else:
+    if load_config_shared(main_lc) != load_config_shared(rem_lc):
+        fails.append(f"two-Load-Config SHARED-KEY DRIFT — main{load_config_shared(main_lc)} != "
+                     f"reminders{load_config_shared(rem_lc)} (timezone, killSwitch) MUST match")
+
 if fails:
     print('DRIFT — cancel-validation single-source violated:')
     for f in fails:
@@ -139,5 +168,6 @@ print('cancel-validation parity OK — gid regex 5x identical [0-9a-v]{5,1024} (
       'confirm_turn regex 3x ^[1-9][0-9]*$ (Confirm Fresh?, Verify Confirm Live, Reschedule Fresh?); '
       'Cancel Lookup + Validate Cancel Target + Reschedule Lookup all check {finite start_utc, gid shape, '
       'calendar_id present}; Confirm Fresh?==Reschedule Fresh? TTL byte-identical; '
-      f'routed *_confirming {sorted(routed)} all have a Build LLM Request stageContext branch')
+      f'routed *_confirming {sorted(routed)} all have a Build LLM Request stageContext branch; '
+      'two Load Configs share identical business.timezone + bot.killSwitch')
 sys.exit(0)

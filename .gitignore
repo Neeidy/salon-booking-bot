@@ -45,6 +45,7 @@ Thumbs.db
 # Raw n8n exports — only the sanitized workflow is committed
 n8n/**/*.json
 !n8n/workflow.sanitized.json
+!n8n/workflow.reminders.sanitized.json
 
 # Real per-client config — only the .example is committed
 config/client.config.json
