@@ -38,11 +38,16 @@ Everything converges on **one** reply lane: a builder sets `computed_reply`, a *
 
 ```mermaid
 flowchart TD
-  WH[Receive Inbound Message<br/>webhook] --> LC[Load Config<br/>MOCK client config]
-  LC --> VP{Validate Payload<br/>channel enabled · text · len≤1000 · messageId · senderId}
+  WH[Receive Inbound Message<br/>webhook · rawBody] --> IZ{Is Zernio Inbound?<br/>body is Zernio-shaped?}
+  IZ -->|yes whatsapp| HM[Compute Body HMAC<br/>Crypto · SHA256 · raw binary · crypto cred · hex]
+  HM --> SV{Signature Valid?<br/>computedSig == X-Zernio-Signature}
+  SV -->|no / missing| RU[/Reject Unsigned Request<br/>403 invalid_signature/]
+  SV -->|yes| LC[Load Config<br/>MOCK client config]
+  IZ -->|no widget| LC
+  LC --> NORM[Normalize Inbound<br/>ADAPTER · whatsapp: nested · widget: channel FORCED 'widget']
+  NORM --> VP{Validate Payload<br/>channel enabled · text · len≤1000 · message_id · senderId}
   VP -->|invalid| REJ[/Send Reject Response<br/>400 invalid_payload/]
-  VP -->|valid| NORM[Normalize Inbound<br/>sender_key = channel:id]
-  NORM --> CP[Check Processed<br/>Airtable processed_messages]
+  VP -->|valid| CP[Check Processed<br/>Airtable processed_messages]
   CP -.->|Airtable down| ERR[/Send Error Response<br/>503 state_unavailable/]
   CP --> DG[Dedupe Gate<br/>re-attach payload + _duplicate]
   DG --> ISD{Is Duplicate?}
@@ -55,9 +60,15 @@ flowchart TD
   CHL -->|not locked| G[→ Lane 2]
 ```
 
-**Main path:** every message is validated, deduped on `messageId` (a webhook delivered twice → one effect),
+**Signature gate (CP4a · CRT #3):** a Zernio-shaped inbound must carry a valid `X-Zernio-Signature`
+(HMAC-SHA256 lowercase-hex of the raw body, secret in a `crypto` credential) — wrong/missing → **403**
+`invalid_signature`, the brain never runs. Widget skips the gate (no shared secret; Phase-5 rate-limit).
+**Adapter + IDOR guard (CP4a):** `Normalize Inbound` is the single channel adapter; its widget branch FORCES
+`channel='widget'` (never trusts a payload channel) so the ONLY path to a `whatsapp:` sender_key is a signed
+Zernio message — closing an IDOR where a forged `{channel:'whatsapp', from:<victim>}` would impersonate a customer.
+**Main path:** every message is validated, deduped on `message_id` (a webhook delivered twice → one effect),
 loaded into conversation state, and — if a human already took over (`stage=handoff`) — the bot stays silent.
-**Error paths (all visible):** bad payload → **400**; Airtable unreachable → **503** `state_unavailable`;
+**Error paths (all visible):** unsigned/forged Zernio → **403** `invalid_signature`; bad payload → **400**; Airtable unreachable → **503** `state_unavailable`;
 duplicate → short-circuit **200** `duplicate_ignored` (no LLM cost, no write); locked thread → **200**
 `Handoff Lock Reply` (bot quiet, `turn_count` frozen).
 

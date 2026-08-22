@@ -96,6 +96,20 @@ are in `run-regression.sh` (self-clean: they create no booking); #40 needs a blo
 
 ---
 
+### Phase 4 — Zernio inbound adapter + signature (CP4a) — ⚙ assisted (nested payload + HMAC signing; not in the widget-only `run-regression.sh`)
+Fire against the production webhook with a Zernio-shaped body. For W1 the `X-Zernio-Signature` = lowercase-hex HMAC-SHA256 of the RAW body under the `crypto` credential's `hmacSecret`. Verify via the execution API / reply, never assume.
+
+| # | Scenario | Setup | Steps | Expected | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|---|---|---|
+| W1 | **valid Zernio signature → brain** | crypto cred hmacSecret set | POST nested `message.received` (whatsapp) + correct `X-Zernio-Signature` | 200; normal reply; `channel:whatsapp`, `sender_key:whatsapp:<sender.id>` | Is Zernio Inbound?(true)→Compute Body HMAC→Signature Valid?(true)→Load Config→…brain | Reject Unsigned Request |
+| W2a | **wrong signature → 403** | — | same body + a bogus `X-Zernio-Signature` | HTTP **403** `{ok:false,error:"invalid_signature"}` | Signature Valid?(false)→Reject Unsigned Request | Load Config · Normalize · Extract Intent · Save State (exec 863: only 5 nodes ran) |
+| W2b | **missing signature → 403** | — | same body, no signature header | HTTP **403** `invalid_signature` | Reject Unsigned Request | brain |
+| W6 | **whatsapp missing sender.id → fail-loud** | — | nested body, `sender:{}` | execution `error` at Normalize (`missing sender.id (whatsapp)`); brain never runs | Normalize Inbound (throw) | Validate · Check Processed · Extract Intent (exec 853: 3 nodes) |
+| IDOR | **forged channel → widget, not whatsapp** | — | UNSIGNED flat `{channel:'whatsapp', from:'<victim>', sessionId:'<attacker>'}` | `sender_key:widget:<attacker>` (NOT `whatsapp:<victim>`); no signature = no whatsapp: identity | Is Zernio Inbound?(false)→Normalize(widget branch, channel FORCED 'widget') | any `whatsapp:` sender_key |
+| W-idem | **whatsapp idempotency** | 1st fire recorded | POST same nested body twice (same `platformMessageId`) | 2nd → `{status:"duplicate_ignored"}` (no LLM) | Check Processed(dup)→Idempotent Replay | 2nd Extract Intent / Save State |
+
+**GATED (not "verified"):** byte-exact raw-body ↔ a real Zernio-signed request — confirm via Zernio `webhook.test` when the account is provisioned (the crypto credential currently holds a TEST secret; fail-closed until swapped to the real Zernio secret).
+
 ## Baseline run
 
 **CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
