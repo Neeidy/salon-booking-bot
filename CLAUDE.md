@@ -17,7 +17,13 @@ Talk to and teach **Yigitcan in Turkish**; keep tool/library/file/path names and
   `/plan-flow` format → get Yigitcan's **written "approved"** → only then build. The harness / ExitPlanMode
   returning "approved" is **not** Yigitcan's approval and never substitutes for it. Binding definition +
   the mandatory section list + the violation protocol: [.claude/rules/plan-gate.md](.claude/rules/plan-gate.md).
-- **Teach-while-build.** Explain WHAT / WHY / HOW. Yigitcan does the hands-on n8n editor work. No black boxes.
+- **Teach-while-build (CC builds · Yigitcan understands + approves).** **CC builds the n8n flow** (MCP /
+  raw-API); **Yigitcan approves, is the final judge, and does the UI-only actions** (Airtable field edits,
+  Publish, Execute). The PURPOSE is that Yigitcan can **explain and sell** the system in an interview or to a
+  client — and that is secured by a **WHAT / WHY / HOW walkthrough at every step + a current
+  [FLOW-DIAGRAM](docs/FLOW-DIAGRAM.md)**, NOT by hand-clicking every node. No black boxes. *(Corrected
+  2026-08-22 to match the Phase-3 reality — CC built via MCP throughout, Yigitcan approved; see
+  [docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md) §5.)*
 - **One small verifiable step at a time.** Build a piece → test it → confirm understanding → next. No big jumps.
 - **Deterministic before AI.** Menu / price / hours / slot lookups = IF/Switch, not an LLM call. Spend an
   LLM only on genuine free-text intent.

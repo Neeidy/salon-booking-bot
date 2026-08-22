@@ -1,7 +1,11 @@
 # Barber Booking Bot — MASTER BRIEF
 *(Cowork → Claude Code handoff · approved architecture + roadmap)*
 
-**Version:** v1.1 — updated 2026-07-04 · (v1.0 approved 2026-06-29)
+**Version:** v1.2 — updated 2026-08-22 · (v1.1 2026-07-04 · v1.0 approved 2026-06-29)
+> Changelog v1.2: **build-ownership corrected to Phase-3 reality — CC builds the n8n flow (MCP/raw-API);
+> Yigitcan approves, is final judge, does UI-only actions (Airtable field, Publish, Execute); the
+> "understand + sell" purpose is secured by the WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM, not by
+> hand-clicking every node** (§2 + docs/ARCHITECTURE-DECISIONS.md §5).
 > Changelog v1.1: cancel·reschedule·reminders OUT→IN SCOPE (v1 core) · Instagram = config-gated
 > optional (default OFF) · Zernio VERIFIED · Critical-Review Targets +#8/#9.
 > Rationale + full feature log: docs/ARCHITECTURE-DECISIONS.md §6-7.
@@ -10,7 +14,8 @@
 > lead-capture + booking chatbot **template** (Model 1 — one isolated deployment per client).
 > Produced in Cowork (architecture/brain). Hand this to **Claude Code on the RS**; CC runs
 > `/repo-scaffold` from it, then builds Phases 0→8. **Cowork stays the brain** (architecture,
-> review, teaching); **CC is the builder**; **Yigitcan** does hands-on approvals + the n8n editor work.
+> review, teaching); **CC is the builder** (incl. the n8n flow); **Yigitcan** approves, is the final judge,
+> and does the UI-only actions (Airtable field, Publish, Execute).
 
 ---
 
@@ -27,8 +32,10 @@
 - **Automation-fit declaration (per phase).** Every phase's plan-mode plan must state whether **`/loop` or
   `/goal`** fits that phase and how — or explicitly say **"neither"** (rationale in §11).
 - **One small verifiable step at a time.** Build a piece → test it → confirm understanding → next. No big jumps.
-- **Teach-while-build.** Explain WHAT / WHY / HOW; Yigitcan performs the hands-on actions (especially n8n
-  nodes). No black boxes.
+- **Teach-while-build (CC builds · Yigitcan understands).** CC builds the n8n nodes (MCP/raw-API) and explains
+  WHAT / WHY / HOW at every step; Yigitcan approves, is final judge, and does UI-only actions (Airtable field,
+  Publish, Execute). The goal — Yigitcan can explain + sell the system — is secured by that walkthrough + a
+  current FLOW-DIAGRAM, not by hand-clicking every node. No black boxes.
 - **Secrets & PII — repo is PUBLIC.** `.env` gitignored; real keys live in **n8n Credentials / Vercel env**.
   Never commit or paste secrets. Only **sanitized** n8n exports are committed — sanitize strips **both
   secrets AND customer PII** (pinned/test data: real phone numbers, names) before any commit.
@@ -43,7 +50,7 @@
 |---|---|
 | **Cowork (brain)** | architecture · brainstorming · review/audit (**from git**) · teaching · briefs. **Not building** — incl. the Phase 1 mockup: CC builds it, Cowork reviews it from git. |
 | **Claude Code (RS)** | scaffolding · code · config · **builds all artifacts incl. the mockup** · commits/push. Builds Phases 0→8. |
-| **Yigitcan** | hands-on (n8n editor, approvals, deploys) · final judge. |
+| **Yigitcan** | approvals · **final judge** · UI-only actions (Airtable field, Publish, Execute, deploys). Understands + can sell the system via the per-step WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM (not by hand-clicking nodes). |
 
 **Review / test / audit = defense-in-depth (multiple independent layers, not one set of eyes):**
 - **L1 — Claude Code:** builds + self-checks its own output.
