@@ -12,7 +12,12 @@
     "logoUrl": "https://example.com/demo-barber-logo.png"
   },
   "channels": {
-    "whatsapp": { "enabled": true, "provider": "zernio" },
+    "whatsapp": {
+      "enabled": true,
+      "provider": "zernio",
+      "accountId": "REPLACE_WITH_ZERNIO_ACCOUNT_ID",
+      "reminderTemplate": { "name": "appointment_reminder", "language": "en_US" }
+    },
     "widget": { "enabled": true, "provider": "webchat" },
     "instagram": { "enabled": false, "provider": "meta-graph" }
   },
@@ -37,7 +42,8 @@
     "sessionGapMinutes": 30,
     "cancellationCutoffHours": 2,
     "reminderHoursBefore": 24,
-    "killSwitch": false
+    "killSwitch": false,
+    "whatsappSendDisabled": true
   },
   "messageTemplates": {
     "greeting": "Hi! Welcome to Demo Barber Co. How can I help?",

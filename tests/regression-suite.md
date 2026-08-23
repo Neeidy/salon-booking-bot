@@ -110,23 +110,33 @@ Fire against the production webhook with a Zernio-shaped body. For W1 the `X-Zer
 
 **GATED (not "verified"):** byte-exact raw-body ↔ a real Zernio-signed request — confirm via Zernio `webhook.test` when the account is provisioned (the crypto credential currently holds a TEST secret; fail-closed until swapped to the real Zernio secret).
 
-### Phase 4 — outbound convergence (CP4b-1)
-Widget parity is the gate: the 11 reply branches were converged (Code tags → Finalize Outbound → Channel Switch → Send Reply (widget)) and widget must stay bit-identical.
-| # | Scenario | Expected | Proof |
-|---|---|---|---|
-| O1 | widget reply/status unchanged | every branch's (status, body) byte-identical to pre-convergence | **before==after 11/11** (status+body-expr) + live: widget 200 exact body · widget **400** → HTTP 400 (responseCode expression works) · **18/18 suite** |
-| — | `check-outbound-inventory.py` | should_send rule + security-separation + widget-status-from-tag hold | FAIL-ability ×3 (should_send flip · Reject-Unsigned converge · widget status hardcoded) |
+### Phase 4 — outbound lane (CP4b-1 convergence · CP4b-2 whatsapp send · CP4b-3 5xx/ACK policy)
+The ONE channel-aware transport: 11 reply branches → Code tags (`_outbound_status/_body/_should_send`) → **Finalize Outbound** → **Channel Switch** → widget (synchronous, bit-identical) / whatsapp (ACK-200-first → Should Send? → Send WhatsApp (Zernio) → Outbound Send Failed). O2–O5 are ⚙ assisted (signed nested payload; execution API, never the reply). Empirical gate first: n8n continues after `respondToWebhook` (throwaway probe exec 996).
 
-**CP4b-2 whatsapp send (ACK-before-send)** — ⚙ assisted (signed nested payload; execution API, never the reply). Empirical gate first: n8n continues after `respondToWebhook` (throwaway probe exec 996).
-| # | Scenario | Expected | Proof |
-|---|---|---|---|
-| O2 | whatsapp normal reply → send success | ACK 200; Send WhatsApp out0 with `{accountId, message}` correct; Outbound Send Failed NOT run; sync body NOT returned | exec 998 (URL→httpbin: echo `{accountId:acct-mock-2, message:prices}`) |
-| O3 | send-fail (real zernio, no account) | ACK 200; Send WhatsApp 401 → Outbound Send Failed (`zernio_send_failed`+owner-flag); **no 5xx**; widget respond MUST-NOT-RUN | exec 997 |
-| O4 | whatsapp 400/503-class → coalesce | **ACK 200** (not 400/503) + polite reply sent (notUnderstood/handoff) | exec 1001 (empty-text → ACK 200 + notUnderstood) |
-| O5 | whatsapp duplicate | ACK 200; `should_send=false` → **Send WhatsApp MUST-NOT-RUN** | exec 1000 |
-| O1/O6 | widget regression | widget sync body/status unchanged; ACK/Send WhatsApp MUST-NOT-RUN | 18/18 suite + Channel Switch(widget)→Send Reply (widget) |
+Full format — MUST-RUN / MUST-NOT-RUN are the topology assertions; exec-id is the committed proof.
+| # | Scenario | Setup | Expected | MUST-RUN | MUST-NOT-RUN | exec-id |
+|---|---|---|---|---|---|---|
+| O1 | widget reply/status unchanged (convergence parity) | 11 branches converged; fire each branch on the widget channel | every branch's (status, body) **byte-identical** to pre-convergence (200 exact body · 400 → HTTP 400, responseCode expression works) | Finalize Outbound · Channel Switch(widget) · Send Reply (widget) | Respond ACK 200 (whatsapp) · Send WhatsApp (Zernio) | before==after **11/11** + **18/18** suite |
+| O2 | whatsapp normal reply → send success | signed nested Zernio payload, normal-reply intent; Send URL → httpbin (2xx path) | ACK **200**; Send WhatsApp out0 body `{accountId, message}` correct; synchronous body NOT returned | Respond ACK 200 (whatsapp) · Should Send?(true) · Send WhatsApp (Zernio) | Send Reply (widget) · Outbound Send Failed | exec **998** (echo `{accountId:acct-mock-2, message:prices}`) |
+| O3 | send-fail (real zernio, no account → 401) | signed payload; Send URL → real zernio.com, no account | ACK **200**; Send WhatsApp 401 → Outbound Send Failed (`zernio_send_failed` + owner-flag); **no 5xx** | Respond ACK 200 (whatsapp) · Send WhatsApp (Zernio) · Outbound Send Failed | Send Reply (widget) | exec **997** |
+| O4 | whatsapp 400/503-class → coalesce (never-5xx) | signed payload, empty-text (400-class outcome) | **ACK 200** (NOT 400/503) + polite reply (notUnderstood) still sent | Respond ACK 200 (whatsapp) · Send WhatsApp (Zernio) | Send Reply (widget) · any 4xx/5xx respond | exec **1001** |
+| O5 | whatsapp duplicate → no send | signed payload, duplicate messageId (already replied) | ACK **200**; `_outbound_should_send=false` | Respond ACK 200 (whatsapp) · Should Send?(false) | **Send WhatsApp (Zernio)** | exec **1000** |
+| O6 | widget regression (whatsapp path stays dormant) | widget channel, full 18-case suite | widget synchronous body/status unchanged | Send Reply (widget) | Respond ACK 200 (whatsapp) · Send WhatsApp (Zernio) | **18/18** suite |
+
+Guard: `check-outbound-inventory.py` holds the should_send rule + security-separation + widget-status-from-tag (FAIL-ability proven ×3: should_send flip · Reject-Unsigned converge · widget status hardcoded).
 
 **GATED:** real Zernio 2xx delivery → CP4d (Zernio sandbox). The Bearer credential holds a TEST token (fail-closed) until swapped to the real Zernio API key.
+
+### Phase 4 — CP4c reminder Zernio TEMPLATE send (STUB → real, dry-run gated) — ⚙ assisted
+The reminders `Send Reminder (STUB)` NoOp is now `Send Disabled?` (IF on `bot.whatsappSendDisabled`) → dry-run log / `Send Reminder (Zernio Template)` (`POST /v1/inbox/conversations`, business-initiated → TEMPLATE required, not free text). Default `whatsappSendDisabled=true` = the shipped state = NO live send. Drilled via a temporary every-minute schedule + one planted due appointment (whatsapp, fake number `+490000000001`); both the appointment and the hourly schedule were RESTORED after (restore gate). Execution API, never a reply.
+| # | Scenario | Setup | Expected | MUST-RUN | MUST-NOT-RUN | exec-id |
+|---|---|---|---|---|---|---|
+| RS1 | reminder normal (brake ON = dry-run) | `whatsappSendDisabled=true`; 1 due booked whatsapp appt | Send Disabled?→dry-run; payload correct (participantId=phone · templateName/Language from config · templateParams=`[service, {when} shop-tz]`); Stamp sets reminded=true | Send Disabled?(true) · Reminder Send (dry-run) · Stamp Reminded | **Send Reminder (Zernio Template)** · Reminder Error | exec **1080** (`{participantId:+490000000001, templateName:appointment_reminder, templateLanguage:en_US, templateParams:["Haircut","Sunday 23 Aug 22:00"]}`) |
+| RS2 | reminder send-fail (brake OFF) | `whatsappSendDisabled=false`; 1 due appt; TEST bearer + mock accountId → real zernio.com **401** | Send Disabled?→Zernio send; 401 → error output → **Reminder Error visible**; `reminded` STAYS false (at-least-once → retried) | Send Disabled?(false) · Send Reminder (Zernio Template) · Reminder Error | Reminder Send (dry-run) · **Stamp Reminded** | exec **1081** (send node out0 empty, out1 populated → Reminder Error; Stamp did NOT run) |
+| RS3 | restore gate (brake ON again) | `whatsappSendDisabled` restored true; 1 due appt | dry-run branch runs again; NO real send — proves the send brake is back on | Send Disabled?(true) · Reminder Send (dry-run) · Stamp Reminded | **Send Reminder (Zernio Template)** | exec **1082** |
+
+R1/R2/R4 (CP5 reminder engine — happy · idempotency · kill-switch) are unchanged by CP4c (the STUB→gate swap is downstream of Find Due / Build Payload); the CP5 evidence (hourly Schedule exec 851 + the R-series) still holds.
+**GATED:** real Zernio 2xx template delivery → CP4d (Zernio sandbox + Yigitcan's cost approval). `whatsappSendDisabled=true` is the shipped default — flipping it to `false` is the one-config-flag switch to live.
 
 ## Baseline run
 

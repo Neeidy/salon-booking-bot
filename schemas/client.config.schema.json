@@ -30,7 +30,7 @@
       "description": "Config-gated channels; a channel omitted here is OFF. Several may be enabled at once — the brain is channel-agnostic: every inbound message is normalized to {channel, sender_key, text} with sender_key = '{channel}:{id}', and the reply always returns to the origin channel. instagram ships default OFF: live connection is per-client (Meta app review, business account, 24h messaging window).",
       "additionalProperties": false,
       "properties": {
-        "whatsapp": { "$ref": "#/definitions/channel" },
+        "whatsapp": { "$ref": "#/definitions/whatsappChannel" },
         "widget": { "$ref": "#/definitions/channel" },
         "instagram": { "$ref": "#/definitions/channel" }
       }
@@ -94,6 +94,26 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "provider": { "type": "string", "description": "Adapter id — e.g. whatsapp: zernio · widget: webchat · instagram: meta-graph" }
+      }
+    },
+    "whatsappChannel": {
+      "type": "object",
+      "description": "whatsapp channel — the base channel fields plus the outbound-send identity a business-initiated send (the reminder) needs. NON-SECRET: accountId is an account handle, not a token; the API key lives in n8n Credentials.",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "provider": { "type": "string", "description": "Adapter id — zernio." },
+        "accountId": { "type": "string", "description": "Zernio sending account id for outbound business-initiated sends (reminders). Real value in n8n Load Config; placeholder here." },
+        "reminderTemplate": {
+          "type": "object",
+          "description": "Meta-approved WhatsApp template for the appointment reminder. A template is REQUIRED because the reminder is business-initiated, outside the 24h customer-service window (freeform is only allowed inside it). name/language are per-client (the approved template's variable order must match Build Reminder Payload's templateParams — CP4d/prod concern).",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "language": { "type": "string", "description": "Template language code, e.g. en_US." }
+          }
+        }
       }
     }
   }

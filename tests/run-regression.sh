@@ -148,6 +148,20 @@ PHI="reg-phi-$RUN"
 fire "$PHI" "Book a haircut on 2026-02-30 at 12:00 please" "$PHI-1" >/dev/null
 assert "39 pre-hours invalid -> no book" "$(fire "$PHI" "yes" "$PHI-2")" "team member"
 
+# --- Outbound lane (CP4b) — the curl-automatable slice: O1/O6 widget parity. The whatsapp send path
+# (O2–O5) needs a signed nested payload + the execution API to see whether Send WhatsApp ran, so it is
+# ⚙ in tests/regression-suite.md, not here. What IS automatable via curl: a widget request must come
+# back SYNCHRONOUSLY with its real reply body — proving Channel Switch routes widget → Send Reply (widget)
+# and does NOT take the whatsapp ACK-200 path (whose envelope is {"ok":true}).
+echo "== outbound lane O1/O6: widget stays synchronous, NOT the whatsapp ACK path =="
+OL="reg-ol-$RUN"
+OLBODY="$(fire "$OL" "what are your prices?" "$OL-1")"
+assert "O1/O6 widget synchronous reply" "$OLBODY" "Haircut €25"          # Channel Switch(widget) -> Send Reply (widget)
+# whatsapp ACK (Respond ACK 200) MUST-NOT-RUN on widget: the reply must NOT be the {ok:true} ACK envelope
+N=$((N+1)); if printf '%s' "$OLBODY" | grep -qiE '"ok"[[:space:]]*:[[:space:]]*true'; then
+  FAIL=$((FAIL+1)); printf 'FAIL  O1/O6 widget took the whatsapp ACK path (got ok:true, want the synchronous reply)\n'
+else PASS=$((PASS+1)); printf 'PASS  O1/O6 widget NOT the whatsapp ACK path (no ok:true envelope)\n'; fi
+
 echo
 echo "== BASELINE (curl-only subset): $PASS/$N passed, $FAIL failed =="
 echo "== ⚙ setup-heavy scenarios (race · 401 · Validate rejects · legacy tc=0 · TTL stale · bind · cancelTargetGone · guard-trip · reschedule failure paths + past-guard) are run assisted — see tests/regression-suite.md =="

@@ -343,15 +343,29 @@ turn). **Build Reply Payload** is a thin reader: `computed_reply` from the colum
 that is empty (Refactor #5). `Record Processed` writes the `message_id` **after** a successful Save State, so a
 transient-failure retry is not blocked.
 
-**Outbound convergence (CP4b-1).** All 11 reply branches (the conversational reply + the 400/503/guard/duplicate/
-lock exits) now tag `_outbound_status`/`_outbound_body` (their VERBATIM response) → **Finalize Outbound** →
-**Channel Switch**: **widget** → `Send Reply (widget)` (synchronous, byte-identical to the pre-convergence nodes)
-· **whatsapp** → `Respond ACK 200 (whatsapp)` **[first]** → `Should Send?` → `Send WhatsApp (Zernio)` (`/v1/inbox/
-conversations/{conversationId}/messages`) → `Outbound Send Failed` (visible). **ACK precedes the send** so a slow
-Zernio call can't make the webhook time out and trigger a resend; whatsapp never returns 5xx (the ACK is 200
-regardless of `_outbound_status`). `_outbound_should_send` follows the rule "send only if the
-customer must learn something new" (duplicate/handoff-lock = no send). `Reject Unsigned Request` (403) is the
-one exit that stays SEPARATE — never converged, so a forged `conversationId` can't trigger an outbound send.
+**Outbound convergence (CP4b-1) + 5xx/ACK policy (CP4b-3).** All 11 reply branches (the conversational reply +
+the 400/503/guard/duplicate/lock exits) now tag `_outbound_status`/`_outbound_body` (their VERBATIM response) →
+**Finalize Outbound** → **Channel Switch**, which splits the ONE transport by channel:
+
+- **widget** → `Send Reply (widget)` — **synchronous**, byte-identical to the pre-convergence nodes:
+  `responseBody:{{_outbound_body}}`, `responseCode:{{_outbound_status}}`. Widget **keeps its real status codes**
+  (200/400/503) — the browser reads them.
+- **whatsapp** → `Respond ACK 200 (whatsapp)` **[first, always 200]** → `Should Send?` → `Send WhatsApp (Zernio)`
+  (`POST /v1/inbox/conversations/{conversationId}/messages`, `{accountId, message}`) → on error `Outbound Send
+  Failed` (visible, `error:'zernio_send_failed'` + `_outbound_owner_flag`).
+
+**The whatsapp policy (formalized CP4b-3), three standing rules:**
+1. **whatsapp NEVER returns 5xx** — the ACK is hardcoded 200 and **independent of `_outbound_status`**; a
+   400/503-class conversational outcome still ACKs 200 + sends the polite reply. A 5xx would make the provider
+   retry the inbound = a resend storm.
+2. **ACK precedes the send** — the 200 is emitted BEFORE the Zernio call, so a slow send can't push the webhook
+   past the provider timeout (which would also trigger a resend). Gated empirically: n8n continues after
+   `respondToWebhook` (exec 996). The send's own failure only flags `Outbound Send Failed`, still 200.
+3. **Send only if the customer must learn something new** — `_outbound_should_send` is a rule, not a list;
+   duplicate (already replied) + handoff-lock (already told) = no send.
+
+`Reject Unsigned Request` (403) is the one exit that stays **SEPARATE** — never converged, so a forged
+`conversationId` can't be turned into a message-trigger primitive against an arbitrary number.
 
 ---
 

@@ -22,7 +22,7 @@
   },
   {
    "parameters": {
-    "jsCode": "// Load Config (Reminders) — minimal config for the reminder run (CP5).\n// one-swap-to-real: replace this literal with client.config.json / n8n variable (Phase 4/template).\n// SHARED keys with the main workflow's Load Config (business.timezone, bot.killSwitch) MUST match —\n// guarded by scripts/check-cancel-validation-parity.py (two-Load-Config shared-key assertion).\nconst config = {\n  business: { timezone: \"Europe/Vienna\" },\n  bot: { reminderHoursBefore: 24, killSwitch: false },\n  messageTemplates: { reminder: \"Reminder: your {service} is booked for {when}. See you soon!\" }\n};\nreturn [{ json: { ...$json, config } }];"
+    "jsCode": "// Load Config (Reminders) — minimal config for the reminder run (CP5).\n// one-swap-to-real: replace this literal with client.config.json / n8n variable (Phase 4/template).\n// SHARED keys with the main workflow's Load Config (business.timezone, bot.killSwitch) MUST match —\n// guarded by scripts/check-cancel-validation-parity.py (two-Load-Config shared-key assertion).\n// CP4c: bot.whatsappSendDisabled is the send brake (killSwitch-level, fail-safe default true) — true = NO\n// live Zernio send, the dry-run branch logs the payload instead. channels.whatsapp carries the send identity.\nconst config = {\n  business: { timezone: \"Europe/Vienna\" },\n  bot: { reminderHoursBefore: 24, killSwitch: false, whatsappSendDisabled: true },\n  channels: { whatsapp: { enabled: true, provider: \"zernio\", accountId: \"REPLACE_WITH_ZERNIO_ACCOUNT_ID\", reminderTemplate: { name: \"appointment_reminder\", language: \"en_US\" } } },\n  messageTemplates: { reminder: \"Reminder: your {service} is booked for {when}. See you soon!\" }\n};\nreturn [{ json: { ...$json, config } }];"
    },
    "id": "rem_loadconfig",
    "name": "Load Config (Reminders)",
@@ -93,7 +93,7 @@
   },
   {
    "parameters": {
-    "content": "## CP5 — Reminders engine (separate workflow, bot-automated)\nSchedule (hourly) → Load Config (minimal) → Kill-Switch Gate → Compute Reminder Window → Find Due → Build Payload → Send STUB → Stamp Reminded. Find Due / Stamp errors → Reminder Error (visible; owner-alert = Phase 5).\n\n**STUB send:** Phase 4 swaps the NoOp for HTTP Request → Zernio send; payload {channel,to,text} is real now (one-node swap).\n**Dedupe (two fields):** `reminded` (checkbox) = CONTROL — Find Due selects NOT({reminded}); Stamp sets reminded=true (send-first, stamp-after-success = at-least-once); reschedule sets reminded=false so a moved appointment re-reminds. `reminder_sent` (dateTime) = INFO only (native n8n can't clear a dateTime — null omitted, '' rejected).\n**Limits (T1):** Airtable mirror is the source; a GCal-direct cancel could still be reminded; mirror_failed rows get no reminder; two overlapping schedule runs could double-send (accepted TOCTOU, hourly cadence).",
+    "content": "## CP5 — Reminders engine (separate workflow, bot-automated)\nSchedule (hourly) → Load Config (minimal) → Kill-Switch Gate → Compute Reminder Window → Find Due → Build Payload → **Send Disabled?** → dry-run log / **Zernio Template send** → Stamp Reminded. Find Due / Stamp / Zernio-send errors → Reminder Error (visible; owner-alert = Phase 5).\n\n**CP4c send (transport live):** the NoOp STUB is now a real Zernio TEMPLATE send (`POST /v1/inbox/conversations`, business-initiated → template required), GATED by `Send Disabled?` on `bot.whatsappSendDisabled`. Default true = the dry-run branch surfaces the exact payload and NO real send fires. Live send = CP4d (Zernio sandbox + cost approval), flipped by one config flag. Zernio-send error → Reminder Error (a failed send does NOT reach Stamp → reminded stays false → retried = at-least-once).\n**Dedupe (two fields):** `reminded` (checkbox) = CONTROL — Find Due selects NOT({reminded}); Stamp sets reminded=true (send-first, stamp-after-success = at-least-once); reschedule sets reminded=false so a moved appointment re-reminds. `reminder_sent` (dateTime) = INFO only (native n8n can't clear a dateTime — null omitted, '' rejected).\n**Limits (T1):** Airtable mirror is the source; a GCal-direct cancel could still be reminded; mirror_failed rows get no reminder; two overlapping schedule runs could double-send (accepted TOCTOU, hourly cadence).",
     "height": 220,
     "width": 820
    },
@@ -140,7 +140,7 @@
   },
   {
    "parameters": {
-    "jsCode": "// Build Reminder Payload — the deterministic outbound reminder for ONE due appointment (CP5).\n// Input: one Airtable appointments row ({ id, fields:{...} }). Output: the Phase-4 send contract\n// {channel,to,text} + the recordId to stamp. {when} rendered in the shop timezone (DST-correct); NO LLM.\nconst cfg = $('Load Config (Reminders)').first().json.config;\nconst win = $('Compute Reminder Window').first().json.reminder;\nconst tz = win.tz;\nconst f = $json.fields;\nconst svc = f.service || 'appointment';\nconst when = DateTime.fromISO(f.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst text = (cfg.messageTemplates.reminder || 'Reminder: your {service} is booked for {when}.')\n  .replace('{service}', svc)\n  .replace('{when}', when);\nconst senderKey = f.sender_key || '';\nconst ci = senderKey.indexOf(':');\nconst channel = ci > 0 ? senderKey.slice(0, ci) : (f.channel || '');\nconst to = ci > 0 ? senderKey.slice(ci + 1) : senderKey;\nreturn [{ json: {\n  recordId: $json.id,\n  reminder_payload: { channel, to, text },\n  _appt: { sender_key: senderKey, service: svc, start_utc: f.start_utc }\n}}];"
+    "jsCode": "// Build Reminder Payload — the deterministic outbound reminder for ONE due appointment (CP5).\n// Input: one Airtable appointments row ({ id, fields:{...} }). Output: the Phase-4 send contract\n// {channel,to,text} + the CP4c whatsapp template send envelope (send_request) + the recordId to stamp.\n// {when} rendered in the shop timezone (DST-correct); NO LLM.\nconst cfg = $('Load Config (Reminders)').first().json.config;\nconst win = $('Compute Reminder Window').first().json.reminder;\nconst tz = win.tz;\nconst f = $json.fields;\nconst svc = f.service || 'appointment';\nconst when = DateTime.fromISO(f.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\nconst text = (cfg.messageTemplates.reminder || 'Reminder: your {service} is booked for {when}.')\n  .replace('{service}', svc)\n  .replace('{when}', when);\nconst senderKey = f.sender_key || '';\nconst ci = senderKey.indexOf(':');\nconst channel = ci > 0 ? senderKey.slice(0, ci) : (f.channel || '');\nconst to = ci > 0 ? senderKey.slice(ci + 1) : senderKey;\n// CP4c: whatsapp template send envelope. The reminder is business-initiated, OUTSIDE the 24h window, so\n// WhatsApp requires an approved TEMPLATE (not free text). participantId = recipient phone (the 'to').\n// templateParams order MUST match the approved template's variable order (CP4d/prod concern).\nconst wa = (cfg.channels && cfg.channels.whatsapp) || {};\nconst tpl = wa.reminderTemplate || {};\nconst send_request = {\n  channel,\n  accountId: wa.accountId || '',\n  participantId: to,\n  templateName: tpl.name || '',\n  templateLanguage: tpl.language || '',\n  templateParams: [svc, when]\n};\nreturn [{ json: {\n  recordId: $json.id,\n  reminder_payload: { channel, to, text },\n  send_request,\n  _appt: { sender_key: senderKey, service: svc, start_utc: f.start_utc }\n}}];"
    },
    "id": "rem_payload",
    "name": "Build Reminder Payload",
@@ -152,16 +152,81 @@
    ]
   },
   {
-   "parameters": {},
-   "id": "rem_send_stub",
-   "name": "Send Reminder (STUB)",
-   "type": "n8n-nodes-base.noOp",
-   "typeVersion": 1,
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "wa-send-disabled-1",
+       "leftValue": "={{ $('Load Config (Reminders)').first().json.config.bot.whatsappSendDisabled === true }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   },
+   "id": "rem_send_gate",
+   "name": "Send Disabled?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
    "position": [
     1344,
     304
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Reminder Send (dry-run) — the whatsappSendDisabled brake is ON (fail-safe default): NO real Zernio call.\n// It surfaces the EXACT template payload the live path would POST (readable in the execution output), then\n// passes the recordId through so Stamp Reminded still runs — at-least-once semantics identical to a live send.\nconst req = $json.send_request;\nreturn [{ json: { recordId: $json.recordId, _dry_run: true, would_post: { url: 'https://zernio.com/api/v1/inbox/conversations', method: 'POST', body: req } } }];"
+   },
+   "id": "rem_dryrun",
+   "name": "Reminder Send (dry-run)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1568,
+    208
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "https://zernio.com/api/v1/inbox/conversations",
+    "authentication": "predefinedCredentialType",
+    "nodeCredentialType": "httpHeaderAuth",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({ accountId: $json.send_request.accountId, participantId: $json.send_request.participantId, templateName: $json.send_request.templateName, templateLanguage: $json.send_request.templateLanguage, templateParams: $json.send_request.templateParams }) }}",
+    "options": {
+     "timeout": 15000
+    }
+   },
+   "id": "rem_send_http",
+   "name": "Send Reminder (Zernio Template)",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    1568,
+    400
    ],
-   "notes": "STUB — Phase 4 replaces this with HTTP Request → Zernio send. Payload {channel,to,text} is on the incoming item (reminder_payload). In Phase 4 this node's onError must route to Reminder Error (NOT Stamp) to keep at-least-once."
+   "credentials": {
+    "httpHeaderAuth": {
+     "id": "REPLACE_WITH_HTTP_HEADER_AUTH_CREDENTIAL_ID",
+     "name": "Zernio API Bearer (TEST — swap to real before prod)"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "notes": "CP4c — Zernio TEMPLATE send (POST /v1/inbox/conversations). Business-initiated, outside the 24h window → template required. GATED by Send Disabled? (bot.whatsappSendDisabled): fires ONLY when the brake is off (CP4d + Yigitcan's cost approval). onError → Reminder Error (visible; at-least-once: a failed send does NOT reach Stamp, so reminded stays false → retried)."
   },
   {
    "parameters": {
@@ -179,7 +244,7 @@
     "columns": {
      "mappingMode": "defineBelow",
      "value": {
-      "id": "={{ $json.recordId }}",
+      "id": "={{ $('Build Reminder Payload').item.json.recordId }}",
       "reminder_sent": "={{ $now.toUTC().toISO() }}",
       "reminded": "={{ true }}"
      },
@@ -327,14 +392,44 @@
    "main": [
     [
      {
-      "node": "Send Reminder (STUB)",
+      "node": "Send Disabled?",
       "type": "main",
       "index": 0
      }
     ]
    ]
   },
-  "Send Reminder (STUB)": {
+  "Stamp Reminded": {
+   "main": [
+    [],
+    [
+     {
+      "node": "Reminder Error",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Disabled?": {
+   "main": [
+    [
+     {
+      "node": "Reminder Send (dry-run)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Send Reminder (Zernio Template)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Reminder Send (dry-run)": {
    "main": [
     [
      {
@@ -345,9 +440,15 @@
     ]
    ]
   },
-  "Stamp Reminded": {
+  "Send Reminder (Zernio Template)": {
    "main": [
-    [],
+    [
+     {
+      "node": "Stamp Reminded",
+      "type": "main",
+      "index": 0
+     }
+    ],
     [
      {
       "node": "Reminder Error",
