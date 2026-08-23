@@ -140,6 +140,17 @@ The reminders `Send Reminder (STUB)` NoOp is now `Send Disabled?` (IF on `bot.wh
 R1/R2/R4 (CP5 reminder engine — happy · idempotency · kill-switch) regression: R1 happy now covered by RS4 (multi) + RS1 (single); R2 0-due clean no-op re-proven post-fix (exec 1085 — Find Due ran, 0 items, no downstream node); R4 kill-switch is upstream of the changed nodes (Kill-Switch Gate untouched) → inherited from CP5 exec 790.
 **GATED:** real Zernio 2xx template delivery → CP4d (Zernio sandbox + Yigitcan's cost approval). `whatsappSendDisabled=true` is the shipped default — flipping it to `false` is the one-config-flag switch to live.
 
+### Phase 4 — CP4d-1 real WhatsApp e2e (shared Zernio sandbox, LIVE — 2026-08-23)
+A real WhatsApp message from the tester's own phone (activated as a sandbox recipient), delivered SIGNED by Zernio to the production `/webhook/barber-inbound`. Verified via the execution API (tester's number masked/purged; the Zernio webhook was set `isActive:false` after the drill).
+| # | Scenario | Expected | Proof |
+|---|---|---|---|
+| D1-a | real signed inbound → HMAC gate | real Zernio `X-Zernio-Signature` passes `Compute Body HMAC → Signature Valid?`; `Reject Unsigned Request` MUST-NOT-RUN | exec **1100/1102** HMAC OK (closes CP4a "GATED: real signed request") |
+| D1-b | real booking + real 2xx reply | brain books (Book + Write Appointment) → `Send WhatsApp (Zernio)` delivers a **real 2xx** to the phone ("You're booked: …") | exec **1102** (closes CP4b-2 "GATED: real 2xx delivery" — was httpbin/401 before) |
+| D1-c | **real provider double-delivery → idempotency** | Zernio delivered EACH message **twice** (4 execs / 2 unique `message_id`s) → the duplicate hits `Check Processed → Is Duplicate → Idempotent Replay` → **exactly one booking, no double-book** | exec **1101 + 1103** (Idempotent Replay) — booking-integrity idempotency under a REAL retry, **not a synthetic duplicate**; case-study-grade |
+| D1-d | (B) sandbox isolation | only the tester's single `sender_key` across all execs; no foreign sandbox user's traffic reaches our webhook | all 4 execs one sender_key (empirical isolation, not just docs) |
+
+**Case-study note:** D1-c is the strongest kind of evidence — the idempotency guard was designed for exactly this (a provider retrying at-least-once), and Zernio *actually did it* in the wild, and the guard held. No test could manufacture a more honest proof.
+
 ## Baseline run
 
 **CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
