@@ -87,12 +87,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"channel\": $json.channel, \"sender_key\": $json.sender_key, \"reply\": $json.reply } }}",
-        "options": {}
+        "jsCode": "// Outbound tag (Send Reply To Origin) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ \"channel\": $json.channel, \"sender_key\": $json.sender_key, \"reply\": $json.reply }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Send Reply To Origin\"\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         8064,
         208
@@ -202,14 +200,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"invalid_payload\", \"handoff\": true } }}",
-        "options": {
-          "responseCode": 400
-        }
+        "jsCode": "// Outbound tag (Send Reject Response) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 400,\n    _outbound_body: ({ \"ok\": false, \"error\": \"invalid_payload\", \"handoff\": true }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Send Reject Response\",\n    _outbound_reply: $('Load Config').first().json.config.messageTemplates.notUnderstood\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         672,
         2480
@@ -483,14 +477,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true } }}",
-        "options": {
-          "responseCode": 503
-        }
+        "jsCode": "// Outbound tag (Send Error Response) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Send Error Response\",\n    _outbound_reply: $('Load Config').first().json.config.messageTemplates.handoff,\n    _outbound_owner_flag: true\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         6720,
         -560
@@ -500,12 +490,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": true, \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
-        "options": {}
+        "jsCode": "// Outbound tag (Handoff Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ \"ok\": true, \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Handoff Reply\"\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2464,
         2720
@@ -624,14 +612,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"llm_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
-        "options": {
-          "responseCode": 503
-        }
+        "jsCode": "// Outbound tag (LLM Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"llm_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"LLM Unavailable Reply\"\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2912,
         -192
@@ -1103,16 +1087,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": false, \"error\": \"lead_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff } }}",
-        "options": {
-          "responseCode": 503
-        }
+        "jsCode": "// Outbound tag (Lead Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"lead_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Lead Unavailable Reply\"\n  } }];"
       },
       "id": "2496b099-aa44-4dae-8ba0-33956c68c0b4",
       "name": "Lead Unavailable Reply",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         6272,
         96
@@ -1153,12 +1133,10 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"ok\": true, \"handoff\": true, \"locked\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoffLocked } }}",
-        "options": {}
+        "jsCode": "// Outbound tag (Handoff Lock Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ \"ok\": true, \"handoff\": true, \"locked\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoffLocked }),\n    _outbound_should_send: false,\n    _outbound_kind: \"Handoff Lock Reply\"\n  } }];"
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2240,
         -288
@@ -1273,16 +1251,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: 'calendar_unavailable', reply: $('Load Config').first().json.config.messageTemplates.handoff } }}",
-        "options": {
-          "responseCode": 503
-        }
+        "jsCode": "// Outbound tag (Calendar Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', reply: $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Calendar Unavailable Reply\"\n  } }];"
       },
       "id": "4daf77d5-bc7d-4fdf-9e76-bcafe5798360",
       "name": "Calendar Unavailable Reply",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         6496,
         704
@@ -1805,14 +1779,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ status: 'duplicate_ignored', sender_key: $json.sender_key }) }}",
-        "options": {}
+        "jsCode": "// Outbound tag (Idempotent Replay) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: (JSON.stringify({ status: 'duplicate_ignored', sender_key: $json.sender_key })),\n    _outbound_should_send: false,\n    _outbound_kind: \"Idempotent Replay\"\n  } }];"
       },
       "id": "7419186c-0128-4396-b42f-c1954cfc815e",
       "name": "Idempotent Replay",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1568,
         -512
@@ -1926,14 +1898,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ (() => { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State','Build Reconcile-Unresolved State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return JSON.stringify({ reply: r.computed_reply, state_unsaved: true, gcal_event_id: r.gcal_event_id || null }); } catch (e) {} } return JSON.stringify({ reply: 'Thanks — a team member will follow up shortly.', state_unsaved: true }); })() }}",
-        "options": {}
+        "jsCode": "// Outbound tag (Booking State-Unsaved Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ((() => { for (const n of ['Build Booked State','Build Mirror-Failed State','Build Race-Lost State','Build Orphan State','Build Verify-Unavailable State','Build Reconcile-Unresolved State']) { try { const r = $(n).first().json; if (r && r.computed_reply) return JSON.stringify({ reply: r.computed_reply, state_unsaved: true, gcal_event_id: r.gcal_event_id || null }); } catch (e) {} } return JSON.stringify({ reply: 'Thanks — a team member will follow up shortly.', state_unsaved: true }); })()),\n    _outbound_should_send: true,\n    _outbound_kind: \"Booking State-Unsaved Reply\"\n  } }];"
       },
       "id": "b0e7ecf0-c756-4ff8-a8ac-96dcf88792a8",
       "name": "Booking State-Unsaved Reply",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         7840,
         2384
@@ -2853,16 +2823,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { ok: false, error: 'calendar_unavailable', cancel_delete_failed: true, reply: $('Load Config').first().json.config.messageTemplates.cancelUnavailable } }}",
-        "options": {
-          "responseCode": 503
-        }
+        "jsCode": "// Outbound tag (Cancel Delete Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', cancel_delete_failed: true, reply: $('Load Config').first().json.config.messageTemplates.cancelUnavailable }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Cancel Delete Unavailable Reply\"\n  } }];"
       },
       "id": "3b930f04-b518-4955-b0a6-e572be1fc107",
       "name": "Cancel Delete Unavailable Reply",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         6944,
         3952
@@ -4014,6 +3980,129 @@
       ],
       "id": "3a59c9e6-4cb4-4bfa-8dff-073eda54f0f2",
       "name": "Sticky — Signature Gate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Finalize Outbound — single outbound decision point.\nconst nz = $('Normalize Inbound').first().json;\nlet body = $json._outbound_body;\n// a few branches carry a STRING (JSON.stringify) body — parse it so the whatsapp reply\n// text (CP4b-2) can be read from it; widget is unaffected (it emits _outbound_body verbatim).\nlet parsed = body;\nif (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch (e) { parsed = {}; } }\nconst reply = ($json._outbound_reply ?? ((parsed && parsed.reply) || '')) + '';\nreturn [{ json: { ...$json, channel: nz.channel, conversationId: nz.conversationId || null, _outbound_reply: reply } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        3000
+      ],
+      "id": "c8fb9f99-38ff-4b01-a7ea-47d69e90ed3b",
+      "name": "Finalize Outbound"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "widget",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "widget"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "whatsapp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1340,
+        3000
+      ],
+      "id": "1a827406-504a-468d-8f4e-154a2c898e6c",
+      "name": "Channel Switch"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._outbound_body }}",
+        "options": {
+          "responseCode": "={{ $json._outbound_status }}"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1560,
+        2900
+      ],
+      "id": "0fa31c1c-6b1f-4725-a77f-5d2caa1533e7",
+      "name": "Send Reply (widget)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1560,
+        3100
+      ],
+      "id": "7562a946-8660-4807-99ea-a3c21a263bb4",
+      "name": "Respond ACK 200 (whatsapp TEMP)"
+    },
+    {
+      "parameters": {
+        "content": "## Outbound convergence (CP4b)\nEvery reply branch tags _outbound_* (VERBATIM body + status) -> Finalize Outbound -> Channel Switch:\n- widget -> Send Reply (widget): synchronous body+status, bit-identical to before.\n- whatsapp -> (CP4b-2) ACK 200 first, then Zernio send.\n\n_outbound_should_send rule: send only if the customer must learn something they don't already know (duplicate/handoff-lock = already knows -> no send). Reject Unsigned Request stays SEPARATE.",
+        "height": 300,
+        "width": 480
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        2660
+      ],
+      "id": "40d77778-5a1f-40ca-bcc7-63882e7399eb",
+      "name": "Sticky — Outbound"
     }
   ],
   "connections": {
@@ -5617,6 +5706,156 @@
         [
           {
             "node": "Reject Unsigned Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply To Origin": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Lock Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idempotent Replay": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking State-Unsaved Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reject Response": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Error Response": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Unavailable Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Unavailable Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Unavailable Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel Delete Unavailable Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Outbound": {
+      "main": [
+        [
+          {
+            "node": "Channel Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel Switch": {
+      "main": [
+        [
+          {
+            "node": "Send Reply (widget)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond ACK 200 (whatsapp TEMP)",
             "type": "main",
             "index": 0
           }

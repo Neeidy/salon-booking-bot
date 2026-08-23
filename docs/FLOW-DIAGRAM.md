@@ -341,8 +341,14 @@ write `computed_reply` (`|| ''` — a turn with no reply CLEARS it, so the reade
 turn). **Build Reply Payload** is a thin reader: `computed_reply` from the column if present (greet only on
 `collecting`), otherwise the original per-intent fallback, and a machine-visible `reply_fallback` flag if even
 that is empty (Refactor #5). `Record Processed` writes the `message_id` **after** a successful Save State, so a
-transient-failure retry is not blocked. The 11 direct `respondToWebhook` nodes (400 / 503 / guard / duplicate
-/ lock) bypass this lane — they are the non-conversational exits.
+transient-failure retry is not blocked.
+
+**Outbound convergence (CP4b-1).** All 11 reply branches (the conversational reply + the 400/503/guard/duplicate/
+lock exits) now tag `_outbound_status`/`_outbound_body` (their VERBATIM response) → **Finalize Outbound** →
+**Channel Switch**: **widget** → `Send Reply (widget)` (synchronous, byte-identical to the pre-convergence nodes)
+· **whatsapp** → ACK 200 then Zernio send (CP4b-2). `_outbound_should_send` follows the rule "send only if the
+customer must learn something new" (duplicate/handoff-lock = no send). `Reject Unsigned Request` (403) is the
+one exit that stays SEPARATE — never converged, so a forged `conversationId` can't trigger an outbound send.
 
 ---
 

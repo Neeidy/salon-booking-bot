@@ -110,6 +110,15 @@ Fire against the production webhook with a Zernio-shaped body. For W1 the `X-Zer
 
 **GATED (not "verified"):** byte-exact raw-body ↔ a real Zernio-signed request — confirm via Zernio `webhook.test` when the account is provisioned (the crypto credential currently holds a TEST secret; fail-closed until swapped to the real Zernio secret).
 
+### Phase 4 — outbound convergence (CP4b-1)
+Widget parity is the gate: the 11 reply branches were converged (Code tags → Finalize Outbound → Channel Switch → Send Reply (widget)) and widget must stay bit-identical.
+| # | Scenario | Expected | Proof |
+|---|---|---|---|
+| O1 | widget reply/status unchanged | every branch's (status, body) byte-identical to pre-convergence | **before==after 11/11** (status+body-expr) + live: widget 200 exact body · widget **400** → HTTP 400 (responseCode expression works) · **18/18 suite** |
+| — | `check-outbound-inventory.py` | should_send rule + security-separation + widget-status-from-tag hold | FAIL-ability ×3 (should_send flip · Reject-Unsigned converge · widget status hardcoded) |
+
+O2–O6 (whatsapp send + ACK + 5xx→200 + send-fail + should_send NO-SEND) = **CP4b-2** (whatsapp Zernio send).
+
 ## Baseline run
 
 **CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
