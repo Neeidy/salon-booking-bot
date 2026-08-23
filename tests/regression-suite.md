@@ -117,7 +117,16 @@ Widget parity is the gate: the 11 reply branches were converged (Code tags → F
 | O1 | widget reply/status unchanged | every branch's (status, body) byte-identical to pre-convergence | **before==after 11/11** (status+body-expr) + live: widget 200 exact body · widget **400** → HTTP 400 (responseCode expression works) · **18/18 suite** |
 | — | `check-outbound-inventory.py` | should_send rule + security-separation + widget-status-from-tag hold | FAIL-ability ×3 (should_send flip · Reject-Unsigned converge · widget status hardcoded) |
 
-O2–O6 (whatsapp send + ACK + 5xx→200 + send-fail + should_send NO-SEND) = **CP4b-2** (whatsapp Zernio send).
+**CP4b-2 whatsapp send (ACK-before-send)** — ⚙ assisted (signed nested payload; execution API, never the reply). Empirical gate first: n8n continues after `respondToWebhook` (throwaway probe exec 996).
+| # | Scenario | Expected | Proof |
+|---|---|---|---|
+| O2 | whatsapp normal reply → send success | ACK 200; Send WhatsApp out0 with `{accountId, message}` correct; Outbound Send Failed NOT run; sync body NOT returned | exec 998 (URL→httpbin: echo `{accountId:acct-mock-2, message:prices}`) |
+| O3 | send-fail (real zernio, no account) | ACK 200; Send WhatsApp 401 → Outbound Send Failed (`zernio_send_failed`+owner-flag); **no 5xx**; widget respond MUST-NOT-RUN | exec 997 |
+| O4 | whatsapp 400/503-class → coalesce | **ACK 200** (not 400/503) + polite reply sent (notUnderstood/handoff) | exec 1001 (empty-text → ACK 200 + notUnderstood) |
+| O5 | whatsapp duplicate | ACK 200; `should_send=false` → **Send WhatsApp MUST-NOT-RUN** | exec 1000 |
+| O1/O6 | widget regression | widget sync body/status unchanged; ACK/Send WhatsApp MUST-NOT-RUN | 18/18 suite + Channel Switch(widget)→Send Reply (widget) |
+
+**GATED:** real Zernio 2xx delivery → CP4d (Zernio sandbox). The Bearer credential holds a TEST token (fail-closed) until swapped to the real Zernio API key.
 
 ## Baseline run
 

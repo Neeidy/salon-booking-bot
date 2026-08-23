@@ -4087,11 +4087,11 @@
         3100
       ],
       "id": "7562a946-8660-4807-99ea-a3c21a263bb4",
-      "name": "Respond ACK 200 (whatsapp TEMP)"
+      "name": "Respond ACK 200 (whatsapp)"
     },
     {
       "parameters": {
-        "content": "## Outbound convergence (CP4b)\nEvery reply branch tags _outbound_* (VERBATIM body + status) -> Finalize Outbound -> Channel Switch:\n- widget -> Send Reply (widget): synchronous body+status, bit-identical to before.\n- whatsapp -> (CP4b-2) ACK 200 first, then Zernio send.\n\n_outbound_should_send rule: send only if the customer must learn something they don't already know (duplicate/handoff-lock = already knows -> no send). Reject Unsigned Request stays SEPARATE.",
+        "content": "## Outbound convergence (CP4b)\nEvery reply branch tags _outbound_* (VERBATIM body + status) -> Finalize Outbound -> Channel Switch:\n- widget -> Send Reply (widget): synchronous body+status, bit-identical to before.\n- whatsapp -> (CP4b-2) ACK 200 first, then Zernio send.\n\n_outbound_should_send rule: send only if the customer must learn something they don't already know (duplicate/handoff-lock = already knows -> no send). Reject Unsigned Request stays SEPARATE.\n\n**whatsapp ACK is intentionally ALWAYS 200** (transport ACK to Zernio's delivery layer, NOT the customer) — do NOT couple it to `_outbound_status`; a 5xx here would trigger a provider retry storm. On whatsapp the infra-unavailable distinctness (handoff.md's 5xx) lives in the `error`/`_outbound_*` state fields + the distinct Unavailable node, not the HTTP status (which is the widget/sync semantics). `_outbound_owner_flag` on a failed send is surfaced by the owner-alert = Phase 5.",
         "height": 300,
         "width": 480
       },
@@ -4103,6 +4103,82 @@
       ],
       "id": "40d77778-5a1f-40ca-bcc7-63882e7399eb",
       "name": "Sticky — Outbound"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "10198e42-b94a-47a6-841b-b2ad24deb2b2",
+              "leftValue": "={{ $json._outbound_should_send }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1780,
+        3100
+      ],
+      "id": "1a6c7a5c-e47b-4c47-9af7-a97e8ff5ff68",
+      "name": "Should Send?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://zernio.com/api/v1/inbox/conversations/{{ $json.conversationId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ accountId: $('Receive Inbound Message').first().json.body.account?.id, message: $json._outbound_reply }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        3040
+      ],
+      "id": "8f5be314-daf9-4be0-8a95-331a239ecff1",
+      "name": "Send WhatsApp (Zernio)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_HTTP_HEADER_AUTH_CREDENTIAL_ID",
+          "name": "Zernio API Bearer (TEST — swap to real before prod)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Outbound Send Failed — the Zernio send errored. VISIBLE (owner-alert = Phase 5).\n// The webhook already ACKed 200 (before the send), so NO 5xx here -> no provider retry storm.\nreturn [{ json: { ...$json, error: 'zernio_send_failed', _outbound_owner_flag: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        3140
+      ],
+      "id": "9d6a1397-c364-4878-b57e-c5da5a43357d",
+      "name": "Outbound Send Failed"
     }
   ],
   "connections": {
@@ -5855,7 +5931,42 @@
         ],
         [
           {
-            "node": "Respond ACK 200 (whatsapp TEMP)",
+            "node": "Respond ACK 200 (whatsapp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond ACK 200 (whatsapp)": {
+      "main": [
+        [
+          {
+            "node": "Should Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (Zernio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send WhatsApp (Zernio)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Outbound Send Failed",
             "type": "main",
             "index": 0
           }
