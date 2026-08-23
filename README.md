@@ -80,9 +80,14 @@ quote a wrong price** — the answer path contains no model.
 
 ## Designed, locked, not built yet 🔜
 
-Calendar booking write + no-double-book · cancel / reschedule / reminders · live WhatsApp transport ·
-full safety suite (cost cap, rate limiting, injection hardening) · the customer-facing frontend ·
-config-only second client.
+The **full safety suite** (cost cap, endpoint rate-limiting, injection hardening) · the **customer-facing
+frontend** · a **config-only second client**.
+
+_(Built since this line was first written: booking write + no-double-book, cancel, reschedule and the
+**reminder engine** — Phase 3; WhatsApp **inbound** (HMAC-verified) + **outbound transport** — Phase 4,
+dry-run/sandbox-proven. The reminder engine runs end-to-end and is proven in dry-run; **live WhatsApp
+template delivery opens with one config flag** once a client's WhatsApp Business number is provisioned —
+that number and its message templates are the customer's to supply, per-client onboarding.)_
 
 ---
 
