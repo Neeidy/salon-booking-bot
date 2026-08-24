@@ -14,10 +14,11 @@
       "typeVersion": 2.1,
       "position": [
         0,
-        2384
+        2848
       ],
       "id": "7b480c08-8217-4101-bcac-2c8d717405fa",
-      "name": "Receive Inbound Message"
+      "name": "Receive Inbound Message",
+      "webhookId": "fa67a904-9c55-4d59-8619-754ee5d46fa5"
     },
     {
       "parameters": {
@@ -26,8 +27,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
-        2384
+        1120,
+        2752
       ],
       "id": "42983891-f17c-454d-b82e-1949a3a45098",
       "name": "Normalize Inbound"
@@ -79,7 +80,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        7840,
+        8512,
         208
       ],
       "id": "35e6555e-2e67-45ae-9f86-9f79891b4dc5",
@@ -92,7 +93,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8064,
+        8736,
         208
       ],
       "id": "ed9845ad-c695-4184-a8bb-bb0e0b07830e",
@@ -115,13 +116,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleDone: \"Moved — your {service} is now {when}.\",\n      rescheduleMirrorFailed: \"Your booking change is being finalized — a team member will confirm the new time shortly.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false },\n  ownerAlert: { enabled: true, throttleMinutes: 30 },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleDone: \"Moved — your {service} is now {when}.\",\n      rescheduleMirrorFailed: \"Your booking change is being finalized — a team member will confirm the new time shortly.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        224,
-        2384
+        896,
+        2752
       ],
       "id": "46d66427-01a4-44e8-b2cd-4b6a546f392b",
       "name": "Load Config"
@@ -192,8 +193,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        672,
-        2384
+        1344,
+        2752
       ],
       "id": "b2e90b17-6568-4603-ac64-2b7fed999270",
       "name": "Validate Payload"
@@ -205,8 +206,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        672,
-        2480
+        8736,
+        6464
       ],
       "id": "a648a8d6-3037-4b19-8b7d-f266fcde98d5",
       "name": "Send Reject Response"
@@ -234,8 +235,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        1568,
-        2464
+        2240,
+        2800
       ],
       "id": "e9f40f4c-c03b-40c0-b83b-c700b38fa502",
       "name": "Load State",
@@ -250,13 +251,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null,\n  turn_count: found ? (f.turn_count ?? 0) : 0,      // guard: state.turn_count < max — okunmazsa undefined → her mesaj handoff\n  last_intent: found ? (f.last_intent ?? null) : null,\n  cancel_target_id: found ? (f.cancel_target_id ?? null) : null,   // CP3/Codex#8: bind 'yes' to the confirmed record\n  confirm_turn: found ? (f.confirm_turn ?? null) : null,   // CP3/Codex#8 PART-B: confirmation TTL (immediate-next-turn only)\n  slots: {                                          // CP4: saklı slotları oku → deterministik biriktirme tabanı\n    serviceId: found ? (f.slot_service ?? null) : null,\n    date:      found ? (f.slot_date ?? null) : null,\n    time:      found ? (f.slot_time ?? null) : null\n  }\n};\n\nreturn [{ json: { ...norm, state } }];\n"
+        "jsCode": "// Merge State — Airtable sonucunu ($json) şu anki mesajla (Normalize) birleştir.\nconst norm = $('Normalize Inbound').first().json;   // {channel, senderId, sender_key, text}\nconst rec  = $json;                                 // Load State: yeni müşteride {}, yoksa {id, createdTime, fields:{...}}\nconst f    = rec.fields || {};                      // ⚠ Airtable alanları 'fields' altında NESTED\n\nconst found = !!(rec && rec.id);                    // Airtable kayıt id'si varsa \"bulundu\"\nconst state = {\n  found,\n  stage: found ? (f.stage ?? 'new') : 'new',\n  last_updated_prev: found ? (f.last_updated ?? null) : null,\n  turn_count: found ? (f.turn_count ?? 0) : 0,      // guard: state.turn_count < max — okunmazsa undefined → her mesaj handoff\n  last_intent: found ? (f.last_intent ?? null) : null,\n  cancel_target_id: found ? (f.cancel_target_id ?? null) : null,   // CP3/Codex#8: bind 'yes' to the confirmed record\n  confirm_turn: found ? (f.confirm_turn ?? null) : null,   // CP3/Codex#8 PART-B: confirmation TTL (immediate-next-turn only)\n  slots: {                                          // CP4: saklı slotları oku → deterministik biriktirme tabanı\n    serviceId: found ? (f.slot_service ?? null) : null,\n    date:      found ? (f.slot_date ?? null) : null,\n    time:      found ? (f.slot_time ?? null) : null\n  },\n  recent_messages: (function(){ var NL=String.fromCharCode(10); var prev=(found ? (f.recent_messages||'') : '').split(NL).filter(Boolean); var cur=String(norm.text||'').slice(0,80); return prev.concat([cur]).slice(-5).join(NL); })()\n};\n\nreturn [{ json: { ...norm, state } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1792,
-        2528
+        2464,
+        2864
       ],
       "id": "fb423cf5-37db-4df1-8584-87e913ddce66",
       "name": "Merge State"
@@ -292,7 +293,8 @@
             "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
             "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
             "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
-            "computed_reply": "={{ $json.computed_reply || '' }}"
+            "computed_reply": "={{ $json.computed_reply || '' }}",
+            "recent_messages": "={{ $json.state.recent_messages || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -452,6 +454,17 @@
               "type": "string",
               "readOnly": false,
               "removed": false
+            },
+            {
+              "id": "recent_messages",
+              "displayName": "recent_messages",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -462,8 +475,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        6496,
-        112
+        7168,
+        240
       ],
       "id": "9bf0a485-8e8e-4ec5-89fd-f8d940053f51",
       "name": "Save State",
@@ -482,7 +495,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6720,
+        7392,
         -560
       ],
       "id": "00c7bed5-8213-4505-8ec0-1249d8eeb19e",
@@ -495,8 +508,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2464,
-        2720
+        8736,
+        6272
       ],
       "id": "7c75a2dc-bc89-43d3-96de-cc1fd6a9462f",
       "name": "Handoff Reply"
@@ -538,8 +551,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2240,
-        2624
+        2912,
+        2960
       ],
       "id": "a913f217-7a83-4278-a0a1-b282ed44b8ec",
       "name": "Check Bot Guards"
@@ -566,8 +579,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2464,
-        2528
+        3136,
+        2896
       ],
       "id": "01e1c333-bad5-4c68-b73c-837edfa9c40d",
       "name": "Build LLM Request"
@@ -597,8 +610,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        2688,
-        2528
+        3360,
+        2896
       ],
       "id": "5bf5fb1b-9ca5-4c2f-a44d-58daf50e6a6a",
       "name": "Extract Intent",
@@ -617,8 +630,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2912,
-        -192
+        8736,
+        16
       ],
       "id": "33cc6543-6df8-47b7-98a4-e15757168db4",
       "name": "LLM Unavailable Reply"
@@ -645,8 +658,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2912,
-        2624
+        3584,
+        2992
       ],
       "id": "9c33b73b-854c-4e11-8936-a6b115ce07fd",
       "name": "Validate Intent"
@@ -658,8 +671,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5152,
-        -80
+        5824,
+        208
       ],
       "id": "71a94cdb-797e-41ed-98f9-557fc4462dcf",
       "name": "Mark Handoff"
@@ -692,8 +705,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        3136,
-        2624
+        3808,
+        2992
       ],
       "id": "98998bee-198b-45c8-a086-49553701336b",
       "name": "Confidence & Intent Gate"
@@ -705,8 +718,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5152,
-        784
+        5824,
+        1104
       ],
       "id": "106b3bc3-6648-4459-b29a-c690dbd4dfc8",
       "name": "Merge Slots"
@@ -718,8 +731,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5376,
-        784
+        6048,
+        1104
       ],
       "id": "b8cea104-02c3-497b-9ea8-bd3265374f64",
       "name": "Slot Gate"
@@ -874,8 +887,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        3808,
-        608
+        4480,
+        848
       ],
       "id": "aea6bce4-1696-4e7d-8d63-b1dffee59595",
       "name": "Route Intent"
@@ -891,8 +904,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        6112,
-        608
+        6784,
+        1136
       ]
     },
     {
@@ -902,8 +915,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        480
+        6944,
+        880
       ],
       "id": "24340e05-8496-4515-b949-7bedb90e4dfd",
       "name": "Answer FAQ"
@@ -1059,8 +1072,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        6048,
-        192
+        6720,
+        624
       ],
       "id": "7005062a-1934-45e7-b5ce-504e643fb7cc",
       "name": "Capture Lead",
@@ -1079,8 +1092,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        288
+        6944,
+        688
       ],
       "id": "5c164916-cf6d-44c4-83ae-716949d5c7bf",
       "name": "Build Lead State"
@@ -1094,8 +1107,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        96
+        8736,
+        544
       ]
     },
     {
@@ -1125,8 +1138,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2016,
-        2528
+        2688,
+        2864
       ],
       "id": "46f40c3e-5408-4ca9-916b-e44a6acd7b40",
       "name": "Check Handoff Lock"
@@ -1138,8 +1151,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2240,
-        -288
+        8736,
+        -176
       ],
       "id": "19a7acb6-1d88-448a-8ddd-45bac053f716",
       "name": "Handoff Lock Reply"
@@ -1156,8 +1169,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1728,
-        2336
+        2400,
+        2672
       ]
     },
     {
@@ -1189,8 +1202,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        5600,
-        784
+        6272,
+        1104
       ]
     },
     {
@@ -1202,8 +1215,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5824,
-        864
+        6496,
+        1248
       ]
     },
     {
@@ -1224,8 +1237,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6048,
-        864
+        6720,
+        1248
       ],
       "credentials": {
         "googleApi": {
@@ -1244,8 +1257,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        784
+        6944,
+        1312
       ],
       "onError": "continueErrorOutput"
     },
@@ -1258,8 +1271,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6496,
-        704
+        7168,
+        992
       ]
     },
     {
@@ -1274,8 +1287,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2288,
-        2576
+        8560,
+        6128
       ]
     },
     {
@@ -1287,8 +1300,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4704,
-        1328
+        5376,
+        1728
       ]
     },
     {
@@ -1309,8 +1322,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5152,
-        1376
+        5824,
+        1776
       ],
       "credentials": {
         "googleApi": {
@@ -1329,8 +1342,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        1568
+        8064,
+        2000
       ]
     },
     {
@@ -1492,8 +1505,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        7168,
-        1472
+        7840,
+        1904
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -1542,8 +1555,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6496,
-        1184
+        7168,
+        1584
       ],
       "credentials": {
         "googleApi": {
@@ -1562,8 +1575,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6720,
-        1280
+        7392,
+        1712
       ]
     },
     {
@@ -1596,8 +1609,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6944,
-        1280
+        7616,
+        1712
       ]
     },
     {
@@ -1615,8 +1628,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7168,
-        1088
+        7840,
+        1520
       ],
       "credentials": {
         "googleApi": {
@@ -1635,8 +1648,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        992
+        8064,
+        1424
       ]
     },
     {
@@ -1648,8 +1661,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        1184
+        8064,
+        1616
       ]
     },
     {
@@ -1661,8 +1674,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        800
+        8064,
+        1232
       ]
     },
     {
@@ -1676,8 +1689,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2304,
-        2528
+        5776,
+        6080
       ]
     },
     {
@@ -1689,8 +1702,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        1376
+        8064,
+        1808
       ]
     },
     {
@@ -1718,8 +1731,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        896,
-        2288
+        1568,
+        2656
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -1739,8 +1752,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1120,
-        2368
+        1792,
+        2720
       ]
     },
     {
@@ -1773,8 +1786,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1344,
-        2368
+        2016,
+        2720
       ]
     },
     {
@@ -1786,8 +1799,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1568,
-        -512
+        8736,
+        -416
       ]
     },
     {
@@ -1870,8 +1883,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        7840,
-        1280
+        8512,
+        400
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -1905,8 +1918,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7840,
-        2384
+        8736,
+        4256
       ]
     },
     {
@@ -1940,7 +1953,8 @@
             "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
             "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
             "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
-            "computed_reply": "={{ $json.computed_reply || '' }}"
+            "computed_reply": "={{ $json.computed_reply || '' }}",
+            "recent_messages": "={{ $json.state.recent_messages || '' }}"
           },
           "matchingColumns": [
             "sender_key"
@@ -2100,6 +2114,17 @@
               "type": "string",
               "readOnly": false,
               "removed": false
+            },
+            {
+              "id": "recent_messages",
+              "displayName": "recent_messages",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -2112,8 +2137,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        7616,
-        2272
+        8288,
+        2640
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -2143,8 +2168,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5376,
-        1808
+        6048,
+        2240
       ],
       "credentials": {
         "googleApi": {
@@ -2184,8 +2209,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6272,
-        1712
+        6944,
+        2144
       ]
     },
     {
@@ -2197,8 +2222,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        1760
+        8064,
+        2192
       ]
     },
     {
@@ -2212,8 +2237,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        5408,
-        4080
+        6080,
+        4512
       ]
     },
     {
@@ -2225,8 +2250,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6048,
-        1712
+        6720,
+        2144
       ]
     },
     {
@@ -2258,8 +2283,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4928,
-        1328
+        5600,
+        1728
       ]
     },
     {
@@ -2271,8 +2296,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5600,
-        1808
+        6272,
+        2240
       ]
     },
     {
@@ -2304,8 +2329,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6272,
-        1904
+        6944,
+        2336
       ]
     },
     {
@@ -2317,8 +2342,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6496,
-        1952
+        7168,
+        2384
       ]
     },
     {
@@ -2346,8 +2371,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        4480,
-        4368
+        5152,
+        4800
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -2367,8 +2392,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4704,
-        4560
+        5376,
+        4928
       ]
     },
     {
@@ -2496,8 +2521,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        4928,
-        4496
+        5600,
+        4864
       ]
     },
     {
@@ -2509,8 +2534,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        4624
+        6944,
+        5056
       ]
     },
     {
@@ -2522,8 +2547,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        4816
+        6944,
+        5248
       ]
     },
     {
@@ -2535,8 +2560,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        5008
+        6944,
+        5440
       ]
     },
     {
@@ -2548,8 +2573,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5600,
-        4448
+        6272,
+        4880
       ]
     },
     {
@@ -2596,8 +2621,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4032,
-        2224
+        4704,
+        2592
       ]
     },
     {
@@ -2621,8 +2646,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6272,
-        4256
+        6944,
+        4688
       ],
       "credentials": {
         "googleApi": {
@@ -2641,8 +2666,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6496,
-        4256
+        7168,
+        4688
       ]
     },
     {
@@ -2674,8 +2699,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6720,
-        4256
+        7616,
+        4688
       ]
     },
     {
@@ -2750,8 +2775,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        6944,
-        4352
+        7840,
+        5360
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -2770,8 +2795,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7168,
-        4352
+        8064,
+        5360
       ]
     },
     {
@@ -2783,8 +2808,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5152,
-        4192
+        5824,
+        4624
       ]
     },
     {
@@ -2817,8 +2842,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5376,
-        4192
+        6048,
+        4624
       ]
     },
     {
@@ -2830,8 +2855,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6944,
-        3952
+        8736,
+        4448
       ]
     },
     {
@@ -2864,8 +2889,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4256,
-        3808
+        4928,
+        4240
       ]
     },
     {
@@ -2906,8 +2931,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3360,
-        2992
+        4032,
+        3392
       ]
     },
     {
@@ -2919,8 +2944,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        3760
+        6944,
+        4192
       ]
     },
     {
@@ -2948,8 +2973,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        5600,
-        4144
+        6272,
+        4576
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -2969,8 +2994,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5824,
-        4208
+        6496,
+        4640
       ]
     },
     {
@@ -3003,8 +3028,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6048,
-        4208
+        6720,
+        4640
       ]
     },
     {
@@ -3036,8 +3061,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5824,
-        1808
+        6496,
+        2240
       ]
     },
     {
@@ -3052,8 +3077,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        3200,
-        2144
+        3872,
+        2560
       ]
     },
     {
@@ -3077,8 +3102,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        5152,
-        5344
+        5824,
+        5776
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -3098,8 +3123,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5376,
-        5408
+        6048,
+        5840
       ]
     },
     {
@@ -3132,8 +3157,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5600,
-        5408
+        6272,
+        5840
       ]
     },
     {
@@ -3145,8 +3170,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5824,
-        5488
+        6496,
+        5920
       ]
     },
     {
@@ -3167,8 +3192,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6048,
-        5488
+        6720,
+        5920
       ],
       "credentials": {
         "googleApi": {
@@ -3187,8 +3212,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        5552
+        6944,
+        5984
       ],
       "onError": "continueErrorOutput"
     },
@@ -3230,8 +3255,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3584,
-        2912
+        4256,
+        3328
       ]
     },
     {
@@ -3243,8 +3268,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4704,
-        2096
+        5376,
+        2528
       ]
     },
     {
@@ -3276,8 +3301,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4256,
-        2096
+        4928,
+        2464
       ]
     },
     {
@@ -3310,8 +3335,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4480,
-        2768
+        5152,
+        3136
       ]
     },
     {
@@ -3335,8 +3360,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        4704,
-        2848
+        5376,
+        3232
       ],
       "alwaysOutputData": true,
       "credentials": {
@@ -3356,8 +3381,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4928,
-        2912
+        5600,
+        3312
       ]
     },
     {
@@ -3390,8 +3415,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5152,
-        2912
+        5824,
+        3312
       ]
     },
     {
@@ -3403,8 +3428,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5376,
-        2848
+        6048,
+        3232
       ]
     },
     {
@@ -3425,8 +3450,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5600,
-        2848
+        6272,
+        3232
       ],
       "credentials": {
         "googleApi": {
@@ -3445,8 +3470,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        3424
+        8064,
+        3856
       ]
     },
     {
@@ -3458,8 +3483,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6272,
-        3568
+        6944,
+        4000
       ]
     },
     {
@@ -3501,8 +3526,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5824,
-        2752
+        6496,
+        3168
       ],
       "credentials": {
         "googleApi": {
@@ -3521,8 +3546,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6048,
-        2656
+        6720,
+        3088
       ]
     },
     {
@@ -3555,8 +3580,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6272,
-        2656
+        6944,
+        3088
       ]
     },
     {
@@ -3574,8 +3599,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7168,
-        2368
+        7840,
+        2800
       ],
       "credentials": {
         "googleApi": {
@@ -3594,8 +3619,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        2240
+        8064,
+        2672
       ]
     },
     {
@@ -3607,8 +3632,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        3232
+        8064,
+        3664
       ]
     },
     {
@@ -3620,8 +3645,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        2464
+        8064,
+        2896
       ]
     },
     {
@@ -3730,8 +3755,8 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        6496,
-        2848
+        7168,
+        3280
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -3762,8 +3787,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6720,
-        2752
+        7392,
+        3184
       ],
       "credentials": {
         "googleApi": {
@@ -3782,8 +3807,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6944,
-        2752
+        7616,
+        3184
       ]
     },
     {
@@ -3815,8 +3840,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        7168,
-        2752
+        7840,
+        3184
       ]
     },
     {
@@ -3828,8 +3853,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        2656
+        8064,
+        3088
       ]
     },
     {
@@ -3841,8 +3866,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        2848
+        8064,
+        3280
       ]
     },
     {
@@ -3854,8 +3879,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7392,
-        3040
+        8064,
+        3472
       ]
     },
     {
@@ -3886,8 +3911,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        0,
-        2540
+        224,
+        2848
       ],
       "id": "5db19fee-bb15-4ff7-8e66-d345373033ca",
       "name": "Is Zernio Inbound?"
@@ -3904,8 +3929,8 @@
       "type": "n8n-nodes-base.crypto",
       "typeVersion": 2,
       "position": [
-        224,
-        2540
+        448,
+        2912
       ],
       "id": "3269d892-0c6a-48e9-a5af-604aad6c43b7",
       "name": "Compute Body HMAC",
@@ -3943,8 +3968,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        448,
-        2540
+        672,
+        2912
       ],
       "id": "e519f030-9a64-4bc2-b5f8-ad088dda772b",
       "name": "Signature Valid?"
@@ -3960,8 +3985,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        672,
-        2640
+        896,
+        2960
       ],
       "id": "7a190f53-9adf-47c5-8572-b96520fae0d5",
       "name": "Reject Unsigned Request"
@@ -3975,8 +4000,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -60,
-        2320
+        272,
+        2768
       ],
       "id": "3a59c9e6-4cb4-4bfa-8dff-073eda54f0f2",
       "name": "Sticky — Signature Gate"
@@ -3988,8 +4013,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1120,
-        3000
+        8960,
+        576
       ],
       "id": "c8fb9f99-38ff-4b01-a7ea-47d69e90ed3b",
       "name": "Finalize Outbound"
@@ -4049,8 +4074,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1340,
-        3000
+        9184,
+        576
       ],
       "id": "1a827406-504a-468d-8f4e-154a2c898e6c",
       "name": "Channel Switch"
@@ -4066,8 +4091,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1560,
-        2900
+        9408,
+        480
       ],
       "id": "0fa31c1c-6b1f-4725-a77f-5d2caa1533e7",
       "name": "Send Reply (widget)"
@@ -4083,8 +4108,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1560,
-        3100
+        9408,
+        672
       ],
       "id": "7562a946-8660-4807-99ea-a3c21a263bb4",
       "name": "Respond ACK 200 (whatsapp)"
@@ -4098,8 +4123,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1080,
-        2660
+        1088,
+        2672
       ],
       "id": "40d77778-5a1f-40ca-bcc7-63882e7399eb",
       "name": "Sticky — Outbound"
@@ -4132,8 +4157,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        1780,
-        3100
+        9632,
+        672
       ],
       "id": "1a6c7a5c-e47b-4c47-9af7-a97e8ff5ff68",
       "name": "Should Send?"
@@ -4154,8 +4179,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2000,
-        3040
+        9856,
+        672
       ],
       "id": "8f5be314-daf9-4be0-8a95-331a239ecff1",
       "name": "Send WhatsApp (Zernio)",
@@ -4174,11 +4199,64 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2220,
-        3140
+        10080,
+        672
       ],
       "id": "9d6a1397-c364-4878-b57e-c5da5a43357d",
       "name": "Outbound Send Failed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9184,
+        1120
+      ],
+      "id": "ab39cfa1-acfd-47d8-9bf3-a7469db3d070",
+      "name": "Build Owner Alert"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.owner_alert_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        9408,
+        1120
+      ],
+      "id": "597367f0-daa2-4f8b-bdb3-48d88ced6530",
+      "name": "Send Owner Alert (Telegram)",
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      },
+      "webhookId": "8210074e-933c-4d1b-b029-d1fd495d7d35"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Owner-alert delivery FAILED (Telegram unreachable). Visible marker only; the customer reply is on a\n// separate branch and is unaffected (CP5a D-c invariant).\nreturn [{ json: { owner_alert_failed: true, error: ($json.error && $json.error.message) || 'telegram_send_failed' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9632,
+        1216
+      ],
+      "id": "99d947db-30bb-4bcd-a138-476ce2cbe890",
+      "name": "Owner Alert Failed"
     }
   ],
   "connections": {
@@ -4198,6 +4276,11 @@
         [
           {
             "node": "Send Reply To Origin",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -4348,6 +4431,11 @@
         [
           {
             "node": "Save State",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -4747,6 +4835,11 @@
             "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -4769,6 +4862,11 @@
             "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -4778,6 +4876,11 @@
         [
           {
             "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -4908,6 +5011,11 @@
             "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -4917,6 +5025,11 @@
         [
           {
             "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5036,6 +5149,11 @@
         [
           {
             "node": "Save State",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5530,6 +5648,11 @@
             "node": "Save State",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5539,6 +5662,11 @@
         [
           {
             "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5628,6 +5756,11 @@
             "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5637,6 +5770,11 @@
         [
           {
             "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5726,6 +5864,11 @@
             "node": "Save State (Post-Write)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5735,6 +5878,11 @@
         [
           {
             "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5806,6 +5954,11 @@
             "node": "Finalize Outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5815,6 +5968,11 @@
         [
           {
             "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5839,6 +5997,11 @@
             "node": "Finalize Outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5861,6 +6024,11 @@
             "node": "Finalize Outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5870,6 +6038,11 @@
         [
           {
             "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5883,6 +6056,11 @@
             "node": "Finalize Outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5894,6 +6072,11 @@
             "node": "Finalize Outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -5903,6 +6086,11 @@
         [
           {
             "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
@@ -5967,6 +6155,40 @@
         [
           {
             "node": "Outbound Send Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Owner Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Owner Alert (Telegram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Owner Alert (Telegram)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Owner Alert Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outbound Send Failed": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }

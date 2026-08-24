@@ -369,6 +369,31 @@ the 400/503/guard/duplicate/lock exits) now tag `_outbound_status`/`_outbound_bo
 
 ---
 
+## Owner-alert lane — every failure/handoff reaches a human (CP5a)
+A single fan-in, deliberately OFF the reply path so it can never block or change the customer reply
+(**D-c invariant**). Every failure/handoff source adds ONE extra edge to `Build Owner Alert`:
+
+```
+<any source: Mark Handoff · Handoff Lock Reply · Build *Orphan/Mirror/Verify/Reconcile* State ·
+ Cancel/Reschedule needs-human · infra-503 replies · Outbound Send Failed · Handoff Reply (guard) ·
+ Build Reply Payload (reply_fallback)>
+        │  (additional edge; the source's own reply/state path is untouched)
+        ▼
+  Build Owner Alert   ── derive class · enabled-gate · THROTTLE(class:sender, window=config) ──▶ [] (suppress)
+        │  (alert-worthy & not throttled & not kill-switch-guard-trip)
+        ▼
+  Send Owner Alert (Telegram)  ──(onError)──▶  Owner Alert Failed  (visible; reply already sent)
+```
+- **One place** classifies + throttles (KK1): `class:sender` key, window `config.ownerAlert.throttleMinutes`,
+  via `$getWorkflowStaticData` — a repeated same-fault storm pings once per window.
+- **KK2:** a guard-trip pings for **max-turns** only; a **kill-switch** trip is owner-initiated → suppressed.
+- **KK3:** race-lost is a normal "slot taken" outcome → not alerted (orphan IS).
+- **Context (D-a):** the alert carries the rolling last-5 `conversations.recent_messages` (PII).
+- **Reminders workflow** has its own `Build Owner Alert (Reminders)` → Telegram off `Reminder Error`.
+- Chat id + bot token live in the `telegram` credential / `$env` / gitignored env — never in git.
+
+---
+
 ## The invariants this diagram encodes (why the shapes are what they are)
 - **Deterministic before AI** — the LLM only classifies; every action is IF/Switch/Code.
 - **Every external call has a visible error exit** — 400 / 503 with an `error` flag, never a silent failure.

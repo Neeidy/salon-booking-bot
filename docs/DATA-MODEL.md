@@ -60,6 +60,11 @@ are the engine's state (multi-turn + idempotency).
 | last_updated | datetime | UTC (for TTL/expiry) |
 | turn_count | number | default 0 — +1 on every inbound message; compared with config `bot.maxTurnsPerConversation` for the max-turns guard (CP3) |
 | last_intent | single line text | nullable — last classified intent (debug/analysis) (CP3) |
+| recent_messages | long text (multilineText) | **PII (message content)** — rolling **last-5** inbound customer message texts, newline-joined, each truncated to 80 chars (CP5a Step 7). Written every turn by `Save State`/`Save State (Post-Write)`, read by `Build Owner Alert` for handoff context so the owner sees what the customer said. **TTL = the conversation row lifetime** (no separate purge job — it dies with the row). **Never export/screenshot unsanitized**; `/sanitize` + `security-auditor` scrub it like any PII column. |
+
+> **Owner-alert context (CP5a):** `recent_messages` is why `Build Owner Alert` can include recent
+> customer lines. Design decision D-a (rolling last-N in `conversations`, **no separate `messages`
+> table**) — see [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §5.
 
 > **CP3 prerequisite:** `turn_count` and `last_intent` must also be created as columns in the real Airtable
 > `conversations` table (Yigitcan) before the CP3 flow can write them.

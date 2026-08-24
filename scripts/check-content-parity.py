@@ -74,6 +74,16 @@ def build_smap(live, comm):
     if lcal and ccal and lcal != ccal:
         smap[lcal] = ccal
 
+    # Telegram owner-alert chatId is a plain-string secret (PII target — not a resource-locator or
+    # credential, so the leaf walk above cannot see it). Map live chatId -> committed placeholder so a
+    # masked committed value is not screamed as drift, AND the real chatId never has to sit in git (CP5a).
+    for nm in set(lby) & set(cby):
+        if lby[nm].get('type') == 'n8n-nodes-base.telegram':
+            lch = (lby[nm].get('parameters') or {}).get('chatId')
+            cch = (cby[nm].get('parameters') or {}).get('chatId')
+            if isinstance(lch, str) and isinstance(cch, str) and lch != cch:
+                smap[lch] = cch
+
     # the n8n host does not normally appear as a node literal; if it ever does, mask it from $N8N_HOST
     # (read from the environment / gitignored CLAUDE.local.md — never written here).
     host = os.environ.get('N8N_HOST')

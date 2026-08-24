@@ -151,6 +151,23 @@ A real WhatsApp message from the tester's own phone (activated as a sandbox reci
 
 **Case-study note:** D1-c is the strongest kind of evidence — the idempotency guard was designed for exactly this (a provider retrying at-least-once), and Zernio *actually did it* in the wild, and the guard held. No test could manufacture a more honest proof.
 
+### ⚙ Owner-alert drills (CP5a) — execution API + real Telegram delivery, NEVER the reply text
+Verify from the execution (`Build Owner Alert` output + `Send Owner Alert` Telegram 2xx) and a real message to the
+owner chat; **D-c**: the customer reply is byte-identical to pre-CP5a on every one (alert branch is off the reply path).
+
+| # | Scenario | Setup | Expected | MUST-RUN | MUST-NOT-RUN | Evidence |
+|---|---|---|---|---|---|---|
+| A1 | intent-handoff alert | low-conf/gibberish msg | Telegram `handoff` alert w/ sender/intent/stage; reply = `handoff` template | Build Owner Alert · Send Owner Alert | — | exec 1131 (msg_id 4) |
+| A2 | **throttle 5→1 (KK1)** | lock a thread, then 5 msgs to it | first locked → `handoff_lock` alert; msgs 2-5 → Build Owner Alert `[]` (throttled) | (1st) Send Owner Alert | (2-5) Send Owner Alert | exec 1138 alert / 1142 suppressed |
+| A3 | D-c on throttle | same 5 msgs | every reply = `handoffLocked`, 200 (unchanged) | Finalize Outbound | — | 1138/1142 Finalize |
+| A4 | mirror_failed (post-write builder) | break Write Appointment table, book | reply still **"You're booked"** (D-c) + `mirror-failed` alert w/ slots | Build Mirror-Failed State · Send Owner Alert | — | exec 1147 (msg_id 8) |
+| A5 | **KK2 max-turns** | `maxTurns=2`, 3rd msg | `max-turns` alert; reply = handoff | Handoff Reply · Send Owner Alert | — | exec 1152 (msg_id 9) |
+| A6 | **KK2 kill-switch SUPPRESS** | `killSwitch=true`, 1 msg | Build Owner Alert `[]` (owner set it); reply = handoff | Handoff Reply | Send Owner Alert | exec 1153 |
+| A7 | alert-channel-down (D-c) | underscore class → Telegram parse-error | `Owner Alert Failed` visible; reply unaffected | Owner Alert Failed | — | exec 1138 (pre Markdown-safe fix) |
+| A8 | reminders reminder-error | temp trigger + break Find Due | `reminder_error` alert w/ detail (reminders wf) | Build Owner Alert (Reminders) · Send | — | exec 1154 (msg_id 10) |
+| A9 | recent_messages context (D-a) | 2 normal msgs + handoff | alert carries `recent: … | … | …` (last-5) | Build Owner Alert | — | exec 1240 (msg_id 24) |
+| A10 | no false-positive | normal FAQ | Build Owner Alert `[]`, no alert; reply normal | — | Send Owner Alert | exec 1155 |
+
 ## Baseline run
 
 **CP4 reschedule end-to-end · 2026-08-19 · published production webhook.**
