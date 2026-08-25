@@ -28,6 +28,11 @@ API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
 COMMITTED = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
 UA = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36')
+# Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise), so the
+# same guard works whether /api is CF-Access "Bypass" (today) or "Service Auth" (CRT #7 follow-up).
+CF_HDRS = ({'CF-Access-Client-Id': os.environ['CF_ACCESS_CLIENT_ID'],
+            'CF-Access-Client-Secret': os.environ['CF_ACCESS_CLIENT_SECRET']}
+           if os.environ.get('CF_ACCESS_CLIENT_ID') and os.environ.get('CF_ACCESS_CLIENT_SECRET') else {})
 
 # The real-id -> committed-placeholder map is DERIVED from the (live, committed) pair itself — NEVER
 # hardcoded. This file is committed to a PUBLIC repo, so it must contain no real base/table/calendar/host/
@@ -162,7 +167,7 @@ def main():
         print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow')
         sys.exit(2)
     req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows/{WF}',
-        headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA})
+        headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
     live = json.load(urllib.request.urlopen(req, timeout=30))
     comm = json.load(open(COMMITTED, encoding='utf-8'))
 

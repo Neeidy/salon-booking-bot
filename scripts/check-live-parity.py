@@ -22,6 +22,13 @@ API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
 COMMITTED = os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
 
+# Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise).
+# `/api` is CF-Access "Bypass" today (n8n API key alone); this lets the SAME guard keep working after the
+# planned flip to "Service Auth" (CRT #7 follow-up) — set CF_ACCESS_CLIENT_ID/SECRET in ~/.n8n-api.env then.
+CF_HDRS = ({'CF-Access-Client-Id': os.environ['CF_ACCESS_CLIENT_ID'],
+            'CF-Access-Client-Secret': os.environ['CF_ACCESS_CLIENT_SECRET']}
+           if os.environ.get('CF_ACCESS_CLIENT_ID') and os.environ.get('CF_ACCESS_CLIENT_SECRET') else {})
+
 
 def summarize(nodes, conns):
     names = sorted(n['name'] for n in nodes)
@@ -47,7 +54,7 @@ def main():
           '(KHTML, like Gecko) Chrome/125.0 Safari/537.36')
     req = urllib.request.Request(
         f'{API.rstrip("/")}/api/v1/workflows/{WF}',
-        headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA},
+        headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS},
     )
     lw = json.load(urllib.request.urlopen(req, timeout=30))
     l_count, l_names, l_pairs = summarize(lw['nodes'], lw.get('connections', {}))
