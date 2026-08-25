@@ -185,6 +185,27 @@ Harness bugs found + fixed on the way (flow was correct each time): (a) idempote
 `duplicate_ignored`, not a replay — expectation corrected; (b) the Abort scenario left its 16:00
 booking so a re-run correctly **lost the race** — the harness now self-cleans that booking.
 
+### Known-failing under a full rapid run — flagged for Phase 7 CRT #1a review (NOT dismissed as flake)
+A full `run-regression.sh` pass on 2026-08-24 (during CP5a) returned **18/20**: two scenarios failed under
+rapid sequential load and BOTH passed on isolated retry. They are recorded here as **open items to
+investigate**, not test noise — a "flake" label would wrongly close the investigation.
+
+- **#3 idempotency — SUSPECTED PRODUCT RACE (Phase 7, CRT #1a).** Observed: under load, a duplicate `messageId`
+  fired **immediately** after the first response was NOT deduped (got the real reply, not `duplicate_ignored`).
+  Isolated retry (×4) always dedupes correctly. **Hypothesised cause = a narrow real product race, not test
+  noise:** `Record Processed` writes the id AFTER the webhook response is sent (it is a sibling of Build Reply
+  Payload, whose subtree emits the response), so a fast enough duplicate reaches `Check Processed` before the
+  id is recorded. This is **not hypothetical** — CP4d-1 showed Zernio itself double-delivers in the wild
+  (exec 1101/1103), and there the deterministic booking event-id (409 reconcile) is what actually prevented a
+  double-book, i.e. the front-gate idempotency was already best-effort. Phase 7 must decide: record-before-respond
+  (adds latency) vs accept-and-document (the event-id is the real no-double-book guard). Do NOT close as flake.
+- **#27 reschedule-abort — SHARED-CALENDAR TEST ISOLATION (confirm under Phase 7).** Observed: the move-target
+  slot was busy during the full run → the product **correctly handed off** (`stage=handoff`) → the next FAQ turn
+  hit the handoff-lock, so the assertion ("booking stays") failed. Isolated retry on a clean date/time aborts
+  correctly. Likely root = the suite shares ONE Google Calendar, so a sibling scenario's event can occupy the
+  target; the product behaviour looks correct (busy → handoff). Phase 7: give reschedule scenarios
+  non-colliding slots (or a dedicated calendar) and confirm no concurrency angle (CRT #1b) hides behind it.
+
 ### Exit & branch coverage map (Ö2 — every reply exit + branch accounted for)
 
 **11 reply exits:** 6 covered by automated/assisted scenarios; 5 are infra-outage exits (503) that need
