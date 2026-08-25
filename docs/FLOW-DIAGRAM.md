@@ -100,6 +100,31 @@ while a cancel is awaiting confirmation" → the pending cancel is dropped (book
 
 ---
 
+## Lane 2b — Perimeter brakes (CP5b): rate-limit · Turnstile · spend-cap · dry-run
+
+Four brakes sit around the public webhook so the LLM endpoint can be published safely (they MUST all be in
+place before Phase 6):
+
+- **Rate-limit (Cloudflare, Adım 2):** a CF rule blocks >20/min/IP on any path containing `/webhook/` — abuse
+  can't spam the endpoint into cost. (Cloudflare edge, not an n8n node.)
+- **Turnstile (widget bot-protection, CP5b-1):** the widget branch runs `Turnstile Gate → Verify Turnstile
+  (siteverify) → Turnstile Valid?`; fail → `Reject Bot Request` (403, fail-CLOSED). The whatsapp branch skips
+  it (it has the HMAC signature gate instead).
+- **Spend-cap (CP5b-2):** BEFORE the LLM, `Check Bot Guards[pass] → Read Spend (bot_metrics, month) → Eval
+  Spend → Spend Gate`. Under `bot.llmCostCapUsd` → `Build LLM Request`; over → `Build Spend-Cap Reply`
+  (deterministic handoff, **no LLM, no state write** — a transient guard-trip) + `spend_cap` owner alert. After
+  a successful call a fan-out (`Extract Intent[success] → Build Spend Record → Record LLM Spend`) adds
+  tokens × config price to the month. A meter read/write failure is **fail-OPEN** (the LLM still runs) + a
+  `spend_meter_unavailable` owner alert — never a silent blind brake.
+- **Global dry-run (CP5b-3, `bot.dryRun`, default false):** blocks the two real-world writes — `Live Booking?`
+  (dry → `Build Dry-Run Booked State`, no GCal event) and `Live Send?` (dry → `WhatsApp Send (dry-run)` NoOp).
+  Fail-safe OR with the reminder-send `whatsappSendDisabled` brake.
+
+> **Control-plane (CRT #7, OPEN):** the n8n editor + `/rest`/`/api/v1` are reachable through the tunnel with
+> only n8n's own login — no Cloudflare Access. Remediation (a CF Access policy over everything except
+> `/webhook/*`, plus an Access service token for `/api/v1`) is a Cloudflare-UI task and must close before
+> Phase 6. Tracked in ROADMAP + the Critical-Review Targets.
+
 ## Lane 3 — Route by intent
 
 ```mermaid

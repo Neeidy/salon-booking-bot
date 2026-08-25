@@ -67,7 +67,12 @@
         "sessionGapMinutes": { "type": "integer", "minimum": 1, "description": "Idle minutes after which a returning sender's next message is treated as a new session → 'Welcome back' greeting (CP6)." },
         "cancellationCutoffHours": { "type": "integer", "minimum": 0, "description": "Hours before start_utc within which a booking can no longer be cancelled/rescheduled by the bot (→ call the shop) (CP3/CP4)." },
         "reminderHoursBefore": { "type": "integer", "minimum": 1, "description": "Hours before start_utc to send the single appointment reminder (CP5). The reminders workflow selects booked, not-yet-reminded appointments starting within this window." },
-        "killSwitch": { "type": "boolean", "description": "Emergency stop — when true the bot is handoff-only (no LLM, no writes)." }
+        "killSwitch": { "type": "boolean", "description": "Emergency stop — when true the bot is handoff-only (no LLM, no writes)." },
+        "dryRun": { "type": "boolean", "description": "Global dry-run brake (CP5b-3, subset B). true = block the two real-world writes: the new-booking Google Calendar event insert (a dry booked-state is persisted instead, no real event) and the whatsapp Zernio send. Fail-safe OR with the other brakes. Default false (live). Reminder sends have their own whatsappSendDisabled brake." },
+        "whatsappSendDisabled": { "type": "boolean", "description": "Reminder/outbound WhatsApp send brake (killSwitch-level). true (default) = NO live template send; the dry-run branch logs the exact payload (CP4c). Coexists with the global dry-run — any brake stops the send." },
+        "llmPricePer1kTokensIn": { "type": "number", "minimum": 0, "description": "USD per 1,000 INPUT tokens for the intent LLM. PRICING LIVES IN CONFIG, NOT CODE — if the provider price changes, update this one line (and llmPricePer1kTokensOut); no node/code edit. Haiku 4.5 ≈ $1/1M = 0.001 (CP5b spend-cap)." },
+        "llmPricePer1kTokensOut": { "type": "number", "minimum": 0, "description": "USD per 1,000 OUTPUT tokens for the intent LLM. Config-driven pricing — one-line update on any price change. Haiku 4.5 ≈ $5/1M = 0.005 (CP5b spend-cap)." },
+        "llmCostCapUsd": { "type": "number", "minimum": 0, "description": "Hard MONTHLY LLM spend cap in USD (spend-safety brake). Over cap → stop calling the LLM → deterministic reply + handoff. Default 10.00 ≈ 2,000–5,000 turns/mo, far above one salon's real traffic → never limits legitimate use, only trips on abuse/runaway (CP5b spend-cap)." }
       }
     },
     "messageTemplates": {

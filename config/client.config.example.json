@@ -36,6 +36,7 @@
     "sun": []
   },
   "bot": {
+    "$comment": "LLM pricing (llmPricePer1kTokensIn/Out) lives HERE in config, not in code — if the provider changes prices, update these two lines only. llmCostCapUsd is the hard MONTHLY spend brake; over it the bot stops calling the LLM and hands off.",
     "tone": "friendly, concise, speaks English",
     "confidenceThreshold": 0.7,
     "maxTurnsPerConversation": 12,
@@ -43,7 +44,11 @@
     "cancellationCutoffHours": 2,
     "reminderHoursBefore": 24,
     "killSwitch": false,
-    "whatsappSendDisabled": true
+    "dryRun": false,
+    "whatsappSendDisabled": true,
+    "llmPricePer1kTokensIn": 0.001,
+    "llmPricePer1kTokensOut": 0.005,
+    "llmCostCapUsd": 10.00
   },
   "messageTemplates": {
     "greeting": "Hi! Welcome to Demo Barber Co. How can I help?",

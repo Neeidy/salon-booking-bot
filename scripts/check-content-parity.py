@@ -84,6 +84,21 @@ def build_smap(live, comm):
             if isinstance(lch, str) and isinstance(cch, str) and lch != cch:
                 smap[lch] = cch
 
+    # Cloudflare Turnstile secret is a plain-string literal in the siteverify `bodyParameters` (name=='secret')
+    # — not a resource-locator or credential, so the leaf walk cannot see it. Map live -> committed placeholder
+    # so the masked committed value is not screamed as drift, AND the real secret (when swapped in for the
+    # public test secret in Phase 6) never has to sit in git (CP5b-3).
+    def turnstile_secret(node):
+        bp = (((node.get('parameters') or {}).get('bodyParameters') or {}).get('parameters') or [])
+        for p in bp:
+            if isinstance(p, dict) and p.get('name') == 'secret':
+                return p.get('value')
+        return None
+    for nm in set(lby) & set(cby):
+        lts, cts = turnstile_secret(lby[nm]), turnstile_secret(cby[nm])
+        if isinstance(lts, str) and isinstance(cts, str) and lts != cts:
+            smap[lts] = cts
+
     # the n8n host does not normally appear as a node literal; if it ever does, mask it from $N8N_HOST
     # (read from the environment / gitignored CLAUDE.local.md — never written here).
     host = os.environ.get('N8N_HOST')

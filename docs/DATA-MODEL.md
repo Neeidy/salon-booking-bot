@@ -49,6 +49,15 @@ are the engine's state (multi-turn + idempotency).
 > `appointments` mirrors it. Booking write order: **GCal first, then Airtable**. See
 > [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §6.
 
+## `bot_metrics` (CP5b spend-cap rolling counter — NOT PII)
+| Field | Type | Notes |
+|---|---|---|
+| period_key | text | PK-ish — UTC period bucket, e.g. `2026-08` (month). Matches `Spend Gate`'s granularity; `Read Spend` filters on it, `Record LLM Spend` upserts on it. |
+| cost_usd | number (precision 6) | accumulated estimated LLM cost for the period = Σ(tokens × `bot.llmPricePer1kTokensIn/Out`). Read BEFORE the LLM (Spend Gate), incremented AFTER a successful call. Over `bot.llmCostCapUsd` → deterministic handoff, no LLM (CP5b-2). |
+| updated_at | datetime | UTC — last increment. |
+
+**Not PII** — a monthly spend total only. Read-fail/write-fail → fail-OPEN (LLM still runs) + a `spend_meter_unavailable` owner alert. TOCTOU across concurrent turns is accepted at this tier (a soft brake, not an atomic ledger).
+
 ## `conversations` (multi-turn slot-filling state)
 | Field | Type | Notes |
 |---|---|---|

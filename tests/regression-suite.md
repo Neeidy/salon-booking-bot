@@ -275,6 +275,22 @@ injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + 
 **BASELINE = healthy.** Re-run `run-regression.sh` at the start of a phase and after every step;
 any drop from 18/18, or any MUST-NOT-RUN node appearing, is a regression.
 
+### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning
+
+Spend-cap and dry-run are proven via the execution API + the `bot_metrics`/`conversations` columns (never the
+reply alone), with the `bot_metrics` row and `bot.dryRun` toggle RESTORED after each drill (restore gate).
+
+| # | scenario | evidence | proof |
+|---|---|---|---|
+| SC1 | under-cap → normal LLM + spend recorded | exec **1313** | `_spend:{prev:0,cap:10,under:true}` → LLM ran; `Build Spend Record` cost 0.002044 → `Record LLM Spend` upsert `bot_metrics` 2026-08 |
+| SC2 | over-cap → deterministic handoff, 0 LLM | exec **1314** | `bot_metrics` forced to cap → `_spend.under:false` → Spend Gate out1 → `Build Spend-Cap Reply` (handoff, `spend_cap_tripped`); **`Build LLM Request` + `Extract Intent` MUST-NOT-RUN**; real Telegram `spend_cap` |
+| SC3 | meter-unavailable → fail-OPEN + alert, ONE LLM call | exec **1316** | `Read Spend` table broken → out0 empty item drives fail-open (`prev:0`), **exactly one** `Extract Intent`; out1 → `Build Spend-Meter Alert` → real Telegram `spend_meter_unavailable`. (Regression fix: routing both Read Spend outputs to Eval Spend double-processed — exec 1315.) |
+| DR1 | dry-run booking → no real write | exec **1318** | `bot.dryRun=true` → `Live Booking?` out1 → `Build Dry-Run Booked State` (`dry_run:true`, empty gcal id); **`Book Appointment` + `Write Appointment` + `Verify Slot` MUST-NOT-RUN**; reply = bookingConfirmed |
+| DR2 | dryRun=false → live booking intact (regression) | exec **1320** | `Live Booking?` out0 → `Book Appointment` (real GCal event) + `Write Appointment` row; drill cleaned via the bot's own cancel |
+
+The whatsapp `Live Send?` dry-run gate uses the byte-identical `dryRun` IF as `Live Booking?`; the whatsapp
+live-send path stays exec-gated like the other CP4b whatsapp items (no widget path exercises it).
+
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 
 The reconcile path only runs when `Book Appointment` errors, so it is not curl-only. Step 1 (c1) made

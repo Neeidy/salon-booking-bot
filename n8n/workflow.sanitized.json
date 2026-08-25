@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\" },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false },\n  ownerAlert: { enabled: true, throttleMinutes: 30 },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleDone: \"Moved — your {service} is now {when}.\",\n      rescheduleMirrorFailed: \"Your booking change is being finalized — a team member will confirm the new time shortly.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config — MOCK client config (CP1).\n// one-swap-to-real: bu literal yerine client.config.json / n8n variable oku (Phase 4/template).\nconst config = {\n  business: { name: \"Demo Barber Co.\", timezone: \"Europe/Vienna\", locale: \"en-AT\" },\n  googleCalendarId: \"REPLACE_WITH_CALENDAR_ID@group.calendar.google.com\",\n  branding: { primaryColor: \"#16150F\", accentColor: \"#B4472E\", logoUrl: \"https://example.com/demo-barber-logo.png\" },\n  channels: {\n    whatsapp:  { enabled: true,  provider: \"zernio\" },\n    widget:    { enabled: true,  provider: \"webchat\", turnstile: { enabled: true } },\n    instagram: { enabled: false, provider: \"meta-graph\" }\n  },\n  services: [\n    { id: \"haircut\",       name: \"Haircut\",         durationMin: 30, priceEUR: 25 },\n    { id: \"beard\",         name: \"Beard Trim\",      durationMin: 20, priceEUR: 15 },\n    { id: \"haircut_beard\", name: \"Haircut + Beard\", durationMin: 45, priceEUR: 35 }\n  ],\n  workingHours: {\n    mon: [\"10:00-19:00\"], tue: [\"10:00-19:00\"], wed: [\"10:00-19:00\"],\n    thu: [\"10:00-19:00\"], fri: [\"10:00-19:00\"], sat: [\"10:00-18:00\"], sun: []\n  },\n   bot: { tone: \"friendly, concise, speaks English\", confidenceThreshold: 0.7, maxTurnsPerConversation: 12, sessionGapMinutes: 30, cancellationCutoffHours: 2, killSwitch: false, dryRun: false, llmPricePer1kTokensIn: 0.001, llmPricePer1kTokensOut: 0.005, llmCostCapUsd: 10.00 },\n  ownerAlert: { enabled: true, throttleMinutes: 30 },\n  messageTemplates: {\n    greeting: \"Hi! Welcome to Demo Barber Co. How can I help?\",\n    askService: \"Which service would you like? (Haircut / Beard Trim / Haircut + Beard)\",\n    askDateTime: \"What day and time works for you?\",\n    bookingConfirmed: \"You're booked: {service}, {date} {time}. See you then!\",\n    handoff: \"I'm passing you to a team member — we'll get back to you shortly.\",\n    handoffLocked: \"A team member is already helping you here — they'll reply shortly.\",\n    outsideHours: \"We're outside working hours right now. We've got your request and will reply soon.\",\n    leadCaptured: \"Thanks! We've got your details and someone from the team will reach out soon.\",\n    faqUnknown: \"Good question — let me check with the team and get back to you on that.\",\n    slotJustTaken: \"Sorry — that time was just taken. A team member will help you find another slot.\",\n    bookingNeedsConfirm: \"Thanks! We're confirming your booking now — a team member will follow up shortly to finalize it.\",\n    verifyIncomplete: \"We couldn't finish confirming that time just now — a team member will follow up to lock it in.\",\n    cancelNoBooking: \"You don't have an active booking to cancel.\",\n    cancelCutoff: \"That booking is too close to its time to cancel here — please call us and we'll sort it out.\",\n    cancelUnavailable: \"I couldn't reach the calendar to cancel just now — a team member will follow up shortly.\",\n    cancelNeedsHuman: \"I found your booking but can't cancel it automatically — a team member will cancel it for you.\",\n    cancelDone: \"Done — your {service} on {when} is cancelled.\",\n    cancelAlreadyDone: \"That booking is already cancelled — nothing more to do.\",\n    cancelAborted: \"No problem — your booking stands.\",\n    cancelTargetGone: \"I couldn't find that booking to cancel anymore — a team member will follow up shortly.\",\n    notUnderstood: \"Sorry — I didn't catch that. Could you rephrase?\",\n    rescheduleNoBooking: \"You don't have a booking to reschedule.\",\n    rescheduleCutoff: \"That booking is too close to its time to reschedule here — please call us and we'll sort it out.\",\n    rescheduleNeedsHuman: \"I found your booking but can't reschedule it automatically — a team member will help you move it.\",\n    rescheduleAskSlot: \"Sure — what new day and time would you like to move it to?\",\n    rescheduleInsertFailed: \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\",\n      rescheduleDone: \"Moved — your {service} is now {when}.\",\n      rescheduleMirrorFailed: \"Your booking change is being finalized — a team member will confirm the new time shortly.\",\n      rescheduleAborted: \"No problem — your booking stays as it is.\"\n  },\n  faq: {\n    address: \"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.\",\n    parking: \"Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.\",\n    walkin: \"Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.\"\n  }\n};\nreturn [{ json: { ...$json, config } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -933,10 +933,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblYYYYYYYYYYYYYY",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "leads",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblYYYYYYYYYYYYYY"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -1358,10 +1358,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblZZZZZZZZZZZZZZ"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -1718,10 +1718,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblWWWWWWWWWWWWWW",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "processed_messages",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblWWWWWWWWWWWWWW"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "filterByFormula": "={{ '{message_id} = \"' + $json.message_id + '\"' }}",
         "options": {}
@@ -1815,10 +1815,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblWWWWWWWWWWWWWW",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "processed_messages",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblWWWWWWWWWWWWWW"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -2358,10 +2358,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblZZZZZZZZZZZZZZ"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "filterByFormula": "={{ 'AND({sender_key} = \"' + $json.sender_key + '\", {status} = \"booked\")' }}",
         "options": {}
@@ -2715,10 +2715,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblZZZZZZZZZZZZZZ"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -3091,7 +3091,7 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list"
         },
         "filterByFormula": "={{ 'AND({sender_key} = \"' + $json.sender_key + '\", {status} = \"booked\")' }}",
@@ -3349,7 +3349,7 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list"
         },
         "filterByFormula": "={{ 'AND({sender_key} = \"' + $('Validate Intent').first().json.sender_key + '\", {status} = \"booked\")' }}",
@@ -3661,10 +3661,10 @@
         },
         "table": {
           "__rl": true,
-          "value": "tblZZZZZZZZZZZZZZ",
+          "value": "tblXXXXXXXXXXXXXX",
           "mode": "list",
           "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblZZZZZZZZZZZZZZ"
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -4207,7 +4207,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -4257,6 +4257,474 @@
       ],
       "id": "99d947db-30bb-4bcd-a138-476ce2cbe890",
       "name": "Owner Alert Failed"
+    },
+    {
+      "id": "4cdbb4e0-1ac6-4ff3-afc4-6ba5040e7fe5",
+      "name": "Turnstile Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        3100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "baad4552-1317-47b9-8ca8-27145a57c850",
+              "leftValue": "={{ $json.channel === 'widget' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "7f0cea3a-1971-42cb-9e6c-213f6ba19f36",
+              "leftValue": "={{ $('Load Config').first().json.config.channels?.widget?.turnstile?.enabled === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "43071b0b-2434-4a2f-b27e-74ec5f60d918",
+      "name": "Verify Turnstile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        3040
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "REPLACE_WITH_TURNSTILE_SECRET"
+            },
+            {
+              "name": "response",
+              "value": "={{ $('Receive Inbound Message').item.json.body?.turnstileToken || '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "2c8e6ad0-06bd-4fb2-9f46-58b9165033cd",
+      "name": "Turnstile Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        3040
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "b8daba97-b500-4288-8529-9606e58b1d6a",
+              "leftValue": "={{ $json.success === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4411f7aa-09e4-4e3a-9438-d60233e6139e",
+      "name": "Resume After Turnstile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        3040
+      ],
+      "parameters": {
+        "jsCode": "// Turnstile passed — restore the normalized message ($json was the siteverify response) so\n// Validate Payload downstream reads the customer message again, not the CF verdict.\nreturn [{ json: $('Normalize Inbound').first().json }];"
+      }
+    },
+    {
+      "id": "ea8ca590-35ca-460a-84a6-11b32a10e10c",
+      "name": "Reject Bot Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1568,
+        3260
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: 'turnstile_failed' } }}",
+        "options": {
+          "responseCode": 403
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "bot_metrics",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
+        "filterByFormula": "={{ '{period_key} = \"' + $now.toUTC().toFormat('yyyy-MM') + '\"' }}",
+        "options": {}
+      },
+      "id": "95452dc0-c845-4f81-9e90-3df1e105777f",
+      "name": "Read Spend",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        2912,
+        3120
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Eval Spend — read the period's accumulated LLM cost + restore the message item.\n// Read Spend (Airtable) clobbers $json → restore the brain input from Merge State (single-output, always run).\n// Fail-OPEN (K-SPEND): missing row OR a read error → prev spend = 0 (the LLM still runs); the alert leaf warns the owner.\nconst ctx = $('Merge State').first().json;            // {channel, senderId, sender_key, text, state}\nconst cfg = $('Load Config').first().json.config;\nconst capNum = Number(cfg.bot.llmCostCapUsd);\nconst cap = Number.isFinite(capNum) ? capNum : null;  // null = no cap configured -> never blocks (no Infinity in JSON)\nconst rec = $json || {};\nconst fields = rec.fields || rec;                     // Airtable search item = {id, fields:{cost_usd,...}}\nconst prevRaw = Number(fields.cost_usd);\nconst prev = Number.isFinite(prevRaw) ? prevRaw : 0;\nconst under = cap === null ? true : prev < cap;\nreturn [{ json: { ...ctx, _spend: { prev, cap, under } } }];"
+      },
+      "id": "4af664e3-88ed-41d8-a4ee-bfedde775653",
+      "name": "Eval Spend",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c5fdcdde-32f4-466d-80d6-f095578132a8",
+              "leftValue": "={{ $json._spend.under }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "07464a6e-3737-4b07-a388-7b15f6aacc65",
+      "name": "Spend Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3200,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Spend-cap trip — the monthly LLM budget is reached. Deterministic handoff reply (no LLM), owner alerted.\n// Transient guard-trip: 200, NO state write (mirrors Handoff Reply / max-turns). OFF the reply path it also fans to the owner-alert.\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ ok: true, handoff: true, reply: $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Spend-Cap Reply\",\n    spend_cap_tripped: true\n  } }];"
+      },
+      "id": "4fc8e594-3ed0-4260-99ba-eb3e183bb395",
+      "name": "Build Spend-Cap Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        3320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Spend-meter unavailable — the bot_metrics read OR write failed (Airtable). Fail-OPEN: the LLM still runs,\n// but the owner MUST know the spend brake is blind (visible failure). Pure alert leaf — never on the reply path.\nconst ctx = $('Merge State').first().json;   // best-effort sender context (present in both the read-fail and write-fail cases)\nconst st = (ctx && ctx.state) || {};\nreturn [{ json: {\n    spend_meter_unavailable: true,\n    sender_key: ctx && ctx.sender_key,\n    channel: ctx && ctx.channel,\n    state: st\n  } }];"
+      },
+      "id": "3ba90d97-7aaa-44ca-a223-ccb0779e64a7",
+      "name": "Build Spend-Meter Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        3320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Spend Record — estimate this call's cost and add it to the period's running total.\n// prev = the spend read at guard time THIS execution (Eval Spend); delta = tokens x config price (Haiku 4.5).\n// TOCTOU across concurrent turns is accepted at this tier (a soft brake, not an atomic ledger).\nconst cfg = $('Load Config').first().json.config;\nconst usage = $json.usage || {};                       // Anthropic Messages API response usage (top-level)\nconst inTok = Number(usage.input_tokens) || 0;\nconst outTok = Number(usage.output_tokens) || 0;\nconst priceIn = Number(cfg.bot.llmPricePer1kTokensIn) || 0;\nconst priceOut = Number(cfg.bot.llmPricePer1kTokensOut) || 0;\nconst delta = (inTok / 1000) * priceIn + (outTok / 1000) * priceOut;\nconst prev = Number($('Eval Spend').first().json._spend.prev) || 0;\nconst period = $now.toUTC().toFormat('yyyy-MM');       // UTC month bucket (matches Read Spend)\nreturn [{ json: {\n    period_key: period,\n    cost_usd: Number((prev + delta).toFixed(6)),\n    updated_at: $now.toUTC().toISO(),\n    _delta: Number(delta.toFixed(6))\n  } }];"
+      },
+      "id": "e9ec7762-eda8-417f-9de5-2e6a52937b1f",
+      "name": "Build Spend Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "bot_metrics",
+          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "period_key": "={{ $json.period_key }}",
+            "cost_usd": "={{ $json.cost_usd }}",
+            "updated_at": "={{ $json.updated_at }}"
+          },
+          "matchingColumns": [
+            "period_key"
+          ],
+          "schema": [
+            {
+              "id": "period_key",
+              "displayName": "period_key",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "cost_usd",
+              "displayName": "cost_usd",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3e191419-e8c8-47ab-85dd-fec3df6b7d64",
+      "name": "Record LLM Spend",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        3616,
+        3120
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Spend-cap (CP5b-2)\nRead the month's accumulated LLM cost (`bot_metrics`) BEFORE the LLM. Under `bot.llmCostCapUsd` -> proceed; over -> deterministic handoff reply (200, no state write) + owner alert. After a successful call `Record LLM Spend` adds tokens x config price. **Fail-OPEN**: a meter read/write error still lets the LLM run, but `Build Spend-Meter Alert` warns the owner (K-SPEND).",
+        "height": 320,
+        "width": 460,
+        "color": 4
+      },
+      "id": "5ce4821b-b5e3-45c2-8e2f-fc3ac661e5f3",
+      "name": "Spend-cap note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        3060
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7feb5c7e-4df7-4c34-8eee-b9a669af27a4",
+              "leftValue": "={{ $('Load Config').first().json.config.bot.dryRun === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "061ed380-8cba-49a7-85e8-6481fdd22bd5",
+      "name": "Live Booking?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        2600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dry-run booking — global bot.dryRun is ON. NO real GCal event is created; persist a booked-looking\n// state (dry_run flagged, empty gcal_event_id) so the flow is testable end-to-end without a real write.\n// A later cancel/reschedule finds no appointments row (Write Appointment was skipped) -> safe no-op.\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst st = be.state;\nconst t = cfg.messageTemplates;\nconst reply = (t.bookingConfirmed || \"You're booked: {service}, {date} {time}. See you then!\")\n  .split('{service}').join(b.serviceName).split('{date}').join(b.dateStr).split('{time}').join(b.timeStr);\nreturn [{ json: { ...be, state: { ...st, stage: 'booked' }, gcal_event_id: '', computed_reply: reply, dry_run: true, _post_write: true } }];"
+      },
+      "id": "a4b4d65b-c2ea-4606-b9cb-a14175e51640",
+      "name": "Build Dry-Run Booked State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        2800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2bdba158-e6d7-40a5-84d1-a8ac22e074ea",
+              "leftValue": "={{ $('Load Config').first().json.config.bot.dryRun === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f61dbb63-6add-404b-b3ef-ebc980f9d194",
+      "name": "Live Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9100,
+        6000
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0e34fe70-b4e2-4427-ab1b-23b1cd58acf6",
+      "name": "WhatsApp Send (dry-run)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        9300,
+        6150
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Global dry-run (CP5b-3, subset B)\n`bot.dryRun=true` blocks the two real-world writes: the new-booking **GCal event insert** (`Live Booking?` -> dry state, no event) and the **whatsapp send** (`Live Send?` -> NoOp). Fail-safe OR with the other brakes. Reschedule/cancel need a real booking, which dry-run prevents creating, so gating new-booking + sends neutralizes real writes. Reminder sends have their own `whatsappSendDisabled` brake. Default **false** (live).",
+        "height": 300,
+        "width": 460,
+        "color": 5
+      },
+      "id": "ebd3e44f-7f50-4e34-beeb-5204df52ac0a",
+      "name": "Dry-run note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4360,
+        2540
+      ]
     }
   ],
   "connections": {
@@ -4372,7 +4840,7 @@
       "main": [
         [
           {
-            "node": "Build LLM Request",
+            "node": "Read Spend",
             "type": "main",
             "index": 0
           }
@@ -4402,6 +4870,11 @@
         [
           {
             "node": "Validate Intent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Spend Record",
             "type": "main",
             "index": 0
           }
@@ -4763,7 +5236,7 @@
       "main": [
         [
           {
-            "node": "Validate Payload",
+            "node": "Turnstile Gate",
             "type": "main",
             "index": 0
           }
@@ -4972,7 +5445,7 @@
       "main": [
         [
           {
-            "node": "Book Appointment",
+            "node": "Live Booking?",
             "type": "main",
             "index": 0
           }
@@ -6141,7 +6614,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp (Zernio)",
+            "node": "Live Send?",
             "type": "main",
             "index": 0
           }
@@ -6189,6 +6662,215 @@
         [
           {
             "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile Gate": {
+      "main": [
+        [
+          {
+            "node": "Verify Turnstile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Turnstile": {
+      "main": [
+        [
+          {
+            "node": "Turnstile Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Bot Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile Valid?": {
+      "main": [
+        [
+          {
+            "node": "Resume After Turnstile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Bot Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume After Turnstile": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Spend": {
+      "main": [
+        [
+          {
+            "node": "Eval Spend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Spend-Meter Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eval Spend": {
+      "main": [
+        [
+          {
+            "node": "Spend Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spend Gate": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Spend-Cap Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Spend-Cap Reply": {
+      "main": [
+        [
+          {
+            "node": "Finalize Outbound",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Spend-Meter Alert": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Spend Record": {
+      "main": [
+        [
+          {
+            "node": "Record LLM Spend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record LLM Spend": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Spend-Meter Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live Booking?": {
+      "main": [
+        [
+          {
+            "node": "Book Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Dry-Run Booked State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Dry-Run Booked State": {
+      "main": [
+        [
+          {
+            "node": "Save State (Post-Write)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live Send?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (Zernio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WhatsApp Send (dry-run)",
             "type": "main",
             "index": 0
           }

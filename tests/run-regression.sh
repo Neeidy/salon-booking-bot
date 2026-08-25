@@ -13,9 +13,12 @@ URL="${WEBHOOK_URL:?set WEBHOOK_URL to your published webhook, e.g. https://<n8n
 RUN="$(date +%s)"               # unique tag so messageIds never collide with a previous run
 PASS=0; FAIL=0; N=0
 
+# CP5b: widget Turnstile is enabled — the payload carries a dummy token. The live n8n `Verify Turnstile`
+# secret is the CF always-pass TEST secret (1x000…AA) during testing, so any token verifies. Swap the n8n
+# secret to the real Turnstile secret before prod (a bot sending NO token then gets a 403 turnstile_failed).
 fire() { # session text msgid  -> echoes reply body
   curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
-    -d "{\"channel\":\"widget\",\"sessionId\":\"$1\",\"text\":\"$2\",\"messageId\":\"$3\"}"
+    -d "{\"channel\":\"widget\",\"sessionId\":\"$1\",\"text\":\"$2\",\"messageId\":\"$3\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}"
 }
 assert() { # name reply needle
   N=$((N+1))
@@ -86,7 +89,7 @@ assert "3 idempotent 2nd ignored" "$(fire "$I" "what are your prices?" "$MID")" 
 
 echo "== invalid payload -> 400 (Validate Payload reject) =="
 BAD="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' \
-       -d "{\"channel\":\"widget\",\"sessionId\":\"regbad-$RUN\",\"text\":\"hi\"}")"   # no messageId -> reject
+       -d "{\"channel\":\"widget\",\"sessionId\":\"regbad-$RUN\",\"text\":\"hi\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}")"   # valid Turnstile + no messageId -> Validate rejects 400 (Turnstile runs FIRST, so a token is needed to reach Validate; a real no-token bot gets 403 turnstile_failed instead)
 N=$((N+1)); if [ "$BAD" = "400" ]; then PASS=$((PASS+1)); echo "PASS  20 invalid payload 400"
 else FAIL=$((FAIL+1)); echo "FAIL  20 invalid payload (got HTTP $BAD, want 400)"; fi
 
