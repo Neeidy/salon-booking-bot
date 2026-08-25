@@ -33,10 +33,10 @@
   unprotected public LLM endpoint (the exact spend-safety surface `spend-safety.md` forbids).
 - **UPDATE 2026-08-25 (CP5b DONE, `a33b229`):** the widget branch is **now protected** — Cloudflare rate-limit
   (Adım 2) + Turnstile bot-protection (CP5b-1) + spend-cap (CP5b-2) + global dry-run (CP5b-3), all live-proven.
-  The line above ("the widget branch is NOT protected") is superseded. **One HARD-ORDER item remains before
-  Phase 6: CRT #7 control-plane** — the n8n editor/`/rest`/`/api/v1` are still publicly reachable with only
-  n8n's own login (Adım-3 probe); remediation = a Cloudflare Access policy (Yigitcan's CF-UI task, + an Access
-  service token for `/api/v1`). See the CP5b entry below + ARCH-DEC §5 2026-08-25.
+  The line above ("the widget branch is NOT protected") is superseded. **CRT #7 control-plane now CLOSED at the
+  editor level (2026-08-26):** Cloudflare Access locks the n8n editor + `/rest` (auth-less 200 gone, probe-verified);
+  `/webhook/*` stays public, `/api/v1` interim Bypass. Residual `/api` → Service Auth is a post-CP5c follow-up.
+  See the CP5b entry below + ARCH-DEC §5 2026-08-26.
 
 ## Phase 2 — checkpoint progress (core bot, built in n8n)
 Built as a checkpoint (CP) sequence in n8n (workflow `Salon Booking Bot — Main`); sanitized flow committed at
@@ -119,7 +119,7 @@ CP order (risk↓ × cheap-first, ARCH-DEC §5 2026-08-24): **CP5a owner-alert**
   - **CP5b-2 spend-cap (monthly LLM budget)** — `Read Spend (bot_metrics) → Eval Spend → Spend Gate` before the LLM; over `bot.llmCostCapUsd` → `Build Spend-Cap Reply` (deterministic handoff, **no LLM, no state write**) + `spend_cap` owner alert; fan-out `Record LLM Spend` after a successful call. **Fail-OPEN** on a meter read/write outage + `spend_meter_unavailable` alert. Config-driven pricing (`bot.llmPricePer1kTokensIn=0.001`/`Out=0.005`, `llmCostCapUsd=10.00`). A double-process defect (both Read Spend outputs → Eval Spend) was found + fixed live (exec 1315→1316). Live-proven: exec **1313** under-cap · **1314** over-cap (LLM MUST-NOT-RUN) · **1316** meter-unavailable (fail-open, one LLM call, real Telegram alert).
   - **CP5b-3 global dry-run** (`bot.dryRun`, default false, subset B) — `Live Booking?` (dry → `Build Dry-Run Booked State`, no GCal event) + `Live Send?` (dry → `WhatsApp Send (dry-run)` NoOp); fail-safe OR with the reminder `whatsappSendDisabled` brake. Live-proven: exec **1318** dry booking (Book/Write/Verify MUST-NOT-RUN) · **1320** dryRun=false regression (real event, cleaned via cancel).
   - **9 guards green** (main live-parity 159/159·235 · content 144 byte-for-byte · reminders 16/16 · content 15 · computed-reply 30 · cancel-parity · outbound-inventory · host-leak · intent-validator) · `security-auditor` PASS · suite **19/20** (only the documented Phase-7 #27 shared-calendar item; no 429). Built via raw-API PUT (MCP save still `settings`-blocked). ARCH-DEC §5 2026-08-25.
-  - **⚠ CRT #7 control-plane — OPEN (Yigitcan's Cloudflare task).** Adım-3 probe found the n8n editor + `/rest`/`/api/v1` publicly reachable through the tunnel with only n8n's own login (no Cloudflare Access). Remediation = a CF Access policy over everything except `/webhook/*` (+ an Access **service token** for `/api/v1` so raw-API automation keeps working). Does NOT block the CP5b-2/3 code, but shares the CP5b HARD-ORDER: **must close before Phase 6.**
+  - **✅ CRT #7 control-plane — CLOSED at editor level (2026-08-26, Cloudflare Access live).** Zero Trust Access apps built by Yigitcan; probe-verified: `/signin`·`/`·`/home`·`/rest/settings` → 302 → Access login (editor no longer public), `/webhook/*` → public 404, `/api/v1` → 200 (interim Bypass, API-key-only). Nothing in CC's tooling broke (no `/rest` use; raw-API + MCP work). **Residual:** `/api` Bypass → tighten to **Service Auth (service token)** as a follow-up after CP5c (scripts made CF-Access-header-aware first, then the policy flip). ARCH-DEC §5 2026-08-26.
 - ☐ **CP5c–CP5e** — not started (injection/jailbreak + tests · signature/adapter hardening + Codex #3 · robustness). **CP5e robustness now also owns a NEW finding (ARCH-DEC §5 2026-08-25):** `alwaysOutputData:true` + `onError:continueErrorOutput` emits on BOTH outputs on error → the 6 Airtable read/lookup nodes (`Load State`, `Check Processed`, `Find Booking`, `Re-read Cancel State`, `Find Booking (Reschedule)`, `Find Old Booking (Reschedule)`) run their SUCCESS path (brain + LLM + idempotency bypass) on a store outage even though the customer gets a 503 (empirically confirmed exec 1361). Fix = separate "0-results → continue" from "error → 503-only", with its own mini-gate + drills.
 
 ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
