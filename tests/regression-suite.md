@@ -307,6 +307,16 @@ reply alone. **`crypto.timingSafeEqual` is spike-proven unavailable** → plain-
 | N2 | widget bad-shape (no sessionId) → 400, NO alert | exec **1445** | Build Normalize Reject (`400 bad_request`, no `normalize_drift`) → `Build Owner Alert` returned **[]** (no alert — unauth endpoint, alert-channel DoS guard); brain MUST-NOT-RUN |
 | N3 | valid whatsapp + valid widget (no regression) | S1 (whatsapp) + the widget suite | normal flow, adapter output contract unchanged |
 
+**CRT #3 remediation drills (M2 route-by-header · L1 sig input validation · M1a dedupe-marker alert):**
+
+| # | scenario | evidence | proof |
+|---|---|---|---|
+| M2a | signed request, DRIFTED shape (no `message` object) | exec **1448** | `Is Zernio Inbound?` out0 (routed by the `x-zernio-signature` HEADER, not shape) → sig valid → Normalize rejects **whatsapp** "no message object (schema drift)" → **422** + `normalize_drift` alert (Telegram 79); Turnstile/brain MUST-NOT-RUN. Closes the silence gap: NOT a silent widget 400 |
+| M2b | unsigned widget bad-shape (no header) | exec **1452** | `Is Zernio Inbound?` out1 (no header) → widget lane → **400** `bad_request`; Build Owner Alert returned **[]** = NO alert (regression) |
+| L1a | signed body, header = non-hex (`deadbeef`) | exec **1450** | `Verify Signature` type/length validation → `sig_valid:false` → **403**; Build LLM Request MUST-NOT-RUN |
+| L1b | signed body, header = 64-char UPPERCASE hex | HTTP **403** | HEX64 is lowercase-only → `sig_valid:false` → 403 (coercion/format bypass closed) |
+| M1a | `Record Processed` (dedupe marker) write fails | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
+
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 
 The reconcile path only runs when `Book Appointment` errors, so it is not curl-only. Step 1 (c1) made
