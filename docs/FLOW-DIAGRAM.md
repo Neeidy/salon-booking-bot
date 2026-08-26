@@ -40,12 +40,15 @@ Everything converges on **one** reply lane: a builder sets `computed_reply`, a *
 flowchart TD
   WH[Receive Inbound Message<br/>webhook · rawBody] --> IZ{Is Zernio Inbound?<br/>body is Zernio-shaped?}
   IZ -->|yes whatsapp| HM[Compute Body HMAC<br/>Crypto · SHA256 · raw binary · crypto cred · hex]
-  HM --> SV{Signature Valid?<br/>computedSig == X-Zernio-Signature}
+  HM --> VS[Verify Signature<br/>constant-time XOR · sig_valid]
+  VS --> SV{Signature Valid?<br/>sig_valid}
   SV -->|no / missing| RU[/Reject Unsigned Request<br/>403 invalid_signature/]
   SV -->|yes| LC[Load Config<br/>MOCK client config]
   IZ -->|no widget| LC
-  LC --> NORM[Normalize Inbound<br/>ADAPTER · whatsapp: nested · widget: channel FORCED 'widget']
-  NORM --> VP{Validate Payload<br/>channel enabled · text · len≤1000 · message_id · senderId}
+  LC --> NORM[Normalize Inbound<br/>ADAPTER · graceful reject on bad shape · widget: channel FORCED 'widget']
+  NORM --> NOK{Normalized OK?}
+  NOK -->|reject| NR[/Respond Normalize Reject<br/>whatsapp 422 + owner-alert · widget 400/]
+  NOK -->|ok| VP{Validate Payload<br/>channel enabled · text · len≤1000 · message_id · senderId}
   VP -->|invalid| REJ[/Send Reject Response<br/>400 invalid_payload/]
   VP -->|valid| CP[Check Processed<br/>Airtable processed_messages]
   CP -.->|Airtable down| ERR[/Send Error Response<br/>503 state_unavailable/]
@@ -63,6 +66,12 @@ flowchart TD
 **Signature gate (CP4a · CRT #3):** a Zernio-shaped inbound must carry a valid `X-Zernio-Signature`
 (HMAC-SHA256 lowercase-hex of the raw body, secret in a `crypto` credential) — wrong/missing → **403**
 `invalid_signature`, the brain never runs. Widget skips the gate (no shared secret; Phase-5 rate-limit).
+The compare is **constant-time** (`Verify Signature`, plain-JS XOR — `crypto.timingSafeEqual` is unavailable
+here; comparison hygiene, not a claimed timing-attack barrier — CP5d).
+**Adapter graceful reject (CP5d):** `Normalize Inbound` no longer throws (bare 500) on an unrecognized shape —
+`Normalized OK?` routes a reject to `Respond Normalize Reject`: **whatsapp** drift (authentic Zernio, already
+signature-verified) → **422** + owner-alert `normalize_drift`; **widget** bad-shape → **400**, no alert (the
+unauthenticated endpoint must not be an alert-channel DoS primitive).
 **Adapter + IDOR guard (CP4a):** `Normalize Inbound` is the single channel adapter; its widget branch FORCES
 `channel='widget'` (never trusts a payload channel) so the ONLY path to a `whatsapp:` sender_key is a signed
 Zernio message — closing an IDOR where a forged `{channel:'whatsapp', from:<victim>}` would impersonate a customer.
@@ -380,9 +389,13 @@ the 400/503/guard/duplicate/lock exits) now tag `_outbound_status`/`_outbound_bo
   Failed` (visible, `error:'zernio_send_failed'` + `_outbound_owner_flag`).
 
 **The whatsapp policy (formalized CP4b-3), three standing rules:**
-1. **whatsapp NEVER returns 5xx** — the ACK is hardcoded 200 and **independent of `_outbound_status`**; a
-   400/503-class conversational outcome still ACKs 200 + sends the polite reply. A 5xx would make the provider
-   retry the inbound = a resend storm.
+1. **whatsapp lane: 5xx is FORBIDDEN; a 4xx is appropriate and PREFERRED for permanent/unprocessable input**
+   (sharpened CP5d 2026-08-26). A 5xx makes the provider retry the inbound = a resend storm — so a
+   *conversational* outcome ACKs a hardcoded 200 (independent of `_outbound_status`) + sends the polite reply.
+   But a **front-gate reject** of input that can never succeed returns a **4xx** — `403` unsigned
+   (`Reject Unsigned Request`), `422` Zernio schema-drift (`Respond Normalize Reject`): a 4xx does NOT trigger
+   a retry, and it leaves an **independent failure signal in the provider's OWN log**, separate from (and
+   surviving) our owner-alert channel.
 2. **ACK precedes the send** — the 200 is emitted BEFORE the Zernio call, so a slow send can't push the webhook
    past the provider timeout (which would also trigger a resend). Gated empirically: n8n continues after
    `respondToWebhook` (exec 996). The send's own failure only flags `Outbound Send Failed`, still 200.

@@ -291,6 +291,22 @@ reply alone), with the `bot_metrics` row and `bot.dryRun` toggle RESTORED after 
 The whatsapp `Live Send?` dry-run gate uses the byte-identical `dryRun` IF as `Live Booking?`; the whatsapp
 live-send path stays exec-gated like the other CP4b whatsapp items (no widget path exercises it).
 
+### ⚙ CP5d signature/adapter drills (constant-time compare + Normalize graceful reject)
+
+whatsapp-lane drills use a temp `crypto` credential with a KNOWN `hmacSecret` (HMAC computed client-side),
+restored + the temp cred deleted after (restore gate). Verified via the execution API + response, never the
+reply alone. **`crypto.timingSafeEqual` is spike-proven unavailable** → plain-JS equal-length XOR idiom.
+
+| # | scenario | evidence | proof |
+|---|---|---|---|
+| S1 | valid signature → 200, brain runs | exec **1440** | `Verify Signature.sig_valid=true` (computedSig==header) → Signature Valid? out0 → Load Config; `Reject Unsigned Request` MUST-NOT-RUN; Validate Intent ran (whatsapp lane) |
+| S2 | wrong signature (equal 64-hex length) → 403 | exec **1441** | constant-time `sig_valid=false` → Signature Valid? out1 → Reject Unsigned Request (403); **Build LLM Request MUST-NOT-RUN** |
+| S3 | empty / missing signature → 403 | HTTP 403 `invalid_signature` | header absent → `sig_valid=false` → reject; no crash |
+| S4 | replay (same signed message twice) | exec **1443** | `Is Duplicate._duplicate=true` → Idempotent Replay (`duplicate_ignored`); Build LLM Request MUST-NOT-RUN (idempotency intact under the new node) |
+| N1 | whatsapp drift (authentic sig, unknown shape) → 422 + owner-alert | exec **1444** | Normalize returns reject → Normalized OK? out1 → Build Normalize Reject (`422 normalize_failed`, `normalize_drift`) → Respond 422 + `Build Owner Alert` `normalize_drift` → real Telegram (msg 78); **Turnstile Gate / brain MUST-NOT-RUN**; NOT a bare 500 |
+| N2 | widget bad-shape (no sessionId) → 400, NO alert | exec **1445** | Build Normalize Reject (`400 bad_request`, no `normalize_drift`) → `Build Owner Alert` returned **[]** (no alert — unauth endpoint, alert-channel DoS guard); brain MUST-NOT-RUN |
+| N3 | valid whatsapp + valid widget (no regression) | S1 (whatsapp) + the widget suite | normal flow, adapter output contract unchanged |
+
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 
 The reconcile path only runs when `Book Appointment` errors, so it is not curl-only. Step 1 (c1) made

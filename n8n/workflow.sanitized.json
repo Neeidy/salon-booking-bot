@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normalize Inbound — the single channel ADAPTER (Phase 4).\n// Any channel's raw inbound -> the shape the brain reads:\n//   { channel, senderId, sender_key, text, message_id, conversationId }\n// Two lanes: (1) Zernio WhatsApp webhook (nested body.message.*) — the ONLY path to a\n//            whatsapp: sender_key, signature-gated upstream (Verify Zernio Signature).\n//            (2) everything else = the WIDGET lane — channel is FORCED to 'widget'.\n// Fail-loud on a missing IDENTITY field (visible error branch); empty/absent text or\n// message_id fall through to Validate Payload for a graceful 400.\nconst b = $json.body ?? $json;\n\n// (1) Zernio WhatsApp inbound — event 'message.received', nested under body.message\nif (b.event === 'message.received' || b.message) {\n  const m = b.message || {};\n  if (m.platform !== 'whatsapp') throw new Error(`normalize: unsupported platform '${m.platform}'`);\n  if (m.direction && m.direction !== 'incoming') throw new Error('normalize: non-incoming message');\n  const senderId = m.sender && m.sender.id;                 // WhatsApp: phone (no +) or BSUID; required\n  if (!senderId) throw new Error('normalize: missing sender.id (whatsapp)'); // fail-loud: no identity\n  const text = m.text ?? '';                                // empty/media -> Validate rejects (400)\n  const message_id = m.platformMessageId || null;           // idempotency anchor (processed_messages)\n  const conversationId = m.conversationId || null;          // needed by the Phase-4 outbound reply (CP4b)\n  return [{ json: { channel: 'whatsapp', senderId, sender_key: `whatsapp:${senderId}`, text, message_id, conversationId } }];\n}\n\n// (2) Widget — the ONLY non-Zernio lane. FORCE channel='widget'; NEVER trust a payload 'channel'.\n// Otherwise a forged {channel:'whatsapp', from:<victim>} would mint a whatsapp:<victim> sender_key\n// with NO signature = IDOR into that customer's state + bookings (sender_key = \"{channel}:{id}\").\nconst senderId = b.sessionId;\nif (!senderId) throw new Error('normalize: missing sessionId (widget)'); // fail-loud\nconst message_id = b.messageId || b.message_id || null;\nreturn [{ json: { channel: 'widget', senderId, sender_key: `widget:${senderId}`, text: b.text, message_id } }];"
+        "jsCode": "// Normalize Inbound — the single channel ADAPTER (Phase 4). CP5d: GRACEFUL REJECT instead of throw.\n// Any channel's raw inbound -> { channel, senderId, sender_key, text, message_id, conversationId }.\n// On an unrecognized shape / missing IDENTITY it RETURNS a reject item (never throws -> no bare 500):\n//   { _normalize_reject:true, _reject_lane:'whatsapp'|'widget', _reject_reason:'...' }\n// whatsapp reject = authentic Zernio drift (already signature-verified upstream) -> 422 + owner-alert;\n// widget reject = client/bot bad-shape -> 400, NO owner-alert (unauth endpoint; see Build Normalize Reject).\n// The IDOR fix (widget FORCES channel='widget', never trusts a payload channel) is preserved.\nconst reject = (lane, reason) => [{ json: { _normalize_reject: true, _reject_lane: lane, _reject_reason: reason } }];\nconst b = $json.body ?? $json;\n\n// (1) Zernio WhatsApp inbound — event 'message.received', nested under body.message\nif (b.event === 'message.received' || b.message) {\n  const m = b.message || {};\n  if (m.platform !== 'whatsapp') return reject('whatsapp', `unsupported platform '${m.platform}'`);\n  if (m.direction && m.direction !== 'incoming') return reject('whatsapp', 'non-incoming message');\n  const senderId = m.sender && m.sender.id;\n  if (!senderId) return reject('whatsapp', 'missing sender.id');\n  const text = m.text ?? '';\n  const message_id = m.platformMessageId || null;\n  const conversationId = m.conversationId || null;\n  return [{ json: { channel: 'whatsapp', senderId, sender_key: `whatsapp:${senderId}`, text, message_id, conversationId } }];\n}\n\n// (2) Widget — the ONLY non-Zernio lane. FORCE channel='widget'; NEVER trust a payload 'channel' (IDOR).\nconst senderId = b.sessionId;\nif (!senderId) return reject('widget', 'missing sessionId');\nconst message_id = b.messageId || b.message_id || null;\nreturn [{ json: { channel: 'widget', senderId, sender_key: `widget:${senderId}`, text: b.text, message_id } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -3952,12 +3952,13 @@
           },
           "conditions": [
             {
-              "id": "cd9bb9ef-93ec-4de4-b106-27c247d3c123",
-              "leftValue": "={{ $json.computedSig }}",
-              "rightValue": "={{ $json.headers['x-zernio-signature'] ?? '' }}",
+              "id": "f33ca982-eb1d-46c0-986d-21d836dc2a1e",
+              "leftValue": "={{ $json.sig_valid }}",
+              "rightValue": "",
               "operator": {
-                "type": "string",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -4207,7 +4208,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.normalize_drift) { cls = 'normalize_drift'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nif (j.normalize_reason) lines.push('reason: ' + j.normalize_reason);\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -4725,6 +4726,99 @@
         4360,
         2540
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Signature (CP5d) — constant-time compare of the computed HMAC vs the header signature.\n// crypto.timingSafeEqual is UNAVAILABLE here (require('crypto') disallowed; no global crypto — spike-verified\n// 2026-08-26), so we use a plain-JS equal-length XOR-accumulate that always scans the full length (no early\n// return on mismatch). This is comparison HYGIENE / clean audit, NOT a claimed defense against a real timing\n// attack (network + Cloudflare + tunnel + event-loop jitter swamp any signal). HMAC-SHA256 hex is a fixed\n// 64 chars, so a length difference = malformed = invalid.\nconst a = String($json.computedSig || '');\nconst b = String(($json.headers && $json.headers['x-zernio-signature']) || '');\nconst n = Math.max(a.length, b.length);\nlet diff = a.length ^ b.length;\nfor (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0);\nreturn [{ json: { ...$json, sig_valid: (diff === 0 && a.length > 0) } }];"
+      },
+      "id": "7b516034-9ad4-4f88-b5ff-640225b6b7be",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        3080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d71fed2e-609e-4abe-b6ba-7c3433d4021c",
+              "leftValue": "={{ $json._normalize_reject === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3be34f9a-d015-4eab-b6e7-a96c03ac5fca",
+      "name": "Normalized OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1340,
+        2752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Normalize Reject (CP5d) — front-gate reject for an unrecognized inbound shape. Responds DIRECTLY\n// (not via the conversational outbound) like Reject Unsigned Request. whatsapp lane = authentic Zernio drift\n// (already signature-verified) -> 422 + owner-alert; widget lane -> 400, NO alert. The widget endpoint is\n// UNAUTHENTICATED: letting it trigger an owner-alert would be a DoS primitive against the owner's Telegram.\n// 422 (not 5xx) also leaves an independent failure signal in Zernio's OWN logs, separate from our alert channel.\nconst j = $json;\nconst wa = j._reject_lane === 'whatsapp';\nreturn [{ json: { ...j,\n  _reject_status: wa ? 422 : 400,\n  _reject_body: wa ? { ok: false, error: 'normalize_failed' } : { ok: false, error: 'bad_request' },\n  normalize_drift: wa ? true : undefined,\n  normalize_reason: j._reject_reason,\n  channel: wa ? 'whatsapp' : 'widget'\n} }];"
+      },
+      "id": "66b06435-bfed-4213-ad5d-ff4596872e47",
+      "name": "Build Normalize Reject",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        2752
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._reject_body }}",
+        "options": {
+          "responseCode": "={{ $json._reject_status }}"
+        }
+      },
+      "id": "28cb3aa8-8462-42a6-a758-9e51e0038123",
+      "name": "Respond Normalize Reject",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1780,
+        2680
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Signature + adapter hardening (CP5d)\n**Verify Signature**: constant-time HMAC compare (plain-JS XOR, no crypto — spike-verified unavailable). Hygiene, not a claimed timing-attack barrier.\n**Normalize graceful reject**: no more throw->bare 500. whatsapp drift (authentic, signature-verified) -> 422 + owner-alert `normalize_drift` (independent signal in Zernio's log too); widget bad-shape -> 400, NO alert (unauth endpoint -> alert-channel DoS guard).",
+        "height": 300,
+        "width": 460,
+        "color": 6
+      },
+      "id": "61ade9be-a220-4bef-978e-e1ebcbbc2120",
+      "name": "CP5d note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        2560
+      ]
     }
   ],
   "connections": {
@@ -5236,7 +5330,7 @@
       "main": [
         [
           {
-            "node": "Turnstile Gate",
+            "node": "Normalized OK?",
             "type": "main",
             "index": 0
           }
@@ -6384,7 +6478,7 @@
       "main": [
         [
           {
-            "node": "Signature Valid?",
+            "node": "Verify Signature",
             "type": "main",
             "index": 0
           }
@@ -6871,6 +6965,51 @@
         [
           {
             "node": "WhatsApp Send (dry-run)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "Signature Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalized OK?": {
+      "main": [
+        [
+          {
+            "node": "Turnstile Gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Normalize Reject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Normalize Reject": {
+      "main": [
+        [
+          {
+            "node": "Respond Normalize Reject",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Owner Alert",
             "type": "main",
             "index": 0
           }
