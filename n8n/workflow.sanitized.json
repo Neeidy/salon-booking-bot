@@ -247,7 +247,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1741,7 +1741,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -4827,6 +4827,90 @@
         10728,
         1232
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "07077036-e801-4945-93b1-a647f9cbcfc6",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3b850223-bb6d-4951-879e-1fded47e60ed",
+      "name": "Load State Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3774,
+        4096
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "21ab0f81-3fef-4cc6-97db-f2f5d93a093f",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9c38c5ca-753c-49a3-842c-764bd5513052",
+      "name": "Check Processed Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3102,
+        3680
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Airtable error-split (CP5e)\n`Load State` / `Check Processed` (and the 4 lookups next) had `alwaysOutputData` + `continueErrorOutput`, which emit on BOTH outputs on error -> the success path ALSO ran the brain on an Airtable outage (503 to the customer AND LLM cost + idempotency bypass). Fix: `continueRegularOutput` + a `... Errored?` IF -> error (`$json.error`) -> 503 ONLY; 0-results/data -> continue. Only one path runs.",
+        "height": 300,
+        "width": 460,
+        "color": 3
+      },
+      "id": "50888b24-452e-473f-b77a-a83b6257f543",
+      "name": "CP5e error-split note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3500,
+        3900
+      ]
     }
   ],
   "connections": {
@@ -4890,14 +4974,7 @@
       "main": [
         [
           {
-            "node": "Merge State",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send Error Response",
+            "node": "Load State Errored?",
             "type": "main",
             "index": 0
           }
@@ -5349,14 +5426,7 @@
       "main": [
         [
           {
-            "node": "Dedupe Gate",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send Error Response",
+            "node": "Check Processed Errored?",
             "type": "main",
             "index": 0
           }
@@ -7041,6 +7111,42 @@
         [
           {
             "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load State Errored?": {
+      "main": [
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Processed Errored?": {
+      "main": [
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dedupe Gate",
             "type": "main",
             "index": 0
           }
