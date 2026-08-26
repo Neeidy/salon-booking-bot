@@ -25,10 +25,11 @@
   reaches the LLM). The **widget branch is NOT** (no signature, no rate-limit, no cost-cap → straight to the LLM).
   Practical exposure is ~zero **only** because the widget URL is unpublished (frontend = Phase 6) — that is
   *uncertainty, not security*.
-- **Zernio subscription = OFF until CP5b.** The 2026-08-24 sandbox re-enable was a conscious deviation from the
-  2026-07-27 "keep the LLM webhook offline until Phase-5 brakes" decision; it is **re-closed** until CP5b lands
-  (cost-cap · rate-limit · bot-protection). Owner confirms `isActive:false` from the Zernio panel. See
-  [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §5 (2026-08-24).
+- **Zernio subscription = OFF (owner-confirmed `isActive:false` on the Zernio panel, 2026-08-26).** The
+  2026-08-24 sandbox re-enable was a conscious deviation from the 2026-07-27 "keep the LLM webhook offline until
+  Phase-5 brakes" decision; **now re-closed** — CP5b landed (rate-limit · Turnstile · spend-cap · dry-run), but
+  Zernio stays OFF until the whatsapp channel is re-enabled per-client (Phase 6 / onboarding). Not a pending
+  item. See [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md) §5 (2026-08-24).
 - **HARD ORDER:** **CP5b MUST complete before Phase 6.** Publishing the widget without perimeter brakes opens an
   unprotected public LLM endpoint (the exact spend-safety surface `spend-safety.md` forbids).
 - **UPDATE 2026-08-25 (CP5b DONE, `a33b229`):** the widget branch is **now protected** — Cloudflare rate-limit
