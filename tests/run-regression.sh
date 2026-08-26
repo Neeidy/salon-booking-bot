@@ -13,12 +13,20 @@ URL="${WEBHOOK_URL:?set WEBHOOK_URL to your published webhook, e.g. https://<n8n
 RUN="$(date +%s)"               # unique tag so messageIds never collide with a previous run
 PASS=0; FAIL=0; N=0
 
+# Pacing (NOT a rate-limit workaround). The CP5b Cloudflare rule blocks >20/min/IP on /webhook/*; the full
+# suite makes ~44 requests, so a single unpaced burst would trip our OWN protection. We do NOT weaken the rule
+# ("temporarily raise the limit" is a habit that never gets reverted) — instead every request is spaced by
+# PACE seconds so the whole suite runs in one pass while staying safely under 20/min (~15/min at PACE=4).
+# Override for a looser/tighter limit:  PACE=2 bash tests/run-regression.sh
+PACE="${PACE:-4}"
+
 # CP5b: widget Turnstile is enabled — the payload carries a dummy token. The live n8n `Verify Turnstile`
 # secret is the CF always-pass TEST secret (1x000…AA) during testing, so any token verifies. Swap the n8n
 # secret to the real Turnstile secret before prod (a bot sending NO token then gets a 403 turnstile_failed).
-fire() { # session text msgid  -> echoes reply body
+fire() { # session text msgid  -> echoes reply body (then paces to respect the rate-limit)
   curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
     -d "{\"channel\":\"widget\",\"sessionId\":\"$1\",\"text\":\"$2\",\"messageId\":\"$3\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}"
+  sleep "$PACE"
 }
 assert() { # name reply needle
   N=$((N+1))
@@ -90,6 +98,7 @@ assert "3 idempotent 2nd ignored" "$(fire "$I" "what are your prices?" "$MID")" 
 echo "== invalid payload -> 400 (Validate Payload reject) =="
 BAD="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' \
        -d "{\"channel\":\"widget\",\"sessionId\":\"regbad-$RUN\",\"text\":\"hi\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}")"   # valid Turnstile + no messageId -> Validate rejects 400 (Turnstile runs FIRST, so a token is needed to reach Validate; a real no-token bot gets 403 turnstile_failed instead)
+sleep "$PACE"   # the one non-fire request — pace it too (see PACE note at top)
 N=$((N+1)); if [ "$BAD" = "400" ]; then PASS=$((PASS+1)); echo "PASS  20 invalid payload 400"
 else FAIL=$((FAIL+1)); echo "FAIL  20 invalid payload (got HTTP $BAD, want 400)"; fi
 
