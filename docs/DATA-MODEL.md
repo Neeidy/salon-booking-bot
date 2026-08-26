@@ -81,9 +81,15 @@ are the engine's state (multi-turn + idempotency).
 ## `processed_messages` (idempotency / dedupe)
 | Field | Type | Notes |
 |---|---|---|
-| message_id | text | PK — provider message id |
-| result_ref | text | booking/lead id produced |
-| processed_at | datetime | UTC (with TTL) |
+| message_id | text | the dedupe key — provider message id (Zernio `platformMessageId`; widget client UUID) |
+| sender_key | text | `"{channel}:{id}"` (PII) |
+| channel | text | whatsapp \| widget \| instagram |
+| created_at | text | ISO-8601 UTC string, written AFTER Save State succeeds |
+
+**TTL purge (CP5e):** a separate ACTIVE daily workflow `Salon Booking Bot — Processed Purge` deletes rows with
+`created_at` older than 30 days (dedupe only needs to outlive the provider retry window = hours; 30d is amply
+safe) so the store stays bounded. `created_at` is text, but ISO-8601 sorts lexicographically = chronologically,
+so the purge filter is a plain `{created_at} < cutoff`.
 
 **Booking integrity:** `processed_messages` guards idempotency; `appointments` + Google Calendar guarded by
 write-then-verify (no atomic lock). See [../.claude/rules/booking-integrity.md](../.claude/rules/booking-integrity.md).

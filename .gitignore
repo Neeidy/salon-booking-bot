@@ -46,6 +46,7 @@ Thumbs.db
 n8n/**/*.json
 !n8n/workflow.sanitized.json
 !n8n/workflow.reminders.sanitized.json
+!n8n/workflow.purge.sanitized.json
 
 # Real per-client config — only the .example is committed
 config/client.config.json

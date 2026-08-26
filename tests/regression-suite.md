@@ -317,6 +317,26 @@ reply alone. **`crypto.timingSafeEqual` is spike-proven unavailable** → plain-
 | L1b | signed body, header = 64-char UPPERCASE hex | HTTP **403** | HEX64 is lowercase-only → `sig_valid:false` → 403 (coercion/format bypass closed) |
 | M1a | `Record Processed` (dedupe marker) write fails | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
 
+### ⚙ CP5e robustness drills (Airtable error-split · purge · reminders overlap lock)
+
+The 6 Airtable read/lookup nodes now split **error → 503/abort ONLY** from **0-results/data → continue**
+(`onError:continueRegularOutput` + a `<Node> Errored?` IF on `!!$json.error`). Each drilled BOTH ways; the
+(b) 0-results case for the entry/confirm-turn nodes is also covered by the suite's cancel/reschedule
+no-booking + happy scenarios. Self-cleaning (table broken per node, restored; the one real GCal booking
+cancelled + rows purged).
+
+| # | node · case | evidence | proof |
+|---|---|---|---|
+| E-LS(a) | Load State failure | exec **1456** | error item `$json.error` → Errored? out0 → Send Error Response 503; **Merge State + Build LLM Request MUST-NOT-RUN** |
+| E-CP(a) | Check Processed failure | exec **1457** | 503; **Dedupe Gate + Load State + Build LLM Request MUST-NOT-RUN** |
+| E-FB(a) | Find Booking failure (cancel) | exec **1461** | 503; **Cancel Lookup MUST-NOT-RUN** |
+| E-FBR(a) | Find Booking (Reschedule) failure | exec **1462** | 503; **Reschedule Lookup MUST-NOT-RUN** |
+| E-RRCS(a) | Re-read Cancel State failure (cancel confirm turn) | exec **1466** | Errored? → Build Cancel-Aborted State ("booking stands"); **Verify Confirm Live + Delete Booking Event MUST-NOT-RUN** = NO wrong-delete on a failed pre-delete re-read |
+| E-FOBR(a) | Find Old Booking (Reschedule) failure (reschedule execute turn) | exec **1468** | 503; **Validate Reschedule Target + Book Reschedule Appointment MUST-NOT-RUN** = NO wrong-insert on a failed re-find |
+| E-(b) | 0-results → continue (all 6) | exec **1455** + suite | Load State + Check Processed Errored? = FALSE → continue → brain + reply; entry/confirm-turn nodes' 0-results/found covered by cancel/reschedule no-booking (21/24) + happy (4/25) |
+| PURGE | processed_messages > 30d deleted, recent kept | temp-trigger run | 40-day-old row deleted (`deleteRecord`), 2026-08-26 row kept |
+| REM-OVERLAP | 2nd reminders run within 2 min → skip | exec **1475** | `Reminders Concurrency Guard` returns [] → `Compute Reminder Window` MUST-NOT-RUN (staticData 2-min window) |
+
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
 
 The reconcile path only runs when `Book Appointment` errors, so it is not curl-only. Step 1 (c1) made

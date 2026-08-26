@@ -2381,7 +2381,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -2983,7 +2983,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -3112,7 +3112,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -3370,7 +3370,7 @@
           "name": "Airtable Personal Access Token account"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -4911,6 +4911,142 @@
         3500,
         3900
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "88fdde3d-a6e2-4277-9a48-f38bd6689d11",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "801225e3-1d9d-4546-b348-752a4a4d9a5f",
+      "name": "Find Booking Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7358,
+        5968
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c9e048a1-a81d-43fe-bb06-f8ae81fc6145",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "46f71f54-e79e-4835-ae0e-a1cc35513ab2",
+      "name": "Re-read Cancel State Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8478,
+        5776
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d9021a9a-5bc0-48d8-b1c3-2470b063b3e2",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "27d6ef78-3874-49dc-80de-71c2232a5692",
+      "name": "Find Booking (Reschedule) Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8030,
+        7040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7cd858b1-dbd8-41de-ac42-91335406b370",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e4019d8d-b333-45c5-a7ce-670ef4b1bfc9",
+      "name": "Find Old Booking (Reschedule) Errored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7582,
+        4464
+      ]
     }
   ],
   "connections": {
@@ -5685,14 +5821,7 @@
       "main": [
         [
           {
-            "node": "Cancel Lookup",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send Error Response",
+            "node": "Find Booking Errored?",
             "type": "main",
             "index": 0
           }
@@ -5979,14 +6108,7 @@
       "main": [
         [
           {
-            "node": "Verify Confirm Live",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Build Cancel-Aborted State",
+            "node": "Re-read Cancel State Errored?",
             "type": "main",
             "index": 0
           }
@@ -6055,14 +6177,7 @@
       "main": [
         [
           {
-            "node": "Reschedule Lookup",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send Error Response",
+            "node": "Find Booking (Reschedule) Errored?",
             "type": "main",
             "index": 0
           }
@@ -6214,14 +6329,7 @@
       "main": [
         [
           {
-            "node": "Validate Reschedule Target",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send Error Response",
+            "node": "Find Old Booking (Reschedule) Errored?",
             "type": "main",
             "index": 0
           }
@@ -7147,6 +7255,78 @@
         [
           {
             "node": "Dedupe Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Booking Errored?": {
+      "main": [
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-read Cancel State Errored?": {
+      "main": [
+        [
+          {
+            "node": "Build Cancel-Aborted State",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verify Confirm Live",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Booking (Reschedule) Errored?": {
+      "main": [
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reschedule Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Old Booking (Reschedule) Errored?": {
+      "main": [
+        [
+          {
+            "node": "Send Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Reschedule Target",
             "type": "main",
             "index": 0
           }

@@ -371,6 +371,19 @@
       ],
       "id": "99f503b2-c42b-4239-b60a-e9a2dbcaa092",
       "name": "Owner Alert Failed (Reminders)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reminders Concurrency Guard (CP5e) — overlap lock. A run takes seconds; two runs both selecting the same\n// NOT({reminded}) row BEFORE either stamps it would double-send (at-least-once TOCTOU). If a run started\n// < 2 min ago, skip this one (return []). No clearing needed (time-window). Hourly cadence never legitimately\n// overlaps, so this only blocks accidental double-fires.\nconst sd = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst last = sd.reminderRunAt;\nif (typeof last === 'number' && (now - last) < 120000) return [];\nsd.reminderRunAt = now;\nreturn $input.all();"
+      },
+      "id": "0648855f-26e5-4963-917b-898adacfb416",
+      "name": "Reminders Concurrency Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        480
+      ]
     }
   ],
   "connections": {
@@ -407,7 +420,7 @@
         ],
         [
           {
-            "node": "Compute Reminder Window",
+            "node": "Reminders Concurrency Guard",
             "type": "main",
             "index": 0
           }
@@ -541,6 +554,17 @@
         [
           {
             "node": "Owner Alert Failed (Reminders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminders Concurrency Guard": {
+      "main": [
+        [
+          {
+            "node": "Compute Reminder Window",
             "type": "main",
             "index": 0
           }

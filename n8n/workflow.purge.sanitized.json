@@ -1,0 +1,141 @@
+{
+  "name": "Salon Booking Bot — Processed Purge",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "id": "173b0146-b915-44cd-ad8f-d7462947b983",
+      "name": "Purge Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute Purge Cutoff (CP5e) — delete processed_messages older than 30 days (dedupe only needs to\n// survive the provider retry window = hours; 30d is amply safe). created_at is an ISO-8601 UTC string,\n// so a lexicographic '<' compare is chronological.\nreturn [{ json: { cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
+      },
+      "id": "7c8584e1-b9eb-43e2-a567-86fa7f3fa4cb",
+      "name": "Compute Purge Cutoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "processed_messages"
+        },
+        "filterByFormula": "={{ '{created_at} < \"' + $json.cutoff + '\"' }}",
+        "options": {}
+      },
+      "id": "caf600de-d0fd-4407-93c0-7fec6e6e67fb",
+      "name": "Find Old Processed",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteRecord",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "processed_messages"
+        },
+        "id": "={{ $json.id }}"
+      },
+      "id": "30373fd9-19b7-4f5e-ba40-781029d2c943",
+      "name": "Delete Old Processed",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Purge Schedule": {
+      "main": [
+        [
+          {
+            "node": "Compute Purge Cutoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Purge Cutoff": {
+      "main": [
+        [
+          {
+            "node": "Find Old Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Old Processed": {
+      "main": [
+        [
+          {
+            "node": "Delete Old Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
