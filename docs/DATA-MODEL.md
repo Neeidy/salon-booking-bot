@@ -3,8 +3,15 @@
 > **Role of this file:** the human-readable field map for the Airtable base (the CRM + state store).
 > Machine-checkable contracts live in [`../schemas/`](../schemas/). Draft — finalized in Phase 1/3.
 
-Five tables. `leads` / `customers` / `appointments` are the CRM; `conversations` / `processed_messages`
-are the engine's state (multi-turn + idempotency).
+Five live tables. `leads` / `appointments` are the CRM; `conversations` / `processed_messages` /
+`bot_metrics` are the engine's state (multi-turn · idempotency · spend meter).
+
+> **`customers` was REMOVED from this document (FIX-1, 2026-08-27).** The CP6 decision (2026-08-10)
+> dropped it — the returning-customer greeting uses `conversations.found` + a session-gap instead. A
+> repo-wide scan of all three workflow exports finds **zero** references to a `customers` table, so
+> documenting it was describing a table the system never touches. The empty table is left in the
+> Airtable base (deleting data is irreversible and it breaks nothing); it is simply not part of the
+> data model.
 
 ## `leads`
 | Field | Type | Notes |
@@ -15,15 +22,6 @@ are the engine's state (multi-turn + idempotency).
 | source | single-select | whatsapp \| widget \| instagram |
 | message | long text | first message |
 | status | single-select | new \| contacted \| converted |
-| created_at | datetime | UTC |
-
-## `customers`
-| Field | Type | Notes |
-|---|---|---|
-| id | autonumber | PK |
-| name | text | PII |
-| phone | text | E.164, unique-ish (PII) |
-| notes | long text | preferences |
 | created_at | datetime | UTC |
 
 ## `appointments`
@@ -62,14 +60,33 @@ are the engine's state (multi-turn + idempotency).
 | Field | Type | Notes |
 |---|---|---|
 | sender_key | text | PK — `"{channel}:{id}"` using the FULL channel name (matches the config channels enum), e.g. `whatsapp:+43…`, `instagram:12345` — namespaced so channels can never collide (PII) |
-| stage | single-select | new \| collecting \| ready \| done \| handoff — while `handoff`, the bot sends no auto-reply to this sender (see decision log 2026-07-02) |
+| stage | single-select | **9 values, verified against the live flow (FIX-1 2026-08-27):** `new` \| `collecting` \| `ready` \| `confirming` \| `booked` \| `cancel_confirming` \| `cancelled` \| `reschedule_confirming` \| `handoff`. While `handoff` the bot sends no auto-reply to this sender (decision log 2026-07-02) — and **nothing in the flow clears that lock**, so releasing it is an owner action (UX-ARCHITECTURE §9 K6, Phase 6). **`done` is NOT a stage** — it was in this table for months but no node ever writes it. Writers: `Slot Gate` (`collecting`/`ready`) · `Compute Availability` (`collecting`/`confirming`) · `Compute Reschedule Availability` (`reschedule_confirming`) · `Build Cancel-Confirm State` · `Build Cancelled State` · the booked/reschedule-done builders · `Mark Handoff` + 14 error builders. |
 | slot_service | text | nullable |
 | slot_date | text | nullable |
 | slot_time | text | nullable |
-| last_updated | datetime | UTC (for TTL/expiry) |
+| last_updated | datetime | UTC — session-gap calculation (`Build Reply Payload`) and the 30-day PII-scrub cutoff. **It does not expire the row** (no job deletes `conversations` rows). |
 | turn_count | number | default 0 — +1 on every inbound message; compared with config `bot.maxTurnsPerConversation` for the max-turns guard (CP3) |
 | last_intent | single line text | nullable — last classified intent (debug/analysis) (CP3) |
-| recent_messages | long text (multilineText) | **PII (message content)** — rolling **last-5** inbound customer message texts, newline-joined, each truncated to 80 chars (CP5a Step 7). Written every turn by `Save State`/`Save State (Post-Write)`, read by `Build Owner Alert` for handoff context so the owner sees what the customer said. **TTL = the conversation row lifetime** (no separate purge job — it dies with the row). **Never export/screenshot unsanitized**; `/sanitize` + `security-auditor` scrub it like any PII column. |
+| recent_messages | long text (multilineText) | **PII (message content)** — rolling **last-5** inbound customer message texts, newline-joined, each truncated to 80 chars (CP5a Step 7). Written every turn by `Save State`/`Save State (Post-Write)`, read by `Build Owner Alert` for handoff context so the owner sees what the customer said. **TTL = 30 days** — the daily purge workflow's second branch (`Compute PII Cutoff` → `Find Stale Conversations` → `Scrub Recent Messages`, FIX-1) clears this column on rows whose `last_updated` is older than 30 days. **Never export/screenshot unsanitized**; `/sanitize` + `security-auditor` scrub it like any PII column. |
+| **gcal_event_id** | text | the booking's calendar event id, carried into state so a post-write failure still leaves a breadcrumb a human can follow (was undocumented until FIX-1) |
+| **cancel_target_id** | text | the Airtable record id of the booking a pending `yes` is bound to — this is what makes cancel/reschedule confirmation IDOR-safe (was undocumented until FIX-1) |
+| **confirm_turn** | text | `turn_count + 1` at the moment the confirm question was asked → the confirm is honored only on the **immediate next turn** (confirm-TTL). Text, not number, to match how it is written (was undocumented until FIX-1) |
+| **computed_reply** | long text | the single source of this turn's reply (Refactor #5); every reply-producing builder writes it, `Build Reply Payload` reads it, and an empty value is what raises the `reply_fallback` alert. May contain a customer name/service — treat as borderline PII (was undocumented until FIX-1) |
+| **last_alert_class** | single line text | **FIX-1 / UX-ARCHITECTURE §9 K1** — the class of the last owner-alert **delivered** for this conversation (one of the 19 classes). Written best-effort by `Record Alert Class` on the alert branch, never on the reply path (D-c invariant). Before this, every residue flag was ephemeral: once the Telegram message scrolled past, nothing in Airtable said *why* a conversation was stuck. |
+| **last_alert_at** | datetime | UTC — when that alert was delivered. |
+
+> **Honest limit on the two alert fields:** `Build Owner Alert` returns `[]` when an alert is
+> throttled (30 min per class+sender), so these fields record the last **delivered** alert, not the
+> last **occurring** one. They are also a *last* value, not a history — a second class overwrites the
+> first. Alert history / full transcript was deliberately deferred (§9 K1).
+
+> ### PII expiry — what is and is NOT solved (FIX-1)
+> The 30-day scrub covers **message content** (`recent_messages`). It does **NOT** make the row
+> anonymous: **`sender_key` contains a phone number on the whatsapp channel and stays for the row's
+> lifetime**, because the row is deliberately kept rather than deleted. Deleting the row would
+> silently release a `stage='handoff'` lock and drop `cancel_target_id`/`confirm_turn`, so row
+> deletion is a **separate** decision (UX-ARCHITECTURE §9 K2). Do not describe this as "PII TTL
+> solved" — it is message-content expiry only.
 
 > **Owner-alert context (CP5a):** `recent_messages` is why `Build Owner Alert` can include recent
 > customer lines. Design decision D-a (rolling last-N in `conversations`, **no separate `messages`

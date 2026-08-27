@@ -34,7 +34,7 @@ assert() { # name reply needle
   else FAIL=$((FAIL+1)); printf 'FAIL  %s\n      got: %s\n      want~ %s\n' "$1" "$2" "$3"; fi
 }
 
-WK="2026-08-26"   # a Wednesday (weekday, open) — bump if in the past
+WK="2026-08-28"   # a Friday (weekday, open) — bump if in the past
 
 # --- Assertion-strength audit (2026-08-17) — "would this assertion FAIL if the behaviour were WRONG?" ---
 # The 12/12 pass is the safety gate for the whole #5 refactor, so each needle must be exit-specific.

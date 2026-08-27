@@ -602,7 +602,10 @@ alınır. Bu üçü olmadan **Airtable'da kalınır** — erken karmaşıklık y
 
 ### 8.1 — ⚠ BULGU: sistem çelişkileri (envanterden çıktı, hepsi doğrulandı)
 
-**#1 — `cancel_mirror_failed` sessizce yutuluyor. (kural ihlali)**
+**#1 — `cancel_mirror_failed` sessizce yutuluyor. (kural ihlali)** ✅ **KAPANDI (FIX-1, 2026-08-27)**
+— `Build Cancelled State` → `Build Owner Alert` kenarı eklendi + sınıf zincirine ayrı
+`cancel_mirror_failed` sınıfı eklendi. **Canlı drill ile kanıtlandı** (F1: `_alert_class=cancel_mirror_failed`,
+Telegram node'u çalıştı, müşteri cevabı değişmedi; F2 kontrol: normal iptalde alert yok).
 `Build Cancelled State` bu bayrağı set ediyor, ama: (a) node'un tek çıkışı `Save State (Post-Write)`
 — `Build Owner Alert`'e kenarı yok; (b) `Build Owner Alert`'in sınıf zincirinde
 `cancel_mirror_failed` kontrolü yok; (c) branch `stage:'cancelled'` yazdığı için `stage==='handoff'`
@@ -611,44 +614,60 @@ ne alert var ne kalıcı kayıt — Airtable randevuyu `booked` göstermeye deva
 gidebilir. Kardeş vakalar (`mirror_failed`, `reschedule_mirror_failed`) alert veriyor; bu üçlüde
 tek boşluk. `.claude/rules/n8n-conventions.md` "failures must be VISIBLE" ihlali.
 
-**#2 — `Build Spend-Cap Reply` denetlenmeyen 12. converged çıkış.**
+**#2 — `Build Spend-Cap Reply` denetlenmeyen 12. converged çıkış.** ✅ **KAPANDI (FIX-1)** —
+`scripts/check-outbound-inventory.py` `CONVERGE` listesine eklendi (guard artık **12** dal sayıyor);
+**3 sabotaj vakasıyla FAIL-edebilirliği kanıtlandı** (should_send · kenar · status).
 12 dal `Finalize Outbound`'a giriyor; `scripts/check-outbound-inventory.py`'nin `CONVERGE` listesi
 11 tanesini sayıyor. Node doğru çalışıyor (200 · `should_send:true` · `handoff`) ama drift-guard
 onu korumuyor — biri `_outbound_should_send`'i bozarsa guard yakalamaz.
 
-**#3 — `docs/DATA-MODEL.md` bayat (iki yerde).**
+**#3 — `docs/DATA-MODEL.md` bayat (iki yerde).** ✅ **KAPANDI (FIX-1)** — stage enum'u 9 gerçek
+değere güncellendi (`done` kaldırıldı), 4 belgesiz alan + K1'in 2 yeni alanı belgelendi.
 (a) stage enum'u `new\|collecting\|ready\|done\|handoff` diyor; gerçek 9 değer —
 `confirming · booked · cancel_confirming · cancelled · reschedule_confirming` belgesiz, `done`
 hiçbir zaman yazılmıyor. (b) `conversations` tablosunda workflow'un yazdığı ama belgede olmayan
 4 alan: `gcal_event_id · cancel_target_id · confirm_turn · computed_reply`.
 
-**#4 — TASARIM ZATEN SİSTEMİ AŞMIŞ — bu belgenin varlık sebebi.**
+**#4 — TASARIM ZATEN SİSTEMİ AŞMIŞ — bu belgenin varlık sebebi.** ✅ **KAPANDI (FIX-1)** —
+mockup'tan "Outside working hours" kartı (ve sahipsiz kalan `.msg.hours` CSS kuralı) silindi;
+`outsideHours` + `greeting` **ölü config anahtarları** hem `client.config.example.json`'dan hem canlı
+`Load Config`'ten kaldırıldı (K5). Tam regresyon **26/26** — hiçbir node onları kullanmıyormuş.
 `design/mockups/variants/widget-a-cream-ink.html:217-218` "Outside working hours" balonunu
 `messageTemplates.outsideHours` metniyle gösteriyor. O template **ölü**: tüm workflow'da tek geçişi
 `Load Config` tanımı; hiçbir node üretmiyor. Aynısı `greeting` için de geçerli (tanım + bir sticky
 note; dönen-müşteri selamı `Build Reply Payload` içinde hard-coded `"Welcome back! "`). Yani Phase 1
 mockup'ı, sistemin **hiç göndermediği** bir ekranı müşteriye vaat ediyor.
 
-**#5 — `conversations` için TTL yok.**
+**#5 — `conversations` için TTL yok.** ✅ **KAPANDI (FIX-1) — SINIRLI OLARAK.**
+Purge workflow'una ikinci dal eklendi (`Compute PII Cutoff` → `Find Stale Conversations` →
+`Scrub Recent Messages`): 30 günden eski satırlarda `recent_messages` **boşaltılır**, satır **korunur**.
+**OVERCLAIM YASAK — bu "PII TTL çözüldü" DEĞİLDİR:** temizlenen şey **mesaj içeriğidir**;
+`sender_key` whatsapp'ta **telefon numarası içerir** ve satır durdukça **süresiz kalır**. Satır silme,
+`stage='handoff'` kilidini sessizce açacağı ve `cancel_target_id`/`confirm_turn` state'ini düşüreceği
+için **AYRI bir karardır**.
 `docs/DATA-MODEL.md` `last_updated`'ı "for TTL/expiry" diye tarif ediyor; purge workflow'u
 **yalnızca** `processed_messages` siliyor (30 gün). `recent_messages` (PII — son 5 müşteri mesajı)
 süresiz duruyor. Belge var olmayan bir mekanizmayı ima ediyor.
 
-**#6 — `customers` tablosu belgeli ama ölü.**
+**#6 — `customers` tablosu belgeli ama ölü.** ✅ **KAPANDI (FIX-1)** — `docs/DATA-MODEL.md`'den
+gerekçesiyle çıkarıldı. Airtable'daki boş tablo **silinmedi** (geri alınamaz, hiçbir şeyi bozmuyor).
 3 workflow JSON'unda tek referans yok. CP6 kararı zaten düşürmüş ("returning-customer greeting uses
 `conversations.found` + session-gap"). `docs/DATA-MODEL.md` hâlâ tarif ediyor.
 
-**#7 — kill-switch ↔ max-turns müşteriye ayırt edilemez.**
+**#7 — kill-switch ↔ max-turns müşteriye ayırt edilemez.** ⏸ **AÇIK — bilinçli.** Bugün bir hata
+değil (sahip tarafında KK2 ile ayrışıyor); tasarımın bunu bilmesi yeterli.
 İkisi de `Check Bot Guards` false dalından aynı `Handoff Reply`'a, aynı template'e gidiyor. Sahip
 tarafında ayrışıyor (KK2: kill-switch susturulur, max-turns `max_turns` alert'i verir) — yani ayrım
 **yalnızca alert katmanında** var, cevapta yok. Şu an bir hata değil, ama tasarımın bilmesi gerek.
 
-**#8 — widget 400/503'te metinsiz kalıyor.**
+**#8 — widget 400/503'te metinsiz kalıyor.** ⏸ **Phase 6'ya bağlandı** — §9 K4'teki somut kural
+(400→`notUnderstood`, 503→`handoff`) frontend'de uygulanacak; motor değişmiyor.
 `Send Reject Response` (400) ve `Send Error Response` (503) gövdesinde `reply` anahtarı yok;
 WhatsApp tarafı `_outbound_reply` ile metin alıyor, widget almıyor. Motor bu iki durumda widget'a
 ne göstereceğini söylemiyor.
 
-**#9 — `docs/FLOW-DIAGRAM.md:143-145` CRT#7'yi hâlâ "OPEN" yazıyor.**
+**#9 — `docs/FLOW-DIAGRAM.md` CRT#7'yi hâlâ "OPEN" yazıyor.** ✅ **KAPANDI (FIX-1)** — pasaj probe
+kanıtlarıyla CLOSED'a çevrildi ve neden bayat kaldığı not edildi (`governance-sync.md` kural 6).
 `docs/ROADMAP.md` ve `docs/ARCHITECTURE-DECISIONS.md` aynı gün (2026-08-26) probe kanıtıyla
 "CLOSED" demiş. Doküman-senkron boşluğu (`governance-sync.md` kural #6).
 
@@ -714,9 +733,22 @@ Tam salon sitesi (harita · arama butonu · yorumlar · galeri) **kapsam dışı
 Tarayıcı **asla** doğrudan Airtable'a gitmez; Airtable PAT'ı tarayıcıya inmez. §6 taşınabilirlik
 kısıtı + §7 kısıt 1/2/4 yalnızca bu katmanda uygulanabilir.
 
-### K4 — Widget 400/503 metni → **config template**
-Motor değişmez (`reply` anahtarı eklenmez). Metin `messageTemplates`'e girer, widget oradan okur.
-Tek dil/marka kaynağı korunur.
+### K4 — Widget 400/503 metni → **config template (mevcut anahtarlar, YENİ anahtar YOK)**
+
+Motor değişmez (`reply` anahtarı eklenmez).
+
+**Somut kural (Phase 6'da uygulanacak):**
+
+| Durum | Widget'ın göstereceği metin |
+|---|---|
+| `Send Reject Response` → **400** `invalid_payload` | `messageTemplates.notUnderstood` |
+| `Send Error Response` → **503** `state_unavailable` | `messageTemplates.handoff` |
+
+**Neden yeni anahtar eklenmiyor:** WhatsApp tarafı bu iki durumda **zaten** tam olarak bu iki
+anahtarı gönderiyor (`_outbound_reply`, CP4b-1 ruling'i). Widget aynı anahtarları okuyunca iki kanal
+tek metin kaynağında birleşir. Dahası: tüketicisi (frontend) henüz yokken yeni bir anahtar eklemek,
+K5'te az önce sildiğimiz tuzağın aynısını yaratırdı — hiçbir şey yapmayan bir config anahtarı.
+Bu yüzden K4 **düzeltme turunda repo değişikliği yapmaz**; Phase 6'da tüketicisiyle birlikte gelir.
 
 ### K5 — `outsideHours` + `greeting` → **tasarımdan çıkar + ölü config anahtarlarını TEMİZLE**
 Mockup'taki "Outside working hours" durum kartı silinir. Motor değişmez — bot 7/24 cevap verir ve
@@ -758,6 +790,27 @@ Detaylar: "Phase 6 öncesi düzeltme turu" planı.
 | K2 landing kapsamı · K3 API katmanı · K6 salt-okunur + kilit açma | **Phase 6** `/plan-flow` |
 | İptal/erteleme yazma yolları | **Phase 7** + kendi CRT |
 | §7 Airtable kısıtları (1-6) | **Phase 6** — bağlayıcı kabul kriteri |
+
+### §10.1 — Kabul edilen ama ADLANDIRILMIŞ kalıntı: hatırlatma penceresi
+
+FIX-1, BULGU #1'i **görünür** yaptı — **engellemedi**. Tam pencere:
+
+> Bir randevu, başlangıcından **24 saat ile 2 saat (`cancellationCutoffHours`) ARASINDA** iptal edilir,
+> **Airtable mirror yazımı patlar**, ve **hatırlatma henüz gönderilmemiştir** → müşteri, **iptal ettiği**
+> randevu için hatırlatma alır.
+
+"Sahip önce görür" argümanı **bu pencerede zayıftır**: sahibin ≤1 saati vardır ve müsait olmayabilir.
+
+Olasılık düşük (hem bir Airtable arızası hem de o dar zaman aralığı gerekir), bu yüzden **şimdi
+düzeltilmedi**. Ama belirsiz bir "kabul edilmiş limit" olarak geçiştirilmedi — `docs/ROADMAP.md`
+Phase 7 satırına **adlandırılmış madde** olarak girdi: *"reminders: gönderim öncesi GCal event
+varlığı doğrulaması (cancel-mirror-failed penceresi)"*.
+
+**Canlı kanıt:** FIX-1'in F1 drill'i tam bu durumu üretti — GCal event'i silindi, Airtable satırı
+`booked` kaldı, `start_utc` 24 saatin içindeydi (yani hatırlatma adayıydı). Drill sonrası elle
+temizlendi.
+
+---
 
 ## Kapanış — bu belge neyi garanti eder
 

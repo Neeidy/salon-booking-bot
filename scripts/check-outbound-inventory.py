@@ -25,6 +25,9 @@ The `_outbound_should_send` RULE (the source of truth — DERIVE, do not enumera
         NO new template. A media-specific message is a Phase-5 refinement.
   - NO-SEND   : duplicate (already got the reply on the 1st delivery), handoff-lock
                 (already told a human is helping). Widget still gets its body.
+      · Build Spend-Cap Reply (200 guard-trip): added FIX-1 2026-08-27. It was the 12th branch
+        converging into Finalize Outbound while this list only covered 11 — a working exit that
+        no guard protected. Same shape as Handoff Reply (transient guard-trip, no state write).
 
 SECURITY (D-b3): `Reject Unsigned Request` (403) is NEVER converged. Routing it through
 the shared outbound would hand an attacker a MESSAGE-TRIGGER primitive — an unsigned
@@ -40,7 +43,8 @@ PATH = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n
 
 CONVERGE = ['Send Reply To Origin','Handoff Reply','Handoff Lock Reply','Idempotent Replay',
  'Booking State-Unsaved Reply','Send Reject Response','Send Error Response','LLM Unavailable Reply',
- 'Lead Unavailable Reply','Calendar Unavailable Reply','Cancel Delete Unavailable Reply']
+ 'Lead Unavailable Reply','Calendar Unavailable Reply','Cancel Delete Unavailable Reply',
+ 'Build Spend-Cap Reply']
 NO_SEND = {'Handoff Lock Reply','Idempotent Replay'}   # customer already knows
 
 def fail(msg):

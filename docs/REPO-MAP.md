@@ -305,7 +305,6 @@
 
 ### `docs/DATA-MODEL.md`
   - ## `leads`
-  - ## `customers`
   - ## `appointments`
   - ## `bot_metrics` (CP5b spend-cap rolling counter — NOT PII)
   - ## `conversations` (multi-turn slot-filling state)
@@ -451,11 +450,12 @@
   - ### K1 — Devir kuyruğu kaynağı → **conversations satırına iki alan**
   - ### K2 — Landing kapsamı → **odaklı bot vitrini**
   - ### K3 — Dashboard veri erişimi → **kendi API katmanı**
-  - ### K4 — Widget 400/503 metni → **config template**
+  - ### K4 — Widget 400/503 metni → **config template (mevcut anahtarlar, YENİ anahtar YOK)**
   - ### K5 — `outsideHours` + `greeting` → **tasarımdan çıkar + ölü config anahtarlarını TEMİZLE**
   - ### K6 — Phase 6 kapsamı → **salt-okunur + devir kuyruğu, TEK yazma istisnası ile**
   - ### K7 — BULGU #1 zamanlaması → **Phase 6'dan ÖNCE, ayrı küçük fix turu**
   - ## §10 — Kararların uygulama dağılımı
+  - ### §10.1 — Kabul edilen ama ADLANDIRILMIŞ kalıntı: hatırlatma penceresi
   - ## Kapanış — bu belge neyi garanti eder
 
 ### `docs/n8n-rollback.md`

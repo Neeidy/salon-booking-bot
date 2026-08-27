@@ -132,7 +132,6 @@
   .state-label{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
   .state-card .msg{max-width:100%}
   .msg.handoff{border-left:3px solid var(--muted)}
-  .msg.hours{border-left:3px dashed var(--oxide)}
 
   /* ---------- MOCK ribbon — same diagonal pattern as the landing ---------- */
   .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
@@ -203,19 +202,17 @@
     <p class="host-note">This muted page is a stand-in host site. The chat widget pinned to the bottom-right corner is the real deliverable — click its launcher to open or close the booking conversation.</p>
   </section>
 
-  <!-- ===== OTHER BOT STATES — labelled showcase of the two alternate flows ===== -->
-  <!-- These are NOT part of the happy path; shown so all six messageTemplates are visible. -->
+  <!-- ===== OTHER BOT STATES — labelled showcase of alternate flows ===== -->
+  <!-- NOT part of the happy path. FIX-1 (2026-08-27): the "Outside working hours" card was REMOVED —
+       messageTemplates.outsideHours was dead config (no node ever produced it) and has been deleted.
+       The bot answers 24/7 by design; "closed" only exists as a SLOT check inside Compute Availability. -->
   <section class="wrap showcase" id="other-states">
     <p class="showcase-title">Other bot states</p>
-    <p class="showcase-note">Alternate flows the same bot falls back to — rendered as authentic bot bubbles, shown here outside the happy-path thread for review.</p>
+    <p class="showcase-note">An alternate flow the same bot falls back to — rendered as an authentic bot bubble, shown here outside the happy-path thread for review.</p>
     <div class="showcase-grid">
       <div class="state-card">
         <div class="state-label">Handoff — low confidence / jailbreak</div>
         <div class="msg bot handoff">I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:06</span></div>
-      </div>
-      <div class="state-card">
-        <div class="state-label">Outside working hours</div>
-        <div class="msg bot hours">We're outside working hours right now. We've got your request and will reply soon.<span class="stamp">22:41</span></div>
       </div>
     </div>
   </section>

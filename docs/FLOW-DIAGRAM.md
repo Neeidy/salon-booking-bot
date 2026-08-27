@@ -138,10 +138,16 @@ place before Phase 6):
   (dry → `Build Dry-Run Booked State`, no GCal event) and `Live Send?` (dry → `WhatsApp Send (dry-run)` NoOp).
   Fail-safe OR with the reminder-send `whatsappSendDisabled` brake.
 
-> **Control-plane (CRT #7, OPEN):** the n8n editor + `/rest`/`/api/v1` are reachable through the tunnel with
-> only n8n's own login — no Cloudflare Access. Remediation (a CF Access policy over everything except
-> `/webhook/*`, plus an Access service token for `/api/v1`) is a Cloudflare-UI task and must close before
-> Phase 6. Tracked in ROADMAP + the Critical-Review Targets.
+> **Control-plane (CRT #7, CLOSED 2026-08-26 — probe-verified):** the tunnel now exposes only the webhook.
+> The editor and `/rest/*` sit behind **Cloudflare Access login** (probe: `/signin`, `/`, `/home`,
+> `/rest/settings` → 302 to the Access login); `/api/v1/*` sits behind Access **Service Auth** (probe:
+> token-less → **403**, token + n8n API key → **200**); `/webhook/*` stays **public and exempt** (probe:
+> unknown webhook path → **404**, not an Access redirect), so Zernio and the widget are unaffected.
+> Side effect: n8n MCP cannot send the Access headers, so control-plane automation goes through the raw
+> API with the service token. Recorded in ROADMAP + ARCHITECTURE-DECISIONS §5.
+>
+> *(This passage said "OPEN" until FIX-1, 2026-08-27 — it was written before the same-day closure and
+> never updated. Corrected rather than left beside the newer text, per `governance-sync.md` rule 6.)*
 
 ## Lane 3 — Route by intent
 

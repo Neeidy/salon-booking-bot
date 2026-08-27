@@ -98,6 +98,133 @@
           "name": "Airtable Personal Access Token account"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute PII Cutoff (FIX-1) — conversations.recent_messages is PII (the rolling last-5 customer\n// message texts). It is SCRUBBED after 30 days; the ROW is deliberately KEPT.\n// WHY not delete the row: deleting it would silently release a stage='handoff' lock (a handed-off\n// customer would start getting bot replies again with no human action) and would drop\n// cancel_target_id / confirm_turn state. Row deletion is a SEPARATE decision — UX-ARCHITECTURE §9 K2.\n// HONEST SCOPE: this scrubs message CONTENT only. sender_key (a phone number on whatsapp) stays for\n// the row's lifetime — this is not a full PII expiry.\nreturn [{ json: { pii_cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
+      },
+      "id": "purge_pii_cutoff",
+      "name": "Compute PII Cutoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations"
+        },
+        "filterByFormula": "={{ 'AND({recent_messages} != \"\", IS_BEFORE({last_updated}, DATETIME_PARSE(\"' + $json.pii_cutoff + '\")))' }}",
+        "options": {}
+      },
+      "id": "purge_find_stale_conv",
+      "name": "Find Stale Conversations",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        220
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "recent_messages": ""
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "recent_messages",
+              "displayName": "recent_messages",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "purge_scrub_recent",
+      "name": "Scrub Recent Messages",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        220
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## PII TTL — recent_messages scrub (FIX-1, 2026-08-27)\n\n**What:** every day at 04:00 this second branch clears `conversations.recent_messages` on rows whose\n`last_updated` is older than **30 days**.\n\n**Why the row is KEPT, not deleted:** deleting the row would (a) silently release a `stage='handoff'`\nlock — a handed-off customer would start getting bot replies again with nobody deciding that — and\n(b) drop `cancel_target_id`/`confirm_turn`. Row deletion is a separate decision (UX-ARCHITECTURE §9 K2).\n\n**Honest scope:** this expires message CONTENT. `sender_key` (a phone number on whatsapp) survives for\nthe row's lifetime. Do NOT describe this as \"PII TTL solved\".",
+        "height": 320,
+        "width": 460
+      },
+      "id": "purge_sticky_pii",
+      "name": "Sticky — PII scrub",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        380
+      ]
     }
   ],
   "connections": {
@@ -106,6 +233,11 @@
         [
           {
             "node": "Compute Purge Cutoff",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compute PII Cutoff",
             "type": "main",
             "index": 0
           }
@@ -128,6 +260,28 @@
         [
           {
             "node": "Delete Old Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute PII Cutoff": {
+      "main": [
+        [
+          {
+            "node": "Find Stale Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stale Conversations": {
+      "main": [
+        [
+          {
+            "node": "Scrub Recent Messages",
             "type": "main",
             "index": 0
           }
