@@ -396,7 +396,9 @@ kendi açtı, KK2) · duplicate · 403 unsigned · 403 turnstile · widget-lane 
 > Sonuç: **yalnızca Airtable okuyan bir dashboard, takılı `handoff` konuşmalarını ve öksüz takvim
 > kayıtlarını görebilir, ama sebebini göremez.** Sebep yalnızca Telegram geçmişinde ve n8n
 > execution log'unda. "Çözüldü" işaretleme mekanizması da hiç yok.
-> → §9 açık karar 1. Bu belge çözüm **önermez** (yeni tablo/alan NOT-build).
+> → **ÇÖZÜLDÜ, §9 K1:** `conversations` satırına `last_alert_class` + `last_alert_at`
+> eklenir, `Build Owner Alert` dalından best-effort yazılır (cevap yolundan ayrı, D-c korunur).
+> Uygulama: Phase 6 öncesi düzeltme turu. Sınır: **son** alert, alert geçmişi değil.
 
 ### 4.d — Sistem sağlığı
 
@@ -459,7 +461,7 @@ takviminde görmeye devam eder.
 |---|---|---|---|---|
 | 1 | Randevu iptal | ✅ | `Cancel Lookup` → `Validate Cancel Target` → `Build Cancel-Confirm State` → `Verify Confirm Live` → GCal delete → `Update Appointment Cancelled` | ⚠ **var ama erişilemez** — yalnızca `/webhook/barber-inbound` üzerinden, **müşteri kimliğiyle**, iki turlu "yes" onayıyla. Sahip için giriş noktası **YOK** → **yeni yol gerekiyor** |
 | 2 | Randevu ertele | ✅ | `Reschedule Lookup` → … → insert + eski event delete | ⚠ aynı — **yeni yol gerekiyor** |
-| 3 | Devri devralma (`stage=handoff` kilidini açma) | ✅ (müşteriye bot cevabı geri açar) | **hiçbir yol yok** — hiçbir node `handoff` stage'ini temizlemiyor | ❌ **yeni yol gerekiyor** |
+| 3 | Devri devralma (`stage=handoff` kilidini açma) | ✅ (müşteriye bot cevabı geri açar) | **hiçbir yol yok** — hiçbir node `handoff` stage'ini temizlemiyor | ⛔ **CANLI KUSUR** → §9 K6: **Phase 6'da yapılacak**, tek yazma istisnası (yalnız `stage`'i `new`'e döndürür; takvime/randevuya dokunmaz, geri alınabilir) |
 | 4 | Alert'i "çözüldü" işaretleme | ❌ | **hiçbir yol yok**, saklanacak alan da yok | ❌ **yeni yol gerekiyor** (§9 karar 1) |
 | 5 | Müşteriye elle mesaj ("Reply" butonu) | ❌ ama **dışa dönük** | `Send WhatsApp (Zernio)` var ama yalnızca outbound zincirinin içinde | ❌ **yeni yol gerekiyor** — ⚠ **güvenlik**: keyfi numaraya mesaj attırabilen bir endpoint, `Reject Unsigned Request`'in converged edilmeme sebebinin (D-b3 "message-trigger primitive") ta kendisidir. Tasarımı bu riski bilerek yapılmalı |
 | 6 | Kill-switch / dry-run çevirme | ✅ (sistem geneli) | config n8n Code node'unda hard-coded | ❌ **yeni yol gerekiyor** |
@@ -467,7 +469,11 @@ takviminde görmeye devam eder.
 | 8 | Randevu / lead **okuma** | ❌ | — | ✅ doğrudan Airtable okuma |
 
 **Sonuç: 6 aksiyonun 6'sı için yeni bir korumalı yol gerekiyor.** Bu belge o yolu **tasarlamaz** —
-sadece "sessizce doğrudan yazma" seçeneğinin kapalı olduğunu tespit eder. Kararlar §9'da.
+sadece "sessizce doğrudan yazma" seçeneğinin kapalı olduğunu tespit eder.
+
+**Karara bağlandı (§9 K6):** Phase 6'da yalnızca **#3 (devir kilidini açma)** yapılır — canlı kusur
+olduğu ve en düşük riskli yazma olduğu için. **#1/#2 (iptal/erteleme) Phase 7'ye**, kendi
+Critical-Review Target'ları ile. #5 (elle mesaj) ve #6 (kill-switch çevirme) kapsam dışı kalır.
 
 ---
 
@@ -521,7 +527,7 @@ kılmaktır** (§4c).
 
 ### Phase 6 için SOMUT risk: Airtable API rate limit
 
-**Dashboard bir sayfa açılışında kaç okuma yapar? (türetilmiş tahmin)**
+**Naif bir dashboard sayfa açılışında kaç okuma yapar? (türetilmiş tahmin — kısıt bunu YASAKLAR, bkz. altta)**
 
 | Panel | Tablo | İstek | Not |
 |---|---|---|---|
@@ -530,30 +536,52 @@ kılmaktır** (§4c).
 | Lead'ler | `leads` | 1 | |
 | Devir kuyruğu | `conversations` | 1 | `stage='handoff'` filtresi |
 | Spend metresi | `bot_metrics` | 1 | dönem satırı |
-| **Toplam** | | **~5 istek / sayfa açılışı** | sayfalama yoksa |
+| **Toplam** | | **~5 istek / sayfa açılışı** | = saniyelik bütçenin **tamamı** |
 
 Bot aynı anda çalışırken **tek bir müşteri turu** şu Airtable çağrılarını yapar: `Check Processed`
 (1) · `Load State` (1) · `Read Spend` (1) · `Save State` (1) · `Record LLM Spend` (1) ·
 `Record Processed` (1) — **booking turunda ek olarak** `Write Appointment` (1) ve iptal/erteleme
 turunda `Find Booking` + `Update…` (2). Yani **tur başına 6-9 istek**.
 
-**Sıkışma senaryosu:** dashboard'ı açık tutan sahip (otomatik yenileme varsa saniyede tekrarlanan
-~5 istek) + aynı anda 1-2 aktif sohbet turu → aynı base üzerinde onlarca istek/saniye.
+**Sıkışma senaryosu:** dashboard'ı açık tutan sahip + aynı anda 1-2 aktif sohbet turu → aynı base
+üzerinde **11-14 istek/saniye**, limitin 2-3 katı.
 
-> **Airtable'ın saniyelik istek limiti ve sayfa başına kayıt limiti repoda HİÇBİR YERDE kayıtlı
-> değil → DOĞRULANAMADI.** Bu belge bir rakam uydurmaz. Phase 6 planından **önce** Airtable'ın
-> resmi dokümanından teyit edilip `docs/DATA-MODEL.md`'ye yazılmalıdır. Repodaki tek rate-limit
-> kaydı Cloudflare edge kuralıdır (20/dk/IP) ve Airtable ile ilgisizdir.
+### Airtable'ın sert limiti (DOĞRULANDI — Airtable resmi dokümanı, sahip teyidi 2026-08-27)
 
-**Azaltma önerileri (uygulanmadı, öneri):**
-1. **Otomatik yenileme yok** — dashboard elle yenilensin. Tek başına en büyük kazanç.
-2. **Tek toplu okuma** — bugün + yaklaşan randevuları tek `appointments` isteğiyle çek, ayrımı
-   sunucuda yap → 5 istek yerine 4.
-3. **Kısa TTL cache** kendi API katmanımızda (§6 zaten o katmanı dayatıyor) — 30-60 sn'lik cache
-   sahibin sayfayı arka arkaya yenilemesini bota yansıtmaz.
-4. **Sayfalama** — tablolar ilk N satırı çeksin, "daha fazla" isteğe bağlı olsun.
-5. **Bot'a öncelik** — cache/kuyruk katmanında dashboard okumaları bot turlarının arkasında kalsın;
-   yavaş dashboard kabul edilebilir, düşen bir booking değil.
+| Gerçek | Değer |
+|---|---|
+| İstek limiti | **5 istek / saniye / base** |
+| Plana göre değişir mi | **HAYIR — tüm planlarda sabit** |
+| Yükseltilebilir mi | **HAYIR** |
+| Aşımda ne olur | **429** + **30 saniye** bekleme cezası |
+
+> ### ⛔ Bu bir performans konusu değil, bir KESİNTİ riski
+> Ceza **base geneline** uygulanır ve **30 saniye** sürer. Yani dashboard'ın taşırdığı bir saniye,
+> **botu 30 saniye boyunca yere serer**: `Load State` patlar → `Load State Errored?` →
+> `Send Error Response` (503) → müşteri "bir ekip üyesi dönecek" mesajı alır ve `state_unavailable`
+> alert'i düşer. **Sahibin dashboard'ı açması, müşterinin randevu alamamasına sebep olur.**
+>
+> Bütçe matematiği acımasız: saniyede **5** hakkımız var. Naif dashboard sayfası **~5 istek**
+> (üstteki tablo) — tek başına saniyenin tamamını yer. Aynı anda tek bir bot turu **6-9 istek**
+> istiyor. Yani **naif tasarım + tek aktif sohbet = garanti 429.**
+
+### TASARIM KISITI (bağlayıcı — Phase 6 bunu ihlal edemez)
+
+1. **Sayfa başına TEK TOPLU okuma.** Dashboard'ın bir sayfa açılışı **tek bir** Airtable okuma
+   turu yapar; panel başına ayrı istek yok.
+2. **Satır başına ayrı istek KESİNLİKLE YOK.** 20 randevu için 20 istek = anında 429 + 30 sn bot
+   kesintisi. Her satırın verisi toplu okumadan gelir; "detay için tıkla" ayrı çağrı yapmaz,
+   zaten çekilmiş veriyi açar.
+3. **Otomatik yenileme YOK.** Sahip elle yeniler. Polling yapan bir dashboard, botu kalıcı olarak
+   429 sınırında tutar.
+4. **Bot'a öncelik.** Kendi API katmanımız (§6) dashboard okumalarını bot turlarının **arkasına**
+   alır. Yavaş dashboard kabul edilebilir; düşen bir booking değil.
+5. **Kısa TTL cache** kendi katmanımızda (30-60 sn) — sahibin arka arkaya yenilemesi Airtable'a
+   yansımaz.
+6. **Sayfalama** — tablolar ilk N satırı gösterir; "daha fazla" ayrı ve **isteğe bağlı** bir tur.
+
+> Kısıt 1 ve 2, §6'daki "kendi API katmanı" kararının teknik gerekçesidir: tarayıcı doğrudan
+> Airtable'a gitseydi istek sayısını kimse denetleyemezdi.
 
 ### DB'ye geçiş TETİKLEYİCİLERİ (karar sürüklenmesin)
 
@@ -563,7 +591,7 @@ alınır. Bu üçü olmadan **Airtable'da kalınır** — erken karmaşıklık y
 | | Tetikleyici | Neden bu eşik |
 |---|---|---|
 | **a** | Canlıda **gerçek bir çift-booking** gözlenmesi | write-then-verify'ın yetmediğinin kanıtı; CRT #8'in kabul edilmiş kalıntısının gerçekleşmesi |
-| **b** | Airtable rate limit'e **çarpılması** (bot turu veya dashboard 429 alması) | okuma azaltmaları tükendiğinde tek çözüm veri katmanı |
+| **b** | Airtable rate limit'e **çarpılması** (bot turu veya dashboard 429 alması) | 5 rps sabit ve **yükseltilemez** — okuma azaltmaları tükendiğinde geriye tek seçenek veri katmanını değiştirmek kalır |
 | **c** | **Çok-personel / çok-şube** isteyen müşteri | takvim başına kaynak, çakışma matrisi — Airtable'ın ifade edemeyeceği model |
 
 ---
@@ -638,7 +666,7 @@ ne göstereceğini söylemiyor.
 | **Edge rate-limit (429/blok)** widget ekranı | — | tanımsız |
 | **Offline / n8n erişilemez** durumu | — | tanımsız (`PHASE-6-BACKLOG.md` §1) |
 | **Sıfır durumları** (0 randevu / 0 lead / 0 devir) | — | tanımsız (`PHASE-6-BACKLOG.md` §1) |
-| **`stage='handoff'` kilidini açma** | hiçbir yol yok | müşteri sonsuza dek kilitli kalır |
+| **`stage='handoff'` kilidini açma** | hiçbir yol yok | ⛔ **CANLI KUSUR** (eksik özellik değil) — devredilen müşteri sonsuza dek susturulmuş. → §9 K6: Phase 6'da tek yazma istisnası |
 | **"Son hatalar" ekranı** için veri kaynağı | n8n execution log | dışarıdan sorgulanabilir değil |
 | **Kill-switch/dry-run'ı kimin ne zaman açtığı** | kayıtlı değil | denetim izi yok |
 | **`ownerAlert.enabled=false`** durumu | sessizce tüm alert'leri keser | sahibin bunu görebileceği bir yer yok |
@@ -652,77 +680,84 @@ ne göstereceğini söylemiyor.
 
 ---
 
-## §9 — Açık kararlar
+## §9 — Kararlar (KAPANDI — Yigitcan, 2026-08-27)
 
-Her biri: soru · seçenekler · bedel · **önerim**. Yigitcan tek tek cevaplayacak.
+Bu bölüm artık açık soru içermiyor. Her karar bağlayıcıdır; uygulaması "Phase 6 öncesi düzeltme
+turu" ve Phase 6 planına dağıtılmıştır.
 
-### K1 — Devir kuyruğu nereden okunacak? (en kritik)
+### K1 — Devir kuyruğu kaynağı → **conversations satırına iki alan**
 
-Bugün 17 bayrak EPHEMERAL; dashboard'ın sorgulanabilir kaynağı yok.
+**Karar:** yeni tablo YOK, tam transkript YOK. Mevcut `conversations` satırına **iki alan**:
 
-| Seçenek | Bedel |
+| Alan | İçerik |
 |---|---|
-| A. Kalıcı bir alert kaydı (Airtable'da) | yeni tablo/alan = şema değişikliği + n8n yazma adımı + PII/TTL sorumluluğu; **bu belgenin NOT-build'i** |
-| B. n8n execution API'sini dashboard'dan okumak | Service Auth token'ı dashboard sunucusunda; log formatı sözleşme değil, kırılgan; geriye dönük sorgu zayıf |
-| C. Dashboard yalnızca Airtable'dan **türetilebileni** gösterir (`stage='handoff'` konuşmalar + `status='booked'` ama GCal'da olmayanlar), sınıf bilgisi Telegram'da kalır | dashboard "sebebi" gösteremez; sahip iki yere bakar |
+| `last_alert_class` | son alert'in sınıfı (19 sınıftan biri) |
+| `last_alert_at` | ne zaman düştüğü (UTC) |
 
-**Önerim: C ile başla, A'yı Phase 6 planında karara bağla.** Bu belge yeni tablo **önermiyor** —
-ama K1 cevaplanmadan §4c tasarlanamaz. C, sıfır şema riskiyle bugün çalışır ve A'nın önünü kapamaz.
+Yazım **alert dalından, best-effort** — yani `Build Owner Alert` tarafından, **cevap yolundan
+ayrı**. D-c değişmezi korunur: alert yolundaki bir hata müşteri cevabını asla etkilemez.
 
-### K2 — Landing kapsamı (`PHASE-6-BACKLOG.md` §4)
+**Neden C değil (belgenin önerisi reddedildi, gerekçesi kayıt altında):** sebebi göremeyen bir
+devir kuyruğu yarım kalır. Sahip "bu konuşma neden takıldı?" sorusunu Telegram'da aramak zorunda
+kalırsa dashboard'ın varlık sebebi ortadan kalkar. İki alan 18 residue sınıfının **hepsini**
+kapsar ve şema riski minimumdur.
 
-Tam salon sitesi (harita · arama butonu · adres · yorumlar · galeri) mi, odaklı bot vitrini mi?
+**Kalan sınır (dürüstlük):** bu "son alert"tir, alert **geçmişi** değil. Aynı konuşmada arka arkaya
+iki farklı sınıf düşerse ikincisi birincinin üstüne yazar. Kabul edilmiş — tam transkript/geçmiş
+ertelendi.
 
-**Önerim: odaklı bot vitrini.** Bu bir portföy/vitrin parçası; satılan şey bot. Tam site 5 ekstra
-bölüm + içerik demek, botla ilgisi yok. Müşteriye satarken "sitenize gömülür" demek zaten daha güçlü.
+### K2 — Landing kapsamı → **odaklı bot vitrini**
+Tam salon sitesi (harita · arama butonu · yorumlar · galeri) **kapsam dışı**.
+`docs/PHASE-6-BACKLOG.md` §4 böylece kapanır.
 
-### K3 — Dashboard'ın Airtable'a erişimi: doğrudan mı, kendi API katmanı üzerinden mi?
+### K3 — Dashboard veri erişimi → **kendi API katmanı**
+Tarayıcı **asla** doğrudan Airtable'a gitmez; Airtable PAT'ı tarayıcıya inmez. §6 taşınabilirlik
+kısıtı + §7 kısıt 1/2/4 yalnızca bu katmanda uygulanabilir.
 
-**Önerim: kendi katman — tartışmasız.** §6 taşınabilirlik kısıtı bunu zaten dayatıyor, ayrıca
-Airtable PAT'ı tarayıcıya inmemeli ve §7'deki cache/azaltma yalnızca o katmanda mümkün.
+### K4 — Widget 400/503 metni → **config template**
+Motor değişmez (`reply` anahtarı eklenmez). Metin `messageTemplates`'e girer, widget oradan okur.
+Tek dil/marka kaynağı korunur.
 
-### K4 — Widget'ın 400/503'te göstereceği metin (BULGU #8)
+### K5 — `outsideHours` + `greeting` → **tasarımdan çıkar + ölü config anahtarlarını TEMİZLE**
+Mockup'taki "Outside working hours" durum kartı silinir. Motor değişmez — bot 7/24 cevap verir ve
+bu doğru davranıştır (kapalıyken de randevu alınabilmeli).
 
-| Seçenek | Bedel |
-|---|---|
-| A. Frontend'de sabit metin | hızlı; ama marka/dil ikinci bir yerde yaşar, drift riski |
-| B. Config template'inden okunur | tek dil kaynağı; config-wiring gerekir (K7 ile aynı iş) |
-| C. Motoru değiştir, gövdeye `reply` ekle | **NOT-build** — bu adımda motor değişmez |
+**Ek karar (belgenin önerisini genişletir):** ölü config anahtarları da **silinir**.
+Gerekçe: hiçbir şey yapmayan bir config anahtarı, tekrar satılabilir bir template'te **sonraki
+müşteri için tuzaktır** — birisi `outsideHours` metnini değiştirir, hiçbir şey olmaz, ve neden
+olmadığını anlamak için motoru okumak zorunda kalır.
 
-**Önerim: B.** Phase 6 zaten config'i gerçekten bağlayacak; metin oraya girsin. C bu belgede yasak.
+### K6 — Phase 6 kapsamı → **salt-okunur + devir kuyruğu, TEK yazma istisnası ile**
 
-### K5 — `outsideHours` + `greeting` (BULGU #4)
+**İstisna: "devir kilidini serbest bırak" yazma aksiyonu Phase 6'DA olacak.**
 
-| Seçenek | Bedel |
-|---|---|
-| A. Tasarımdan çıkar | mockup'ta 1 durum kartı silinir; sistem dürüst kalır |
-| B. Motora bağla | yeni node/branch = motor değişikliği, çalışma saati mantığı yok (bugün bot 7/24 cevaplıyor, kapalı saat kavramı yalnızca **slot** kontrolünde var) |
+**Gerekçe (belgenin önerisini düzeltir):** §5'te tespit edilen "`stage='handoff'` kilidini açacak
+hiçbir yol yok" bulgusu **eksik özellik değil, CANLI KUSURDUR**. Devredilen müşteri bugün
+**sonsuza dek susturulmuş** durumda: her mesajına `handoffLocked` cevabı gider, bot bir daha asla
+devreye girmez ve kilidi açacak hiçbir arayüz yoktur.
 
-**Önerim: A.** `outsideHours` bir ekran değil, hiç uygulanmamış bir fikir. Bot 7/24 cevap veriyor
-ve bu doğru davranış — kapalıyken de randevu alınabilmeli. Motoru bu adımda değiştirme.
+Bu aynı zamanda **en düşük riskli yazma**: `conversations.stage`'i `new`'e döndürür. Takvime
+dokunmaz, randevuya dokunmaz, dış sisteme dokunmaz, geri alınabilir.
 
-### K6 — Dashboard yazma aksiyonları Phase 6'da mı, sonra mı?
+**İptal / erteleme yazmaları Phase 7'ye kalır** — kendi Critical-Review Target'ları ile.
 
-§5 gösterdi: 6 yıkıcı aksiyonun 6'sı için **yeni korumalı yol** gerekiyor.
-
-**Önerim: Phase 6 = salt-okunur + devir kuyruğu görüntüleme. Yazma aksiyonları Phase 7.** Gerekçe:
-yazma yolları CRT #9 (auth) + yeni webhook güvenliği + K1 kararını birlikte gerektirir; Phase 6'yı
-üç açık uçlu işe bağlamak fazın kendisini bloklar. Salt-okunur dashboard bugün gerçek değer üretir
-(sahip randevuları ve devir kuyruğunu görür) ve hiçbir koruma baypas edilmez.
-
-### K7 — BULGU #1 (`cancel_mirror_failed`) ne zaman düzeltilsin?
-
-| Seçenek | Bedel |
-|---|---|
-| A. Ayrı küçük fix, Phase 6'dan önce | ~1 kenar + `Build Owner Alert`'e 1 satır; kendi drill'i gerekir |
-| B. Phase 6 içinde | Phase 6 zaten büyük; motor değişikliği fazın kapsamını bulanıklaştırır |
-| C. Phase 7'ye | sessiz hata canlıda kalmaya devam eder |
-
-**Önerim: A.** Bu bir kural ihlali (`n8n-conventions.md` — "failures must be VISIBLE"), kozmetik
-değil. Küçük, izole ve drill'i kolay. BULGU #2 (drift-guard'a 12. dalı ekleme) ve #3/#5/#6/#9
-(doküman düzeltmeleri) aynı küçük temizlik turuna sığar.
+### K7 — BULGU #1 zamanlaması → **Phase 6'dan ÖNCE, ayrı küçük fix turu**
+Onaylandı. §8'deki doküman/guard düzeltmeleri ve K1/K4/K5'in repo tarafı aynı tura alınır.
+Detaylar: "Phase 6 öncesi düzeltme turu" planı.
 
 ---
+
+## §10 — Kararların uygulama dağılımı
+
+| Karar | Nerede uygulanır |
+|---|---|
+| K1 iki alan (`last_alert_class`/`last_alert_at`) | düzeltme turu (Airtable alan + `Build Owner Alert` yazımı) |
+| K4 400/503 config template'leri | düzeltme turu (config + şema) |
+| K5 ölü anahtar temizliği | düzeltme turu (config + `Load Config`) |
+| K7 = BULGU #1 · #2 · #3 · #5 · #6 · #9 | düzeltme turu |
+| K2 landing kapsamı · K3 API katmanı · K6 salt-okunur + kilit açma | **Phase 6** `/plan-flow` |
+| İptal/erteleme yazma yolları | **Phase 7** + kendi CRT |
+| §7 Airtable kısıtları (1-6) | **Phase 6** — bağlayıcı kabul kriteri |
 
 ## Kapanış — bu belge neyi garanti eder
 
@@ -731,4 +766,5 @@ kaynak olarak alır. Bir ekran bu belgede yoksa, sistemde de yoktur — ve tasar
 **"YENİ — gerekçesi şu"** olarak buraya girmesi gerekir.
 
 §8'deki 9 bulgu ve 14 yüzeysiz kalem, tasarımın **bilerek** boş bırakacağı yerlerdir; sessizce
-atlanan yerler değil.
+atlanan yerler değil. §9'daki 7 karar 2026-08-27'de kapandı; §10 hangisinin nerede uygulanacağını
+söyler. §7'deki 6 Airtable kısıtı Phase 6 için **bağlayıcı kabul kriteridir**.

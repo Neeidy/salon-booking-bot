@@ -440,19 +440,22 @@
   - ## §7 — Veri katmanı gerçeği
   - ### Ne yok
   - ### Phase 6 için SOMUT risk: Airtable API rate limit
+  - ### Airtable'ın sert limiti (DOĞRULANDI — Airtable resmi dokümanı, sahip teyidi 2026-08-27)
+  - ### TASARIM KISITI (bağlayıcı — Phase 6 bunu ihlal edemez)
   - ### DB'ye geçiş TETİKLEYİCİLERİ (karar sürüklenmesin)
   - ## §8 — Boşluklar ve çelişkiler
   - ### 8.1 — ⚠ BULGU: sistem çelişkileri (envanterden çıktı, hepsi doğrulandı)
   - ### 8.2 — Yüzeysiz kalanlar (envanterde var, hiçbir ekranda yok)
   - ### 8.3 — Şema / config boşlukları
-  - ## §9 — Açık kararlar
-  - ### K1 — Devir kuyruğu nereden okunacak? (en kritik)
-  - ### K2 — Landing kapsamı (`PHASE-6-BACKLOG.md` §4)
-  - ### K3 — Dashboard'ın Airtable'a erişimi: doğrudan mı, kendi API katmanı üzerinden mi?
-  - ### K4 — Widget'ın 400/503'te göstereceği metin (BULGU #8)
-  - ### K5 — `outsideHours` + `greeting` (BULGU #4)
-  - ### K6 — Dashboard yazma aksiyonları Phase 6'da mı, sonra mı?
-  - ### K7 — BULGU #1 (`cancel_mirror_failed`) ne zaman düzeltilsin?
+  - ## §9 — Kararlar (KAPANDI — Yigitcan, 2026-08-27)
+  - ### K1 — Devir kuyruğu kaynağı → **conversations satırına iki alan**
+  - ### K2 — Landing kapsamı → **odaklı bot vitrini**
+  - ### K3 — Dashboard veri erişimi → **kendi API katmanı**
+  - ### K4 — Widget 400/503 metni → **config template**
+  - ### K5 — `outsideHours` + `greeting` → **tasarımdan çıkar + ölü config anahtarlarını TEMİZLE**
+  - ### K6 — Phase 6 kapsamı → **salt-okunur + devir kuyruğu, TEK yazma istisnası ile**
+  - ### K7 — BULGU #1 zamanlaması → **Phase 6'dan ÖNCE, ayrı küçük fix turu**
+  - ## §10 — Kararların uygulama dağılımı
   - ## Kapanış — bu belge neyi garanti eder
 
 ### `docs/n8n-rollback.md`
