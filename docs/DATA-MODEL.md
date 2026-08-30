@@ -72,13 +72,15 @@ Five live tables. `leads` / `appointments` are the CRM; `conversations` / `proce
 | **cancel_target_id** | text | the Airtable record id of the booking a pending `yes` is bound to — this is what makes cancel/reschedule confirmation IDOR-safe (was undocumented until FIX-1) |
 | **confirm_turn** | text | `turn_count + 1` at the moment the confirm question was asked → the confirm is honored only on the **immediate next turn** (confirm-TTL). Text, not number, to match how it is written (was undocumented until FIX-1) |
 | **computed_reply** | long text | the single source of this turn's reply (Refactor #5); every reply-producing builder writes it, `Build Reply Payload` reads it, and an empty value is what raises the `reply_fallback` alert. May contain a customer name/service — treat as borderline PII (was undocumented until FIX-1) |
-| **last_alert_class** | single line text | **FIX-1 / UX-ARCHITECTURE §9 K1** — the class of the last owner-alert **delivered** for this conversation (one of the 19 classes). Written best-effort by `Record Alert Class` on the alert branch, never on the reply path (D-c invariant). Before this, every residue flag was ephemeral: once the Telegram message scrolled past, nothing in Airtable said *why* a conversation was stuck. |
-| **last_alert_at** | datetime | UTC — when that alert was delivered. |
+| **last_alert_class** | single line text | **FIX-1 / UX-ARCHITECTURE §9 K1** — the class of the last owner-alert **actually delivered** for this conversation (one of the **21** classes). Written by `Record Alert Class` **only after `Send Owner Alert (Telegram)` succeeds** (Codex #5): if delivery fails this field stays EMPTY, because empty is the true statement — a dashboard must never show "the owner was told" when they were not. Never on the reply path (D-c invariant). **Search-then-update, never upsert** (Codex #4): the row must already exist, so a client-controlled `sessionId` cannot mint a metadata-only junk row. Before this, every residue flag was ephemeral: once the Telegram message scrolled past, nothing in Airtable said *why* a conversation was stuck. |
+| **last_alert_at** | datetime | UTC — when that alert was delivered (same write, same condition). |
 
-> **Honest limit on the two alert fields:** `Build Owner Alert` returns `[]` when an alert is
-> throttled (30 min per class+sender), so these fields record the last **delivered** alert, not the
-> last **occurring** one. They are also a *last* value, not a history — a second class overwrites the
-> first. Alert history / full transcript was deliberately deferred (§9 K1).
+> **Honest limits on the two alert fields:** `Build Owner Alert` returns `[]` when an alert is
+> throttled (30 min per class+sender), so these fields record the last **delivered** alert, not the last
+> **occurring** one. They are also a *last* value, not a history — a second class overwrites the first.
+> Alert history / full transcript was deliberately deferred (§9 K1). Front-gate alerts whose sender has
+> no conversation row (e.g. `normalize_drift`, or a first-contact spend-cap trip) leave **no Airtable
+> trace at all** — by design, since the alternative was creating junk rows.
 
 > ### PII expiry — what is and is NOT solved (FIX-1)
 > The 30-day scrub covers **message content** (`recent_messages`). It does **NOT** make the row

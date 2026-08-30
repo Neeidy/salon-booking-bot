@@ -34,6 +34,9 @@ the shared outbound would hand an attacker a MESSAGE-TRIGGER primitive — an un
 request with a forged conversationId could make the bot send a WhatsApp message to an
 arbitrary number. Separation is a security requirement, not a cleanliness choice.
 
+Since FIX-1 it also asserts the INVENTORY is exhaustive: the set of nodes feeding Finalize Outbound
+must EQUAL the CONVERGE list, so a new unrecorded exit cannot slip in silently (Codex #6).
+
 This guard is a close-gate + security-auditor check. Non-zero exit = the convergence
 contract drifted. Runs on the committed sanitized workflow (no n8n API needed).
 """
@@ -61,7 +64,26 @@ if not rej or rej['type'] != 'n8n-nodes-base.respondToWebhook':
 if 'Finalize Outbound' in [t['node'] for b in conns.get('Reject Unsigned Request', {}).get('main', [[]])[0] for t in [b]]:
     fail('Reject Unsigned Request must NOT route into the shared outbound (message-trigger risk)')
 
-# 2. every converged branch is a Code tag carrying _outbound_status + _outbound_body, routed to Finalize
+# 2a. THE INVENTORY ITSELF (Codex #6). Checking only the RECORDED branches made this guard blind to the
+# thing it exists to catch: a NEW, unrecorded exit wired into the shared outbound was accepted in silence
+# (Codex proved it by sabotage). So first assert EXACT SET EQUALITY between CONVERGE and the real set of
+# nodes feeding Finalize Outbound — an addition fails just as loudly as a removal.
+actual = set()
+for src, cc in conns.items():
+    for br in cc.get('main', []):
+        for t in (br or []):
+            if t['node'] == 'Finalize Outbound':
+                actual.add(src)
+missing = set(CONVERGE) - actual          # recorded here but no longer wired
+unrecorded = actual - set(CONVERGE)       # wired into the outbound but never reviewed
+if unrecorded:
+    fail(f'UNRECORDED outbound exit(s) feeding Finalize Outbound: {sorted(unrecorded)} — every reply exit '
+         f'must be added to CONVERGE and reviewed (status/body/should_send + a customer-facing screen in '
+         f'docs/UX-ARCHITECTURE.md §3). A new exit is exactly what this guard exists to catch.')
+if missing:
+    fail(f'CONVERGE lists {sorted(missing)} but they no longer route to Finalize Outbound')
+
+# 2b. every converged branch is a Code tag carrying _outbound_status + _outbound_body, routed to Finalize
 for nm in CONVERGE:
     n = byname.get(nm)
     if not n: fail(f'{nm} missing')

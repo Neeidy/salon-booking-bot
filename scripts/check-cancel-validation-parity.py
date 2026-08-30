@@ -188,6 +188,32 @@ elif main_lc and rem_lc:
         fails.append(f"ownerAlert THREE-WAY DRIFT — {oa} — enabled/throttleMinutes MUST match across "
                      f"main, reminders and purge (a kill-switch that silences only some alerts is broken)")
 
+# 6c) ERROR-COLLECTOR TAG UNIQUENESS (FIX-1, Codex-adjacent). The purge and reminders workflows identify
+#     WHICH stage failed by topology: one collector node per error source, each stamping a literal branch
+#     tag that becomes part of the alert's throttle key. If two collectors ever carried the SAME tag, their
+#     keys would collide and the second failure would be silently suppressed — exactly the swallow this
+#     design was built to prevent (purge exec 1631, before the per-branch key). A duplicated tag is a
+#     copy-paste away, so it is asserted rather than trusted.
+for wf_path, tag_field, prefix in ((PURGE_PATH, '_purge_branch', 'Purge Error'),
+                                   (REM_PATH, '_reminder_branch', 'Reminder Error')):
+    try:
+        wnodes = json.load(open(wf_path, encoding='utf-8'))['nodes']
+    except FileNotFoundError:
+        continue
+    collectors = [n for n in wnodes if n['name'].startswith(prefix)]
+    tags = []
+    for n in collectors:
+        m = re.search(re.escape(tag_field) + r":\s*'([a-z_]+)'", (n.get('parameters') or {}).get('jsCode', ''))
+        if not m:
+            fails.append(f"{n['name']} in {wf_path} does not stamp a {tag_field} tag — the alert could not "
+                         f"name which stage failed, and its throttle key would collide with its siblings")
+        else:
+            tags.append(m.group(1))
+    if len(tags) != len(set(tags)):
+        dupes = sorted({t for t in tags if tags.count(t) > 1})
+        fails.append(f"DUPLICATE {tag_field} tag(s) {dupes} across {prefix} collectors in {wf_path} — "
+                     f"colliding throttle keys silently swallow the second failure")
+
 if fails:
     print('DRIFT — cancel-validation single-source violated:')
     for f in fails:
@@ -201,5 +227,6 @@ print('cancel-validation parity OK — gid regex 5x identical [0-9a-v]{5,1024} (
       'calendar_id present}; Confirm Fresh?==Reschedule Fresh? TTL byte-identical; '
       f'routed *_confirming {sorted(routed)} all have a Build LLM Request stageContext branch; '
       'two Load Configs share identical business.timezone + bot.killSwitch; '
-      'three Load Configs share identical ownerAlert.enabled + throttleMinutes')
+      'three Load Configs share identical ownerAlert.enabled + throttleMinutes; '
+      'purge/reminders error-collector branch tags are unique')
 sys.exit(0)

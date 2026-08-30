@@ -308,20 +308,8 @@
       "onError": "continueErrorOutput"
     },
     {
-      "parameters": {},
-      "id": "rem_error",
-      "name": "Reminder Error",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        1792,
-        384
-      ],
-      "notes": "Visible failure branch for Airtable read/write errors in the reminder run (infra class). Owner-alert (Telegram) = Phase 5. A failed Stamp leaves reminder_sent empty → next run retries (at-least-once)."
-    },
-    {
       "parameters": {
-        "jsCode": "// Owner-alert (Reminders) — reminder-run failures reach a human (CP5a). OFF the main path (Reminder Error is\n// already terminal). Enabled-gate + throttle (own static data). A failure here never affects the reminder run.\nconst lc = $('Load Config (Reminders)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst n = items.length;\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'reminder_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[cls] === 'number' && (now - sd.ownerAlerts[cls]) < windowMin*60*1000) return [];\nsd.ownerAlerts[cls] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 reminder-error\\nfailed items: ' + n + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+        "jsCode": "// Owner-alert (Reminders) — reminder-run failures reach a human (CP5a). OFF the main path (Reminder Error is\n// already terminal). Enabled-gate + throttle (own static data). A failure here never affects the reminder run.\nconst lc = $('Load Config (Reminders)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst n = items.length;\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'reminder_error';\n// FIX-1 (Codex): the throttle key carries the BRANCH. n8n runs a node ONCE PER INCOMING CONNECTION,\n// so with three collectors a single global key would let the first failure suppress the other two —\n// the same swallow the purge composer hit (exec 1631). Per-branch keys keep the stages independent.\nconst branch = ($input.all()[0] && $input.all()[0].json && $input.all()[0].json._reminder_branch) || 'unknown';\nconst key = cls + ':' + branch;\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 reminder-error\\nbranch: ' + branch + '\\nfailed items: ' + n + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -383,6 +371,45 @@
       "position": [
         560,
         480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reminder Error (lookup) — error collector. Tags WHICH stage of the reminder run failed. n8n's error item does not\n// carry the failing node, so the stage is identified by TOPOLOGY (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _reminder_branch: 'lookup' } }));"
+      },
+      "id": "rem_err_lookup",
+      "name": "Reminder Error (lookup)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reminder Error (stamp) — error collector. Tags WHICH stage of the reminder run failed. n8n's error item does not\n// carry the failing node, so the stage is identified by TOPOLOGY (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _reminder_branch: 'stamp' } }));"
+      },
+      "id": "rem_err_stamp",
+      "name": "Reminder Error (stamp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reminder Error (send) — error collector. Tags WHICH stage of the reminder run failed. n8n's error item does not\n// carry the failing node, so the stage is identified by TOPOLOGY (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _reminder_branch: 'send' } }));"
+      },
+      "id": "rem_err_send",
+      "name": "Reminder Error (send)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        544
       ]
     }
   ],
@@ -449,7 +476,7 @@
         ],
         [
           {
-            "node": "Reminder Error",
+            "node": "Reminder Error (lookup)",
             "type": "main",
             "index": 0
           }
@@ -472,7 +499,7 @@
         [],
         [
           {
-            "node": "Reminder Error",
+            "node": "Reminder Error (stamp)",
             "type": "main",
             "index": 0
           }
@@ -519,18 +546,7 @@
         ],
         [
           {
-            "node": "Reminder Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Reminder Error": {
-      "main": [
-        [
-          {
-            "node": "Build Owner Alert (Reminders)",
+            "node": "Reminder Error (send)",
             "type": "main",
             "index": 0
           }
@@ -565,6 +581,39 @@
         [
           {
             "node": "Compute Reminder Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Error (lookup)": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert (Reminders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Error (stamp)": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert (Reminders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Error (send)": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert (Reminders)",
             "type": "main",
             "index": 0
           }

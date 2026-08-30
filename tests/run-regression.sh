@@ -34,7 +34,12 @@ assert() { # name reply needle
   else FAIL=$((FAIL+1)); printf 'FAIL  %s\n      got: %s\n      want~ %s\n' "$1" "$2" "$3"; fi
 }
 
-WK="2026-08-28"   # a Friday (weekday, open) — bump if in the past
+# Booking date: computed, never hand-maintained. A hardcoded WK silently rots — the suite then books
+# into the PAST and every booking assertion fails for a reason that has nothing to do with the bot
+# (this actually happened; it was bumped by hand twice). Pick the next day the shop is OPEN:
+# tomorrow, unless tomorrow is Sunday (config workingHours.sun = [] = closed), in which case Monday.
+WK="$(date -u -d 'tomorrow' +%Y-%m-%d)"
+[ "$(date -u -d "$WK" +%u)" = "7" ] && WK="$(date -u -d '2 days' +%Y-%m-%d)"
 
 # --- Assertion-strength audit (2026-08-17) — "would this assertion FAIL if the behaviour were WRONG?" ---
 # The 12/12 pass is the safety gate for the whole #5 refactor, so each needle must be exit-specific.

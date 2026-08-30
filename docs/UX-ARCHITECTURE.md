@@ -389,24 +389,33 @@ Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, s
 
 **Alert VERİLMEYENLER (bilinçli):** `race_lost` (normal sonuç, KK3) · kill-switch trip'i (sahip
 kendi açtı, KK2) · duplicate · 403 unsigned · 403 turnstile · widget-lane normalize reject.
-**Alert verilmeyenler (kaza):** `cancel_mirror_failed` — §8 BULGU #1.
+~~**Alert verilmeyenler (kaza):** `cancel_mirror_failed`~~ → **KAPANDI (FIX-1, 2026-08-30).**
+Artık kendi sınıfıyla alert veriyor (§4c tablosu, sıra 20). Kaza kategorisi **boş**.
 
 > ### Devir kuyruğunun temel problemi — ✅ ÇÖZÜLDÜ (FIX-1, 2026-08-30)
 > **Önceden:** 18 residue bayrağının 17'si EPHEMERAL'di — hiçbiri Airtable'a yazılmıyordu. Bir alert
 > Telegram'da kaydırılıp gittiğinde geriye yalnız `stage='handoff'` (sebebi söylemez) ve 18 sınıfın
 > 6'sında `gcal_event_id` kalıyordu. Yalnız Airtable okuyan bir dashboard **sebebi göremezdi**.
 >
-> **Şimdi:** `Build Owner Alert` → `Valid Sender?` → **`Record Alert Class`** her teslim edilen alert'i
-> `conversations.last_alert_class` + `last_alert_at` alanlarına yazıyor. Dashboard artık takılı bir
-> konuşmanın **neden** takıldığını Airtable'dan okuyabiliyor.
+> **Şimdi:** `Send Owner Alert (Telegram)` **başarı** çıkışı → `Alert Context` → `Find Conversation Row`
+> → **`Record Alert Class`** her **teslim edilmiş** alert'i `conversations.last_alert_class` +
+> `last_alert_at` alanlarına yazıyor. Dashboard artık takılı bir konuşmanın **neden** takıldığını
+> Airtable'dan okuyabiliyor.
 >
 > **Dürüst sınırlar (tasarımın bilmesi gerekenler):**
-> 1. **Son TESLİM EDİLEN alert**, son *oluşan* değil — throttle'da composer `[]` döndüğü için alan
->    yeniden yazılmaz (F4 ile kanıtlandı).
-> 2. **Son değer, geçmiş değil** — sonraki bir sınıf öncekini ezer. Tam transkript ertelendi (§9 K1).
-> 3. **Front-gate alert'leri kapsam dışı** — `Valid Sender?` kapısı, `conversations` satırı olmayan
->    alert'lerde (`normalize_drift`) çöp satır yaratılmasını engeller; bedeli, o sınıfların Airtable'da
->    izi olmaması.
+> 1. **Yalnız TESLİM EDİLMİŞ alert yazılır** (Codex #5). Telegram gönderimi patlarsa alan **boş kalır** —
+>    ve boş olan **doğru** bilgidir. Dashboard asla "sahip haberdar edildi" demez, edilmemişken.
+> 2. **Throttle'da yazılmaz** — composer `[]` döndüğü için alan güncellenmez (F4).
+> 3. **Son değer, geçmiş değil** — sonraki bir sınıf öncekini ezer. Tam transkript ertelendi (§9 K1).
+> 4. **Satır ZATEN VAR olmalı** (Codex #4). Upsert kullanılmıyor: widget'ta `sender_key` istemci
+>    kontrolündeki `sessionId`'den türüyor, ve **şekil varlık kanıtı değildir** — upsert, yalnız-metadata
+>    çöp satır yaratılmasına izin veriyordu. Arama 0 sonuç dönerse **hiçbir şey yazılmaz** (alert yine
+>    Telegram'a gider). Bedeli: konuşma satırı olmayan alert'ler (`normalize_drift`, ilk-temas spend-cap)
+>    Airtable'da **iz bırakmaz**.
+> 5. **Kimlik sınırı değişmedi:** widget `sessionId`'sini bilen biri o oturumu taklit edebilir — bu
+>    CP4a'dan beri kayıtlı, kabul edilmiş bir T1 limiti (README "session-token gücü, doğrulanmış kimlik
+>    değil"), A2'nin getirdiği bir açık değil. A2'nin kapattığı şey, **başka** bir anahtara yazabilme
+>    ve satır uydurabilme idi.
 > 4. **"Çözüldü" işaretleme mekanizması hâlâ YOK** — alan son durumu tutar, sahip "hallettim" diyemez.
 
 ### 4.d — Sistem sağlığı

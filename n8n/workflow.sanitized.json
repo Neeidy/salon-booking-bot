@@ -5050,41 +5050,83 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json._alert_sender !== 'unknown' && $json._alert_sender.includes(':') }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              },
-              "id": "cond-fix1-valid-sender"
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "// Alert-class stamp failed (Airtable). Visible marker; the customer reply and the Telegram alert are\n// both unaffected — this branch is downstream of Build Owner Alert, OFF the reply path (D-c).\n// Terminal on purpose: alerting about a failed alert-stamp would recurse (same rule as Owner Alert Failed).\nreturn [{ json: { alert_record_failed: true, error: ($json && $json.error) || 'unknown' } }];"
       },
-      "id": "fix1_valid_sender",
-      "name": "Valid Sender?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
+      "id": "fix1_alert_record_failed",
+      "name": "Alert Record Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13216,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Alert class stamped onto the conversation (FIX-1 A2 — §9 K1)\n\n`Send Owner Alert (Telegram)` **success** -> `Alert Context` -> `Find Conversation Row` ->\n`Record Alert Class` (Airtable **update by record id**).\n\n**Why:** before this, all 18 residue flags were EPHEMERAL — once the Telegram message scrolled past,\nAirtable said a conversation was stuck (`stage=handoff`) but never WHY.\n\n**Codex #5 — written only AFTER a successful send.** It used to be written in parallel with the send,\nso the field could claim the owner was told when delivery had failed. A dashboard would have shown a\nlie. If delivery fails the field stays EMPTY, and empty is the true statement.\n\n**Codex #4 — search-then-update, never upsert.** `sender_key` on the widget channel comes from a\nCLIENT-CONTROLLED `sessionId`; shape is not proof of existence. An upsert let a caller (a) create a\nmetadata-only junk row and (b) overwrite another session's alert fields by guessing its id. Same\nlesson as the CP4a IDOR: never trust the payload. The row must ALREADY exist; 0 results -> no write.\n\n**Honest limits:** it is a LAST value, not a history — a later class overwrites. Front-gate alerts\nwith no conversation row leave no Airtable trace (by design).\n\n**D-c preserved:** the whole branch hangs off the alert composer, never the reply path.",
+        "height": 460,
+        "width": 520
+      },
+      "id": "fix1_sticky_a2",
+      "name": "Sticky — Alert class stamp",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
       "position": [
         12768,
+        1680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alert Context (Codex #4 + #5) — runs ONLY on Send Owner Alert SUCCESS.\n// #5 (honesty): the stamp used to be written in parallel with the Telegram send, so\n// `last_alert_class` could say 'the owner was told' when delivery had actually failed. A dashboard\n// reading that field would have shown a lie. It is now written strictly AFTER a successful send —\n// if delivery fails the field stays empty, and empty is the TRUE statement.\n// #4 (trust): we do NOT upsert. Shape is not proof of existence — see below.\nconst a = $('Build Owner Alert').first().json;\nconst sender = a._alert_sender;\n// Cheap pre-filter only: skips a pointless Airtable read for front-gate alerts with no conversation\n// (Airtable is capped at 5 req/s per base — every avoided read matters). It is NOT the safety check;\n// the safety check is 'the row must already exist', enforced by Find Conversation Row below.\nif (!sender || sender === 'unknown' || !sender.includes(':')) return [];\nreturn [{ json: { _alert_class: a._alert_class, _alert_at: a._alert_at, _alert_sender: sender,\n                  _telegram_message_id: (($json.result || {}).message_id) || null } }];"
+      },
+      "id": "fix1_alert_ctx",
+      "name": "Alert Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12992,
         1488
       ]
     },
     {
       "parameters": {
-        "operation": "upsert",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations"
+        },
+        "filterByFormula": "={{ '{sender_key} = \"' + $json._alert_sender + '\"' }}",
+        "limit": 1,
+        "options": {}
+      },
+      "id": "fix1_find_conv",
+      "name": "Find Conversation Row",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        13216,
+        1488
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
         "base": {
           "__rl": true,
           "value": "appXXXXXXXXXXXXXX",
@@ -5100,23 +5142,23 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "sender_key": "={{ $json._alert_sender }}",
-            "last_alert_class": "={{ $json._alert_class }}",
-            "last_alert_at": "={{ $json._alert_at }}"
+            "id": "={{ $json.id }}",
+            "last_alert_class": "={{ $('Alert Context').first().json._alert_class }}",
+            "last_alert_at": "={{ $('Alert Context').first().json._alert_at }}"
           },
           "matchingColumns": [
-            "sender_key"
+            "id"
           ],
           "schema": [
             {
-              "id": "sender_key",
-              "displayName": "sender_key",
+              "id": "id",
+              "displayName": "id",
               "required": false,
-              "defaultMatch": false,
+              "defaultMatch": true,
               "canBeUsedToMatch": true,
               "display": true,
               "type": "string",
-              "readOnly": false,
+              "readOnly": true,
               "removed": false
             },
             {
@@ -5145,12 +5187,12 @@
         },
         "options": {}
       },
-      "id": "fix1_record_alert_class",
+      "id": "fix1_record_alert_class2",
       "name": "Record Alert Class",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
       "position": [
-        12992,
+        13440,
         1488
       ],
       "credentials": {
@@ -5160,34 +5202,6 @@
         }
       },
       "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Alert-class stamp failed (Airtable). Visible marker; the customer reply and the Telegram alert are\n// both unaffected — this branch is downstream of Build Owner Alert, OFF the reply path (D-c).\n// Terminal on purpose: alerting about a failed alert-stamp would recurse (same rule as Owner Alert Failed).\nreturn [{ json: { alert_record_failed: true, error: ($json && $json.error) || 'unknown' } }];"
-      },
-      "id": "fix1_alert_record_failed",
-      "name": "Alert Record Failed",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        13216,
-        1568
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## Alert class stamped onto the conversation (FIX-1 A2 — §9 K1)\n\n`Build Owner Alert` -> **Valid Sender?** -> **Record Alert Class** writes `last_alert_class` +\n`last_alert_at` onto the `Conversations` row.\n\n**Why:** before this, all 18 residue flags were EPHEMERAL — once the Telegram message scrolled past,\nAirtable said a conversation was stuck (`stage=handoff`) but never WHY. A dashboard reading Airtable\ncould not triage.\n\n**Valid Sender? gate:** front-gate alerts (`normalize_drift`, `dedupe_marker_failed`) can fire with no\nconversation row; an upsert would CREATE a junk row holding only alert fields. Skipped unless the\nsender is a real `channel:id`.\n\n**Honest limits:** (1) throttled alerts return `[]` upstream, so this records the last DELIVERED alert,\nnot the last occurring one. (2) It is a LAST value, not a history — a later class overwrites.\n\n**D-c preserved:** the whole branch is downstream of the alert composer; a failure here cannot touch\nthe customer reply.",
-        "height": 460,
-        "width": 520
-      },
-      "id": "fix1_sticky_a2",
-      "name": "Sticky — Alert class stamp",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        12768,
-        1680
-      ]
     }
   ],
   "connections": {
@@ -7067,18 +7081,19 @@
             "node": "Send Owner Alert (Telegram)",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Valid Sender?",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
     },
     "Send Owner Alert (Telegram)": {
       "main": [
-        [],
+        [
+          {
+            "node": "Alert Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Owner Alert Failed",
@@ -7484,7 +7499,30 @@
         ]
       ]
     },
-    "Valid Sender?": {
+    "Record Alert Class": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert Record Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Context": {
+      "main": [
+        [
+          {
+            "node": "Find Conversation Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Conversation Row": {
       "main": [
         [
           {
@@ -7493,12 +7531,6 @@
             "index": 0
           }
         ],
-        []
-      ]
-    },
-    "Record Alert Class": {
-      "main": [
-        [],
         [
           {
             "node": "Alert Record Failed",
