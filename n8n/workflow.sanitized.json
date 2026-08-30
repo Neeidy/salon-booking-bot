@@ -4203,7 +4203,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.normalize_drift) { cls = 'normalize_drift'; }\nelse if (j.dedupe_marker_failed) { cls = 'dedupe_marker_failed'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.cancel_mirror_failed) cls = 'cancel_mirror_failed';   // FIX-1 A1: GCal'dan silindi ama Airtable 'booked' kaldi -> ayri sinif (mudahalesi farkli)\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nif (j.normalize_reason) lines.push('reason: ' + j.normalize_reason);\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && KIND[kind]) { cls = KIND[kind]; }\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.normalize_drift) { cls = 'normalize_drift'; }\nelse if (j.dedupe_marker_failed) { cls = 'dedupe_marker_failed'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.cancel_mirror_failed) cls = 'cancel_mirror_failed';   // FIX-1 A1: GCal'dan silindi ama Airtable 'booked' kaldi -> ayri sinif (mudahalesi farkli)\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nif (j.normalize_reason) lines.push('reason: ' + j.normalize_reason);\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\n// FIX-1 A2: the alert branch also STAMPS the class onto the conversation row (UX-ARCHITECTURE §9 K1),\n// so a stuck conversation says WHY in Airtable instead of only in Telegram history.\n// _alert_at/_alert_sender are carried for `Record Alert Class`; `now` is the same clock the throttle used.\nreturn [{ json: { owner_alert_text: text, _alert_class: cls,\n                  _alert_at: new Date(now).toISOString(), _alert_sender: sender } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -5046,6 +5046,147 @@
       "position": [
         7582,
         4464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._alert_sender !== 'unknown' && $json._alert_sender.includes(':') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "cond-fix1-valid-sender"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fix1_valid_sender",
+      "name": "Valid Sender?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        12768,
+        1488
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Barber Bot"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblXXXXXXXXXXXXXX",
+          "mode": "list",
+          "cachedResultName": "Conversations"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender_key": "={{ $json._alert_sender }}",
+            "last_alert_class": "={{ $json._alert_class }}",
+            "last_alert_at": "={{ $json._alert_at }}"
+          },
+          "matchingColumns": [
+            "sender_key"
+          ],
+          "schema": [
+            {
+              "id": "sender_key",
+              "displayName": "sender_key",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_alert_class",
+              "displayName": "last_alert_class",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "last_alert_at",
+              "displayName": "last_alert_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fix1_record_alert_class",
+      "name": "Record Alert Class",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        12992,
+        1488
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+          "name": "Airtable Personal Access Token account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alert-class stamp failed (Airtable). Visible marker; the customer reply and the Telegram alert are\n// both unaffected — this branch is downstream of Build Owner Alert, OFF the reply path (D-c).\n// Terminal on purpose: alerting about a failed alert-stamp would recurse (same rule as Owner Alert Failed).\nreturn [{ json: { alert_record_failed: true, error: ($json && $json.error) || 'unknown' } }];"
+      },
+      "id": "fix1_alert_record_failed",
+      "name": "Alert Record Failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13216,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Alert class stamped onto the conversation (FIX-1 A2 — §9 K1)\n\n`Build Owner Alert` -> **Valid Sender?** -> **Record Alert Class** writes `last_alert_class` +\n`last_alert_at` onto the `Conversations` row.\n\n**Why:** before this, all 18 residue flags were EPHEMERAL — once the Telegram message scrolled past,\nAirtable said a conversation was stuck (`stage=handoff`) but never WHY. A dashboard reading Airtable\ncould not triage.\n\n**Valid Sender? gate:** front-gate alerts (`normalize_drift`, `dedupe_marker_failed`) can fire with no\nconversation row; an upsert would CREATE a junk row holding only alert fields. Skipped unless the\nsender is a real `channel:id`.\n\n**Honest limits:** (1) throttled alerts return `[]` upstream, so this records the last DELIVERED alert,\nnot the last occurring one. (2) It is a LAST value, not a history — a later class overwrites.\n\n**D-c preserved:** the whole branch is downstream of the alert composer; a failure here cannot touch\nthe customer reply.",
+        "height": 460,
+        "width": 520
+      },
+      "id": "fix1_sticky_a2",
+      "name": "Sticky — Alert class stamp",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        12768,
+        1680
       ]
     }
   ],
@@ -6926,6 +7067,11 @@
             "node": "Send Owner Alert (Telegram)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Valid Sender?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -7332,6 +7478,30 @@
         [
           {
             "node": "Validate Reschedule Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Sender?": {
+      "main": [
+        [
+          {
+            "node": "Record Alert Class",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Record Alert Class": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert Record Failed",
             "type": "main",
             "index": 0
           }

@@ -354,7 +354,9 @@ Kaynak: Airtable `leads` — `name`(PII) · `phone`(PII) · `source` · `message
 
 Bugün alert'lerin tek evi **Telegram**. Dashboard'ın asıl işi bu.
 
-**19 alert sınıfı**, hepsi tek node'da toplanıyor: `Build Owner Alert` (27 kaynak node besliyor).
+**21 alert sınıfı** (FIX-1 ile 19'dan çıktı: `cancel_mirror_failed` + `purge_error`). Ana workflow'un
+20'si tek node'da toplanıyor: `Build Owner Alert` (28 kaynak node besliyor); `purge_error` purge
+workflow'unun kendi composer'ında, `reminder_error` reminders'ınkinde.
 Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, sender_key) çifti başına
 30 dk** (`ownerAlert.throttleMinutes`), n8n `$getWorkflowStaticData('global')` içinde.
 
@@ -381,24 +383,31 @@ Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, s
 | 19 | `cancel_needs_human` | `Build Cancel-NeedsHuman State` | elle iptal |
 | + | `handoff` (genel) | `stage='handoff'` yazan ama üstteki bayrağı olmayan her node | konuşmayı devral |
 | + | `reply_fallback` | `Build Reply Payload` (`computed_reply` boş) | öngörülmemiş yol — incele |
+| 20 | **`cancel_mirror_failed`** | `Build Cancelled State` (**FIX-1**) | GCal'dan silindi ama Airtable `booked` kaldı — randevuyu elle iptal et; hatırlatma gidebilir |
 | + | `reminder_error` | reminders wf, **kendi composer'ı**, global throttle (sender başına değil) | hatırlatma turu patladı |
+| + | **`purge_error`** | purge wf, **kendi composer'ı** (**FIX-1**), throttle `purge_error:<branch>` | temizlik durdu — `branch` hangisini söyler: `processed_messages` (dedupe) veya `conversations_pii` (PII scrub) |
 
 **Alert VERİLMEYENLER (bilinçli):** `race_lost` (normal sonuç, KK3) · kill-switch trip'i (sahip
 kendi açtı, KK2) · duplicate · 403 unsigned · 403 turnstile · widget-lane normalize reject.
 **Alert verilmeyenler (kaza):** `cancel_mirror_failed` — §8 BULGU #1.
 
-> ### ⚠ Devir kuyruğunun temel problemi
-> **18 residue bayrağının 17'si EPHEMERAL.** Hiçbiri Airtable'a yazılmıyor. Bir alert
-> Telegram'da kaydırılıp gittiğinde geriye kalan tek şey:
-> - `conversations.stage = 'handoff'` — **hangi sınıfın sebep olduğunu söylemez**
-> - `conversations.gcal_event_id` — 18 sınıfın yalnızca 6'sında bir iz bırakır
+> ### Devir kuyruğunun temel problemi — ✅ ÇÖZÜLDÜ (FIX-1, 2026-08-30)
+> **Önceden:** 18 residue bayrağının 17'si EPHEMERAL'di — hiçbiri Airtable'a yazılmıyordu. Bir alert
+> Telegram'da kaydırılıp gittiğinde geriye yalnız `stage='handoff'` (sebebi söylemez) ve 18 sınıfın
+> 6'sında `gcal_event_id` kalıyordu. Yalnız Airtable okuyan bir dashboard **sebebi göremezdi**.
 >
-> Sonuç: **yalnızca Airtable okuyan bir dashboard, takılı `handoff` konuşmalarını ve öksüz takvim
-> kayıtlarını görebilir, ama sebebini göremez.** Sebep yalnızca Telegram geçmişinde ve n8n
-> execution log'unda. "Çözüldü" işaretleme mekanizması da hiç yok.
-> → **ÇÖZÜLDÜ, §9 K1:** `conversations` satırına `last_alert_class` + `last_alert_at`
-> eklenir, `Build Owner Alert` dalından best-effort yazılır (cevap yolundan ayrı, D-c korunur).
-> Uygulama: Phase 6 öncesi düzeltme turu. Sınır: **son** alert, alert geçmişi değil.
+> **Şimdi:** `Build Owner Alert` → `Valid Sender?` → **`Record Alert Class`** her teslim edilen alert'i
+> `conversations.last_alert_class` + `last_alert_at` alanlarına yazıyor. Dashboard artık takılı bir
+> konuşmanın **neden** takıldığını Airtable'dan okuyabiliyor.
+>
+> **Dürüst sınırlar (tasarımın bilmesi gerekenler):**
+> 1. **Son TESLİM EDİLEN alert**, son *oluşan* değil — throttle'da composer `[]` döndüğü için alan
+>    yeniden yazılmaz (F4 ile kanıtlandı).
+> 2. **Son değer, geçmiş değil** — sonraki bir sınıf öncekini ezer. Tam transkript ertelendi (§9 K1).
+> 3. **Front-gate alert'leri kapsam dışı** — `Valid Sender?` kapısı, `conversations` satırı olmayan
+>    alert'lerde (`normalize_drift`) çöp satır yaratılmasını engeller; bedeli, o sınıfların Airtable'da
+>    izi olmaması.
+> 4. **"Çözüldü" işaretleme mekanizması hâlâ YOK** — alan son durumu tutar, sahip "hallettim" diyemez.
 
 ### 4.d — Sistem sağlığı
 
@@ -676,7 +685,7 @@ kanıtlarıyla CLOSED'a çevrildi ve neden bayat kaldığı not edildi (`governa
 | Ne | Bugün nerede | Boşluk |
 |---|---|---|
 | **17 residue bayrağı** (`orphan_event`, `mirror_failed`, `verify_unavailable`, `reconcile_unresolved`, `reconcile_conflict`, `cancel_delete_failed`, `cancel_needs_human`, `zernio_send_failed`, `reply_fallback`, `normalize_drift`, `dedupe_marker_failed`, `spend_cap_tripped`, `spend_meter_unavailable`, `state_unsaved`, `reschedule_orphan`, `reschedule_mirror_failed`, `race_lost`) | yalnız Telegram + n8n execution log | **sorgulanabilir ev yok** → dashboard 4.c'nin temel problemi |
-| **19 alert sınıfının hiçbiri** için "çözüldü" işareti | — | mekanizma da alan da yok |
+| **21 alert sınıfının hiçbiri** için "çözüldü" işareti | — | mekanizma da alan da yok (sınıf+zaman artık kayıtlı, ama "hallettim" işareti değil) |
 | **`Idempotent Replay` (200)** widget ekranı | — | tanımsız |
 | **`Send Reject Response` (400)** widget ekranı | — | tanımsız (BULGU #8) |
 | **`Send Error Response` (503)** widget ekranı | — | tanımsız (BULGU #8) |
@@ -710,7 +719,7 @@ turu" ve Phase 6 planına dağıtılmıştır.
 
 | Alan | İçerik |
 |---|---|
-| `last_alert_class` | son alert'in sınıfı (19 sınıftan biri) |
+| `last_alert_class` | son alert'in sınıfı (21 sınıftan biri) |
 | `last_alert_at` | ne zaman düştüğü (UTC) |
 
 Yazım **alert dalından, best-effort** — yani `Build Owner Alert` tarafından, **cevap yolundan
@@ -814,7 +823,7 @@ temizlendi.
 
 ## Kapanış — bu belge neyi garanti eder
 
-Phase 6 tasarımı bundan sonra **§2'deki 10 akışı, §3'teki 18 çıkışı ve §4'teki 19 alert sınıfını**
+Phase 6 tasarımı bundan sonra **§2'deki 10 akışı, §3'teki 18 çıkışı ve §4'teki 21 alert sınıfını**
 kaynak olarak alır. Bir ekran bu belgede yoksa, sistemde de yoktur — ve tasarıma girmesi için önce
 **"YENİ — gerekçesi şu"** olarak buraya girmesi gerekir.
 

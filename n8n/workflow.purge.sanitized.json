@@ -65,7 +65,8 @@
           "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
           "name": "Airtable Personal Access Token account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -97,7 +98,8 @@
           "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
           "name": "Airtable Personal Access Token account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -143,7 +145,8 @@
           "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
           "name": "Airtable Personal Access Token account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -209,7 +212,8 @@
           "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
           "name": "Airtable Personal Access Token account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -225,6 +229,113 @@
         220,
         380
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Load Config (Purge) — FIX-1. The purge workflow can now ALERT, so it needs the shared ownerAlert\n// config. Mirrors the reminders pattern (each workflow carries its own inline config).\n// SHARED KEY CONTRACT: ownerAlert.{enabled,throttleMinutes} MUST equal the main + reminders Load Configs\n// — asserted by scripts/check-cancel-validation-parity.py. A kill that silences only some alerts is not a kill.\n// one-swap-to-real: replace this literal with client.config.json / an n8n variable (Phase 4/template).\nconst config = {\n  ownerAlert: { enabled: true, throttleMinutes: 30 }\n};\nreturn [{ json: { ...$json, config } }];"
+      },
+      "id": "purge_load_config",
+      "name": "Load Config (Purge)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Purge Error (processed) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'processed_messages' } }));"
+      },
+      "id": "purge_err_processed",
+      "name": "Purge Error (processed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Purge Error (PII) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'conversations_pii' } }));"
+      },
+      "id": "purge_err_pii",
+      "name": "Purge Error (PII)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Owner-alert (Purge) — FIX-1. A purge failure used to be INVISIBLE: this workflow had no alert at all,\n// so if the dedupe purge or the PII scrub stopped, the data just quietly stopped being cleaned.\n// Same silent-failure class as cancel_mirror_failed (A1).\n//\n// WHY THE THROTTLE KEY CARRIES THE BRANCH (drill-corrected, exec 1631): n8n runs a node ONCE PER INCOMING\n// CONNECTION, not once with the inputs merged — so $input.all() only ever sees ONE collector. The first\n// build attempt threw both collectors at a single global 'purge_error' throttle key: run#0 (processed)\n// alerted, run#1 (PII) hit the key it had just set and returned [] — the PII failure was SWALLOWED, the\n// exact thing the two collectors exist to prevent. Keying on class+branch makes the two branches\n// independent: each gets its own alert, and each still gets its own storm brake.\nconst lc = $('Load Config (Purge)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst branch = (items[0] && items[0].json && items[0].json._purge_branch) || 'unknown';\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'purge_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + branch;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 purge-error\\nbranch: ' + branch +\n              '\\nfailed items: ' + items.length + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls, _purge_branch: branch } }];"
+      },
+      "id": "purge_build_alert",
+      "name": "Build Owner Alert (Purge)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.owner_alert_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "purge_send_alert",
+      "name": "Send Owner Alert (Purge)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1340,
+        120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "webhookId": "e96fbf76-9acc-4f64-aba7-93a7766719d1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Owner-alert delivery failed (Telegram). Visible marker; the purge run itself is unaffected.\n// Terminal on purpose — alerting about a failed alert would recurse.\nreturn [{ json: { owner_alert_failed: true } }];"
+      },
+      "id": "purge_alert_failed",
+      "name": "Owner Alert Failed (Purge)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Purge failures now reach a human (FIX-1)\n\nThis workflow had **no alert at all**: if the dedupe purge or the PII scrub broke, cleaning just\nsilently stopped. Same silent-failure class as `cancel_mirror_failed`.\n\n**Two collectors, on purpose.** An n8n error item carries only `{message, error}` — never the node\nthat failed. One collector would say \"purge broke\" without saying WHICH cleanup stopped, so the\nbranch is identified by **topology**: `Purge Error (processed)` vs `Purge Error (PII)`. Both fan into one composer, and the\nthrottle key carries the branch (`purge_error:<branch>`).\n\n**Drill-corrected (exec 1631):** the first build used ONE global throttle key. n8n runs a node once per\nINCOMING CONNECTION, not once with merged inputs — so run#0 (processed) alerted and run#1 (PII) hit the\nkey it had just set and returned `[]`. The PII failure was **swallowed** — the exact thing the two\ncollectors exist to prevent. Keying on class+branch makes them independent.\n\n**Config:** `Load Config (Purge)` carries `ownerAlert` and sits on the main path so it always runs.\nIts `enabled`/`throttleMinutes` MUST match main + reminders — asserted by\n`scripts/check-cancel-validation-parity.py`. A kill-switch that silences only some alerts is broken.\n\n**Not covered (honest):** the two Code nodes (`Compute Purge Cutoff`, `Compute PII Cutoff`) are not\nwrapped — a throw there fails the execution, visible in n8n's log but not on Telegram. Same scope as\nthe reminders workflow.",
+        "height": 460,
+        "width": 540
+      },
+      "id": "purge_sticky_alert",
+      "name": "Sticky — Purge alerts",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        420
+      ]
     }
   ],
   "connections": {
@@ -232,12 +343,7 @@
       "main": [
         [
           {
-            "node": "Compute Purge Cutoff",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Compute PII Cutoff",
+            "node": "Load Config (Purge)",
             "type": "main",
             "index": 0
           }
@@ -263,6 +369,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Purge Error (processed)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -282,6 +395,98 @@
         [
           {
             "node": "Scrub Recent Messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Purge Error (PII)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config (Purge)": {
+      "main": [
+        [
+          {
+            "node": "Compute Purge Cutoff",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compute PII Cutoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Old Processed": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Purge Error (processed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrub Recent Messages": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Purge Error (PII)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purge Error (processed)": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert (Purge)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purge Error (PII)": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert (Purge)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Owner Alert (Purge)": {
+      "main": [
+        [
+          {
+            "node": "Send Owner Alert (Purge)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Owner Alert (Purge)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Owner Alert Failed (Purge)",
             "type": "main",
             "index": 0
           }

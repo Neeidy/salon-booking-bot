@@ -143,6 +143,13 @@ def load_config_shared(jscode):
     return (tz.group(1) if tz else None, ks.group(1) if ks else None)
 
 
+def owner_alert_shared(jscode):
+    """ownerAlert.{enabled,throttleMinutes} — the keys EVERY workflow that can alert must agree on."""
+    en = re.search(r'ownerAlert:\s*\{[^}]*enabled:\s*(true|false)', jscode)
+    th = re.search(r'ownerAlert:\s*\{[^}]*throttleMinutes:\s*(\d+)', jscode)
+    return (en.group(1) if en else None, th.group(1) if th else None)
+
+
 main_lc = (by.get('Load Config', {}).get('parameters', {}) or {}).get('jsCode', '')
 try:
     rem_by = {n['name']: n for n in json.load(open(REM_PATH, encoding='utf-8'))['nodes']}
@@ -157,6 +164,30 @@ else:
         fails.append(f"two-Load-Config SHARED-KEY DRIFT — main{load_config_shared(main_lc)} != "
                      f"reminders{load_config_shared(rem_lc)} (timezone, killSwitch) MUST match")
 
+# 6b) THREE-way ownerAlert parity (FIX-1) — the purge workflow gained its own `Load Config (Purge)` when it
+#     got an owner-alert branch, so there are now THREE inline config copies that can alert. `ownerAlert`
+#     MUST be one truth across all three: if `enabled:false` silences the main + reminders alerts but NOT
+#     purge, the kill is not a kill — a switch that does not stop everything cannot be trusted. Content-parity
+#     cannot catch this (each workflow is compared only to its OWN committed file, never to the others).
+PURGE_PATH = os.environ.get('PURGE_SANITIZED', 'n8n/workflow.purge.sanitized.json')
+try:
+    purge_by = {n['name']: n for n in json.load(open(PURGE_PATH, encoding='utf-8'))['nodes']}
+    purge_lc = (purge_by.get('Load Config (Purge)', {}).get('parameters', {}) or {}).get('jsCode', '')
+except FileNotFoundError:
+    purge_lc = None
+if not purge_lc:
+    fails.append(f"ownerAlert three-way check: missing 'Load Config (Purge)' in {PURGE_PATH} — the purge "
+                 f"workflow alerts, so it must carry the shared ownerAlert config")
+elif main_lc and rem_lc:
+    oa = {'main': owner_alert_shared(main_lc), 'reminders': owner_alert_shared(rem_lc),
+          'purge': owner_alert_shared(purge_lc)}
+    if None in oa['main'] or None in oa['reminders'] or None in oa['purge']:
+        fails.append(f"ownerAlert three-way check: could not read ownerAlert.{{enabled,throttleMinutes}} "
+                     f"from all three Load Configs ({oa})")
+    elif len(set(oa.values())) != 1:
+        fails.append(f"ownerAlert THREE-WAY DRIFT — {oa} — enabled/throttleMinutes MUST match across "
+                     f"main, reminders and purge (a kill-switch that silences only some alerts is broken)")
+
 if fails:
     print('DRIFT — cancel-validation single-source violated:')
     for f in fails:
@@ -169,5 +200,6 @@ print('cancel-validation parity OK — gid regex 5x identical [0-9a-v]{5,1024} (
       'Cancel Lookup + Validate Cancel Target + Reschedule Lookup all check {finite start_utc, gid shape, '
       'calendar_id present}; Confirm Fresh?==Reschedule Fresh? TTL byte-identical; '
       f'routed *_confirming {sorted(routed)} all have a Build LLM Request stageContext branch; '
-      'two Load Configs share identical business.timezone + bot.killSwitch')
+      'two Load Configs share identical business.timezone + bot.killSwitch; '
+      'three Load Configs share identical ownerAlert.enabled + throttleMinutes')
 sys.exit(0)
