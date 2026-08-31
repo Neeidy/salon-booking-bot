@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget review · Cancel &amp; reschedule — Cream &amp; Ink</title>
+<!--
+  DESIGN REVIEW PAGE — Tur A / Group 2 of 4 (cancel & reschedule).
+  Single source of screens: docs/SCREEN-INVENTORY.md §2.5 (W19–W27) and §2.6 (W28–W39 + W62–W65,
+  the four pre-write rejection literals added under BULGU-9, 2026-08-31).
+  Every bot bubble's text comes verbatim from config/client.config.example.json messageTemplates
+  or from a literal in n8n/workflow.sanitized.json — the source is noted in an HTML comment above
+  each bubble. User bubbles are MOCK demo input.
+  Visual language: design/mockups/variants/widget-a-cream-ink.html (Direction A).
+  tokens.css is deliberately NOT used (wrong palette — SCREEN-INVENTORY §7 BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — identical pattern to the approved variant mockups:
+     staged-reveal hiding lives ONLY under html.js. No JS → full page reads statically. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — identical to the approved variants (fixed, not Design's to change). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  /* ---------- review masthead ---------- */
+  .mast{padding:clamp(36px,5vw,64px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pages-nav a,.pages-nav span{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap}
+  .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  .pages-nav .pending{color:var(--muted);border-style:dashed;cursor:default}
+
+  .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
+  .razor path{stroke:currentColor;fill:none;stroke-width:1.5}
+  .js .razor .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:drawline 1.6s var(--ease) .3s forwards}
+  @keyframes drawline{to{stroke-dashoffset:0}}
+
+  /* ---------- section headers ---------- */
+  .sect{padding:clamp(34px,5vw,58px) 0 0}
+  .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
+  .sect-note{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:10px}
+  .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px)}
+  .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
+  .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
+  .ink-band p{font-size:14px;color:var(--stamp);max-width:56ch}
+
+  /* ---------- widget panel (verbatim anatomy from the approved widget mockup) ---------- */
+  .flows{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:clamp(22px,3vw,36px);margin-top:26px;align-items:start}
+  .flow-slot>figcaption{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .flow-slot>figcaption strong{color:var(--ink)}
+  .panel{width:100%;max-width:400px;background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden;display:flex;flex-direction:column}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;flex-shrink:0;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .thread{padding:18px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:88%;padding:11px 15px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  .msg.handoff{border-left:3px solid var(--muted)}
+  /* infra-unavailable class marker — dashed oxide edge = a FAULT, not a conversation
+     (full three-class showcase lives on page 3; introduced here for W27) */
+  .msg.infra{border-left:3px dashed var(--oxide)}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chips + .stamp{margin-top:8px}
+  .chip{font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid rgba(22,21,15,.3);white-space:nowrap}
+  .chip-on{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:12px 15px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  .js .thread[data-staged] .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .thread[data-staged] .msg.in{opacity:1;transform:none}
+  .js .thread[data-staged] .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+  .replay{margin-top:12px;font-size:12.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:6px 14px;display:none}
+  .js .replay{display:inline-block}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- state-by-state cards ---------- */
+  .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:24px}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column}
+  .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
+  .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .state-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .state-body .msg{max-width:100%}
+  .state-body .msg.user{align-self:flex-end;max-width:88%}
+  .state-note{font-size:12.5px;color:var(--muted);padding:0 16px 12px;line-height:1.5}
+  .state-note strong{color:var(--oxide)}
+  .variant-label{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  /* reviewer-attention frame — W39's honest contradiction */
+  .state-card.warn{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .state-card.warn .state-id{color:var(--oxide)}
+  /* REVIEW-ONLY tech strip — removed in production */
+  .tech{border-top:1px dashed var(--rule);padding:8px 16px 10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  .group{padding-top:clamp(30px,4vw,46px)}
+  .group-rule{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:10px}
+  .group-rule h3{font-size:clamp(19px,2.4vw,24px);font-weight:600;letter-spacing:-.01em}
+  .group-rule .src{margin-left:auto;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+  .group-note{font-size:14px;color:var(--muted);max-width:66ch;margin-top:8px}
+  .group-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .group-note strong{color:var(--ink)}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:840px){
+    .flows{grid-template-columns:1fr}
+  }
+  @media (max-width:480px){
+    .panel{max-width:100%}
+    .state-grid{grid-template-columns:1fr}
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .thread[data-staged] .msg{opacity:1 !important;transform:none !important}
+    .typing{display:none !important}
+    .razor .draw{stroke-dashoffset:0 !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur A — Widget · Group 2 / 4</p>
+  <h1 class="mast-title">Cancel &amp; reschedule</h1>
+  <p class="mast-sub">Both change-of-mind flows with every edge the engine actually produces — the confirm
+    window, cutoffs, broken targets, races, mirror failures, and the honest orphan. Includes the four
+    <code>pre-write rejection literals</code> the inventory had missed (W62–W65, BULGU-9). Bot copy is verbatim
+    from <code>messageTemplates</code> or an engine literal; nothing is invented.</p>
+  <div class="mast-meta">
+    <span><strong>25</strong>&nbsp;states</span>
+    <span>Source&nbsp;<strong>SCREEN-INVENTORY §2.5 · §2.6</strong></span>
+    <span>Confirm window&nbsp;<strong>next turn only</strong></span>
+    <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
+  </div>
+  <nav class="pages-nav" aria-label="Review pages">
+    <a href="index.html">Index</a>
+    <a href="booking.html">1 · Booking</a>
+    <a class="here" href="cancel-reschedule.html" aria-current="page">2 · Cancel &amp; reschedule</a>
+    <span class="pending" title="Not yet designed">3 · Handoff &amp; errors</span>
+    <span class="pending" title="Not yet designed">4 · FAQ &amp; lead</span>
+  </nav>
+  <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
+    <path class="draw" d="M8 16 H150 l10 -7 12 7 12 -7 12 7 12 -7 12 7 H412"/>
+    <path d="M150 16 a4 4 0 1 1 -0.1 0" opacity=".5"/>
+  </svg>
+</header>
+
+<main>
+
+  <!-- ══════════════ SECTION 1 · IN FLOW ══════════════ -->
+  <section class="sect wrap" aria-labelledby="flows-h">
+    <p class="sect-kicker">In flow</p>
+    <h2 class="sect-title" id="flows-h">Change of mind, three ways</h2>
+    <p class="sect-note">Left: a clean cancel. Middle: a clean reschedule. Right: the
+      <code>confirm window</code> at work — the “yes” is bound to one specific booking
+      (<code>cancel_target_id</code>) and is valid <em>only on the immediately next turn</em>
+      (<code>confirm_turn</code>); any other reply closes the window and the booking stands. Nothing is ever
+      cancelled by accident.</p>
+
+    <div class="flows">
+
+      <!-- ─── FLOW C · cancel, happy: W19 → W20 ─── -->
+      <figure class="flow-slot">
+        <figcaption><strong>Flow C</strong> · cancel — clean (W19 · W20)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="c">
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="1">I need to cancel my haircut<span class="stamp">10:02</span></div>
+            <!-- W19 · SOURCE: literal in Build Cancel-Confirm State — `Cancel your ${service} on ${when}?
+                 Reply "yes" to cancel, or anything else to keep it.` (when = 'cccc d LLL HH:mm').
+                 Chips: frontend enhancement — "keep it" is just a non-yes reply. -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="2">Cancel your Haircut on Friday 4 Sep 15:30? Reply "yes" to cancel, or anything else to keep it.
+                <span class="chips">
+                  <span class="chip chip-on">yes</span>
+                  <span class="chip">keep it</span>
+                </span>
+                <span class="stamp">10:02</span>
+              </div>
+            </div>
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="3">yes<span class="stamp">10:03</span></div>
+            <!-- W20 · SOURCE: messageTemplates.cancelDone · node: Build Cancelled State (GCal delete 204) -->
+            <div class="pair">
+              <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot confirm" data-step="4"><strong>✓</strong> Done — your Haircut on Friday 4 Sep 15:30 is cancelled.<span class="stamp">10:03</span></div>
+            </div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="c">Replay</button>
+      </figure>
+
+      <!-- ─── FLOW D · reschedule, happy: W28 → W29 → W30 ─── -->
+      <figure class="flow-slot">
+        <figcaption><strong>Flow D</strong> · reschedule — clean (W28 · W29 · W30)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="d">
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="1">Can I move my appointment?<span class="stamp">11:20</span></div>
+            <!-- W28 · SOURCE: messageTemplates.rescheduleAskSlot · node: Reschedule Lookup -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="2">Sure — what new day and time would you like to move it to?<span class="stamp">11:20</span></div>
+            </div>
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="3">Friday 11 Sep at 16:00<span class="stamp">11:21</span></div>
+            <!-- W29 · SOURCE: literal in Compute Reschedule Availability — `Move your ${service} from ${oldWhen}
+                 to ${fmt}? Reply "yes" to move it, or anything else to keep it.` -->
+            <div class="pair">
+              <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="4">Move your Haircut from Friday 4 Sep 15:30 to Friday 11 Sep 16:00? Reply "yes" to move it, or anything else to keep it.
+                <span class="chips">
+                  <span class="chip chip-on">yes</span>
+                  <span class="chip">no</span>
+                </span>
+                <span class="stamp">11:21</span>
+              </div>
+            </div>
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="5">yes<span class="stamp">11:21</span></div>
+            <!-- W30 · SOURCE: messageTemplates.rescheduleDone — {when} = dateStr + ' ' + timeStr
+                 · node: Build Reschedule-Done State -->
+            <div class="pair">
+              <div class="typing" data-typing="6" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot confirm" data-step="6"><strong>✓</strong> Moved — your Haircut is now Friday 11 Sep 16:00.<span class="stamp">11:22</span></div>
+            </div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="d">Replay</button>
+      </figure>
+
+      <!-- ─── FLOW E · the confirm window closes: W19 → W22 ─── -->
+      <figure class="flow-slot">
+        <figcaption><strong>Flow E</strong> · confirm window closes (W19 · W22)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="e">
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="1">cancel my appointment<span class="stamp">16:05</span></div>
+            <!-- W19 · SOURCE: literal in Build Cancel-Confirm State (as in Flow C) -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="2">Cancel your Haircut on Friday 4 Sep 15:30? Reply "yes" to cancel, or anything else to keep it.
+                <span class="chips">
+                  <span class="chip">yes</span>
+                  <span class="chip">keep it</span>
+                </span>
+                <span class="stamp">16:05</span>
+              </div>
+            </div>
+            <!-- MOCK user input — anything that is not "yes" closes the window -->
+            <div class="msg user" data-step="3">actually wait — how much is a beard trim?<span class="stamp">16:06</span></div>
+            <!-- W22 · SOURCE: messageTemplates.cancelAborted · node: Build Cancel-Aborted State.
+                 The non-yes reply aborts the cancel; the persisted target + confirm_turn are cleared. -->
+            <div class="pair">
+              <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="4">No problem — your booking stands.<span class="stamp">16:06</span></div>
+            </div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="e">Replay</button>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ ink band ══════════════ -->
+  <div class="ink-band">
+    <div class="wrap">
+      <h2>State by state</h2>
+      <p>Each state isolated, with its engine coordinates. The dashed strip under every card is
+        review-only and disappears in production.</p>
+    </div>
+  </div>
+
+  <!-- REVIEW-ONLY: the .tech strips below (reply exit / stage / template) exist for this
+       design review; they are NOT part of the production widget and will be removed. -->
+
+  <!-- ══════════════ GROUP §2.5 · CANCEL ══════════════ -->
+  <section class="group wrap" aria-labelledby="g25">
+    <div class="group-rule">
+      <h3 id="g25">Cancel</h3>
+      <span class="src">SCREEN-INVENTORY §2.5 · W19–W27</span>
+    </div>
+    <p class="group-note">The safety mechanic is invisible but shapes everything here: the “yes” binds to
+      <code>cancel_target_id</code> (the exact record, found by <code>sender_key</code>, never by a
+      customer-supplied id) and is honoured <strong>only on the immediately next turn</strong>
+      (<code>confirm_turn</code>). Any other message closes the window — W22.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W19</span><span class="state-name">Confirm the cancel</span></div>
+        <div class="state-body">
+          <!-- W19 · SOURCE: literal in Build Cancel-Confirm State — `Cancel your ${service} on ${when}?${multi}
+               Reply "yes" to cancel, or anything else to keep it.` -->
+          <span class="variant-label">Single booking</span>
+          <div class="msg bot">Cancel your Haircut on Friday 4 Sep 15:30? Reply "yes" to cancel, or anything else to keep it.
+            <span class="chips">
+              <span class="chip">yes</span>
+              <span class="chip">keep it</span>
+            </span>
+            <span class="stamp">10:02</span>
+          </div>
+          <!-- W19 multi-booking variant · same node — multi = ` (you have ${N} bookings — this cancels the
+               ${when} one)` inserted before "Reply" -->
+          <span class="variant-label">Multiple bookings</span>
+          <div class="msg bot">Cancel your Haircut on Friday 4 Sep 15:30? (you have 2 bookings — this cancels the Friday 4 Sep 15:30 one) Reply "yes" to cancel, or anything else to keep it.<span class="stamp">10:02</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> cancel_confirming</span><span><b>literal</b> Build Cancel-Confirm State</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W20</span><span class="state-name">Cancelled</span></div>
+        <div class="state-body">
+          <!-- W20 · SOURCE: messageTemplates.cancelDone · node: Build Cancelled State (GCal delete 204) -->
+          <div class="msg bot confirm"><strong>✓</strong> Done — your Haircut on Friday 4 Sep 15:30 is cancelled.<span class="stamp">10:03</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> cancelled</span><span><b>template</b> cancelDone</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W21</span><span class="state-name">Already cancelled</span></div>
+        <div class="state-body">
+          <!-- W21 · SOURCE: messageTemplates.cancelAlreadyDone · node: Build Cancelled State —
+               detected STRUCTURALLY (GCal 404/410 status), never by matching error text -->
+          <div class="msg bot">That booking is already cancelled — nothing more to do.<span class="stamp">10:03</span></div>
+        </div>
+        <p class="state-note">Detected structurally (calendar returns 404/410) — the outcome is still a calm,
+          closed loop, not an error.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> cancelled</span><span><b>template</b> cancelAlreadyDone</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W22</span><span class="state-name">Cancel aborted</span></div>
+        <div class="state-body">
+          <!-- MOCK user input — any non-yes reply in the confirm window -->
+          <div class="msg user">actually, keep it<span class="stamp">10:03</span></div>
+          <!-- W22 · SOURCE: messageTemplates.cancelAborted · node: Build Cancel-Aborted State -->
+          <div class="msg bot">No problem — your booking stands.<span class="stamp">10:03</span></div>
+        </div>
+        <p class="state-note">Fail-closed: the persisted cancel target and <code>confirm_turn</code> are cleared —
+          a later stray “yes” cancels nothing.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> new</span><span><b>template</b> cancelAborted</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W23</span><span class="state-name">Too close — cutoff</span></div>
+        <div class="state-body">
+          <!-- W23 · SOURCE: messageTemplates.cancelCutoff · node: Build Cancel-Cutoff Reply
+               (bot.cancellationCutoffHours = 2, from config) -->
+          <div class="msg bot handoff">That booking is too close to its time to cancel here — please call us and we'll sort it out.<span class="stamp">10:03</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> cancelCutoff</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W24</span><span class="state-name">Nothing to cancel</span></div>
+        <div class="state-body">
+          <!-- W24 · SOURCE: messageTemplates.cancelNoBooking · node: Build No-Booking Reply -->
+          <div class="msg bot">You don't have an active booking to cancel.<span class="stamp">10:02</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>template</b> cancelNoBooking</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W25</span><span class="state-name">Can't cancel automatically</span></div>
+        <div class="state-body">
+          <!-- W25 · SOURCE: messageTemplates.cancelNeedsHuman · node: Build Cancel-NeedsHuman State
+               (record found but structurally unusable — a human takes over) -->
+          <div class="msg bot handoff">I found your booking but can't cancel it automatically — a team member will cancel it for you.<span class="stamp">10:02</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> cancelNeedsHuman</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W26</span><span class="state-name">Target gone</span></div>
+        <div class="state-body">
+          <!-- W26 · SOURCE: messageTemplates.cancelTargetGone · node: Build Cancel-NeedsHuman State
+               (the confirmed target no longer re-validates on the confirm turn) -->
+          <div class="msg bot handoff">I couldn't find that booking to cancel anymore — a team member will follow up shortly.<span class="stamp">10:03</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> cancelTargetGone</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W27</span><span class="state-name">Calendar unreachable</span></div>
+        <div class="state-body">
+          <!-- W27 · SOURCE: messageTemplates.cancelUnavailable · node: Cancel Delete Unavailable Reply —
+               INFRA-UNAVAILABLE class: 503 + cancel_delete_failed flag. Same event as W51 on page 3. -->
+          <div class="msg bot infra">I couldn't reach the calendar to cancel just now — a team member will follow up shortly.<span class="stamp">10:03</span></div>
+        </div>
+        <p class="state-note"><strong>Infra-unavailable class</strong> — dashed oxide edge, not the muted handoff
+          border: this is a fault (HTTP 503 + <code>cancel_delete_failed</code>), not a conversation. The full
+          three-class showcase is on page 3.</p>
+        <div class="tech"><span><b>exit</b> Cancel Delete Unavailable Reply · <span class="hx">503</span></span><span><b>stage</b> unchanged</span><span><b>template</b> cancelUnavailable</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP §2.6 · RESCHEDULE ══════════════ -->
+  <section class="group wrap" aria-labelledby="g26">
+    <div class="group-rule">
+      <h3 id="g26">Reschedule</h3>
+      <span class="src">SCREEN-INVENTORY §2.6 · W28–W39</span>
+    </div>
+    <p class="group-note">Find the nearest upcoming booking, ask for the new slot, confirm, move. The cutoff
+      applies to the <strong>old</strong> booking; the same one-turn confirm window applies to the “yes”; and a
+      successful move resets the reminder, so the customer is reminded again for the new time.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W28</span><span class="state-name">Ask the new slot</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">Can I move my appointment?<span class="stamp">11:20</span></div>
+          <!-- W28 · SOURCE: messageTemplates.rescheduleAskSlot · node: Reschedule Lookup -->
+          <div class="msg bot">Sure — what new day and time would you like to move it to?<span class="stamp">11:20</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>template</b> rescheduleAskSlot</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W29</span><span class="state-name">Confirm the move</span></div>
+        <div class="state-body">
+          <!-- W29 · SOURCE: literal in Compute Reschedule Availability — `Move your ${service} from ${oldWhen}
+               to ${fmt}? Reply "yes" to move it, or anything else to keep it.` -->
+          <div class="msg bot">Move your Haircut from Friday 4 Sep 15:30 to Friday 11 Sep 16:00? Reply "yes" to move it, or anything else to keep it.
+            <span class="chips">
+              <span class="chip">yes</span>
+              <span class="chip">no</span>
+            </span>
+            <span class="stamp">11:21</span>
+          </div>
+        </div>
+        <p class="state-note">Old and new time both spelled out — the customer confirms a <em>specific</em> move,
+          never “the change”.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> reschedule_confirming</span><span><b>literal</b> Compute Reschedule Availability</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W30</span><span class="state-name">Moved</span></div>
+        <div class="state-body">
+          <!-- W30 · SOURCE: messageTemplates.rescheduleDone · node: Build Reschedule-Done State -->
+          <div class="msg bot confirm"><strong>✓</strong> Moved — your Haircut is now Friday 11 Sep 16:00.<span class="stamp">11:22</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> booked</span><span><b>template</b> rescheduleDone</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W31</span><span class="state-name">Move aborted</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">no, leave it<span class="stamp">11:21</span></div>
+          <!-- W31 · SOURCE: messageTemplates.rescheduleAborted · node: Build Reschedule-Aborted State -->
+          <div class="msg bot">No problem — your booking stays as it is.<span class="stamp">11:21</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> new</span><span><b>template</b> rescheduleAborted</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W32</span><span class="state-name">Nothing to move</span></div>
+        <div class="state-body">
+          <!-- W32 · SOURCE: messageTemplates.rescheduleNoBooking · node: Reschedule Lookup -->
+          <div class="msg bot">You don't have a booking to reschedule.<span class="stamp">11:20</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>template</b> rescheduleNoBooking</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W33</span><span class="state-name">Too close — cutoff</span></div>
+        <div class="state-body">
+          <!-- W33 · SOURCE: messageTemplates.rescheduleCutoff · node: Reschedule Lookup
+               (cutoff applies to the OLD booking's time) -->
+          <div class="msg bot handoff">That booking is too close to its time to reschedule here — please call us and we'll sort it out.<span class="stamp">11:20</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> rescheduleCutoff</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W34</span><span class="state-name">Can't move automatically</span></div>
+        <div class="state-body">
+          <!-- W34 · SOURCE: messageTemplates.rescheduleNeedsHuman · node: Reschedule Lookup /
+               Build Reschedule-NeedsHuman State (broken record or no re-validation on confirm) -->
+          <div class="msg bot handoff">I found your booking but can't reschedule it automatically — a team member will help you move it.<span class="stamp">11:20</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> rescheduleNeedsHuman</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W35</span><span class="state-name">New slot couldn't be written</span></div>
+        <div class="state-body">
+          <!-- W35 · SOURCE: messageTemplates.rescheduleInsertFailed · node: Build Reschedule Insert-Failed State
+               — the NEW event failed to insert; the OLD booking is untouched -->
+          <div class="msg bot handoff">Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.<span class="stamp">11:22</span></div>
+        </div>
+        <p class="state-note">The old appointment <strong>still stands</strong> — the message says so explicitly.
+          Nothing was lost; nothing pretends otherwise.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> rescheduleInsertFailed</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W36</span><span class="state-name">New slot just taken</span></div>
+        <div class="state-body">
+          <!-- W36 · SOURCE: messageTemplates.slotJustTaken · node: Build Reschedule Race-Lost State
+               (write-then-verify lost the race for the NEW slot; the old booking is restored intact) -->
+          <div class="msg bot handoff">Sorry — that time was just taken. A team member will help you find another slot.<span class="stamp">11:22</span></div>
+        </div>
+        <p class="state-note">Post-write race, honestly lost. When the verify read itself fails, the neutral
+          W37 wording is used instead — never a guessed “taken”.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> slotJustTaken</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W37</span><span class="state-name">Couldn't verify the move</span></div>
+        <div class="state-body">
+          <!-- W37 · SOURCE: messageTemplates.verifyIncomplete · nodes: Build Reschedule Race-Lost /
+               Verify-Unavailable / Race-Orphan States (verify read failed — neutral wording) -->
+          <div class="msg bot handoff">We couldn't finish confirming that time just now — a team member will follow up to lock it in.<span class="stamp">11:22</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> verifyIncomplete</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W38</span><span class="state-name">Change being finalized</span></div>
+        <div class="state-body">
+          <!-- W38 · SOURCE: messageTemplates.rescheduleMirrorFailed · node: Build Reschedule Mirror-Failed State
+               (calendar moved, Airtable mirror write failed — owner alerted) -->
+          <div class="msg bot handoff">Your booking change is being finalized — a team member will confirm the new time shortly.<span class="stamp">11:22</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> rescheduleMirrorFailed</span></div>
+      </div>
+
+      <div class="state-card warn">
+        <div class="state-head"><span class="state-id">W39 ⚠</span><span class="state-name">Orphan — success shown</span></div>
+        <div class="state-body">
+          <!-- W39 · SOURCE: messageTemplates.rescheduleDone · node: Build Reschedule Orphan State —
+               the customer SEES SUCCESS (identical bubble to W30), but the OLD calendar event could not be
+               deleted: two events may remain. Owner gets an orphan_event alert. Accepted behaviour
+               (SCREEN-INVENTORY §7 BULGU-7, named Phase-7 item) — this card renders what the system does. -->
+          <div class="msg bot confirm"><strong>✓</strong> Moved — your Haircut is now Friday 11 Sep 16:00.<span class="stamp">11:22</span></div>
+        </div>
+        <p class="state-note"><strong>The bubble is deliberately identical to W30</strong> — that is the point:
+          the customer sees success, but the old calendar event could not be deleted and two events may remain.
+          The owner is alerted (<code>orphan_event</code>); the customer is not. Accepted behaviour — BULGU-7,
+          named Phase-7 item. The oxide card frame flags it for reviewers only.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>template</b> rescheduleDone (orphan)</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP · PRE-WRITE REJECTIONS (BULGU-9) ══════════════ -->
+  <section class="group wrap" aria-labelledby="g9">
+    <div class="group-rule">
+      <h3 id="g9">New-slot rejections — straight to a human</h3>
+      <span class="src">SCREEN-INVENTORY §2.6 · W62–W65 · new (BULGU-9)</span>
+    </div>
+    <p class="group-note">The engine had these four literals all along; the inventory's first edition missed
+      them (<strong>BULGU-9</strong>, closed 2026-08-31). Deliberate asymmetry with booking: where W14–W18
+      loop back and re-ask, a rejected <em>reschedule</em> slot goes <strong>straight to handoff</strong> —
+      the engine's own comment: <code>busy/past/closed/invalid → handoff with context</code>. A full engine
+      sweep found no other missed primary literal.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W62</span><span class="state-name">New time unreadable</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">move it to whenever suits<span class="stamp">11:21</span></div>
+          <!-- W62 · SOURCE: literal in Compute Reschedule Availability (invalid) — `I couldn't read that new
+               time — a team member will help you pick one.` -->
+          <div class="msg bot handoff">I couldn't read that new time — a team member will help you pick one.<span class="stamp">11:21</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>literal</b> Compute Reschedule Availability (invalid)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W63</span><span class="state-name">New time in the past</span></div>
+        <div class="state-body">
+          <!-- W63 · SOURCE: literal in Compute Reschedule Availability (past) — `${fmt} has already passed —
+               a team member will help you pick a new time.` -->
+          <div class="msg bot handoff">Monday 31 Aug 09:00 has already passed — a team member will help you pick a new time.<span class="stamp">11:21</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>literal</b> Compute Reschedule Availability (past)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W64</span><span class="state-name">New time outside hours</span></div>
+        <div class="state-body">
+          <!-- W64 · SOURCE: literal in Compute Reschedule Availability (closed) — `We're closed then — a team
+               member will help you pick a time that works.` (no hours listed, unlike booking's W17) -->
+          <div class="msg bot handoff">We're closed then — a team member will help you pick a time that works.<span class="stamp">11:21</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>literal</b> Compute Reschedule Availability (closed)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W65</span><span class="state-name">New time taken</span></div>
+        <div class="state-body">
+          <!-- W65 · SOURCE: literal in Compute Reschedule Availability (busy) — `${fmt} is taken — a team
+               member will help you find another time.` (no alternatives offered, unlike booking's W14) -->
+          <div class="msg bot handoff">Friday 11 Sep 16:00 is taken — a team member will help you find another time.<span class="stamp">11:21</span></div>
+        </div>
+        <p class="state-note">No alternative times are offered here — unlike booking's W14. That asymmetry is
+          the engine's, faithfully rendered.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> handoff</span><span><b>literal</b> Compute Reschedule Availability (busy)</span></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review page · no real customer data · bot copy verbatim from
+  <code>client.config.example.json</code> messageTemplates and engine literals · user bubbles are mock demo input ·
+  design language: Direction A “Cream &amp; Ink”.
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — with JS off all three threads render fully static and readable. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function playThread(thread) {
+    var msgs = thread.querySelectorAll('.msg');
+    var timers = [];
+    msgs.forEach(function (m) { m.classList.remove('in'); });
+    thread.querySelectorAll('.typing').forEach(function (t) { t.classList.remove('on'); });
+    if (reduced) { msgs.forEach(function (m) { m.classList.add('in'); }); return; }
+    var t = 350;
+    msgs.forEach(function (m) {
+      var step = m.getAttribute('data-step');
+      var typing = thread.querySelector('.typing[data-typing="' + step + '"]');
+      if (typing) {
+        timers.push(setTimeout(function () { typing.classList.add('on'); }, t));
+        t += 900;
+        timers.push(setTimeout(function () { typing.classList.remove('on'); }, t));
+      }
+      timers.push(setTimeout(function () { m.classList.add('in'); }, t));
+      t += m.classList.contains('user') ? 700 : 900;
+    });
+    thread._timers = timers;
+  }
+
+  document.querySelectorAll('.thread[data-staged]').forEach(function (thread) {
+    playThread(thread);
+  });
+  document.querySelectorAll('[data-replay]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var thread = document.querySelector('.thread[data-flow="' + btn.getAttribute('data-replay') + '"]');
+      if (thread._timers) thread._timers.forEach(clearTimeout);
+      playThread(thread);
+    });
+  });
+})();
+</script>
+</body>
+</html>

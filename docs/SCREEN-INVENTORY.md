@@ -25,6 +25,12 @@ motorda **hiç üretilmeyen** bir "Outside working hours" ekranı gösteriyordu;
 3. Kaynağı olmayan ekran §7'ye **"YENİ — gerekçesi şu"** etiketiyle girer; sessizce eklenmez.
 4. Doğrulanamayan hiçbir şey iddia edilmez — **DOĞRULANAMADI** yazılır.
 
+### Tur A yöntem kararı (Yigitcan, 2026-08-31 — grup 1 kabulünde)
+İçerik iskeletini (envanter eşleşmesi + birebir metinler + kaynak yorumları + token disiplini)
+**dört grup için de CC üretir**; **Design cilası EN SONA, tek seferde** yapılır — bütün bir dil
+verilir, parça parça değil. (Sebep: Design canvas formatı repo'daki "tek başına açılır statik
+HTML" sözleşmesiyle uyumsuz çıktı; görsel yükseltme ayrı ve bütüncül bir tur olacak.)
+
 ### Görsel dil — SIFIRDAN BAŞLAMA, MEVCUDU GENİŞLET
 
 Onaylı yön: **Direction A "Cream & Ink"**. Üç mockup'ın `<style>` bloğundaki `:root` bu dilin
@@ -125,7 +131,8 @@ thread (`role="log" aria-live="polite"`, `max-height:min(60vh,440px)`) · girdi 
 
 | ID | Ekran | Tetikleyici | Metin | Kaynak |
 |---|---|---|---|---|
-| W1 | **Yeni ziyaretçi** | ilk mesaj | **Ayrı karşılama ekranı YOK** — ilk cevap doğrudan intent cevabıdır | `messageTemplates.greeting` FIX-1'de silindi (ölü config). §7 BOŞLUK-1 |
+| W1 | **Yeni ziyaretçi** | ilk mesaj | **Motorda ayrı karşılama YOK** — motorun ilk cevabı doğrudan intent cevabıdır. Frontend karşılaması: W61 | `messageTemplates.greeting` FIX-1'de silindi (ölü config). §7 BOŞLUK-1 → K4 ile çözüldü |
+| W61 | **Frontend karşılaması** ⭐ YENİ (K4 kararı, 2026-08-31) | panel ilk açıldığında, bir kez | **frontend sabit metni** (motor karşılığı yok, motora gönderilmez, state yazılmaz): *"Hi! I'm the {business.name} assistant — I can book you in, move a booking, or answer questions. How can I help?"* (`{business.name}` config'ten) | §8 K4 = B: motor değişmez; bu belge metnin TEK kaynağı |
 | W2 | **Dönen müşteri** | `state.found` ve `now − last_updated > sessionGapMinutes` (30dk) | `"Welcome back! "` **öneki** + normal cevap | `Build Reply Payload` · **literal**, template değil · yalnız `stage='collecting'` iken |
 
 ### 2.2 — FAQ (7 konu, deterministik; LLM yalnız konuyu sınıflandırır)
@@ -193,7 +200,11 @@ W22'ye düşer. Design bunu "onay penceresi kapandı" olarak anlatabilmeli.
 | ID | Ekran | Metin | Stage |
 |---|---|---|---|
 | W28 | Yeni slot sor | `rescheduleAskSlot` | değişmez |
-| W29 | Yeni slot onayı | **literal**: `Move your {servis} from {eski} to {yeni}? Reply "yes"…` | `reschedule_confirming` |
+| W29 | Yeni slot onayı | **literal**: `Move your {servis} from {eski} to {yeni}? Reply "yes" to move it, or anything else to keep it.` | `reschedule_confirming` |
+| W62 | ⭐ YENİ (BULGU-9) — yeni slot okunamadı | **literal**: `I couldn't read that new time — a team member will help you pick one.` | `handoff` |
+| W63 | ⭐ YENİ (BULGU-9) — yeni slot geçmişte | **literal**: `{yeni} has already passed — a team member will help you pick a new time.` | `handoff` |
+| W64 | ⭐ YENİ (BULGU-9) — yeni slot kapalı saatte | **literal**: `We're closed then — a team member will help you pick a time that works.` | `handoff` |
+| W65 | ⭐ YENİ (BULGU-9) — yeni slot dolu | **literal**: `{yeni} is taken — a team member will help you find another time.` | `handoff` |
 | W30 | Taşındı | `rescheduleDone` → "Moved — your {service} is now {when}." | `booked` |
 | W31 | Vazgeçildi | `rescheduleAborted` | `new` |
 | W32 | Randevu yok | `rescheduleNoBooking` | değişmez |
@@ -208,6 +219,12 @@ W22'ye düşer. Design bunu "onay penceresi kapandı" olarak anlatabilmeli.
 > ⚠ **W39 bir çelişki**: müşteri "taşındı" görür, takvimde **iki kayıt** kalmış olabilir. Sahibe
 > `orphan_event` alert'i gider. Design bunu "başarılı" ekranı olarak çizecek — sistem öyle diyor.
 > Bkz. §7 BULGU-7.
+
+> ⭐ **W62-W65 (BULGU-9, 2026-08-31):** booking tarafının 5 reddi (W14-W18) `collecting`'e dönüp
+> yeniden sorarken, erteleme tarafının 4 reddi **doğrudan `handoff`'a düşer** ("a team member will
+> help…") — bilinçli tasarım (`Compute Reschedule Availability` başlık yorumu: *"busy/past/closed/
+> invalid → handoff with context"*). Bu dört literal motorda baştan beri vardı; envanterin ilk
+> sürümü onları kaçırmıştı. Tur A grup 2 taramasında bulundu ve buraya ayrı satır olarak eklendi.
 
 ### 2.7 — Booking sonrası belirsizlik (yarış / doğrulama)
 
@@ -304,7 +321,7 @@ DATA-MODEL'de `done` diye bir değer geçmiyor — hiçbir node yazmıyor.
 
 ## §3 — YÜZEY 3: GÖMÜLEBİLİR SNIPPET
 
-Müşterinin **kendi sitesine** koyacağı hâli. Motor tarafı aynı endpoint, aynı 60 ekran.
+Müşterinin **kendi sitesine** koyacağı hâli. Motor tarafı aynı endpoint, aynı 65 ekran.
 
 | Konu | Demo sitesindeki widget | Gömülebilir snippet |
 |---|---|---|
@@ -316,7 +333,7 @@ Müşterinin **kendi sitesine** koyacağı hâli. Motor tarafı aynı endpoint, 
 | Kimlik | `sessionId` (istemci üretir) | **Aynı** — "session-token gücü, doğrulanmış kimlik değil" (README, kabul edilmiş T1 limiti) |
 | Mock şeridi | Var (demo) | **Gerçek müşteride OLMAMALI** → §8 açık karar 5 |
 
-**Aynı kalan ekranlar:** §2'deki W1-W60'ın tamamı — motor kanal ayrımı yapmıyor
+**Aynı kalan ekranlar:** §2'deki W1-W65'in tamamı — motor kanal ayrımı yapmıyor
 (`channel: 'widget'` zorlanıyor, `Normalize Inbound`).
 
 **Değişen/eklenen:**
@@ -566,11 +583,20 @@ Sahibe `orphan_event` alert'i gider; müşteri hiçbir şey bilmez. (Kabul edilm
 **BULGU-8 — devir kilidinin çıkışı yok** (bilinen CANLI KUSUR). Phase 6'daki tek yazma aksiyonu
 (D11) tam olarak bunu kapatmak için var.
 
+**BULGU-9 — envanter, motorda var olan 4 erteleme ön-yazım literalini kaçırmıştı.** ✅ **KAPANDI
+(Tur A grup 2, 2026-08-31)** — `Compute Reschedule Availability`'nin busy/past/closed/invalid
+retleri (hepsi `stage='handoff'`, "a team member will help…" literalleri) §2.6'da satır olarak
+yoktu; W36/W37'ye (yazım-SONRASI yarış durumları) sıkıştırılmış sanılıyordu ama metinleri ve
+konumları farklı (yazım-ÖNCESİ ret). **W62-W65 olarak eklendi.** Aynı taramada tüm `Compute *` +
+`Build * State` + `* Reply` node'ları yeniden tarandı: kalan tüm envanter-dışı metinler
+`cfg.messageTemplates.X || '…'` **fallback'leri** çıktı (birincil kaynak template — ayrı ekran
+değil); **başka kaçak birincil literal YOK.**
+
 ### Sistemin ürettiği ama ekranı olmayan
 
 | Ne | Durum |
 |---|---|
-| Yeni ziyaretçi karşılaması | `greeting` template'i **silindi** (ölü config'di). İlk cevap doğrudan intent cevabı. Ayrı karşılama ekranı isteniyorsa **YENİ** sayılır → §8 karar 4 |
+| Yeni ziyaretçi karşılaması | ✅ **K4 = B ile çözüldü (2026-08-31):** frontend sabit karşılaması **W61** olarak eklendi (metin §2.1'de, motor karşılığı yok, motor değişmedi) |
 | Duplicate | **ekran yok — sessizce yutulur** (karar, §2.10.1) |
 | Turnstile / normalize / rate-limit / offline | **YENİ — frontend metni, motor karşılığı yok** (§2.10.1'de yazılı, Design icat etmeyecek) |
 | "Son hatalar" paneli | **sorgulanabilir kaynak yok** (D16) |
@@ -631,7 +657,10 @@ izin veriyor.
 → **Önerim: B.** K6 kararı "salt-okunur + TEK yazma istisnası" dedi; ikinci bir yazma eklemek o
 kararı sulandırır. Lead durumu Phase 7'de iptal/erteleme ile birlikte gelsin.
 
-### K4 — Yeni ziyaretçi için ayrı karşılama ekranı olsun mu? (BULGU/BOŞLUK)
+### K4 — Yeni ziyaretçi için ayrı karşılama ekranı olsun mu? ✅ **KARARA BAĞLANDI → B (2026-08-31)**
+**Yigitcan kararı: B.** Gerekçesi: widget açılıp hiçbir şey söylememesi bir TASARIM hatası; motorun
+karşılama üretmemesi bir MOTOR gerçeği — ikisi ayrı. Motor değişmez. Metin **W61**'de (§2.1),
+bu belge tek kaynak.
 Bugün yok — `greeting` template'i ölü config olduğu için FIX-1'de **silindi**.
 
 | Seçenek | Bedel |
@@ -683,10 +712,10 @@ config'te var. L5 (Saatler & yer) bölümü `faq.address`'i okusun. Bedeli sıf�
 |---|---|
 | Yüzey | **4** (demo sitesi · widget · gömülebilir snippet · dashboard) |
 | Landing bölümü | 9 (L1-L9) |
-| Widget ekran/durumu | **60** (W1-W60) |
+| Widget ekran/durumu | **65** (W1-W65 — W61 frontend karşılaması K4 ile, W62-W65 BULGU-9 ile eklendi 2026-08-31) |
 | Snippet'e özgü ekran | 4 (S1-S4) |
 | Dashboard ekranı | 20 (D1-D20) |
-| **Toplam tasarlanacak ekran/durum** | **93** |
+| **Toplam tasarlanacak ekran/durum** | **98** |
 | Alert sınıfı (rozet olarak) | **24** |
 | Stage (durum grafiği) | 9 |
 | Ortak öğe kuralı | 7 |

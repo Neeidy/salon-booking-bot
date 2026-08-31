@@ -6,7 +6,7 @@
 <title>Widget review · Booking — Cream &amp; Ink</title>
 <!--
   DESIGN REVIEW PAGE — Tur A / Group 1 of 4 (booking).
-  Single source of screens: docs/SCREEN-INVENTORY.md §2 (states W1–W2, W10–W18, W40–W42).
+  Single source of screens: docs/SCREEN-INVENTORY.md §2 (states W1–W2, W10–W18, W40–W42, W61).
   Every bot bubble's text comes verbatim from config/client.config.example.json
   messageTemplates or from a literal in n8n/workflow.sanitized.json — the source is
   noted in an HTML comment above each bubble. User bubbles are MOCK demo input.
@@ -181,9 +181,10 @@
   <h1 class="mast-title">Booking</h1>
   <p class="mast-sub">Every state the engine can produce on the booking path — openings, the ask–confirm–booked
     spine, all five availability rejections, and the three post-write uncertainty outcomes. Bot copy is verbatim
-    from <code>messageTemplates</code> or an engine literal; nothing is invented.</p>
+    from <code>messageTemplates</code> or an engine literal; nothing is invented. The one frontend-only bubble
+    (W61, the welcome) was ruled on in decision K4 and its text lives in SCREEN-INVENTORY §2.1.</p>
   <div class="mast-meta">
-    <span><strong>14</strong>&nbsp;states</span>
+    <span><strong>15</strong>&nbsp;states</span>
     <span>Source&nbsp;<strong>SCREEN-INVENTORY §2.1 · §2.3 · §2.4 · §2.7</strong></span>
     <span>Exit&nbsp;<strong>Send Reply To Origin (200)</strong></span>
     <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
@@ -191,7 +192,7 @@
   <nav class="pages-nav" aria-label="Review pages">
     <a href="index.html">Index</a>
     <a class="here" href="booking.html" aria-current="page">1 · Booking</a>
-    <span class="pending" title="Not yet designed">2 · Cancel &amp; reschedule</span>
+    <a href="cancel-reschedule.html">2 · Cancel &amp; reschedule</a>
     <span class="pending" title="Not yet designed">3 · Handoff &amp; errors</span>
     <span class="pending" title="Not yet designed">4 · FAQ &amp; lead</span>
   </nav>
@@ -207,8 +208,9 @@
   <section class="sect wrap" aria-labelledby="flows-h">
     <p class="sect-kicker">In flow</p>
     <h2 class="sect-title" id="flows-h">The conversation, at reading speed</h2>
-    <p class="sect-note">Two complete threads. Left: a first-time visitor books the happy path — note there is
-      <code>no separate greeting</code>; the first bot bubble is already the intent answer (W1).
+    <p class="sect-note">Two complete threads. Left: a first-time visitor books the happy path — the opening
+      bubble is the <code>frontend-only welcome</code> (W61, decision K4); the engine still produces no greeting,
+      so its first reply is already the intent answer (W1).
       Right: a returning customer hits a taken slot and recovers through the alternatives — the rejected slot is
       cleared from state, so the later “yes” can only bind to the newly offered time (fail-closed).</p>
 
@@ -216,7 +218,7 @@
 
       <!-- ─── FLOW A · first visit, happy path: W1 → W10 → W11 → W12 → W13 ─── -->
       <figure class="flow-slot">
-        <figcaption><strong>Flow A</strong> · first visit — happy path (W1 · W10 · W11 · W12 · W13)</figcaption>
+        <figcaption><strong>Flow A</strong> · first visit — happy path (W61 · W1 · W10 · W11 · W12 · W13)</figcaption>
         <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
           <div class="panel-head">
             <span class="panel-avatar" aria-hidden="true">DB</span>
@@ -227,8 +229,12 @@
             <button class="panel-close" type="button" aria-label="Close chat">×</button>
           </div>
           <div class="thread" role="log" aria-live="polite" data-staged data-flow="a">
-            <!-- W1: NO separate greeting exists (greeting template deleted in FIX-1).
-                 The visitor speaks first; the first bot bubble is a direct intent answer. -->
+            <!-- W61 · FRONTEND-ONLY welcome (decision K4=B, 2026-08-31). SOURCE: SCREEN-INVENTORY §2.1 W61 —
+                 the single source of this text. {business.name} from config. Shown once when the panel first
+                 opens; NEVER sent to the engine, no state written. The engine still produces no greeting (W1). -->
+            <div class="msg bot" data-step="0">Hi! I'm the Demo Barber Co. assistant — I can book you in, move a booking, or answer questions. How can I help?<span class="stamp">14:00</span></div>
+            <!-- W1: NO engine greeting exists (greeting template deleted in FIX-1).
+                 The engine's first reply below is already a direct intent answer. -->
             <!-- MOCK user input -->
             <div class="msg user" data-step="1">Hi — do you have anything Friday afternoon?<span class="stamp">14:00</span></div>
             <!-- W10 · SOURCE: messageTemplates.askService (config/client.config.example.json) · node: Slot Gate.
@@ -360,13 +366,25 @@
   <section class="group wrap" aria-labelledby="g21">
     <div class="group-rule">
       <h3 id="g21">Openings</h3>
-      <span class="src">SCREEN-INVENTORY §2.1 · W1–W2</span>
+      <span class="src">SCREEN-INVENTORY §2.1 · W1–W2 · W61</span>
     </div>
-    <p class="group-note">There is deliberately <code>no separate greeting screen</code> — the old
-      <code>greeting</code> template was dead config and was deleted in FIX-1. Whether the frontend should show a
-      static welcome bubble on open is <strong>open decision K4</strong> (recommendation: yes, frontend-only) —
-      not designed here until it is ruled on.</p>
+    <p class="group-note">The engine produces <code>no greeting</code> — the old <code>greeting</code> template
+      was dead config and was deleted in FIX-1. <strong>Decision K4 (2026-08-31): the frontend shows a static
+      welcome bubble</strong> (W61) so the panel never opens silent; the engine is unchanged and never sees it.
+      Its text lives in SCREEN-INVENTORY §2.1 — the single source.</p>
     <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W61</span><span class="state-name">Frontend welcome — new</span></div>
+        <div class="state-body">
+          <!-- W61 · SOURCE: SCREEN-INVENTORY §2.1 W61 (frontend fixed text, K4=B decision 2026-08-31).
+               {business.name} from config. NOT an engine message — never sent, no state written. -->
+          <div class="msg bot">Hi! I'm the Demo Barber Co. assistant — I can book you in, move a booking, or answer questions. How can I help?<span class="stamp">14:00</span></div>
+        </div>
+        <p class="state-note"><strong>Frontend-only.</strong> Shown once when the panel first opens. The engine
+          never sees it and writes no state — the machine-side truth of W1 is untouched.</p>
+        <div class="tech"><span><b>exit</b> — (frontend, no engine round-trip)</span><span><b>stage</b> —</span><span><b>source</b> SCREEN-INVENTORY §2.1 W61</span></div>
+      </div>
 
       <div class="state-card">
         <div class="state-head"><span class="state-id">W1</span><span class="state-name">New visitor — no greeting</span></div>
@@ -377,8 +395,8 @@
                No greeting bubble exists in the engine (greeting template deleted, FIX-1). -->
           <div class="msg bot">Which service would you like? (Haircut / Beard Trim / Haircut + Beard)<span class="stamp">14:00</span></div>
         </div>
-        <p class="state-note"><strong>No greeting bubble exists.</strong> The visitor speaks first; the engine's
-          first reply answers the intent directly. A frontend-only welcome bubble is open decision K4.</p>
+        <p class="state-note"><strong>No engine greeting exists.</strong> The engine's first reply answers the
+          intent directly. The welcome the visitor sees before this is W61 — frontend-only, engine-invisible.</p>
         <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> collecting</span><span><b>template</b> askService (first answer)</span></div>
       </div>
 

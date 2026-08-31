@@ -6,7 +6,7 @@
 <title>Widget review · Index — Cream &amp; Ink</title>
 <!--
   DESIGN REVIEW INDEX — Tur A / Widget.
-  Single source of screens: docs/SCREEN-INVENTORY.md §2 (60 widget states, W1–W60).
+  Single source of screens: docs/SCREEN-INVENTORY.md §2 (65 widget states, W1–W65).
   Four group pages; each is standalone (no build, no external deps beyond Google Fonts).
   Visual language: design/mockups/variants/widget-a-cream-ink.html (Direction A).
   tokens.css is deliberately NOT used (wrong palette — SCREEN-INVENTORY §7 BULGU-4).
@@ -88,14 +88,14 @@
 
 <header class="mast wrap">
   <p class="mast-eyebrow">Design review · Tur A — Widget</p>
-  <h1 class="mast-title">60 states,<br>nothing invented.</h1>
+  <h1 class="mast-title">65 states,<br>nothing invented.</h1>
   <p class="mast-sub">Every widget state the engine actually produces — booking, cancel &amp; reschedule, the
     three handoff classes, errors, FAQ and lead capture — drawn from <code>docs/SCREEN-INVENTORY.md §2</code>.
     Bot copy is verbatim from <code>messageTemplates</code> or an engine literal; each bubble carries its source
     as an HTML comment.</p>
   <div class="mast-meta">
     <span><strong>4</strong>&nbsp;pages</span>
-    <span><strong>60</strong>&nbsp;states (W1–W60)</span>
+    <span><strong>65</strong>&nbsp;states (W1–W65 — W61 by decision K4, W62–W65 by BULGU-9)</span>
     <span><strong>1</strong>&nbsp;deliberately screen-less (W56 duplicate — swallowed silently)</span>
     <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
   </div>
@@ -108,20 +108,20 @@
       <span class="toc-num">1</span>
       <span>
         <span class="toc-name">Booking</span>
-        <span class="toc-states">openings · ask–confirm–booked · 5 availability rejections · post-write uncertainty — W1–W2, W10–W18, W40–W42</span>
+        <span class="toc-states">openings incl. the frontend welcome (W61) · ask–confirm–booked · 5 availability rejections · post-write uncertainty — W1–W2, W10–W18, W40–W42, W61</span>
       </span>
       <span class="toc-lead" aria-hidden="true"></span>
       <span class="toc-status">Ready for review</span>
     </a>
-    <div class="toc-row pending" aria-disabled="true">
+    <a class="toc-row" href="cancel-reschedule.html">
       <span class="toc-num">2</span>
       <span>
         <span class="toc-name">Cancel &amp; reschedule</span>
-        <span class="toc-states">both flows + every edge: cutoff, target gone, orphan, mirror failures — W19–W39</span>
+        <span class="toc-states">both flows + every edge: cutoff, target gone, orphan, mirror failures, pre-write rejections — W19–W39, W62–W65</span>
       </span>
       <span class="toc-lead" aria-hidden="true"></span>
-      <span class="toc-status">Pending</span>
-    </div>
+      <span class="toc-status">Ready for review</span>
+    </a>
     <div class="toc-row pending" aria-disabled="true">
       <span class="toc-num">3</span>
       <span>
