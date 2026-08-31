@@ -41,9 +41,11 @@
   .mast{padding:clamp(40px,6vw,72px) 0 0}
   .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
   .mast-title{font-weight:600;font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-title .dot{color:var(--oxide)} /* signature full stop */
   .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
   .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
-  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta{position:relative;display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:14px 0 12px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* newspaper thick+thin folio rule */
   .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
 
   /* ---------- group index — newspaper price-list rhythm ---------- */
@@ -56,7 +58,10 @@
   .toc-lead{flex:1;border-bottom:2px dotted var(--edge);transform:translateY(-6px);min-width:40px}
   .toc-status{font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;flex-shrink:0}
   a.toc-row .toc-status{color:var(--oxide)}
+  .toc-name{transition:color .15s var(--ease)}
   a.toc-row:hover .toc-name{color:var(--oxide)}
+  a.toc-row .toc-num{transition:transform .2s var(--ease)}
+  a.toc-row:hover .toc-num{transform:translateX(3px)}
 
   /* ---------- stage machine — the widget's state graph, review reference ---------- */
   .stage-sect{margin-top:clamp(44px,6vw,68px);background:var(--ink);color:var(--cream);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12);padding:clamp(24px,4vw,40px)}
@@ -78,6 +83,7 @@
   }
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation:none !important;transition:none !important}
+    a.toc-row:hover .toc-num{transform:none !important}
   }
 </style>
 </head>
@@ -85,7 +91,7 @@
 
 <header class="mast wrap">
   <p class="mast-eyebrow">Design review · Tur A — Widget</p>
-  <h1 class="mast-title">65 states,<br>nothing invented.</h1>
+  <h1 class="mast-title">65 states,<br>nothing invented<span class="dot">.</span></h1>
   <p class="mast-sub">Every widget state the engine actually produces — booking, cancel &amp; reschedule, the
     three handoff classes, errors, FAQ and lead capture — drawn from <code>docs/SCREEN-INVENTORY.md §2</code>.
     Bot copy is verbatim from <code>messageTemplates</code> or an engine literal; each bubble carries its source
