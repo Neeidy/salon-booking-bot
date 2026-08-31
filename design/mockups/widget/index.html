@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget review · Index — Cream &amp; Ink</title>
+<!--
+  DESIGN REVIEW INDEX — Tur A / Widget.
+  Single source of screens: docs/SCREEN-INVENTORY.md §2 (60 widget states, W1–W60).
+  Four group pages; each is standalone (no build, no external deps beyond Google Fonts).
+  Visual language: design/mockups/variants/widget-a-cream-ink.html (Direction A).
+  tokens.css is deliberately NOT used (wrong palette — SCREEN-INVENTORY §7 BULGU-4).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  h1,h2{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:980px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  .mast{padding:clamp(40px,6vw,72px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+
+  /* ---------- group index — newspaper price-list rhythm ---------- */
+  .toc{margin-top:clamp(34px,5vw,52px)}
+  .toc-row{display:flex;align-items:baseline;gap:14px;padding:20px 0;border-bottom:1px solid var(--rule);text-decoration:none}
+  .toc-row:first-child{border-top:2px solid var(--ink)}
+  .toc-num{font-family:var(--font-display);font-weight:600;font-size:22px;color:var(--oxide);flex-shrink:0;width:34px;font-variant-numeric:tabular-nums}
+  .toc-name{font-family:var(--font-display);font-weight:600;font-size:clamp(19px,2.6vw,25px);letter-spacing:-.01em}
+  .toc-states{font-size:13px;color:var(--muted);margin-top:2px}
+  .toc-lead{flex:1;border-bottom:2px dotted var(--edge);transform:translateY(-6px);min-width:40px}
+  .toc-status{font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;flex-shrink:0}
+  a.toc-row .toc-status{color:var(--oxide)}
+  .toc-row.pending{cursor:default}
+  .toc-row.pending .toc-name,.toc-row.pending .toc-num{color:var(--muted)}
+  .toc-row.pending .toc-status{color:var(--muted)}
+  a.toc-row:hover .toc-name{color:var(--oxide)}
+
+  /* ---------- stage machine — the widget's state graph, review reference ---------- */
+  .stage-sect{margin-top:clamp(44px,6vw,68px);background:var(--ink);color:var(--cream);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12);padding:clamp(24px,4vw,40px)}
+  .stage-sect h2{font-size:clamp(20px,2.8vw,26px);font-weight:600}
+  .stage-sect p{font-size:13.5px;color:var(--stamp);max-width:60ch;margin-top:8px}
+  .stage-pre{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:12.5px;line-height:1.8;margin-top:18px;overflow-x:auto;white-space:pre;color:var(--cream)}
+  .stage-pre b{color:var(--oxide-soft);font-weight:600}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:480px){
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+    .toc-lead{display:none}
+    .toc-row{flex-wrap:wrap}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur A — Widget</p>
+  <h1 class="mast-title">60 states,<br>nothing invented.</h1>
+  <p class="mast-sub">Every widget state the engine actually produces — booking, cancel &amp; reschedule, the
+    three handoff classes, errors, FAQ and lead capture — drawn from <code>docs/SCREEN-INVENTORY.md §2</code>.
+    Bot copy is verbatim from <code>messageTemplates</code> or an engine literal; each bubble carries its source
+    as an HTML comment.</p>
+  <div class="mast-meta">
+    <span><strong>4</strong>&nbsp;pages</span>
+    <span><strong>60</strong>&nbsp;states (W1–W60)</span>
+    <span><strong>1</strong>&nbsp;deliberately screen-less (W56 duplicate — swallowed silently)</span>
+    <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <nav class="toc" aria-label="Review pages">
+    <a class="toc-row" href="booking.html">
+      <span class="toc-num">1</span>
+      <span>
+        <span class="toc-name">Booking</span>
+        <span class="toc-states">openings · ask–confirm–booked · 5 availability rejections · post-write uncertainty — W1–W2, W10–W18, W40–W42</span>
+      </span>
+      <span class="toc-lead" aria-hidden="true"></span>
+      <span class="toc-status">Ready for review</span>
+    </a>
+    <div class="toc-row pending" aria-disabled="true">
+      <span class="toc-num">2</span>
+      <span>
+        <span class="toc-name">Cancel &amp; reschedule</span>
+        <span class="toc-states">both flows + every edge: cutoff, target gone, orphan, mirror failures — W19–W39</span>
+      </span>
+      <span class="toc-lead" aria-hidden="true"></span>
+      <span class="toc-status">Pending</span>
+    </div>
+    <div class="toc-row pending" aria-disabled="true">
+      <span class="toc-num">3</span>
+      <span>
+        <span class="toc-name">Handoff &amp; errors</span>
+        <span class="toc-states">three handoff classes kept apart · handoff lock · infra failures · security-layer rejections — W44–W60</span>
+      </span>
+      <span class="toc-lead" aria-hidden="true"></span>
+      <span class="toc-status">Pending</span>
+    </div>
+    <div class="toc-row pending" aria-disabled="true">
+      <span class="toc-num">4</span>
+      <span>
+        <span class="toc-name">FAQ &amp; lead</span>
+        <span class="toc-states">7 deterministic FAQ topics · lead captured — W3–W9, W43</span>
+      </span>
+      <span class="toc-lead" aria-hidden="true"></span>
+      <span class="toc-status">Pending</span>
+    </div>
+  </nav>
+
+  <!-- Stage machine — SCREEN-INVENTORY §2.12 (9 values). Review reference only. -->
+  <section class="stage-sect" aria-labelledby="stage-h">
+    <h2 id="stage-h">The stage machine behind every bubble</h2>
+    <p>Nine stages govern which reply is even possible. <b>handoff</b> is a lock — no customer path leads out;
+      only the owner releases it (the dashboard's single write action).</p>
+    <pre class="stage-pre" aria-label="Stage state graph">
+new ──▶ collecting ──▶ ready ──▶ confirming ──▶ booked
+ │           ▲ (slot rejected — fail-closed)      │
+ ├──▶ cancel_confirming ──▶ cancelled | new
+ ├──▶ reschedule_confirming ──▶ booked | new
+ └──▶ <b>handoff  ⛔ LOCK — no customer exit (owner only)</b></pre>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review pages · no real customer data · source of truth: docs/SCREEN-INVENTORY.md §2 ·
+  design language: Direction A “Cream &amp; Ink” (tokens.css deliberately unused — wrong palette, BULGU-4).
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+</body>
+</html>
