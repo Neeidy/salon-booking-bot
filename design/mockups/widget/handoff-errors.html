@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget review · Handoff &amp; errors — Cream &amp; Ink</title>
+<!--
+  DESIGN REVIEW PAGE — Tur A / Group 3 of 4 (handoff & errors) — THE CRITICAL PAGE.
+  Single source of screens: docs/SCREEN-INVENTORY.md §2.9–§2.11 (W44–W60; W56 is deliberately
+  screen-less and is documented, not designed).
+  THE POINT OF THIS PAGE: the three handoff classes (.claude/rules/handoff.md) must never look
+  alike. The customer text can be identical; the machine truth differs — and the visual class
+  system built here carries that difference through to the build:
+    intent-handoff   → solid muted left border + person glyph   (a human takes over, on purpose)
+    guard-trip       → solid oxide-soft left border + shield    (the system protected itself)
+    infra-unavailable→ dashed oxide left border + bolt          (something is DOWN — a fault)
+    carrier/security → NOT a bubble at all: a centered system strip (the bot never spoke)
+  Bot copy is verbatim from config messageTemplates / engine literals; W57–W60 frontend fixed
+  texts come from SCREEN-INVENTORY §2.10.1 (their single source). User bubbles are MOCK.
+  tokens.css is deliberately NOT used (wrong palette — SCREEN-INVENTORY §7 BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — identical pattern to the approved variant mockups:
+     staged-reveal hiding lives ONLY under html.js. No JS → full page reads statically. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — identical to the approved variants (fixed, not Design's to change). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  /* ---------- review masthead ---------- */
+  .mast{padding:clamp(36px,5vw,64px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pages-nav a,.pages-nav span{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap}
+  .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  .pages-nav .pending{color:var(--muted);border-style:dashed;cursor:default}
+
+  .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
+  .razor path{stroke:currentColor;fill:none;stroke-width:1.5}
+  .js .razor .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:drawline 1.6s var(--ease) .3s forwards}
+  @keyframes drawline{to{stroke-dashoffset:0}}
+
+  /* ---------- section headers ---------- */
+  .sect{padding:clamp(34px,5vw,58px) 0 0}
+  .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
+  .sect-note{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:10px}
+  .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px)}
+  .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
+  .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
+  .ink-band p{font-size:14px;color:var(--stamp);max-width:56ch}
+
+  /* ---------- widget bubbles + THE THREE-CLASS SYSTEM ---------- */
+  .msg{max-width:88%;padding:11px 15px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  /* CLASS 1 · intent-handoff — a human takes over ON PURPOSE. Solid muted edge + person glyph. */
+  .msg.handoff{border-left:3px solid var(--muted)}
+  /* CLASS 2 · guard-trip — the system protected itself (kill-switch / max-turns / spend-cap).
+     Transient, benign. Solid oxide-soft edge + shield glyph. */
+  .msg.guard{border-left:3px solid var(--oxide-soft)}
+  /* CLASS 3 · infra-unavailable — an external system is DOWN. A fault, not a conversation.
+     Dashed oxide edge + bolt glyph (introduced on page 2 for W27). */
+  .msg.infra{border-left:3px dashed var(--oxide)}
+  /* class glyph — inline stroke SVG before the text, colored per class */
+  .glyph{display:inline-block;width:15px;height:15px;vertical-align:-2px;margin-right:7px}
+  .glyph svg{display:block;width:100%;height:100%;stroke-width:1.5;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+  .msg.handoff .glyph{color:var(--muted)}
+  .msg.guard .glyph{color:var(--oxide-soft)}
+  .msg.infra .glyph{color:var(--oxide)}
+  /* CARRIER / SECURITY LAYER — not a bubble: a centered system strip. The bot never spoke,
+     so the message must not wear the bot's voice (no bubble frame, no avatar, no tail). */
+  .sysnote{align-self:center;text-align:center;max-width:92%;font-size:12.5px;color:var(--muted);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:8px 14px;letter-spacing:.01em}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+
+  /* ---------- triptych — same sentence, three machine truths ---------- */
+  .triptych{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:26px}
+  .tript-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:8px 8px 0 rgba(22,21,15,.12);padding:0;display:flex;flex-direction:column}
+  .tript-head{padding:14px 18px;border-bottom:1px solid var(--rule)}
+  .tript-class{font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:-.01em}
+  .tript-def{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .tript-body{padding:18px;display:flex;flex-direction:column;flex:1}
+  .tript-body .msg{max-width:100%}
+  .tript-facts{border-top:1px dashed var(--rule);margin:0 18px;padding:10px 0 14px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
+  .tript-facts b{font-weight:600;color:var(--ink);letter-spacing:.02em}
+  .tript-facts .bad{color:var(--oxide);font-weight:600}
+
+  /* flows (panel anatomy from the approved widget mockup) */
+  .flows{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:clamp(22px,3vw,36px);margin-top:26px;align-items:start}
+  .flow-slot>figcaption{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .flow-slot>figcaption strong{color:var(--ink)}
+  .panel{width:100%;max-width:400px;background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden;display:flex;flex-direction:column}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;flex-shrink:0;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .thread{padding:18px;display:flex;flex-direction:column;gap:12px}
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:12px 15px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  .js .thread[data-staged] .msg,.js .thread[data-staged] .sysnote{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .thread[data-staged] .msg.in,.js .thread[data-staged] .sysnote.in{opacity:1;transform:none}
+  .replay{margin-top:12px;font-size:12.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:6px 14px;display:none}
+  .js .replay{display:inline-block}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- state-by-state cards ---------- */
+  .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:24px}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column}
+  .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
+  .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .state-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .state-body .msg{max-width:100%}
+  .state-body .msg.user{align-self:flex-end;max-width:88%}
+  .state-body .sysnote{align-self:stretch;max-width:100%}
+  .state-note{font-size:12.5px;color:var(--muted);padding:0 16px 12px;line-height:1.5}
+  .state-note strong{color:var(--oxide)}
+  .state-card.warn{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .state-card.warn .state-id{color:var(--oxide)}
+  /* W56 — the deliberate absence: a ghost slot where no bubble will ever render */
+  .ghost{border:1.5px dashed var(--edge);border-radius:16px 16px 16px 4px;padding:11px 15px;font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;max-width:100%}
+  /* REVIEW-ONLY tech strip — removed in production */
+  .tech{border-top:1px dashed var(--rule);padding:8px 16px 10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  .group{padding-top:clamp(30px,4vw,46px)}
+  .group-rule{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:10px}
+  .group-rule h3{font-size:clamp(19px,2.4vw,24px);font-weight:600;letter-spacing:-.01em}
+  .group-rule .src{margin-left:auto;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+  .group-note{font-size:14px;color:var(--muted);max-width:66ch;margin-top:8px}
+  .group-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .group-note strong{color:var(--ink)}
+
+  /* §2.11 invisibility table */
+  .mini-table{margin-top:14px;border-top:2px solid var(--ink);font-size:13px;max-width:640px}
+  .mini-row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--rule)}
+  .mini-row b{font-weight:600}
+  .mini-row span{color:var(--muted);text-align:right}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:840px){
+    .flows{grid-template-columns:1fr}
+  }
+  @media (max-width:480px){
+    .panel{max-width:100%}
+    .state-grid{grid-template-columns:1fr}
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .thread[data-staged] .msg,.js .thread[data-staged] .sysnote{opacity:1 !important;transform:none !important}
+    .typing{display:none !important}
+    .razor .draw{stroke-dashoffset:0 !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- Class glyphs (inline SVG, stroke-based — never emoji): person / shield / bolt -->
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur A — Widget · Group 3 / 4</p>
+  <h1 class="mast-title">Handoff &amp; errors</h1>
+  <p class="mast-sub">The page this tour exists for. Three handoff classes —
+    <code>intent-handoff</code>, <code>guard-trip</code>, <code>infra-unavailable</code> — may share the same
+    polite sentence, but the machine truth differs and the visuals must never blur them. Plus the lock, the
+    engine-silent exits, and the four carrier-layer notices that are deliberately <em>not</em> bot bubbles.</p>
+  <div class="mast-meta">
+    <span><strong>17</strong>&nbsp;states (1 deliberately screen-less)</span>
+    <span>Source&nbsp;<strong>SCREEN-INVENTORY §2.9 · §2.10 · §2.11</strong></span>
+    <span>Contract&nbsp;<strong>.claude/rules/handoff.md</strong></span>
+    <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
+  </div>
+  <nav class="pages-nav" aria-label="Review pages">
+    <a href="index.html">Index</a>
+    <a href="booking.html">1 · Booking</a>
+    <a href="cancel-reschedule.html">2 · Cancel &amp; reschedule</a>
+    <a class="here" href="handoff-errors.html" aria-current="page">3 · Handoff &amp; errors</a>
+    <span class="pending" title="Not yet designed">4 · FAQ &amp; lead</span>
+  </nav>
+  <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
+    <path class="draw" d="M8 16 H150 l10 -7 12 7 12 -7 12 7 12 -7 12 7 H412"/>
+    <path d="M150 16 a4 4 0 1 1 -0.1 0" opacity=".5"/>
+  </svg>
+</header>
+
+<main>
+
+  <!-- ══════════════ SECTION 1 · THE TRIPTYCH — same sentence, three machine truths ══════════════ -->
+  <section class="sect wrap" aria-labelledby="tript-h">
+    <p class="sect-kicker">The three classes</p>
+    <h2 class="sect-title" id="tript-h">Same sentence, three machine truths</h2>
+    <p class="sect-note">All three bubbles below carry the identical <code>messageTemplates.handoff</code> text —
+      that is the trap this page defuses. What differs is everything the customer can't see: HTTP status, whether
+      state was written, whether the owner is alerted. The class system — border style + glyph — makes the
+      difference visible at a glance and carries into the build.</p>
+
+    <div class="triptych">
+
+      <!-- CLASS 1 · intent-handoff -->
+      <div class="tript-card">
+        <div class="tript-head">
+          <p class="tript-class">1 · Intent handoff</p>
+          <p class="tript-def">A human takes over — on purpose. Low confidence, unknown intent, needs-human, jailbreak.</p>
+        </div>
+        <div class="tript-body">
+          <!-- W44 · SOURCE: messageTemplates.handoff · nodes: Mark Handoff + 17 error/needs-human builders,
+               exit Handoff Reply (200). Writes stage=handoff + last_intent. -->
+          <div class="msg bot handoff"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.8c.8-2.9 2.9-4.4 5.2-4.4s4.4 1.5 5.2 4.4"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tript-facts">
+          <b>HTTP</b><span>200</span>
+          <b>State</b><span class="bad">stage=handoff — LOCKS</span>
+          <b>WhatsApp</b><span>sent</span>
+          <b>Owner</b><span>alert: handoff</span>
+        </div>
+      </div>
+
+      <!-- CLASS 2 · guard-trip -->
+      <div class="tript-card">
+        <div class="tript-head">
+          <p class="tript-class">2 · Guard trip</p>
+          <p class="tript-def">The system protected itself — kill-switch, max-turns, spend-cap. Transient; nothing persisted.</p>
+        </div>
+        <div class="tript-body">
+          <!-- W45 · SOURCE: messageTemplates.handoff · exit: Handoff Reply (200), NO state write.
+               Triggers: bot.killSwitch · bot.maxTurnsPerConversation (12) · spend-cap → W53. -->
+          <div class="msg bot guard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13.4 3.6 v3.9 c0 3.4-2.4 5.6-5.4 6.9 -3-1.3-5.4-3.5-5.4-6.9 v-3.9 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tript-facts">
+          <b>HTTP</b><span>200</span>
+          <b>State</b><span>none — transient</span>
+          <b>WhatsApp</b><span>sent</span>
+          <b>Owner</b><span>max-turns &amp; spend-cap alert; kill-switch doesn't (owner set it)</span>
+        </div>
+      </div>
+
+      <!-- CLASS 3 · infra-unavailable -->
+      <div class="tript-card">
+        <div class="tript-head">
+          <p class="tript-class">3 · Infra unavailable</p>
+          <p class="tript-def">An external system is down — LLM, calendar, lead store, state store. A fault, not a conversation.</p>
+        </div>
+        <div class="tript-body">
+          <!-- W46 · SOURCE: messageTemplates.handoff · exits: LLM/Calendar/Lead Unavailable Reply (503 +
+               error flag), NO state write. One exception sends no text at all — W54 below. -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tript-facts">
+          <b>HTTP</b><span class="bad">503 + error flag</span>
+          <b>State</b><span>none</span>
+          <b>WhatsApp</b><span>sent</span>
+          <b>Owner</b><span>alert: *_unavailable</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ SECTION 2 · FLOW — the lock at work ══════════════ -->
+  <section class="sect wrap" aria-labelledby="flow-h">
+    <p class="sect-kicker">In flow</p>
+    <h2 class="sect-title" id="flow-h">The lock, and the one-time reply</h2>
+    <p class="sect-note">Once <code>stage=handoff</code>, every customer message routes to the lock: no LLM, no
+      state write, no WhatsApp send. Decision <code>K2 = C</code>: the input stays <strong>open</strong> (a human
+      will read what arrives), the lock reply is shown <strong>once</strong>, and later messages are accepted
+      silently — the frontend suppresses the repeat, the engine is unchanged. No customer path unlocks it; only
+      the owner does (the dashboard's single write action).</p>
+
+    <div class="flows">
+      <figure class="flow-slot">
+        <figcaption><strong>Flow F</strong> · handoff → lock → quiet acceptance (W44 · W47 · K2)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="f">
+            <!-- MOCK user input — an intent the bot won't guess at -->
+            <div class="msg user" data-step="1">it's complicated — I'd rather explain to a person<span class="stamp">14:04</span></div>
+            <!-- W44 · SOURCE: messageTemplates.handoff · Mark Handoff writes stage=handoff · exit Handoff Reply 200 -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot handoff" data-step="2"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.8c.8-2.9 2.9-4.4 5.2-4.4s4.4 1.5 5.2 4.4"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+            </div>
+            <!-- MOCK user input — first message INTO the lock -->
+            <div class="msg user" data-step="3">hello? is anyone there?<span class="stamp">14:07</span></div>
+            <!-- W47 · SOURCE: messageTemplates.handoffLocked · node: Handoff Lock Reply (200, no LLM, no state
+                 write, should_send=false — WhatsApp is NOT sent; the widget body carries it). Shown ONCE (K2=C). -->
+            <div class="pair">
+              <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot handoff" data-step="4"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.8c.8-2.9 2.9-4.4 5.2-4.4s4.4 1.5 5.2 4.4"/></svg></span>A team member is already helping you here — they'll reply shortly.<span class="stamp">14:07</span></div>
+            </div>
+            <!-- MOCK user input — later messages are accepted SILENTLY (K2=C: the engine still replies
+                 handoffLocked on the wire, but the frontend suppresses the repeat bubble; a human reads these) -->
+            <div class="msg user" data-step="5">my number changed by the way — the new one ends in 42<span class="stamp">14:09</span></div>
+            <div class="msg user" data-step="6">also can we make it 30 min later?<span class="stamp">14:11</span></div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="f">Replay</button>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ══════════════ ink band ══════════════ -->
+  <div class="ink-band">
+    <div class="wrap">
+      <h2>State by state</h2>
+      <p>Grouped by class — the point of this page. The dashed strip under every card is review-only
+        and disappears in production.</p>
+    </div>
+  </div>
+
+  <!-- REVIEW-ONLY: the .tech strips below (reply exit / stage / template) exist for this
+       design review; they are NOT part of the production widget and will be removed. -->
+
+  <!-- ══════════════ GROUP A · INTENT HANDOFF + THE LOCK ══════════════ -->
+  <section class="group wrap" aria-labelledby="ga">
+    <div class="group-rule">
+      <h3 id="ga">Intent handoff &amp; the lock</h3>
+      <span class="src">SCREEN-INVENTORY §2.9 · W44 · W47</span>
+    </div>
+    <p class="group-note">The only class that <strong>writes state</strong>: <code>stage=handoff</code> +
+      <code>last_intent</code>, and the conversation locks. 17 nodes can write it (<code>Mark Handoff</code> +
+      16 builders). Class mark: solid muted edge + person glyph.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W44</span><span class="state-name">Intent handoff</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">asdf qwerty??<span class="stamp">14:04</span></div>
+          <!-- W44 · SOURCE: messageTemplates.handoff · Mark Handoff (+17 builders) · exit Handoff Reply 200 -->
+          <div class="msg bot handoff"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.8c.8-2.9 2.9-4.4 5.2-4.4s4.4 1.5 5.2 4.4"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <p class="state-note">Triggers: low confidence (&lt; 0.7) · unknown/handoff intent · needs-human paths ·
+          jailbreak attempts. The bot abstains instead of guessing — the handoff is a feature.</p>
+        <div class="tech"><span><b>exit</b> Handoff Reply · <span class="hx">200</span></span><span><b>stage</b> handoff (written)</span><span><b>template</b> handoff</span><span><b>class</b> intent-handoff</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W47</span><span class="state-name">The lock</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">hello? is anyone there?<span class="stamp">14:07</span></div>
+          <!-- W47 · SOURCE: messageTemplates.handoffLocked · node: Handoff Lock Reply — 200, no LLM call,
+               no state write, _outbound_should_send=false (WhatsApp already knows). Shown ONCE per K2=C. -->
+          <div class="msg bot handoff"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6"/><path d="M2.8 13.8c.8-2.9 2.9-4.4 5.2-4.4s4.4 1.5 5.2 4.4"/></svg></span>A team member is already helping you here — they'll reply shortly.<span class="stamp">14:07</span></div>
+        </div>
+        <p class="state-note"><strong>K2 = C:</strong> input stays open, this bubble appears once, later messages
+          are accepted silently for the human to read. No customer path unlocks the conversation — only the
+          owner (dashboard's single write action, BULGU-8 → D11).</p>
+        <div class="tech"><span><b>exit</b> Handoff Lock Reply · <span class="hx">200</span></span><span><b>stage</b> unchanged (locked)</span><span><b>template</b> handoffLocked</span><span><b>owner</b> alert: handoff_lock</span><span><b>class</b> intent-handoff</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP B · GUARD TRIPS ══════════════ -->
+  <section class="group wrap" aria-labelledby="gb">
+    <div class="group-rule">
+      <h3 id="gb">Guard trips</h3>
+      <span class="src">SCREEN-INVENTORY §2.9 · §2.11 · W45 · W53</span>
+    </div>
+    <p class="group-note">The spend brakes and the emergency stop. <strong>Nothing is persisted</strong> — the
+      moment the owner lifts the guard, the conversation continues as if nothing happened. Class mark: solid
+      oxide-soft edge + shield glyph.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W45</span><span class="state-name">Kill-switch / max-turns</span></div>
+        <div class="state-body">
+          <!-- W45 · SOURCE: messageTemplates.handoff · exit Handoff Reply 200, NO state write.
+               Triggers: bot.killSwitch=true · turn_count ≥ bot.maxTurnsPerConversation (12). -->
+          <div class="msg bot guard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13.4 3.6 v3.9 c0 3.4-2.4 5.6-5.4 6.9 -3-1.3-5.4-3.5-5.4-6.9 v-3.9 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Handoff Reply · <span class="hx">200</span></span><span><b>stage</b> none (transient)</span><span><b>template</b> handoff</span><span><b>class</b> guard-trip</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W53</span><span class="state-name">Spend-cap</span></div>
+        <div class="state-body">
+          <!-- W53 · SOURCE: messageTemplates.handoff · node: Build Spend-Cap Reply (200) — deterministic
+               handoff, NO LLM call, NO state write. Trigger: bot_metrics month spend ≥ bot.llmCostCapUsd. -->
+          <div class="msg bot guard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13.4 3.6 v3.9 c0 3.4-2.4 5.6-5.4 6.9 -3-1.3-5.4-3.5-5.4-6.9 v-3.9 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <p class="state-note">Over the monthly LLM cap ($10) the bot stops spending and hands off
+          deterministically. Owner gets a <code>spend_cap</code> alert.</p>
+        <div class="tech"><span><b>exit</b> Build Spend-Cap Reply · <span class="hx">200</span></span><span><b>stage</b> none (transient)</span><span><b>template</b> handoff</span><span><b>class</b> guard-trip</span></div>
+      </div>
+
+    </div>
+
+    <!-- §2.11 — what the customer can NOT tell apart (deliberate; recorded, not hidden) -->
+    <div class="mini-table" role="table" aria-label="Guard states the customer cannot distinguish">
+      <div class="mini-row" role="row"><b role="cell">kill-switch vs max-turns vs spend-cap</b><span role="cell">same handoff sentence — indistinguishable to the customer</span></div>
+      <div class="mini-row" role="row"><b role="cell">dry-run booking</b><span role="cell">identical to a real “booked” — deliberate design decision</span></div>
+      <div class="mini-row" role="row"><b role="cell">dry-run WhatsApp send</b><span role="cell">message silently not sent</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP C · INFRASTRUCTURE FAILURES ══════════════ -->
+  <section class="group wrap" aria-labelledby="gc">
+    <div class="group-rule">
+      <h3 id="gc">Infrastructure failures</h3>
+      <span class="src">SCREEN-INVENTORY §2.9–§2.10 · W46 · W48–W52 · W54</span>
+    </div>
+    <p class="group-note">An external system is down. The customer still gets a calm sentence, but the machine
+      side is unmistakable: <strong>5xx + an <code>error</code> flag</strong>, its own exit node, and an owner
+      alert — so an outage can never masquerade as a normal handoff (the silent failure this repo forbids).
+      Class mark: dashed oxide edge + bolt glyph.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W46</span><span class="state-name">The class itself</span></div>
+        <div class="state-body">
+          <!-- W46 · SOURCE: messageTemplates.handoff · the infra family's shared face (concrete exits below).
+               One member sends NO text at all — W54. -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tech"><span><b>HTTP</b> <span class="hx">5xx + error flag</span></span><span><b>stage</b> none</span><span><b>class</b> infra-unavailable</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W48</span><span class="state-name">LLM down</span></div>
+        <div class="state-body">
+          <!-- W48 · SOURCE: messageTemplates.handoff · node: LLM Unavailable Reply — 503, error:'llm_unavailable' -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> LLM Unavailable Reply · <span class="hx">503</span></span><span><b>flag</b> llm_unavailable</span><span><b>class</b> infra</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W49</span><span class="state-name">Calendar down</span></div>
+        <div class="state-body">
+          <!-- W49 · SOURCE: messageTemplates.handoff · node: Calendar Unavailable Reply — 503, error:'calendar_unavailable' -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Calendar Unavailable Reply · <span class="hx">503</span></span><span><b>flag</b> calendar_unavailable</span><span><b>class</b> infra</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W50</span><span class="state-name">Lead store down</span></div>
+        <div class="state-body">
+          <!-- W50 · SOURCE: messageTemplates.handoff · node: Lead Unavailable Reply — 503, error:'lead_unavailable' -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Lead Unavailable Reply · <span class="hx">503</span></span><span><b>flag</b> lead_unavailable</span><span><b>class</b> infra</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W51</span><span class="state-name">Cancel delete failed</span></div>
+        <div class="state-body">
+          <!-- W51 · SOURCE: messageTemplates.cancelUnavailable · node: Cancel Delete Unavailable Reply —
+               503 + cancel_delete_failed flag. Same state as page 2's W27, shown here in its class family. -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I couldn't reach the calendar to cancel just now — a team member will follow up shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <p class="state-note">Same state as W27 on page 2 — listed here with its class family. The only infra
+          member with its own template.</p>
+        <div class="tech"><span><b>exit</b> Cancel Delete Unavailable Reply · <span class="hx">503</span></span><span><b>flag</b> cancel_delete_failed</span><span><b>class</b> infra</span></div>
+      </div>
+
+      <div class="state-card warn">
+        <div class="state-head"><span class="state-id">W52 ⚠</span><span class="state-name">Booked — state unsaved</span></div>
+        <div class="state-body">
+          <!-- W52 · SOURCE: messageTemplates.bookingConfirmed + state_unsaved:true flag · node:
+               Booking State-Unsaved Reply (200). The calendar event EXISTS; only the Airtable state write
+               failed. Customer sees a genuine success — honestly, because the booking is real. -->
+          <div class="msg bot confirm"><strong>✓</strong> You're booked: Haircut, Friday 4 Sep 15:30. See you then!<span class="stamp">14:03</span></div>
+        </div>
+        <p class="state-note"><strong>The bubble is deliberately identical to W13</strong> — the booking is real
+          (the calendar event exists); only the state mirror failed. Machine side: <code>state_unsaved:true</code>
+          + <code>state_unsaved</code> owner alert. Same honest pattern as W39: success shown, fault flagged to
+          the owner, oxide frame for reviewers only.</p>
+        <div class="tech"><span><b>exit</b> Booking State-Unsaved Reply · <span class="hx">200</span></span><span><b>flag</b> state_unsaved</span><span><b>template</b> bookingConfirmed</span><span><b>class</b> infra (mirror)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W54</span><span class="state-name">State store down</span></div>
+        <div class="state-body">
+          <!-- W54 · engine sends NO TEXT: 503 {ok:false, error:'state_unavailable', handoff:true} ·
+               node: Send Error Response. FRONTEND renders messageTemplates.handoff from config —
+               decision K1/§2.10.1: WhatsApp already sends this key for the same event; both channels
+               share ONE text source, engine unchanged. -->
+          <div class="msg bot infra"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8.8 1.8 3.8 8.8 h3.2 L6.6 14.2 11.9 6.9 H8.5 Z"/></svg></span>I'm passing you to a team member — we'll get back to you shortly.<span class="stamp">14:04</span></div>
+        </div>
+        <p class="state-note"><strong>The engine sends no text here</strong> — the body is
+          <code>{ok:false, error:'state_unavailable', handoff:true}</code>. The frontend renders
+          <code>messageTemplates.handoff</code> from config (decision K1): the same key WhatsApp already sends
+          for this event, so both channels keep one text source.</p>
+        <div class="tech"><span><b>exit</b> Send Error Response · <span class="hx">503</span></span><span><b>flag</b> state_unavailable</span><span><b>text</b> frontend ← config handoff</span><span><b>class</b> infra</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP D · ENGINE-SILENT EXITS ══════════════ -->
+  <section class="group wrap" aria-labelledby="gd">
+    <div class="group-rule">
+      <h3 id="gd">Engine-silent exits</h3>
+      <span class="src">SCREEN-INVENTORY §2.10 · §2.10.1 · W55–W60</span>
+    </div>
+    <p class="group-note">Six exits where the engine hands the widget <strong>no customer text</strong> — each
+      ruled on in §2.10.1. Two borrow existing config templates (W54 above, W55). One shows
+      <strong>nothing at all</strong> (W56). Four are <strong>carrier/security-layer notices</strong> — the bot
+      never ran, so they are deliberately <em>not</em> bot bubbles: a centered system strip, outside the bot's
+      voice. Their four English texts live in §2.10.1 — the single source.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W55</span><span class="state-name">Invalid payload</span></div>
+        <div class="state-body">
+          <!-- W55 · engine sends NO TEXT: 400 {ok:false, error:'invalid_payload', handoff:true} ·
+               node: Send Reject Response. FRONTEND renders messageTemplates.notUnderstood (decision K1) —
+               WhatsApp already sends this key for the same event. A conversational re-ask, so a normal bubble. -->
+          <div class="msg bot">Sorry — I didn't catch that. Could you rephrase?<span class="stamp">14:04</span></div>
+        </div>
+        <p class="state-note">Engine-silent (400 <code>invalid_payload</code>); the frontend renders
+          <code>messageTemplates.notUnderstood</code> — a re-ask in the brand's voice, so it stays a normal
+          bubble, not an error strip.</p>
+        <div class="tech"><span><b>exit</b> Send Reject Response · <span class="hx">400</span></span><span><b>flag</b> invalid_payload</span><span><b>text</b> frontend ← config notUnderstood</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W56</span><span class="state-name">Duplicate — no screen</span></div>
+        <div class="state-body">
+          <!-- W56 · DELIBERATELY SCREEN-LESS (decision K1/§2.10.1): the engine replays the prior result with
+               _outbound_should_send:false ({status:'duplicate_ignored'}); the customer already has their answer.
+               A second bubble would read as "something went wrong". This ghost slot documents the absence —
+               it is NOT a screen and nothing renders in production. -->
+          <div class="ghost" aria-label="Deliberately empty — no bubble renders for a duplicate">nothing renders here — by decision</div>
+        </div>
+        <p class="state-note"><strong>The only deliberately screen-less state.</strong> The same message delivered
+          twice is swallowed silently — the customer already got their answer the first time. Shown here only so
+          the absence is a recorded decision, not an oversight.</p>
+        <div class="tech"><span><b>exit</b> Idempotent Replay · <span class="hx">200</span></span><span><b>body</b> duplicate_ignored</span><span><b>screen</b> NONE (K1)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W57</span><span class="state-name">Browser check failed</span></div>
+        <div class="state-body">
+          <!-- MOCK user input (the send attempt that got rejected) -->
+          <div class="msg user">can I book for tomorrow?<span class="stamp">14:04</span></div>
+          <!-- W57 · SOURCE: SCREEN-INVENTORY §2.10.1 frontend fixed text (single source) · engine: Reject Bot
+               Request — 403 {ok:false, error:'turnstile_failed'}, Turnstile token failed, fail-closed.
+               NOT a bot bubble: the bot never ran — a security-layer notice in a system strip. -->
+          <div class="sysnote">We couldn't verify your browser. Please refresh the page and try again.</div>
+        </div>
+        <div class="tech"><span><b>engine</b> Reject Bot Request · <span class="hx">403</span></span><span><b>flag</b> turnstile_failed</span><span><b>text</b> frontend fixed (§2.10.1)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W58</span><span class="state-name">Client error</span></div>
+        <div class="state-body">
+          <!-- W58 · SOURCE: SCREEN-INVENTORY §2.10.1 frontend fixed text · engine: Respond Normalize Reject —
+               400 {ok:false, error:'bad_request'}, sessionId missing (a client bug). No owner alert by design
+               (unauthenticated endpoint — alert would be a DoS primitive). System strip, not a bubble. -->
+          <div class="sysnote">Something went wrong on our side. Please refresh the page and try again.</div>
+        </div>
+        <div class="tech"><span><b>engine</b> Respond Normalize Reject · <span class="hx">400</span></span><span><b>flag</b> bad_request</span><span><b>text</b> frontend fixed (§2.10.1)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W59</span><span class="state-name">Rate-limited</span></div>
+        <div class="state-body">
+          <!-- W59 · SOURCE: SCREEN-INVENTORY §2.10.1 frontend fixed text · the request never reaches n8n:
+               Cloudflare edge rule barber-inbound-ratelimit (20/min/IP) blocks it. System strip. -->
+          <div class="sysnote">Too many messages just now — please wait a moment and try again.</div>
+        </div>
+        <div class="tech"><span><b>layer</b> Cloudflare edge (never reaches n8n)</span><span><b>rule</b> 20/min/IP</span><span><b>text</b> frontend fixed (§2.10.1)</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W60</span><span class="state-name">Offline</span></div>
+        <div class="state-body">
+          <!-- W60 · SOURCE: SCREEN-INVENTORY §2.10.1 frontend fixed text · network error, no engine
+               counterpart at all. System strip. -->
+          <div class="sysnote">We can't reach the salon right now. Please try again in a moment.</div>
+        </div>
+        <div class="tech"><span><b>layer</b> network (no engine counterpart)</span><span><b>text</b> frontend fixed (§2.10.1)</span></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review page · no real customer data · bot copy verbatim from
+  <code>client.config.example.json</code> messageTemplates and engine literals; W57–W60 frontend texts from
+  SCREEN-INVENTORY §2.10.1 · user bubbles are mock demo input · design language: Direction A “Cream &amp; Ink”.
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — with JS off the thread renders fully static and readable. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function playThread(thread) {
+    var msgs = thread.querySelectorAll('.msg, .sysnote');
+    var timers = [];
+    msgs.forEach(function (m) { m.classList.remove('in'); });
+    thread.querySelectorAll('.typing').forEach(function (t) { t.classList.remove('on'); });
+    if (reduced) { msgs.forEach(function (m) { m.classList.add('in'); }); return; }
+    var t = 350;
+    msgs.forEach(function (m) {
+      var step = m.getAttribute('data-step');
+      var typing = thread.querySelector('.typing[data-typing="' + step + '"]');
+      if (typing) {
+        timers.push(setTimeout(function () { typing.classList.add('on'); }, t));
+        t += 900;
+        timers.push(setTimeout(function () { typing.classList.remove('on'); }, t));
+      }
+      timers.push(setTimeout(function () { m.classList.add('in'); }, t));
+      t += m.classList.contains('user') ? 700 : 900;
+    });
+    thread._timers = timers;
+  }
+
+  document.querySelectorAll('.thread[data-staged]').forEach(function (thread) {
+    playThread(thread);
+  });
+  document.querySelectorAll('[data-replay]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var thread = document.querySelector('.thread[data-flow="' + btn.getAttribute('data-replay') + '"]');
+      if (thread._timers) thread._timers.forEach(clearTimeout);
+      playThread(thread);
+    });
+  });
+})();
+</script>
+</body>
+</html>

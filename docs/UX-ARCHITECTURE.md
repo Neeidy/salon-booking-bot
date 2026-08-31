@@ -103,7 +103,7 @@ new ──▶ collecting ──▶ ready ──▶ confirming ──▶ booked
 | `cancel_confirming` | `Build Cancel-Confirm State` | `Confirm Router` → `Confirm Fresh?` (confirm-TTL) → `Verify Confirm Live` |
 | `cancelled` | `Build Cancelled State` | **stage-tabanlı okuyucu YOK** — terminal |
 | `reschedule_confirming` | `Compute Reschedule Availability` | `Reschedule Router` → `Reschedule Fresh?` |
-| `handoff` | **18 node** (`Mark Handoff` + 17 hata/needs-human builder) — düzeltildi 2026-08-31, bu satır "15" diyordu | `Check Handoff Lock` → `Handoff Lock Reply` (sessiz kilit, LLM harcanmaz) |
+| `handoff` | **17 node** (`Mark Handoff` + 16 hata/needs-human builder) — düzeltildi 2026-08-31 (önce "15", sonra sticky-note'lu yanlış sayımla "18"; doğru sayım 17, sticky note hariç) | `Check Handoff Lock` → `Handoff Lock Reply` (sessiz kilit, LLM harcanmaz) |
 
 > ⚠ `docs/DATA-MODEL.md` bu enum'u `new\|collecting\|ready\|done\|handoff` diye yazıyor —
 > **bayat**. `done` hiçbir node tarafından stage olarak yazılmıyor; 5 gerçek stage belgesiz.

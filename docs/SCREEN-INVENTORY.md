@@ -132,7 +132,7 @@ thread (`role="log" aria-live="polite"`, `max-height:min(60vh,440px)`) · girdi 
 | ID | Ekran | Tetikleyici | Metin | Kaynak |
 |---|---|---|---|---|
 | W1 | **Yeni ziyaretçi** | ilk mesaj | **Motorda ayrı karşılama YOK** — motorun ilk cevabı doğrudan intent cevabıdır. Frontend karşılaması: W61 | `messageTemplates.greeting` FIX-1'de silindi (ölü config). §7 BOŞLUK-1 → K4 ile çözüldü |
-| W61 | **Frontend karşılaması** ⭐ YENİ (K4 kararı, 2026-08-31) | panel ilk açıldığında, bir kez | **frontend sabit metni** (motor karşılığı yok, motora gönderilmez, state yazılmaz): *"Hi! I'm the {business.name} assistant — I can book you in, move a booking, or answer questions. How can I help?"* (`{business.name}` config'ten) | §8 K4 = B: motor değişmez; bu belge metnin TEK kaynağı |
+| W61 | **Frontend karşılaması** ⭐ YENİ (K4 kararı, 2026-08-31) | panel ilk açıldığında, bir kez | **frontend sabit metni** (motor karşılığı yok, motora gönderilmez, state yazılmaz): *"Hi! I'm the {business.name} assistant — I can book, change or cancel an appointment, or answer questions. How can I help?"* (metin düzeltmesi 2026-08-31: ilk sürüm iptali dışarıda bırakıyordu) (`{business.name}` config'ten) | §8 K4 = B: motor değişmez; bu belge metnin TEK kaynağı |
 | W2 | **Dönen müşteri** | `state.found` ve `now − last_updated > sessionGapMinutes` (30dk) | `"Welcome back! "` **öneki** + normal cevap | `Build Reply Payload` · **literal**, template değil · yalnız `stage='collecting'` iken |
 
 ### 2.2 — FAQ (7 konu, deterministik; LLM yalnız konuyu sınıflandırır)
@@ -314,7 +314,7 @@ new ──▶ collecting ──▶ ready ──▶ confirming ──▶ booked
  ├──▶ reschedule_confirming ──▶ booked | new
  └──▶ handoff  ⛔ KİLİT — çıkış yolu YOK (yalnız sahip açar)
 ```
-`stage='handoff'` yazan **18 node** var (`Mark Handoff` + 17 hata/needs-human builder).
+`stage='handoff'` yazan **17 node** var (`Mark Handoff` + 16 hata/needs-human builder). *(Düzeltme 2026-08-31, Tur A grup 3: önceki "18" sayımına metninde `stage:'handoff'` geçen bir sticky note karışmıştı — yazıcı değil. Sayım yöntemi: node parametrelerinde `stage` ataması taraması, sticky note'lar hariç.)*
 DATA-MODEL'de `done` diye bir değer geçmiyor — hiçbir node yazmıyor.
 
 ---
@@ -633,7 +633,9 @@ W56 duplicate · W57 Turnstile reddi · W58 normalize reddi. (W54/W55 §9 K4 ile
 kafa karıştırır). **W57/W58 → frontend sabit metni** (A), çünkü bunlar *taşıyıcı katman* hataları,
 marka sesi taşımaları gerekmiyor ve config'e ölü anahtar eklemek K5 kararıyla çelişir.
 
-### K2 — Devir kilidinde (W47) girdi çubuğu ne yapsın?
+### K2 — Devir kilidinde (W47) girdi çubuğu ne yapsın? ✅ **KARARA BAĞLANDI → C (Tur A brief'i, 2026-08-31)**
+**Yigitcan kararı: C** — girdi çubuğu AÇIK kalır, `handoffLocked` cevabı **bir kez** gösterilir,
+sonraki mesajlar sessizce kabul edilir (kullanıcı sessizliğe konuşmaz; insan okuyacak). Motor değişmez.
 Müşteri kilitliyken yazmaya devam edebiliyor; her mesaja aynı `handoffLocked` cevabı geliyor.
 
 | Seçenek | Bedel |

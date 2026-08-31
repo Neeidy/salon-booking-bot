@@ -193,7 +193,7 @@
     <a href="index.html">Index</a>
     <a class="here" href="booking.html" aria-current="page">1 · Booking</a>
     <a href="cancel-reschedule.html">2 · Cancel &amp; reschedule</a>
-    <span class="pending" title="Not yet designed">3 · Handoff &amp; errors</span>
+    <a href="handoff-errors.html">3 · Handoff &amp; errors</a>
     <span class="pending" title="Not yet designed">4 · FAQ &amp; lead</span>
   </nav>
   <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
@@ -232,7 +232,7 @@
             <!-- W61 · FRONTEND-ONLY welcome (decision K4=B, 2026-08-31). SOURCE: SCREEN-INVENTORY §2.1 W61 —
                  the single source of this text. {business.name} from config. Shown once when the panel first
                  opens; NEVER sent to the engine, no state written. The engine still produces no greeting (W1). -->
-            <div class="msg bot" data-step="0">Hi! I'm the Demo Barber Co. assistant — I can book you in, move a booking, or answer questions. How can I help?<span class="stamp">14:00</span></div>
+            <div class="msg bot" data-step="0">Hi! I'm the Demo Barber Co. assistant — I can book, change or cancel an appointment, or answer questions. How can I help?<span class="stamp">14:00</span></div>
             <!-- W1: NO engine greeting exists (greeting template deleted in FIX-1).
                  The engine's first reply below is already a direct intent answer. -->
             <!-- MOCK user input -->
@@ -379,7 +379,7 @@
         <div class="state-body">
           <!-- W61 · SOURCE: SCREEN-INVENTORY §2.1 W61 (frontend fixed text, K4=B decision 2026-08-31).
                {business.name} from config. NOT an engine message — never sent, no state written. -->
-          <div class="msg bot">Hi! I'm the Demo Barber Co. assistant — I can book you in, move a booking, or answer questions. How can I help?<span class="stamp">14:00</span></div>
+          <div class="msg bot">Hi! I'm the Demo Barber Co. assistant — I can book, change or cancel an appointment, or answer questions. How can I help?<span class="stamp">14:00</span></div>
         </div>
         <p class="state-note"><strong>Frontend-only.</strong> Shown once when the panel first opens. The engine
           never sees it and writes no state — the machine-side truth of W1 is untouched.</p>
