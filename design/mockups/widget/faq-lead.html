@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget review · FAQ &amp; lead — Cream &amp; Ink</title>
+<!--
+  DESIGN REVIEW PAGE — Tur A / Group 4 of 4 (FAQ & lead capture).
+  Single source of screens: docs/SCREEN-INVENTORY.md §2.2 (W3–W9) and §2.8 (W43).
+  HARD CONSTRAINT (Yigitcan, group-3 acceptance): W3/W4/W5 are long, multi-line engine strings.
+  The frontend may FORMAT them — line breaks at the engine's own separators (', ' and ' · '),
+  alignment, tabular-nums — but may NOT change the content: every visible word, number and
+  punctuation token comes from the engine string. The raw engine string is quoted verbatim in
+  the HTML comment above each formatted bubble.
+  All FAQ answers are DETERMINISTIC (Answer FAQ node — the LLM only classifies the topic),
+  single-turn, no state write. Bot copy verbatim from config / engine; user bubbles are MOCK.
+  Visual language: design/mockups/variants/widget-a-cream-ink.html (Direction A).
+  tokens.css is deliberately NOT used (wrong palette — SCREEN-INVENTORY §7 BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — identical pattern to the approved variant mockups:
+     staged-reveal hiding lives ONLY under html.js. No JS → full page reads statically. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — identical to the approved variants (fixed, not Design's to change). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  /* ---------- review masthead ---------- */
+  .mast{padding:clamp(36px,5vw,64px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pages-nav a,.pages-nav span{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap}
+  .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+
+  .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
+  .razor path{stroke:currentColor;fill:none;stroke-width:1.5}
+  .js .razor .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:drawline 1.6s var(--ease) .3s forwards}
+  @keyframes drawline{to{stroke-dashoffset:0}}
+
+  /* ---------- section headers ---------- */
+  .sect{padding:clamp(34px,5vw,58px) 0 0}
+  .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
+  .sect-note{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:10px}
+  .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px)}
+  .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
+  .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
+  .ink-band p{font-size:14px;color:var(--stamp);max-width:56ch}
+
+  /* ---------- widget panel + bubbles ---------- */
+  .flows{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:clamp(22px,3vw,36px);margin-top:26px;align-items:start}
+  .flow-slot>figcaption{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .flow-slot>figcaption strong{color:var(--ink)}
+  .panel{width:100%;max-width:400px;background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden;display:flex;flex-direction:column}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;flex-shrink:0;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .thread{padding:18px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:88%;padding:11px 15px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:12px 15px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  /* ---------- FORMATTED MULTI-LINE ANSWERS (formatting, never content) ----------
+     The engine sends ONE plain string; the frontend breaks lines at the engine's own
+     separators (', ' price/service lists · ' · ' hours) and aligns values. Newspaper
+     price-list treatment from the approved landing: dotted leader + tabular-nums. */
+  .answer-lead{display:block;margin-bottom:6px}
+  .rows{display:flex;flex-direction:column;margin-top:2px}
+  .row{display:flex;align-items:baseline;gap:8px;padding:3px 0}
+  .row + .row{border-top:1px dotted var(--hairline)}
+  .row-name{white-space:nowrap}
+  .row-lead{flex:1;border-bottom:2px dotted var(--edge);transform:translateY(-4px);min-width:16px}
+  .row-val{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .hours-day{width:3.2em;font-weight:600;letter-spacing:.02em}
+  .hours-val{font-variant-numeric:tabular-nums}
+  .hours-closed{font-style:italic;color:var(--muted)}
+
+  .js .thread[data-staged] .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .thread[data-staged] .msg.in{opacity:1;transform:none}
+  .replay{margin-top:12px;font-size:12.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:6px 14px;display:none}
+  .js .replay{display:inline-block}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- state-by-state cards ---------- */
+  .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:24px}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column}
+  .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
+  .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .state-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .state-body .msg{max-width:100%}
+  .state-body .msg.user{align-self:flex-end;max-width:88%}
+  .state-note{font-size:12.5px;color:var(--muted);padding:0 16px 12px;line-height:1.5}
+  .state-note strong{color:var(--oxide)}
+  .variant-label{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  /* REVIEW-ONLY tech strip — removed in production */
+  .tech{border-top:1px dashed var(--rule);padding:8px 16px 10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  .group{padding-top:clamp(30px,4vw,46px)}
+  .group-rule{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:10px}
+  .group-rule h3{font-size:clamp(19px,2.4vw,24px);font-weight:600;letter-spacing:-.01em}
+  .group-rule .src{margin-left:auto;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+  .group-note{font-size:14px;color:var(--muted);max-width:66ch;margin-top:8px}
+  .group-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .group-note strong{color:var(--ink)}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:840px){
+    .flows{grid-template-columns:1fr}
+  }
+  @media (max-width:480px){
+    .panel{max-width:100%}
+    .state-grid{grid-template-columns:1fr}
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .thread[data-staged] .msg{opacity:1 !important;transform:none !important}
+    .typing{display:none !important}
+    .razor .draw{stroke-dashoffset:0 !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur A — Widget · Group 4 / 4</p>
+  <h1 class="mast-title">FAQ &amp; lead</h1>
+  <p class="mast-sub">Seven deterministic FAQ topics — the LLM only classifies the topic; the answer is built
+    from <code>config</code> by a deterministic switch in the <code>Answer FAQ</code> node, single-turn, no state written — plus lead capture. The long
+    answers (W3/W4/W5) get a readable multi-line treatment: <code>formatting only</code> — line breaks at the
+    engine's own separators, alignment, tabular numerals. Not one word, number or price is changed.</p>
+  <div class="mast-meta">
+    <span><strong>8</strong>&nbsp;states</span>
+    <span>Source&nbsp;<strong>SCREEN-INVENTORY §2.2 · §2.8</strong></span>
+    <span>Answers&nbsp;<strong>deterministic (Answer FAQ)</strong></span>
+    <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
+  </div>
+  <nav class="pages-nav" aria-label="Review pages">
+    <a href="index.html">Index</a>
+    <a href="booking.html">1 · Booking</a>
+    <a href="cancel-reschedule.html">2 · Cancel &amp; reschedule</a>
+    <a href="handoff-errors.html">3 · Handoff &amp; errors</a>
+    <a class="here" href="faq-lead.html" aria-current="page">4 · FAQ &amp; lead</a>
+  </nav>
+  <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
+    <path class="draw" d="M8 16 H150 l10 -7 12 7 12 -7 12 7 12 -7 12 7 H412"/>
+    <path d="M150 16 a4 4 0 1 1 -0.1 0" opacity=".5"/>
+  </svg>
+</header>
+
+<main>
+
+  <!-- ══════════════ SECTION 1 · IN FLOW ══════════════ -->
+  <section class="sect wrap" aria-labelledby="flows-h">
+    <p class="sect-kicker">In flow</p>
+    <h2 class="sect-title" id="flows-h">Quick answers, and a captured lead</h2>
+    <p class="sect-note">Left: rapid-fire FAQ — every answer lands in one turn, deterministically, and the
+      conversation state is untouched. Note the hours answer as a readable column instead of a wall of text.
+      Right: a request the bot can't serve directly becomes a <code>lead</code> — details stored, human follows up.</p>
+
+    <div class="flows">
+
+      <!-- ─── FLOW G · FAQ rapid-fire: W3 → W5 → W6 ─── -->
+      <figure class="flow-slot">
+        <figcaption><strong>Flow G</strong> · rapid-fire FAQ (W3 · W5 · W6)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="g">
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="1">how much is a haircut?<span class="stamp">12:30</span></div>
+            <!-- W3 (single service) · SOURCE: Answer FAQ literal `${one.name} is ${money(one)}.` with config
+                 services.haircut → "Haircut is €25." -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="2">Haircut is €25.<span class="stamp">12:30</span></div>
+            </div>
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="3">and when are you open?<span class="stamp">12:31</span></div>
+            <!-- W5 · SOURCE: Answer FAQ (hours) — RAW ENGINE STRING, verbatim:
+                 "Opening hours — Mon: 10:00-19:00 · Tue: 10:00-19:00 · Wed: 10:00-19:00 · Thu: 10:00-19:00 · Fri: 10:00-19:00 · Sat: 10:00-18:00 · Sun: closed."
+                 FORMATTING ONLY: the frontend splits at the engine's ' · ' separators into one line per day;
+                 every remaining character is the engine's own (day labels, colons, times, final period). -->
+            <div class="pair">
+              <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="4"><span class="answer-lead">Opening hours —</span>
+                <span class="rows">
+                  <span class="row"><span class="hours-day">Mon:</span> <span class="hours-val">10:00-19:00</span></span>
+                  <span class="row"><span class="hours-day">Tue:</span> <span class="hours-val">10:00-19:00</span></span>
+                  <span class="row"><span class="hours-day">Wed:</span> <span class="hours-val">10:00-19:00</span></span>
+                  <span class="row"><span class="hours-day">Thu:</span> <span class="hours-val">10:00-19:00</span></span>
+                  <span class="row"><span class="hours-day">Fri:</span> <span class="hours-val">10:00-19:00</span></span>
+                  <span class="row"><span class="hours-day">Sat:</span> <span class="hours-val">10:00-18:00</span></span>
+                  <span class="row"><span class="hours-day">Sun:</span> <span class="hours-val hours-closed">closed.</span></span>
+                </span>
+                <span class="stamp">12:31</span>
+              </div>
+            </div>
+            <!-- MOCK user input -->
+            <div class="msg user" data-step="5">where exactly are you?<span class="stamp">12:31</span></div>
+            <!-- W6 · SOURCE: config faq.address (free text, used as-is) -->
+            <div class="pair">
+              <div class="typing" data-typing="6" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot" data-step="6">We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.<span class="stamp">12:32</span></div>
+            </div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="g">Replay</button>
+      </figure>
+
+      <!-- ─── FLOW H · lead capture: W43 ─── -->
+      <figure class="flow-slot">
+        <figcaption><strong>Flow H</strong> · lead captured (W43)</figcaption>
+        <section class="panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+          <div class="panel-head">
+            <span class="panel-avatar" aria-hidden="true">DB</span>
+            <div class="panel-id">
+              <strong class="panel-name">Demo Barber Co.</strong>
+              <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+            </div>
+            <button class="panel-close" type="button" aria-label="Close chat">×</button>
+          </div>
+          <div class="thread" role="log" aria-live="polite" data-staged data-flow="h">
+            <!-- MOCK user input — a request that needs a human follow-up, no contact details invented -->
+            <div class="msg user" data-step="1">I'm planning a stag-do for six — can someone get back to me with options?<span class="stamp">12:35</span></div>
+            <!-- W43 · SOURCE: messageTemplates.leadCaptured · node: Build Lead State (writes leads row:
+                 name, phone, source, message, status, created_at — 3 PII fields, store-side only) -->
+            <div class="pair">
+              <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="msg bot confirm" data-step="2"><strong>✓</strong> Thanks! We've got your details and someone from the team will reach out soon.<span class="stamp">12:35</span></div>
+            </div>
+          </div>
+          <div class="panel-foot" aria-hidden="true">
+            <span class="panel-input">Type a message…</span>
+            <span class="panel-send">↑</span>
+          </div>
+        </section>
+        <button class="replay" type="button" data-replay="h">Replay</button>
+      </figure>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ ink band ══════════════ -->
+  <div class="ink-band">
+    <div class="wrap">
+      <h2>State by state</h2>
+      <p>Each state isolated, with its engine coordinates. The dashed strip under every card is
+        review-only and disappears in production.</p>
+    </div>
+  </div>
+
+  <!-- REVIEW-ONLY: the .tech strips below (reply exit / stage / template) exist for this
+       design review; they are NOT part of the production widget and will be removed. -->
+
+  <!-- ══════════════ GROUP §2.2 · FAQ — 7 TOPICS ══════════════ -->
+  <section class="group wrap" aria-labelledby="g22">
+    <div class="group-rule">
+      <h3 id="g22">FAQ — seven topics, zero guesses</h3>
+      <span class="src">SCREEN-INVENTORY §2.2 · W3–W9</span>
+    </div>
+    <p class="group-note">Deterministic before AI: the LLM only names the topic; the answer is assembled from
+      config by the <code>Answer FAQ</code> node. Single turn, no state written, exit
+      <code>Send Reply To Origin (200)</code>. The multi-line answers are <strong>formatted, never
+      rewritten</strong> — the raw engine string is quoted in each card's source comment.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W3</span><span class="state-name">Price</span></div>
+        <div class="state-body">
+          <!-- W3 single · SOURCE: Answer FAQ literal `${one.name} is ${money(one)}.` → "Haircut is €25." -->
+          <span class="variant-label">One service asked</span>
+          <div class="msg bot">Haircut is €25.<span class="stamp">12:30</span></div>
+          <!-- W3 all · SOURCE: Answer FAQ — RAW ENGINE STRING, verbatim:
+               "Our prices: Haircut €25, Beard Trim €15, Haircut + Beard €35."
+               FORMATTING ONLY: split at the engine's ', ' separators into the approved landing's
+               newspaper price-list rows (dotted leader + tabular-nums); final period kept on the last row. -->
+          <span class="variant-label">All prices</span>
+          <div class="msg bot"><span class="answer-lead">Our prices:</span>
+            <span class="rows">
+              <span class="row"><span class="row-name">Haircut</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">€25</span></span>
+              <span class="row"><span class="row-name">Beard Trim</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">€15</span></span>
+              <span class="row"><span class="row-name">Haircut + Beard</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">€35.</span></span>
+            </span>
+            <span class="stamp">12:30</span>
+          </div>
+        </div>
+        <p class="state-note">Prices come from <code>services[].priceEUR</code> — a new client's config rewrites
+          this bubble with zero engine change.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config services</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W4</span><span class="state-name">Services</span></div>
+        <div class="state-body">
+          <!-- W4 · SOURCE: Answer FAQ — RAW ENGINE STRING, verbatim:
+               "We offer: Haircut (30 min), Beard Trim (20 min), Haircut + Beard (45 min)."
+               FORMATTING ONLY: split at ', ' into rows; final period kept on the last row. -->
+          <div class="msg bot"><span class="answer-lead">We offer:</span>
+            <span class="rows">
+              <span class="row"><span class="row-name">Haircut</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">(30 min)</span></span>
+              <span class="row"><span class="row-name">Beard Trim</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">(20 min)</span></span>
+              <span class="row"><span class="row-name">Haircut + Beard</span> <span class="row-lead" aria-hidden="true"></span> <span class="row-val">(45 min).</span></span>
+            </span>
+            <span class="stamp">12:30</span>
+          </div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config services</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W5</span><span class="state-name">Hours</span></div>
+        <div class="state-body">
+          <!-- W5 · SOURCE: Answer FAQ (hours) — RAW ENGINE STRING, verbatim:
+               "Opening hours — Mon: 10:00-19:00 · Tue: 10:00-19:00 · Wed: 10:00-19:00 · Thu: 10:00-19:00 · Fri: 10:00-19:00 · Sat: 10:00-18:00 · Sun: closed."
+               FORMATTING ONLY: split at ' · ' into one row per day; tabular-nums; final period kept. -->
+          <div class="msg bot"><span class="answer-lead">Opening hours —</span>
+            <span class="rows">
+              <span class="row"><span class="hours-day">Mon:</span> <span class="hours-val">10:00-19:00</span></span>
+              <span class="row"><span class="hours-day">Tue:</span> <span class="hours-val">10:00-19:00</span></span>
+              <span class="row"><span class="hours-day">Wed:</span> <span class="hours-val">10:00-19:00</span></span>
+              <span class="row"><span class="hours-day">Thu:</span> <span class="hours-val">10:00-19:00</span></span>
+              <span class="row"><span class="hours-day">Fri:</span> <span class="hours-val">10:00-19:00</span></span>
+              <span class="row"><span class="hours-day">Sat:</span> <span class="hours-val">10:00-18:00</span></span>
+              <span class="row"><span class="hours-day">Sun:</span> <span class="hours-val hours-closed">closed.</span></span>
+            </span>
+            <span class="stamp">12:31</span>
+          </div>
+        </div>
+        <p class="state-note">The wall-of-text problem from §2.2's design note, solved by
+          <strong>formatting only</strong>: the engine's own separators become line breaks; every character
+          shown is the engine's.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config workingHours</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W6</span><span class="state-name">Address</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">where are you?<span class="stamp">12:31</span></div>
+          <!-- W6 · SOURCE: config faq.address (free text, as-is) -->
+          <div class="msg bot">We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.<span class="stamp">12:32</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config faq.address</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W7</span><span class="state-name">Parking</span></div>
+        <div class="state-body">
+          <!-- W7 · SOURCE: config faq.parking (free text, as-is) -->
+          <div class="msg bot">Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.<span class="stamp">12:32</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config faq.parking</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W8</span><span class="state-name">Walk-ins</span></div>
+        <div class="state-body">
+          <!-- W8 · SOURCE: config faq.walkin (free text, as-is) -->
+          <div class="msg bot">Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot.<span class="stamp">12:32</span></div>
+        </div>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>source</b> Answer FAQ ← config faq.walkin</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W9</span><span class="state-name">Unknown topic</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">do you sell gift cards?<span class="stamp">12:33</span></div>
+          <!-- W9 · SOURCE: messageTemplates.faqUnknown — topic 'other'/empty → honest deflect, NEVER a guess -->
+          <div class="msg bot">Good question — let me check with the team and get back to you on that.<span class="stamp">12:33</span></div>
+        </div>
+        <p class="state-note">The honest deflect: an unrecognized topic is never answered with a guess —
+          deterministic before AI, all the way down.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>stage</b> unchanged</span><span><b>template</b> faqUnknown</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ GROUP §2.8 · LEAD CAPTURE ══════════════ -->
+  <section class="group wrap" aria-labelledby="g28">
+    <div class="group-rule">
+      <h3 id="g28">Lead capture</h3>
+      <span class="src">SCREEN-INVENTORY §2.8 · W43</span>
+    </div>
+    <p class="group-note">A request the bot can't serve directly becomes a stored lead
+      (<code>leads</code> table: name · phone · source · message · status · created_at — the PII stays in the
+      store, never in this page). If the write fails, the customer gets the infra-class W50 instead — never a
+      false "we've got it".</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">W43</span><span class="state-name">Lead captured</span></div>
+        <div class="state-body">
+          <!-- MOCK user input -->
+          <div class="msg user">I'm planning a stag-do for six — can someone get back to me with options?<span class="stamp">12:35</span></div>
+          <!-- W43 · SOURCE: messageTemplates.leadCaptured · node: Build Lead State -->
+          <div class="msg bot confirm"><strong>✓</strong> Thanks! We've got your details and someone from the team will reach out soon.<span class="stamp">12:35</span></div>
+        </div>
+        <p class="state-note">The confirm treatment (oxide edge + check) marks a committed write — same visual
+          promise as a booking receipt: “we've got it” is only said when the row exists.</p>
+        <div class="tech"><span><b>exit</b> Send Reply To Origin · <span class="hx">200</span></span><span><b>writes</b> leads row</span><span><b>template</b> leadCaptured</span></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review page · no real customer data · bot copy verbatim from
+  <code>client.config.example.json</code> and the Answer FAQ engine literals (multi-line answers formatted,
+  never rewritten) · user bubbles are mock demo input · design language: Direction A “Cream &amp; Ink”.
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — with JS off both threads render fully static and readable. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function playThread(thread) {
+    var msgs = thread.querySelectorAll('.msg');
+    var timers = [];
+    msgs.forEach(function (m) { m.classList.remove('in'); });
+    thread.querySelectorAll('.typing').forEach(function (t) { t.classList.remove('on'); });
+    if (reduced) { msgs.forEach(function (m) { m.classList.add('in'); }); return; }
+    var t = 350;
+    msgs.forEach(function (m) {
+      var step = m.getAttribute('data-step');
+      var typing = thread.querySelector('.typing[data-typing="' + step + '"]');
+      if (typing) {
+        timers.push(setTimeout(function () { typing.classList.add('on'); }, t));
+        t += 900;
+        timers.push(setTimeout(function () { typing.classList.remove('on'); }, t));
+      }
+      timers.push(setTimeout(function () { m.classList.add('in'); }, t));
+      t += m.classList.contains('user') ? 700 : 900;
+    });
+    thread._timers = timers;
+  }
+
+  document.querySelectorAll('.thread[data-staged]').forEach(function (thread) {
+    playThread(thread);
+  });
+  document.querySelectorAll('[data-replay]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var thread = document.querySelector('.thread[data-flow="' + btn.getAttribute('data-replay') + '"]');
+      if (thread._timers) thread._timers.forEach(clearTimeout);
+      playThread(thread);
+    });
+  });
+})();
+</script>
+</body>
+</html>

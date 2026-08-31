@@ -56,9 +56,6 @@
   .toc-lead{flex:1;border-bottom:2px dotted var(--edge);transform:translateY(-6px);min-width:40px}
   .toc-status{font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;flex-shrink:0}
   a.toc-row .toc-status{color:var(--oxide)}
-  .toc-row.pending{cursor:default}
-  .toc-row.pending .toc-name,.toc-row.pending .toc-num{color:var(--muted)}
-  .toc-row.pending .toc-status{color:var(--muted)}
   a.toc-row:hover .toc-name{color:var(--oxide)}
 
   /* ---------- stage machine — the widget's state graph, review reference ---------- */
@@ -131,15 +128,15 @@
       <span class="toc-lead" aria-hidden="true"></span>
       <span class="toc-status">Ready for review</span>
     </a>
-    <div class="toc-row pending" aria-disabled="true">
+    <a class="toc-row" href="faq-lead.html">
       <span class="toc-num">4</span>
       <span>
         <span class="toc-name">FAQ &amp; lead</span>
-        <span class="toc-states">7 deterministic FAQ topics · lead captured — W3–W9, W43</span>
+        <span class="toc-states">7 deterministic FAQ topics (long answers formatted, never rewritten) · lead captured — W3–W9, W43</span>
       </span>
       <span class="toc-lead" aria-hidden="true"></span>
-      <span class="toc-status">Pending</span>
-    </div>
+      <span class="toc-status">Ready for review</span>
+    </a>
   </nav>
 
   <!-- Stage machine — SCREEN-INVENTORY §2.12 (9 values). Review reference only. -->
