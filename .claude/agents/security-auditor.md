@@ -26,6 +26,14 @@ Scan before any push / screenshot / export:
 - **cancel-validation parity (Refactor #4):** run `python3 scripts/check-cancel-validation-parity.py` — the
   duplicated cancel-validation rules (gid regex, confirm_turn regex, cancel-target structural checks) must not
   drift across nodes. Non-zero exit = a copy drifted; report it (correctness gate for n8n commits).
+- **config contract (FIX-2):** run `node scripts/check-config-schema.cjs` (from `scripts/`, ajv lives there)
+  — BOTH `config/client.config.example.json` AND the `Load Config` node literal inside the committed
+  sanitized workflow must validate against the COMMITTED `schemas/client.config.schema.json`. Non-zero exit
+  means the config the bot actually runs on fails its own contract — i.e. the "fill in the config and it
+  runs" promise we make to a new client is false. This gate exists because it WAS false: the live config
+  carried `channels.widget.turnstile` (rejected) and `ownerAlert` (undeclared). The root and `bot` objects
+  are `additionalProperties:false`, so a future live-only key fails here instead of drifting silently.
+
 - **content parity (CP4 sub-step 3):** run `N8N_API_URL=… N8N_API_KEY=… python3 scripts/check-content-parity.py`
   — per executable node, the committed `parameters`/`credentials` must match the LIVE workflow (sanitize
   placeholders + n8n serialization noise normalized; sticky notes excluded). Catches a changed Code body /

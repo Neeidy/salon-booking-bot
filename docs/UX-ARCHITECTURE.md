@@ -103,7 +103,7 @@ new ──▶ collecting ──▶ ready ──▶ confirming ──▶ booked
 | `cancel_confirming` | `Build Cancel-Confirm State` | `Confirm Router` → `Confirm Fresh?` (confirm-TTL) → `Verify Confirm Live` |
 | `cancelled` | `Build Cancelled State` | **stage-tabanlı okuyucu YOK** — terminal |
 | `reschedule_confirming` | `Compute Reschedule Availability` | `Reschedule Router` → `Reschedule Fresh?` |
-| `handoff` | 15 node (`Mark Handoff` + 14 hata/needs-human builder) | `Check Handoff Lock` → `Handoff Lock Reply` (sessiz kilit, LLM harcanmaz) |
+| `handoff` | **18 node** (`Mark Handoff` + 17 hata/needs-human builder) — düzeltildi 2026-08-31, bu satır "15" diyordu | `Check Handoff Lock` → `Handoff Lock Reply` (sessiz kilit, LLM harcanmaz) |
 
 > ⚠ `docs/DATA-MODEL.md` bu enum'u `new\|collecting\|ready\|done\|handoff` diye yazıyor —
 > **bayat**. `done` hiçbir node tarafından stage olarak yazılmıyor; 5 gerçek stage belgesiz.
@@ -354,9 +354,18 @@ Kaynak: Airtable `leads` — `name`(PII) · `phone`(PII) · `source` · `message
 
 Bugün alert'lerin tek evi **Telegram**. Dashboard'ın asıl işi bu.
 
-**21 alert sınıfı** (FIX-1 ile 19'dan çıktı: `cancel_mirror_failed` + `purge_error`). Ana workflow'un
-20'si tek node'da toplanıyor: `Build Owner Alert` (28 kaynak node besliyor); `purge_error` purge
-workflow'unun kendi composer'ında, `reminder_error` reminders'ınkinde.
+**24 alert sınıfı** (düzeltildi 2026-08-31 — bu satır bir süre "21" diyordu; 21 yalnız ana
+workflow'un STATİK kümesiydi, sistem toplamı değil). Dağılım, koddan sayıldı:
+
+| Nerede | Sayı | Ne |
+|---|---|---|
+| `Build Owner Alert` (main) — statik | **21** | `KIND` map'i (7) + inline `cls = '…'` atamaları (14 ayrık) |
+| `Build Owner Alert` (main) — dinamik | **1** | `cls = j.error` → bugün yalnız `Outbound Send Failed`'in üst-seviye `error: 'zernio_send_failed'` alanı |
+| `Build Owner Alert (Reminders)` | **1** | `reminder_error` (kendi composer'ı, throttle `reminder_error:<branch>`) |
+| `Build Owner Alert (Purge)` | **1** | `purge_error` (kendi composer'ı, throttle `purge_error:<branch>`) |
+| **TOPLAM** | **24** | |
+
+Ana workflow'un composer'ını **28 kaynak node** besliyor.
 Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, sender_key) çifti başına
 30 dk** (`ownerAlert.throttleMinutes`), n8n `$getWorkflowStaticData('global')` içinde.
 
@@ -694,7 +703,7 @@ kanıtlarıyla CLOSED'a çevrildi ve neden bayat kaldığı not edildi (`governa
 | Ne | Bugün nerede | Boşluk |
 |---|---|---|
 | **17 residue bayrağı** (`orphan_event`, `mirror_failed`, `verify_unavailable`, `reconcile_unresolved`, `reconcile_conflict`, `cancel_delete_failed`, `cancel_needs_human`, `zernio_send_failed`, `reply_fallback`, `normalize_drift`, `dedupe_marker_failed`, `spend_cap_tripped`, `spend_meter_unavailable`, `state_unsaved`, `reschedule_orphan`, `reschedule_mirror_failed`, `race_lost`) | yalnız Telegram + n8n execution log | **sorgulanabilir ev yok** → dashboard 4.c'nin temel problemi |
-| **21 alert sınıfının hiçbiri** için "çözüldü" işareti | — | mekanizma da alan da yok (sınıf+zaman artık kayıtlı, ama "hallettim" işareti değil) |
+| **24 alert sınıfının hiçbiri** için "çözüldü" işareti | — | mekanizma da alan da yok (sınıf+zaman artık kayıtlı, ama "hallettim" işareti değil) |
 | **`Idempotent Replay` (200)** widget ekranı | — | tanımsız |
 | **`Send Reject Response` (400)** widget ekranı | — | tanımsız (BULGU #8) |
 | **`Send Error Response` (503)** widget ekranı | — | tanımsız (BULGU #8) |
@@ -728,7 +737,7 @@ turu" ve Phase 6 planına dağıtılmıştır.
 
 | Alan | İçerik |
 |---|---|
-| `last_alert_class` | son alert'in sınıfı (21 sınıftan biri) |
+| `last_alert_class` | son alert'in sınıfı (24 sınıftan biri) |
 | `last_alert_at` | ne zaman düştüğü (UTC) |
 
 Yazım **alert dalından, best-effort** — yani `Build Owner Alert` tarafından, **cevap yolundan
@@ -832,7 +841,7 @@ temizlendi.
 
 ## Kapanış — bu belge neyi garanti eder
 
-Phase 6 tasarımı bundan sonra **§2'deki 10 akışı, §3'teki 18 çıkışı ve §4'teki 21 alert sınıfını**
+Phase 6 tasarımı bundan sonra **§2'deki 10 akışı, §3'teki 18 çıkışı ve §4'teki 24 alert sınıfını**
 kaynak olarak alır. Bir ekran bu belgede yoksa, sistemde de yoktur — ve tasarıma girmesi için önce
 **"YENİ — gerekçesi şu"** olarak buraya girmesi gerekir.
 

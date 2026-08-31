@@ -78,17 +78,26 @@ kaynağıdır (`landing-a-cream-ink.html:23-37` ve widget/dashboard'da birebir a
 | L2 | **Hero** | eyebrow · 3 satırlık kinetik başlık · alt metin · 2 CTA · sağda **canlı görünümlü sohbet penceresi** | başlık/metin **sabit** · sohbet içeriği widget ile aynı |
 | L3 | **Menü (fiyatlar)** | gazete tarzı fiyat listesi: ad · süre · fiyat | **config** `services[].{name,durationMin,priceEUR}` |
 | L4 | **Ink blok — zanaat** | başlık + gövde + outline CTA | **sabit** metin |
-| L5 | **Saatler & yer** | 7 günün saatleri + konum | saatler **config** `workingHours` · konum → §7 BULGU-5 |
+| L5 | **Saatler & yer** | 7 günün saatleri + **adres** | saatler **config** `workingHours` · adres **config** `faq.address` (K7 kararı) |
 | L6 | **Ink blok — kapanış** | başlık + jilet SVG + dolu CTA | **sabit** |
-| L7 | **Footer** | demo uyarısı + marka + yer | `business.name` **config** · uyarı **sabit** |
+| L7 | **Footer** | demo uyarısı + marka + yer | `business.name` **config** · yer `faq.address`'ten türetilir · uyarı **sabit** |
 | L8 | **Yüzen CTA pill** | bölüm CTA'sı ekrandayken otomatik gizlenir | davranış **sabit** |
 | L9 | **Intro perdesi** | tek seferlik (`sessionStorage`), tıklanınca atlanır, reduced-motion'da yok | **sabit** |
 
 ### Config-driven olan / olmayan (§6'nın özeti)
 
 **Config'ten gelmesi GEREKEN** (yeni müşteri = config değişikliği): marka adı · 3 servisin adı,
-süresi, fiyatı · 7 günün çalışma saatleri · marka renkleri · adres/otopark/walk-in metinleri ·
-timezone.
+süresi, fiyatı · 7 günün çalışma saatleri · marka renkleri · **adres** (`faq.address`) · otopark
+(`faq.parking`) · walk-in (`faq.walkin`) · timezone.
+
+> **K7 uygulandı (BULGU-5 kapandı).** Mockup 3 yerde `"City Center"` yazıyordu ve yapılandırılmış
+> adres hiçbir yüzeyde görünmüyordu. Artık L5 **`faq.address`'i okur**; L7 footer'daki yer adı da
+> aynı kaynaktan türetilir.
+> **Design'a not:** `faq.address` sohbet cümlesi olarak yazılmış
+> (*"We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn."*). Site
+> bloğunda tam cümle olarak kullanılabilir; ayrı bir "sokak / şehir" alanına **bölmeyin** —
+> ayrı `business.address` alanı eklemek yeni config anahtarı demektir ve bu turda yasak.
+> `faq.parking` da aynı bölümde kullanılabilir (bugün hiçbir yüzeyde yok).
 **Sabit kalması normal**: hero başlığı, zanaat/kapanış metinleri, nav etiketleri, demo uyarısı.
 
 > ⚠ Bugün **hiçbiri gerçekten bağlı değil** — mockup'ta elle yazılı. Değerler config ile
@@ -242,16 +251,33 @@ Design bunları ayrı durum olarak ele almalı (özellikle 503 grubunun "tekrar 
 | W53 | **Spend-cap** | 200 | ✅ `handoff` | `Build Spend-Cap Reply` |
 | W54 | **State erişilemez** | **503** | ❌ **METİN YOK** — gövde `{ok:false,error:'state_unavailable',handoff:true}` | `Send Error Response` |
 | W55 | **Geçersiz girdi** | **400** | ❌ **METİN YOK** — gövde `{ok:false,error:'invalid_payload',handoff:true}` | `Send Reject Response` |
-| W56 | **Duplicate mesaj** | 200 | ❌ **METİN YOK** — gövde `{status:'duplicate_ignored'}` | `Idempotent Replay` |
+| W56 | **Duplicate mesaj** | 200 | ❌ **EKRAN YOK — sessizce yutulur** (bkz. 2.10.1) | `Idempotent Replay` |
 | W57 | **Turnstile reddi** | **403** | ❌ **METİN YOK** — `{ok:false,error:'turnstile_failed'}` | `Reject Bot Request` |
 | W58 | **Normalize reddi** (`sessionId` yok) | **400** | ❌ **METİN YOK** — `{ok:false,error:'bad_request'}` | `Respond Normalize Reject` |
 | W59 | **Rate-limit** | Cloudflare | ❌ istek n8n'e **hiç ulaşmaz** | edge kuralı `barber-inbound-ratelimit`, 20/dk/IP |
 | W60 | **Offline / n8n erişilemez** | — | ❌ | ağ hatası, sistemde karşılığı yok |
 
-> ⚠ **W54-W58: beş ekranın motorda metni YOK.** Frontend kendi metnini göstermek zorunda.
-> **§9 K4 kararı:** yeni config anahtarı eklenmeyecek — widget **400 → `notUnderstood`**,
-> **503 → `handoff`** anahtarlarını okuyacak (WhatsApp tarafı zaten bu ikisini gönderiyor).
-> W56/W57/W58/W59/W60 için **hiç karar yok** → §8 açık karar 1.
+### 2.10.1 — Metni olmayan çıkışların KARARI (BULGU-6 kapandı, K1 uygulandı)
+
+Motorda metni olmayan yedi durumun her biri karara bağlandı. **Design bu metinleri icat etmeyecek.**
+
+| ID | Karar | Gösterilecek metin | Gerekçe |
+|---|---|---|---|
+| **W54** 503 `state_unavailable` | **motor değişmez — frontend config'ten okur** | `messageTemplates.handoff` | Bu bir *konuşma* anıdır ve WhatsApp tarafı **zaten** bu anahtarı gönderiyor; iki kanal tek metin kaynağında birleşir. Motora `reply` eklemek CP4b-1'in "widget gövdesi bit-identical kalır" sözleşmesini bozar ve `check-outbound-inventory.py` guard'ına takılır. Yeni anahtar gerekmiyor. |
+| **W55** 400 `invalid_payload` | **motor değişmez — frontend config'ten okur** | `messageTemplates.notUnderstood` | Aynı gerekçe; WhatsApp tarafı bu anahtarı gönderiyor. Müşterinin mesajı işlenemedi — bu marka sesiyle söylenmeli. |
+| **W56** duplicate | **EKRAN YOK — sessizce yut** | *(hiçbir şey)* | Müşteri ilk teslimatta cevabını **zaten aldı**. İkinci bir balon "bir şey ters gitti" izlenimi verir. Motor da aynı şeyi söylüyor: `_outbound_should_send:false`. |
+| **W57** 403 Turnstile | **frontend sabit metni** | *"We couldn't verify your browser. Please refresh the page and try again."* | Motor **hiç çalışmadı** — bu bir güvenlik katmanı reddi, konuşma değil. Marka sesi taşımasına gerek yok, config anahtarı hak etmiyor. |
+| **W58** 400 normalize reddi | **frontend sabit metni** | *"Something went wrong on our side. Please refresh the page and try again."* | `sessionId` eksik = istemci hatası; müşterinin yapabileceği tek şey yenilemek. Motor çalışmadı. |
+| **W59** rate-limit (edge) | **frontend sabit metni** | *"Too many messages just now — please wait a moment and try again."* | İstek n8n'e **hiç ulaşmıyor** (Cloudflare); motorun bundan haberi yok. |
+| **W60** offline / erişilemez | **frontend sabit metni** | *"We can't reach the salon right now. Please try again in a moment."* | Ağ hatası; sistemde karşılığı yok. |
+
+**Neden W57-W60 için config anahtarı eklenmedi:** tüketicisi (frontend) henüz yokken config anahtarı
+eklemek, K5'te sildiğimiz ölü-anahtar tuzağının aynısıdır. Bunlar taşıyıcı/güvenlik katmanı
+mesajları — marka sesi taşımıyorlar. Çok dilli hâle gelirlerse config'e Phase 7'de, tüketicileriyle
+birlikte girerler.
+
+> **Yukarıdaki dört İngilizce metin bu belgenin ürünüdür, motorun değil** — §7'ye
+> "YENİ — frontend metni, motor karşılığı yok" olarak kayıtlı.
 
 ### 2.11 — Guard durumlarının görünmeyen yüzü
 
@@ -463,16 +489,27 @@ karşı çalıştırıldı.
 | `branding.{primaryColor,accentColor,logoUrl}` | ✅ | yalnız **frontend** | n8n okumaz (normal) |
 | `services[].{id,name,durationMin,priceEUR}` | ✅ | n8n (FAQ, booking) + frontend | menü, chip'ler, tablo satırları |
 | `workingHours.{mon..sun}` | ✅ | n8n (müsaitlik) + frontend | saatler bölümü |
-| `faq.{address,parking,walkin}` | ✅ | n8n (`Answer FAQ`, dinamik anahtar) | ⚠ landing bunu **hiç göstermiyor** |
+| `faq.address` | ✅ | n8n (`Answer FAQ`) **+ landing L5/L7** | K7 ile bağlandı (BULGU-5 kapandı) |
+| `faq.parking` | ✅ | n8n (`Answer FAQ`) · landing L5'te kullanılabilir | bugün hiçbir yüzeyde yok |
+| `faq.walkin` | ✅ | n8n (`Answer FAQ`) | landing'de gerekmiyor |
 | `messageTemplates.*` (27 main + `reminder` reminders'da) | ✅ | n8n | widget metinlerinin **tamamı** |
 | `bot.*` (9 değer) | ✅ | n8n | eşikler, guard'lar |
-| `ownerAlert.{enabled,throttleMinutes}` | ✅ canlıda | n8n | ⚠ **example'da ve şemada YOK** |
-| `channels.widget.turnstile.enabled` | ✅ canlıda | n8n | ⚠ **example'da ve şemada YOK, şema REDDEDER** |
+| `ownerAlert.{enabled,throttleMinutes}` | ✅ | n8n (3 workflow) | ✅ example + şemaya eklendi (BULGU-3 kapandı) |
+| `channels.widget.turnstile.enabled` | ✅ | n8n (`Turnstile Gate`) + snippet | ✅ example + şemaya eklendi (BULGU-3 kapandı) |
 | `googleCalendarId` | ✅ | n8n | gerçek değer yalnız canlı node'da |
 | Hero başlığı · zanaat/kapanış metni · nav etiketleri · demo uyarısı | ❌ **sabit** | — | normal |
+| W57-W60 frontend hata metinleri | ❌ **sabit** (frontend) | frontend | taşıyıcı/güvenlik katmanı mesajı, marka sesi değil — bkz. §2.10.1 |
 
 **Bugünkü gerçek:** mockup'ların hiçbiri config okumuyor — hepsi elle yazılmış, config ile
 *tutarlı* ama *bağlı değil*. Phase 6 bunu kapatmadan "config-driven template" denemez.
+
+> ✅ **Sözleşme artık gerçek (BULGU-3 kapandı, FIX-2).** `schemas/client.config.schema.json`
+> `channels.widget.turnstile` ve `ownerAlert`'i tanıyor; kök ve `bot` nesneleri
+> `additionalProperties:false` yapıldı — yani gelecekte canlıya eklenen kayıtsız bir anahtar
+> **sessizce geçemez**. Yeni guard `scripts/check-config-schema.cjs`, HEM example'ı HEM de canlı
+> `Load Config` literalini committed şemaya karşı ajv ile doğruluyor (4 sabotaj senaryosuyla
+> FAIL-edebilirliği kanıtlandı). "Config'i doldur, çalışır" iddiası artık makine tarafından
+> denetleniyor.
 
 ---
 
@@ -482,16 +519,20 @@ karşı çalıştırıldı.
 
 ### ⚠ BULGU'lar (sistem/doküman çelişkisi — bu tarama sırasında bulundu)
 
-**BULGU-1 — `docs/UX-ARCHITECTURE.md` "21 alert sınıfı" diyor; gerçek 24.**
+**BULGU-1 — `docs/UX-ARCHITECTURE.md` "21 alert sınıfı" diyor; gerçek 24.** ✅ **KAPANDI** —
+UX-ARCHITECTURE ve DATA-MODEL düzeltildi.
 Koddan sayıldı: main `Build Owner Alert` **21 statik** sınıf + dinamik `zernio_send_failed`
 (`Outbound Send Failed` üst-seviye `error` alanı) + `reminder_error` + `purge_error` = **24**.
 21 rakamı yalnız main'in statik kümesini sayıyor. **Benim FIX-1'de yazdığım sayı hatalı.**
 
-**BULGU-2 — `stage='handoff'` yazan node sayısı belgede 15, gerçekte 18.**
+**BULGU-2 — `stage='handoff'` yazan node sayısı belgede 15, gerçekte 18.** ✅ **KAPANDI** —
+UX-ARCHITECTURE düzeltildi.
 `docs/UX-ARCHITECTURE.md` §2 "15 node (`Mark Handoff` + 14 hata builder)" diyor; parametre taraması
 **18** node buluyor.
 
-**BULGU-3 — canlı config kendi şemasını GEÇMİYOR.**
+**BULGU-3 — canlı config kendi şemasını GEÇMİYOR.** ✅ **KAPANDI (FIX-2, 2026-08-31)** —
+şema gerçeğe eşitlendi (`widgetChannel` + `ownerAlert`), kök ve `bot` kapatıldı, example tamamlandı,
+`scripts/check-config-schema.cjs` guard'ı close-gate'e girdi (4 sabotaj kanıtı).
 `ajv` ile doğrulandı: canlı `Load Config` → `HAYIR`, tek hata
 `/channels/widget additionalProperties: turnstile` (şemanın `channel` tanımı
 `additionalProperties:false`). `client.config.example.json` → `EVET`. Yani **şema, botun gerçekte
@@ -503,16 +544,21 @@ açık olduğu için sessizce geçiyor). "Config-driven template" iddiasının s
 `client.config.example.json` ile çelişiyor. Yalnız eski `design/mockups/landing.html` import ediyor;
 üç onaylı varyantın **hiçbiri** etmiyor. Design bu dosyayı açarsa **yanlış palete** çalışır.
 
-**BULGU-5 — landing adresi config'le uyuşmuyor.**
+**BULGU-5 — landing adresi config'le uyuşmuyor.** ✅ **KAPANDI (K7)** — L5/L7 artık
+`faq.address`'i okuyor; §1 ve §6 güncellendi. (Mockup HTML'ine dokunulmadı — uygulama Phase 6 build'i.)
 Landing 3 yerde `"City Center"` yazıyor; `config.faq.address` ise
 `"Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn."`. Yapılandırılmış adres
 hiçbir yüzeyde gösterilmiyor.
 
-**BULGU-6 — beş widget çıkışının motorda metni yok.**
+**BULGU-6 — beş widget çıkışının motorda metni yok.** ✅ **KAPANDI (K1)** — yedi durumun
+her biri §2.10.1'de gerekçeli karara bağlandı; W56 ekransız, W54/W55 mevcut config anahtarlarından,
+W57-W60 frontend sabit metni (metinleri yazıldı). Yeni config anahtarı eklenmedi.
 W54(503) · W55(400) · W56(duplicate) · W57(Turnstile 403) · W58(normalize 400). K4 yalnız
 W54/W55'i çözüyor; kalan üçü kararsız.
 
-**BULGU-7 — `Build Reschedule Orphan State` müşteriye BAŞARILI diyor.**
+**BULGU-7 — `Build Reschedule Orphan State` müşteriye BAŞARILI diyor.** ⏸ **Phase 7'ye
+adlandırılmış madde olarak girdi** (ROADMAP). Design'ı bloklamıyor: CP4'te `orphan_event` flag +
+owner-alert ile kabul edilmişti, yani **sessiz değil**.
 `rescheduleDone` gönderiyor ama eski takvim kaydı silinemedi → takvimde **iki kayıt** kalabilir.
 Sahibe `orphan_event` alert'i gider; müşteri hiçbir şey bilmez. (Kabul edilmiş davranış, ama Design
 "başarılı" ekranı çizerken bunu bilmeli.)
@@ -525,9 +571,8 @@ Sahibe `orphan_event` alert'i gider; müşteri hiçbir şey bilmez. (Kabul edilm
 | Ne | Durum |
 |---|---|
 | Yeni ziyaretçi karşılaması | `greeting` template'i **silindi** (ölü config'di). İlk cevap doğrudan intent cevabı. Ayrı karşılama ekranı isteniyorsa **YENİ** sayılır → §8 karar 4 |
-| Duplicate / Turnstile / normalize reddi | metin yok (BULGU-6) |
-| Rate-limit (429) | istek n8n'e ulaşmaz; frontend kendi başına anlatmalı |
-| Offline / n8n erişilemez | sistemde karşılığı yok |
+| Duplicate | **ekran yok — sessizce yutulur** (karar, §2.10.1) |
+| Turnstile / normalize / rate-limit / offline | **YENİ — frontend metni, motor karşılığı yok** (§2.10.1'de yazılı, Design icat etmeyecek) |
 | "Son hatalar" paneli | **sorgulanabilir kaynak yok** (D16) |
 | Alert **geçmişi** | yalnız *son* sınıf saklanıyor |
 | Kill-switch/dry-run'ı **kim ne zaman açtı** | denetim izi yok |
@@ -548,7 +593,7 @@ Sahibe `orphan_event` alert'i gider; müşteri hiçbir şey bilmez. (Kabul edilm
 
 Her biri: soru · seçenekler · bedel · **önerim**.
 
-### K1 — Metni olmayan üç çıkış ne gösterecek? (BULGU-6 kalanı)
+### K1 — Metni olmayan çıkışlar ne gösterecek? ✅ **KARARA BAĞLANDI → §2.10.1**
 W56 duplicate · W57 Turnstile reddi · W58 normalize reddi. (W54/W55 §9 K4 ile çözülmüş:
 503→`handoff`, 400→`notUnderstood`.)
 
@@ -599,7 +644,7 @@ Bugün yok — `greeting` template'i ölü config olduğu için FIX-1'de **silin
 §7'ye "YENİ — widget açılış balonu, motor karşılığı yok" olarak girer, dürüstlük korunur, ve
 kullanıcı boş bir kutuyla karşılaşmaz. C yasak, A biraz soğuk.
 
-### K5 — Mock şeridi gerçek müşteri kurulumunda nasıl kalkacak?
+### K5 — Mock şeridi gerçek müşteri kurulumunda nasıl kalkacak? *(BULGU-3 kapandığı için engel kalktı)*
 `honesty-demos.md` demo'da şeridin **gizlenmemesini** şart koşuyor. Ama snippet gerçek bir berbere
 kurulduğunda "Mock" yazamaz.
 
@@ -624,7 +669,7 @@ Sorgulanabilir kaynak yok; n8n execution log'u dışarıdan erişilemez.
 → **Önerim: A.** D16'yı listeden çıkar, §7'de boşluk olarak kalsın. D15 (açık flag'ler) zaten
 mevcut veriden türetilebilen her şeyi gösteriyor.
 
-### K7 — Landing'de yapılandırılmış adres gösterilsin mi? (BULGU-5)
+### K7 — Landing'de yapılandırılmış adres gösterilsin mi? ✅ **UYGULANDI**
 Bugün "City Center" yazıyor, `faq.address` hiçbir yerde görünmüyor.
 
 → **Önerim: EVET, gösterilsin.** §1 kararı "gerçekçi berber sitesi" ise adres olmalı ve zaten

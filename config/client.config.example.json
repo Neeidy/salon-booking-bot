@@ -18,7 +18,7 @@
       "accountId": "REPLACE_WITH_ZERNIO_ACCOUNT_ID",
       "reminderTemplate": { "name": "appointment_reminder", "language": "en_US" }
     },
-    "widget": { "enabled": true, "provider": "webchat" },
+    "widget": { "enabled": true, "provider": "webchat", "turnstile": { "enabled": true } },
     "instagram": { "enabled": false, "provider": "meta-graph" }
   },
   "services": [
@@ -50,6 +50,8 @@
     "llmPricePer1kTokensOut": 0.005,
     "llmCostCapUsd": 10.00
   },
+  "$comment_ownerAlert": "Owner-alert channel (Telegram). enabled=false silences EVERY alert class, silently — there is no second channel. These two values MUST match across the three Load Configs (main / reminders / purge); scripts/check-cancel-validation-parity.py asserts it.",
+  "ownerAlert": { "enabled": true, "throttleMinutes": 30 },
   "messageTemplates": {
     "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",
     "askDateTime": "What day and time works for you?",

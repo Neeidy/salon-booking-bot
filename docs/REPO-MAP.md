@@ -401,6 +401,7 @@
   - ## Phase 4 — checkpoint progress (WhatsApp / Zernio)
   - ## Phase 5 — checkpoint progress (safety)
   - ## FIX-1 — Phase 6 öncesi düzeltme turu (DONE 2026-08-30)
+  - ## FIX-2 — Design öncesi bulgu kapatma (DONE 2026-08-31)
   - ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 
 ### `docs/SCREEN-INVENTORY.md`
@@ -424,6 +425,7 @@
   - ### 2.8 — Lead yakalama
   - ### 2.9 — İnsana devir — **ÜÇ SINIF, AYRI EKRAN**
   - ### 2.10 — Hata ve kenar durumları
+  - ### 2.10.1 — Metni olmayan çıkışların KARARI (BULGU-6 kapandı, K1 uygulandı)
   - ### 2.11 — Guard durumlarının görünmeyen yüzü
   - ### 2.12 — Stage makinesi (9 değer — Design'ın durum grafiği)
   - ## §3 — YÜZEY 3: GÖMÜLEBİLİR SNIPPET
@@ -443,13 +445,13 @@
   - ### Sistemin ürettiği ama ekranı olmayan
   - ### Ekranı gerekip de sistemde karşılığı olmayan
   - ## §8 — AÇIK KARARLAR (Design'a gitmeden önce)
-  - ### K1 — Metni olmayan üç çıkış ne gösterecek? (BULGU-6 kalanı)
+  - ### K1 — Metni olmayan çıkışlar ne gösterecek? ✅ **KARARA BAĞLANDI → §2.10.1**
   - ### K2 — Devir kilidinde (W47) girdi çubuğu ne yapsın?
   - ### K3 — Lead durum değiştirme Phase 6'da olsun mu?
   - ### K4 — Yeni ziyaretçi için ayrı karşılama ekranı olsun mu? (BULGU/BOŞLUK)
-  - ### K5 — Mock şeridi gerçek müşteri kurulumunda nasıl kalkacak?
+  - ### K5 — Mock şeridi gerçek müşteri kurulumunda nasıl kalkacak? *(BULGU-3 kapandığı için engel kalktı)*
   - ### K6 — Dashboard "son hatalar" paneli (D16) ne olacak?
-  - ### K7 — Landing'de yapılandırılmış adres gösterilsin mi? (BULGU-5)
+  - ### K7 — Landing'de yapılandırılmış adres gösterilsin mi? ✅ **UYGULANDI**
   - ## §9 — DESIGN'A TESLİM ÖZETİ
 
 ### `docs/UX-ARCHITECTURE.md`
