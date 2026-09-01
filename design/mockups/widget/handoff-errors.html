@@ -57,12 +57,15 @@
   .mast{padding:clamp(36px,5vw,64px) 0 0}
   .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
   .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-title .dot{color:var(--oxide)} /* signature full stop */
   .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
   .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
-  .mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:12px 0;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta{position:relative;display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:14px 0 12px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* newspaper thick+thin folio rule */
   .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
   .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
-  .pages-nav a,.pages-nav span{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap}
+  .pages-nav a,.pages-nav span{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .pages-nav a:hover{border-color:var(--ink);transform:translateY(-1px)}
   .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
 
   .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
@@ -73,11 +76,12 @@
   /* ---------- section headers ---------- */
   .sect{padding:clamp(34px,5vw,58px) 0 0}
   .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-kicker::before{content:'';display:inline-block;width:26px;height:2px;background:var(--oxide);vertical-align:middle;margin-right:10px}
   .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
   .sect-note{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:10px}
   .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
 
-  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px)}
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px);border-top:3px solid var(--oxide)}
   .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
   .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
   .ink-band p{font-size:14px;color:var(--stamp);max-width:56ch}
@@ -148,12 +152,19 @@
   .js .thread[data-staged] .msg.in,.js .thread[data-staged] .sysnote.in{opacity:1;transform:none}
   .replay{margin-top:12px;font-size:12.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:6px 14px;display:none}
   .js .replay{display:inline-block}
+  .replay{transition:background .15s var(--ease),color .15s var(--ease),border-color .15s var(--ease)}
+  .replay:hover{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
   @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
   @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
 
   /* ---------- state-by-state cards ---------- */
   .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:24px}
-  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column;transition:transform .25s var(--ease),box-shadow .25s var(--ease),opacity .5s var(--ease)}
+  .state-card:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  /* scroll reveal — gated under html.js; no-JS renders everything (same PE contract as the threads) */
+  .js .state-card{opacity:0;transform:translateY(14px)}
+  .js .state-card.in{opacity:1;transform:none}
+  .js .state-card.in:hover{transform:translate(-2px,-2px)}
   .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
   .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
   .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
@@ -165,6 +176,7 @@
   .state-note strong{color:var(--oxide)}
   .state-card.warn{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
   .state-card.warn .state-id{color:var(--oxide)}
+  .state-card.warn:hover{box-shadow:7px 7px 0 rgba(180,71,46,.18)}
   /* W56 — the deliberate absence: a ghost slot where no bubble will ever render */
   .ghost{border:1.5px dashed var(--edge);border-radius:16px 16px 16px 4px;padding:11px 15px;font-size:12.5px;color:var(--muted);font-style:italic;align-self:flex-start;max-width:100%}
   /* REVIEW-ONLY tech strip — removed in production */
@@ -203,6 +215,9 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation:none !important;transition:none !important}
     .js .thread[data-staged] .msg,.js .thread[data-staged] .sysnote{opacity:1 !important;transform:none !important}
+    .js .state-card{opacity:1 !important;transform:none !important}
+    .state-card:hover{transform:none !important}
+    .pages-nav a:hover{transform:none !important}
     .typing{display:none !important}
     .razor .draw{stroke-dashoffset:0 !important}
   }
@@ -214,7 +229,7 @@
 
 <header class="mast wrap">
   <p class="mast-eyebrow">Design review · Tur A — Widget · Group 3 / 4</p>
-  <h1 class="mast-title">Handoff &amp; errors</h1>
+  <h1 class="mast-title">Handoff &amp; errors<span class="dot">.</span></h1>
   <p class="mast-sub">The page this tour exists for. Three handoff classes —
     <code>intent-handoff</code>, <code>guard-trip</code>, <code>infra-unavailable</code> — may share the same
     polite sentence, but the machine truth differs and the visuals must never blur them. Plus the lock, the
@@ -686,6 +701,19 @@
   document.querySelectorAll('.thread[data-staged]').forEach(function (thread) {
     playThread(thread);
   });
+
+  /* card scroll-reveal — enhancement only; reduced-motion and no-IO browsers see everything at once */
+  var cards = document.querySelectorAll('.state-card');
+  if (reduced || !('IntersectionObserver' in window)) {
+    cards.forEach(function (c) { c.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    cards.forEach(function (c) { io.observe(c); });
+  }
   document.querySelectorAll('[data-replay]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var thread = document.querySelector('.thread[data-flow="' + btn.getAttribute('data-replay') + '"]');
