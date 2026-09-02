@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Barber Co. — Welcome (customer-site simulation)</title>
+<!--
+  TUR B-2 · HOST DEMO — a simulation of a CUSTOMER'S EXISTING WEBSITE (§3: "hiçbir varsayım
+  yapılamaz"). Deliberately NOT our design language: system serif/sans fonts, corporate blue,
+  boxy 2010s layout. If this page looked like our Cream & Ink, the embed test would prove
+  nothing. The ONLY thing of ours on this page is the one-line snippet at the bottom.
+
+  HOSTILE-CSS TEST BED — this page intentionally ships rules that break naive embeds; the
+  widget must survive ALL of them (proof of the Shadow DOM isolation decision):
+    H1 · *{box-sizing:content-box!important}          — foreign box model
+    H2 · body{font-family:Georgia;line-height:2.2}     — inheritance attack (font/leading)
+    H3 · .chip,.msg,.panel,.thread,.launcher{...}      — CLASS-NAME COLLISIONS with ugly styles
+    H4 · header z-index:99999                          — stacking-context ambush
+    H5 · button{...!important}                         — global button restyle
+    H6 · img,svg{display:block;width:100%}             — media flattening
+    H7 · div{border:1px dashed #c00} on a test section — leak canary (any bleed becomes visible)
+  None of these can cross the shadow boundary; the widget's :host{all:initial} cuts the
+  inherited ones (H2). See barber-widget.js for the full isolation rationale.
+-->
+<style>
+  /* ═══ deliberately generic "customer site" styling — NOT our tokens, NOT our fonts ═══ */
+  * { box-sizing: content-box !important; }                    /* H1 */
+  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; line-height: 2.2;  /* H2 */
+         color: #223344; background: #f4f6f8; }
+  a { color: #0055aa; }
+  header.site { position: sticky; top: 0; z-index: 99999;      /* H4 */
+                background: #003366; color: #fff; padding: 14px 5%;
+                font-family: Arial, Helvetica, sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  header.site h1 { margin: 0; font-size: 22px; font-weight: bold; letter-spacing: 1px; }
+  header.site .tagline { font-size: 12px; color: #9db8d4; }
+  nav.crumbs { background: #e8edf2; padding: 8px 5%; font-family: Arial, sans-serif;
+               font-size: 12px; color: #667; border-bottom: 1px solid #ccd; }
+  main { max-width: 900px; margin: 0 auto; padding: 30px 5%; }
+  h2 { font-size: 26px; color: #003366; border-bottom: 3px double #99aabb; padding-bottom: 6px; }
+  .lead { font-size: 17px; font-style: italic; color: #556; }
+  table.services { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 14px; }
+  table.services th { background: #003366; color: #fff; text-align: left; padding: 10px; }
+  table.services td { border: 1px solid #ccd; padding: 10px; background: #fff; }
+  table.services tr:nth-child(even) td { background: #eef2f6; }
+  button { background: #0055aa !important; color: #fff !important; border: 2px outset #77a !important;  /* H5 */
+           border-radius: 0 !important; padding: 12px 22px !important;
+           font-family: Arial, sans-serif !important; font-size: 15px !important; cursor: pointer; }
+  img, svg { display: block; width: 100%; }                    /* H6 */
+  /* H3 · class-name collisions — a naive (non-shadow) embed would inherit ALL of this */
+  .chip { background: yellow; border: 3px dotted red; font-size: 30px; padding: 20px; }
+  .msg { background: lime; text-decoration: underline wavy red; font-size: 9px; }
+  .panel { border: 10px ridge orange; width: 100px; height: 40px; overflow: hidden; }
+  .thread { display: table; direction: rtl; }
+  .launcher { position: static; background: pink; font-size: 8px; }
+  .footer { background: #223; color: #aab; padding: 24px 5%; font-size: 12px;
+            font-family: Arial, sans-serif; margin-top: 40px; }
+  .canary { border: 1px dashed #c00; padding: 12px; margin-top: 24px;               /* H7 */
+            font-size: 12px; color: #944; background: #fff8f8; }
+  /* our demo marker (page-level, honesty-demos) — the one intentional non-customer element */
+  .mock-ribbon { position: fixed; top: 0; right: 0; z-index: 100000; width: 110px; height: 110px;
+                 overflow: hidden; pointer-events: none; }
+  .mock-ribbon span { position: absolute; top: 24px; right: -40px; transform: rotate(45deg);
+                      background: #B4472E; color: #F1EEE6; font-size: 10.5px; font-weight: 600;
+                      letter-spacing: .24em; text-transform: uppercase; text-align: center;
+                      width: 160px; padding: 6px 0; font-family: Arial, sans-serif; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <h1>DEMO BARBER CO.</h1>
+  <div class="tagline">Est. 1998 · Quality haircuts for the whole family</div>
+</header>
+<nav class="crumbs">Home &raquo; Welcome</nav>
+
+<main>
+  <h2>Welcome to our website</h2>
+  <p class="lead">We are a traditional barbershop offering quality services at fair prices.
+    Please find our price list below.</p>
+
+  <h2>Our services</h2>
+  <table class="services">
+    <tr><th>Service</th><th>Duration</th><th>Price</th></tr>
+    <!-- customer-site content mirrors the same mock config values (consistency, not wiring) -->
+    <tr><td>Haircut</td><td>approx. 30 minutes</td><td>EUR 25</td></tr>
+    <tr><td>Beard Trim</td><td>approx. 20 minutes</td><td>EUR 15</td></tr>
+    <tr><td>Haircut + Beard</td><td>approx. 45 minutes</td><td>EUR 35</td></tr>
+  </table>
+
+  <h2>Opening hours</h2>
+  <p>Monday to Friday: 10:00 – 19:00<br>Saturday: 10:00 – 18:00<br>Sunday: closed</p>
+
+  <h2>How to find us</h2>
+  <p>We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.</p>
+
+  <div class="canary">
+    Leak canary: this box (and every rule on this page) is styled by the HOST site. If any
+    widget style ever bled out of the shadow root — or any host rule bled in — it would show
+    here first. The classes <code>.chip .msg .panel .thread .launcher</code> are deliberately
+    redefined above with garish styles; the corner widget must remain pixel-true Cream &amp; Ink.
+  </div>
+</main>
+
+<div class="footer">
+  © Demo Barber Co. — this page simulates a customer's existing website (mock data, no real
+  customer information). The booking widget in the corner is the embedded product.
+</div>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     THE SNIPPET — the ONE line a client adds to their site (S1–S4 live proof).
+     Everything above is "their" page; everything the widget needs rides in this file.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script src="./barber-widget.js" defer></script>
+
+</body>
+</html>
