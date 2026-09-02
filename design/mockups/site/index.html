@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Barber Co. — Book by text · Cream &amp; Ink</title>
+<!--
+  TUR B — BARBER DEMO SITE (design/mockups/site/index.html).
+  Single source of sections: docs/SCREEN-INVENTORY.md §1 (L1–L9). Evolved from the approved
+  design/mockups/variants/landing-a-cream-ink.html — same visual language + the Tur A polish
+  signatures (oxide full-stop, thick+thin folio rules, 3px oxide strip on cream→ink).
+  CHANGES vs the approved variant (each recorded inline):
+    · K7/BULGU-5: "City Center" removed (×3) — the address now comes from config faq.address
+      (L5 shows the full sentence; the footer place is DERIVED from it, per §1 L7).
+    · Hero chat (L2): the old conversation used INVENTED bot copy ("Sure. Open slots:" /
+      "✓ Confirmed — … I'll send you a reminder.") — exactly the BULGU-4 class of mismatch.
+      Replaced with engine-verbatim W12/W13 literals locked in Tur A (§1 L2: "sohbet içeriği
+      widget ile aynı").
+  CONFIG-DRIVEN vs STATIC is annotated per section — the template claim's proof.
+  ⚠ Today the page is config-CONSISTENT, not config-WIRED (values hand-written to match
+  client.config.example.json); wiring is the Phase 6 build.
+  tokens.css deliberately NOT used (wrong palette — BULGU-4).
+-->
+<script>
+  /* Progressive enhancement gate: hide-before-reveal rules exist only under html.js.
+     The intro curtain must be decided BEFORE first paint or the hero flashes. */
+  document.documentElement.classList.add('js');
+  try {
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+        !sessionStorage.getItem('ci_intro_seen')) {
+      sessionStorage.setItem('ci_intro_seen', '1');
+      document.documentElement.classList.add('intro-play');
+    }
+  } catch (e) { /* storage blocked → no intro, page stays fully usable */ }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;         /* accent on cream — display sizes only */
+    --oxide-soft:#D98B66;    /* accent on ink blocks */
+    --muted:#5C594E;         /* secondary text on cream (≥4.5:1) */
+    --stamp:#C9C4B4;         /* timestamps on ink bubbles */
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  html{scroll-behavior:auto} /* wheel scroll is native/1:1; anchor glide handled in JS */
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  a{color:inherit}
+  button{font:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  [id]{scroll-margin-top:90px} /* sticky header must never clip an anchored heading */
+  .wrap{max-width:1240px;margin:0 auto}
+  .wrap-narrow{max-width:1000px;margin:0 auto}
+
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .ink-block .dot{color:var(--oxide-soft)}
+
+  /* ---------- shared atoms ---------- */
+  .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin:0 0 14px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:currentColor}
+  .ink-block .eyebrow{color:var(--oxide-soft)}
+  .btn{display:inline-flex;align-items:center;gap:10px;font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:999px;text-decoration:none;transition:transform .15s var(--ease),background .15s var(--ease),border-color .15s var(--ease)}
+  .btn:active{transform:scale(.97)}
+  .btn-ink{background:var(--ink);color:var(--cream);border:1px solid var(--ink)}
+  .btn-ink:hover{background:#000}
+  .btn-ghost{color:var(--ink);border:1px solid rgba(22,21,15,.3)}
+  .btn-ghost:hover{border-color:var(--ink)}
+  .btn-outline-cream{color:var(--cream);border:1px solid rgba(241,238,230,.4)}
+  .btn-outline-cream:hover{border-color:var(--cream)}
+  .btn-cream{background:var(--cream);color:var(--ink);font-size:15px;padding:15px 30px}
+  .btn-cream:hover{background:#FFF}
+
+  /* ---------- header ---------- */
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(241,238,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:18px;height:66px;padding:0 clamp(20px,4vw,48px)}
+  .brand{font-family:var(--font-display);font-weight:600;font-size:20px;letter-spacing:-.01em}
+  .site-nav{display:flex;gap:26px}
+  .nav-link{font-size:14px;font-weight:500;color:var(--muted);text-decoration:none;border-bottom:1px solid transparent;transition:color .15s var(--ease),border-color .15s var(--ease)}
+  .nav-link:hover{color:var(--ink);border-bottom-color:var(--oxide)}
+  .header-cta{font-size:14px;padding:10px 20px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:clamp(56px,6.5vw,100px) clamp(20px,4vw,48px) clamp(64px,7vw,110px)}
+  .hero-grid{display:grid;grid-template-columns:1.06fr .94fr;gap:clamp(36px,5vw,80px);align-items:center}
+  .hero .eyebrow{margin-bottom:26px}
+  .hero-title{font-weight:600;font-size:clamp(46px,6.4vw,94px);line-height:1.02;letter-spacing:-.015em}
+  .hero-title .line{display:block;overflow:hidden}
+  .hero-title .line-accent{padding:0 .06em;margin:0 -.06em} /* italic overshoot must not clip in the mask */
+  .hero-title .line-inner{display:block;animation:lineup .55s var(--ease) both}
+  .hero-title .line:nth-child(1) .line-inner{animation-delay:.1s}
+  .hero-title .line:nth-child(2) .line-inner{animation-delay:.26s}
+  .hero-title .line:nth-child(3) .line-inner{animation-delay:.42s}
+  .hero-title em{font-style:italic;color:var(--oxide);font-weight:500;position:relative}
+  /* "paint" moment, opacity-only: an ink copy sits on top and fades out at .95s,
+     revealing the static oxide text underneath — no color animation needed */
+  .hero-title em::after{content:attr(data-text);position:absolute;inset:0;color:var(--ink);pointer-events:none;opacity:0;animation:inkveil .35s var(--ease) .95s both}
+  .razor{display:block;max-width:80%}
+  .razor-hero{margin:18px 0 26px}
+  .razor-hero path{stroke-dasharray:430;animation:drawline .8s var(--ease) .85s both}
+  .hero-sub{font-size:17.5px;color:var(--muted);max-width:44ch;margin:0 0 30px}
+  .hero-ctas{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+
+  @keyframes lineup{from{transform:translateY(115%)}to{transform:translateY(0)}}
+  @keyframes inkveil{from{opacity:1}to{opacity:0}}
+  @keyframes drawline{from{stroke-dashoffset:430}to{stroke-dashoffset:0}}
+  /* hero load choreography waits behind the curtain, then resumes untouched */
+  .intro-play .ha,.intro-play .ha::after{animation-play-state:paused !important}
+
+  /* ---------- chat window — framed newspaper clipping ---------- */
+  .chat-window{background:var(--cream);border:1.5px solid var(--ink);border-radius:4px;box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden;max-width:470px;width:100%;justify-self:end}
+  .chat-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--frame)}
+  .chat-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .chat-id{line-height:1.35}
+  .chat-name{display:block;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+  .chat-status{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .chat-body{padding:20px;display:flex;flex-direction:column;gap:12px;min-height:330px}
+  .msg{max-width:88%;padding:12px 16px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+  .slots{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .slots + .stamp{margin-top:7px}
+  .chip{font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3)}
+  .chip-on{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  /* Typing overlays the upcoming bot message's reserved slot (absolute inside .pair):
+     toggling it must never change the panel's height, or everything below the hero
+     shifts mid-conversation and anchor destinations computed at click time go stale. */
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:13px 16px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  .chat-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--frame)}
+  .chat-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 18px}
+  .chat-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  /* staged conversation — hidden ONLY when JS is present; no-JS reads the full thread */
+  .js .chat-body .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .chat-body .msg.in{opacity:1;transform:none}
+  /* the picked chip pops once, right after its bubble lands */
+  .js .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- menu — newspaper price list ---------- */
+  .menu{padding:clamp(56px,6vw,96px) clamp(20px,4vw,48px)}
+  .section-title{font-weight:600;font-size:clamp(30px,3.6vw,48px);line-height:1.08}
+  .menu-list{list-style:none;margin:34px 0 0;border-top:2px solid var(--ink);position:relative}
+  .menu-list::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* Tur A thick+thin folio rule */
+  .menu-row{display:flex;align-items:baseline;gap:16px;padding:26px 4px;border-bottom:1px solid var(--rule);transition:background .2s var(--ease),transform .2s var(--ease)}
+  .menu-row:hover,.menu-row:focus-within{background:rgba(255,253,247,.75);transform:translateX(4px)}
+  .menu-name{font-family:var(--font-display);font-weight:600;font-size:clamp(22px,2.3vw,30px);letter-spacing:-.01em}
+  .leader{flex:1;height:2px;transform:translateY(-6px);min-width:24px;background-image:radial-gradient(circle,rgba(22,21,15,.38) 1.1px,transparent 1.5px);background-size:8px 2px;background-repeat:repeat-x}
+  .menu-row:hover .leader,.menu-row:focus-within .leader{animation:leadcrawl .8s linear infinite}
+  @keyframes leadcrawl{to{background-position:16px 0}}
+  .menu-time{font-variant:all-small-caps;letter-spacing:.08em;font-size:15px;color:var(--muted);white-space:nowrap}
+  .menu-price{font-family:var(--font-display);font-weight:700;font-size:clamp(22px,2.3vw,30px);font-variant-numeric:tabular-nums}
+
+  /* scroll reveals — hidden ONLY under html.js, so no-JS never orphans content */
+  .js [data-reveal="left"]{opacity:0;transform:translateX(-24px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .js [data-reveal="left"].in{opacity:1;transform:none}
+  .js .menu-list li:nth-child(2){transition-delay:.06s}
+  .js .menu-list li:nth-child(3){transition-delay:.12s}
+
+  /* ---------- ink blocks (craft + closer) ---------- */
+  .ink-block{background:var(--ink);color:var(--cream);position:relative;z-index:1;will-change:transform;border-top:3px solid var(--oxide)} /* Tur A cream→ink oxide strip */
+  .craft{padding:clamp(72px,8vw,128px) clamp(20px,4vw,48px)}
+  .craft-title{font-weight:500;font-size:clamp(34px,4.6vw,64px);line-height:1.1;letter-spacing:-.01em}
+  .craft-title em,.ink-block em{font-style:italic;color:var(--oxide-soft)}
+  .craft-body{color:var(--cream);max-width:52ch;font-size:17px;margin:24px 0 34px}
+  .craft .eyebrow{margin-bottom:22px}
+
+  /* ---------- hours strip ---------- */
+  .hours{padding:clamp(56px,6vw,88px) clamp(20px,4vw,48px)}
+  .hours .eyebrow{margin-bottom:22px}
+  .hours-grid{border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));position:relative}
+  .hours-grid::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* folio rule */
+  .hours-cell{padding:26px 20px 26px 4px}
+  .hours-cell:last-child{padding-right:4px}
+  .hours-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .hours-value{font-family:var(--font-display);font-weight:600;font-size:clamp(20px,1.8vw,25px);margin-top:6px;font-variant-numeric:tabular-nums}
+  .hours-value.closed{font-weight:500;font-style:italic;color:var(--oxide)}
+  .place{margin-top:26px;border-bottom:1px solid var(--rule);padding-bottom:26px}
+  .place-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .place-value{font-family:var(--font-display);font-weight:600;font-size:clamp(19px,2vw,26px);margin-top:8px;max-width:30ch;text-wrap:pretty}
+  .place-note{font-size:14.5px;color:var(--muted);margin-top:10px;max-width:58ch}
+
+  /* ---------- closer — razor bookend ---------- */
+  .closer{padding:clamp(72px,8vw,120px) clamp(20px,4vw,48px)}
+  .closer-row{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
+  .closer-title{font-weight:500;font-style:italic;font-size:clamp(32px,4.4vw,60px);line-height:1.08;letter-spacing:-.01em}
+  .razor-closer{margin-top:18px}
+  .js .razor-closer path{stroke-dasharray:430;stroke-dashoffset:430}
+  .js .razor-closer.in path{animation:drawline .8s var(--ease) .15s both}
+
+  /* ---------- footer ---------- */
+  .site-footer{padding:34px clamp(20px,4vw,48px) 42px;border-top:1px solid var(--hairline)}
+  .footer-row{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+
+  /* ---------- overlays ---------- */
+  .mock-ribbon{position:absolute;top:66px;right:0;z-index:40;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+
+  .fab{position:fixed;right:26px;bottom:24px;z-index:90;display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--cream);border-radius:999px;font-size:14.5px;font-weight:600;padding:14px 24px;text-decoration:none;box-shadow:0 16px 38px -14px rgba(22,21,15,.55);transition:transform .3s var(--ease),opacity .3s var(--ease);animation:fabin .45s var(--ease) .4s backwards}
+  .fab:hover{transform:translateY(-2px)}
+  .fab:active{transform:scale(.97)}
+  .fab .online-dot{width:8px;height:8px;background:var(--oxide-soft)}
+  .fab.is-hidden{opacity:0 !important;transform:translateY(10px);pointer-events:none}
+  @keyframes fabin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+  /* paper grain — inline turbulence, no image files */
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  .ink-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:74;pointer-events:none}
+
+  /* intro curtain — plays once per session; exists visually only under .intro-play */
+  .intro{display:none}
+  .js.intro-play .intro{display:block;position:fixed;inset:0;z-index:95;cursor:pointer}
+  .intro-half{position:absolute;left:0;right:0;height:50.2%;background:var(--ink)}
+  .intro-half.top{top:0;animation:introhalfup .5s var(--ease) .62s both}
+  .intro-half.bottom{bottom:0;animation:introhalfdown .5s var(--ease) .62s both}
+  .intro-razor{position:absolute;left:5%;top:calc(50% - 13px);width:90%;height:26px;animation:fadeout .3s var(--ease) .62s both}
+  .intro-razor path{stroke-dasharray:100;animation:draw100 .55s var(--ease) .05s both}
+  @keyframes introhalfup{to{transform:translateY(-102%)}}
+  @keyframes introhalfdown{to{transform:translateY(102%)}}
+  @keyframes fadeout{to{opacity:0}}
+  @keyframes draw100{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:840px){
+    .site-nav{display:none}
+    .hero-grid{grid-template-columns:1fr}
+    .chat-window{max-width:100%;justify-self:stretch}
+  }
+
+  /* ---------- reduced motion: kill everything, show everything ---------- */
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .chat-body .msg{opacity:1 !important;transform:none !important}
+    .js [data-reveal]{opacity:1 !important;transform:none !important}
+    .js .razor-closer path{stroke-dashoffset:0 !important}
+    .typing{display:none !important}
+    .intro{display:none !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ L1 · STICKY HEADER — brand: CONFIG business.name · nav + CTA label: STATIC (§1 L1) ═══ -->
+<header class="site-header">
+  <div class="wrap header-row">
+    <!-- CONFIG: business.name -->
+    <span class="brand">Demo Barber Co.</span>
+    <nav class="site-nav" aria-label="Sections">
+      <a class="nav-link" href="#menu">The menu</a>
+      <a class="nav-link" href="#hours">Hours</a>
+    </nav>
+    <a class="btn btn-ink header-cta" href="#chat">Book by text</a>
+  </div>
+</header>
+
+<main>
+  <!-- ═══ L2 · HERO — headline/sub/eyebrow: STATIC · chat content: same as the widget (engine
+       literals, locked in Tur A) (§1 L2). K7: the old "City Center" is gone — the location now
+       lives in L5/L7 from config faq.address; the eyebrow carries no place name. ═══ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <!-- STATIC copy -->
+        <p class="eyebrow">Premium barbershop — book by text</p>
+        <h1 class="hero-title">
+          <span class="line"><span class="line-inner ha">Sit back.</span></span>
+          <span class="line line-accent"><em class="line-inner ha" data-text="We'll handle">We'll handle</em></span>
+          <span class="line"><span class="line-inner ha">the rest<span class="dot">.</span></span></span>
+        </h1>
+        <svg class="razor razor-hero" width="330" height="26" viewBox="0 0 330 26" fill="none" aria-hidden="true">
+          <path class="ha" d="M4 17 C 60 7, 120 23, 178 13 C 226 5, 282 19, 326 12" stroke="#B4472E" stroke-width="3" stroke-linecap="round" fill="none"></path>
+        </svg>
+        <p class="hero-sub">Book by one text message — open slots arrive in the reply, confirmed in seconds.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-ink" data-secta href="#chat">Book by text</a>
+          <a class="btn btn-ghost" href="#menu">See the menu</a>
+        </div>
+      </div>
+
+      <div class="chat-window" id="chat" aria-label="Sample booking conversation">
+        <div class="chat-head">
+          <span class="chat-avatar" aria-hidden="true">DB</span>
+          <div class="chat-id">
+            <!-- CONFIG: business.name (the widget panel uses the same source) -->
+            <strong class="chat-name">Demo Barber Co.</strong>
+            <span class="chat-status"><span class="online-dot"></span>online — instant replies</span>
+          </div>
+        </div>
+        <!-- ENGINE-VERBATIM conversation (replaces the approved variant's invented copy — see head
+             comment). Sources locked in Tur A / design/mockups/widget/booking.html: -->
+        <div class="chat-body" role="log" aria-live="polite">
+          <!-- MOCK user input -->
+          <div class="msg user" data-step="1">Can I get a haircut Friday at 15:30?<span class="stamp">14:02</span></div>
+          <!-- W12 · SOURCE: literal in Compute Availability — `${svcName}, ${fmt} — shall I book it?
+               (yes / no)`, fmt='cccc d LLL HH:mm'. Chips: frontend enhancement (Tur A precedent). -->
+          <div class="pair">
+            <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="msg bot" data-step="3">Haircut, Friday 4 Sep 15:30 — shall I book it? (yes / no)
+              <span class="slots">
+                <span class="chip chip-on">yes</span>
+                <span class="chip">no</span>
+              </span>
+              <span class="stamp">14:02</span>
+            </div>
+          </div>
+          <!-- MOCK user input -->
+          <div class="msg user" data-step="4">yes<span class="stamp">14:03</span></div>
+          <!-- W13 · SOURCE: messageTemplates.bookingConfirmed ({date}='cccc d LLL', {time}='HH:mm')
+               · node: Build Booked State -->
+          <div class="pair">
+            <div class="typing" data-typing="5" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="msg bot confirm" data-step="6"><strong>✓</strong> You're booked: Haircut, Friday 4 Sep 15:30. See you then!<span class="stamp">14:03</span></div>
+          </div>
+        </div>
+        <div class="chat-foot" aria-hidden="true">
+          <span class="chat-input">Type a message…</span>
+          <span class="chat-send">↑</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ L3 · MENU — CONFIG-DRIVEN: services[].{name,durationMin,priceEUR}
+       (client.config.example.json). Values must stay consistent with the Tur A widget bubbles
+       (Haircut €25 · Beard Trim €15 · Haircut + Beard €35). Heading/eyebrow: STATIC. ═══ -->
+  <section class="menu" id="menu">
+    <div class="wrap-narrow">
+      <p class="eyebrow">The menu</p>
+      <h2 class="section-title">Prices, plain as print<span class="dot">.</span></h2>
+      <ul class="menu-list">
+        <li data-reveal="left">
+          <div class="menu-row">
+            <span class="menu-name">Haircut</span>
+            <span class="leader" aria-hidden="true"></span>
+            <span class="menu-time">~30 min</span>
+            <span class="menu-price">€25</span>
+          </div>
+        </li>
+        <li data-reveal="left">
+          <div class="menu-row">
+            <span class="menu-name">Beard Trim</span>
+            <span class="leader" aria-hidden="true"></span>
+            <span class="menu-time">~20 min</span>
+            <span class="menu-price">€15</span>
+          </div>
+        </li>
+        <li data-reveal="left">
+          <div class="menu-row">
+            <span class="menu-name">Haircut + Beard</span>
+            <span class="leader" aria-hidden="true"></span>
+            <span class="menu-time">~45 min</span>
+            <span class="menu-price">€35</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═══ L4 · INK BLOCK — CRAFT: STATIC copy (§1 L4). The bot sells nothing here; the shop
+       speaks. Oxide top strip = Tur A cream→ink signature. ═══ -->
+  <section class="ink-block craft" data-ride>
+    <div class="wrap-narrow">
+      <p class="eyebrow">The craft</p>
+      <h2 class="craft-title">Hot towel. Straight razor.<br><em>A chair that runs on time.</em></h2>
+      <p class="craft-body">The assistant keeps the book tight — every cut gets its full time, and your chair is ready the minute you walk in.</p>
+      <a class="btn btn-outline-cream" data-secta href="#chat">Book by text</a>
+    </div>
+  </section>
+
+  <!-- ═══ L5 · HOURS & PLACE — hours: CONFIG workingHours (mon-fri 10:00-19:00 · sat
+       10:00-18:00 · sun closed — must match the widget's W5/W17 bubbles). Address: CONFIG
+       faq.address, full sentence as-is (K7/BULGU-5 — the old "City Center" cell is gone; do NOT
+       split into street/city fields, §1 note). Parking: CONFIG faq.parking (first surface to
+       use it, sanctioned by §1). Labels/eyebrow: STATIC. ═══ -->
+  <section class="hours" id="hours">
+    <div class="wrap">
+      <p class="eyebrow">Hours &amp; place</p>
+      <div class="hours-grid">
+        <!-- CONFIG: workingHours.mon..fri -->
+        <div class="hours-cell">
+          <h3 class="hours-label">Mon – Fri</h3>
+          <p class="hours-value">10:00 – 19:00</p>
+        </div>
+        <!-- CONFIG: workingHours.sat -->
+        <div class="hours-cell">
+          <h3 class="hours-label">Saturday</h3>
+          <p class="hours-value">10:00 – 18:00</p>
+        </div>
+        <!-- CONFIG: workingHours.sun (empty array → closed) -->
+        <div class="hours-cell">
+          <h3 class="hours-label">Sunday</h3>
+          <p class="hours-value closed">Closed</p>
+        </div>
+      </div>
+      <div class="place">
+        <h3 class="place-label">Find us</h3>
+        <!-- CONFIG: faq.address — full sentence, verbatim (K7) -->
+        <p class="place-value">We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.</p>
+        <!-- CONFIG: faq.parking — verbatim (previously unused on any surface) -->
+        <p class="place-note">Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ L6 · INK BLOCK — CLOSER: STATIC copy + razor motif (§1 L6). ═══ -->
+  <section class="ink-block closer" data-ride>
+    <div class="wrap closer-row">
+      <div>
+        <h2 class="closer-title">Walk in booked.<br>Walk out sharp<span class="dot">.</span></h2>
+        <svg class="razor razor-closer" width="330" height="26" viewBox="0 0 330 26" fill="none" aria-hidden="true">
+          <path d="M4 17 C 60 7, 120 23, 178 13 C 226 5, 282 19, 326 12" stroke="#B4472E" stroke-width="3" stroke-linecap="round" fill="none"></path>
+        </svg>
+      </div>
+      <a class="btn btn-cream" data-secta href="#chat">Reserve your chair</a>
+    </div>
+  </section>
+</main>
+
+<!-- ═══ L7 · FOOTER — demo notice: STATIC (honesty-demos) · brand: CONFIG business.name ·
+     place: DERIVED from CONFIG faq.address (street + city, §1 L7 "türetilir") ═══ -->
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <span>DEMO — mock data, no real customer information.</span>
+    <span>Demo Barber Co. · Musterstrasse 12, 1010 Vienna</span>
+  </div>
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+
+<!-- ═══ L8 · FLOATING CTA PILL — behavior STATIC (§1 L8): auto-hides while any section CTA is
+     on screen (IO dedup below). Stage 2 of Tur B turns this pill into the widget launcher. ═══ -->
+<a class="fab" href="#chat"><span class="online-dot"></span><span>Book by text</span></a>
+
+<div class="grain" aria-hidden="true"></div>
+
+<canvas class="ink-canvas" aria-hidden="true"></canvas>
+
+<!-- ═══ L9 · INTRO CURTAIN — STATIC behavior (§1 L9): once per session (sessionStorage),
+     click-to-skip, absent under reduced-motion. ═══ -->
+<div class="intro" role="presentation" aria-hidden="true">
+  <div class="intro-half top"></div>
+  <div class="intro-half bottom"></div>
+  <svg class="intro-razor" viewBox="0 0 1000 26" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 16 C 200 6, 380 24, 560 12 C 720 2, 880 20, 1000 10" pathLength="100" stroke="#B4472E" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+  </svg>
+</div>
+
+<!-- Motion engine — page is fully functional if any of these fail to load -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<script>
+(function () {
+  'use strict';
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var finePointer = window.matchMedia('(pointer: fine)').matches;
+  var docEl = document.documentElement;
+
+  /* ---- staged conversation — time-driven, plays once (reference DCLogic timings) ---- */
+  var chatStarted = false;
+  function startChat() {
+    if (chatStarted) return;
+    chatStarted = true;
+    var msgs = document.querySelectorAll('.chat-body .msg');
+    if (reduced) { // CSS already shows everything; keep DOM state consistent
+      msgs.forEach(function (m) { m.classList.add('in'); });
+      return;
+    }
+    function showMsg(step) {
+      return function () {
+        msgs.forEach(function (m) {
+          if (Number(m.getAttribute('data-step')) <= step) m.classList.add('in');
+        });
+      };
+    }
+    function typing(step, on) {
+      return function () {
+        var t = document.querySelector('.typing[data-typing="' + step + '"]');
+        if (t) t.classList.toggle('on', on);
+      };
+    }
+    setTimeout(showMsg(1), 500);
+    setTimeout(typing(2, true), 1150);
+    setTimeout(typing(2, false), 2450);
+    setTimeout(showMsg(3), 2450); // W12 confirm lands; the picked 'yes' chip pops via CSS
+    setTimeout(showMsg(4), 3400);
+    setTimeout(typing(5, true), 4000);
+    setTimeout(typing(5, false), 5150);
+    setTimeout(showMsg(6), 5150);
+  }
+
+  /* ---- intro curtain — the chat waits for the curtain so its opening isn't hidden ---- */
+  var intro = document.querySelector('.intro');
+  function endIntro() {
+    docEl.classList.remove('intro-play');
+    if (intro && intro.parentNode) intro.parentNode.removeChild(intro);
+    intro = null;
+    startChat();
+  }
+  if (docEl.classList.contains('intro-play')) {
+    var introTimer = setTimeout(endIntro, 1180);
+    intro.addEventListener('click', function () { clearTimeout(introTimer); endIntro(); });
+  } else {
+    endIntro();
+  }
+
+  /* ---- scroll reveals (menu rows, closer razor) — IO so no scroll-tied layout reads ---- */
+  var revealEls = Array.prototype.slice.call(document.querySelectorAll('[data-reveal], .razor-closer'));
+  if (reduced || !('IntersectionObserver' in window)) {
+    revealEls.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var revealIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          revealIO.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -6% 0px' });
+    revealEls.forEach(function (el) { revealIO.observe(el); });
+  }
+
+  /* ---- CTA dedup — FAB yields whenever any section-level CTA is on screen ---- */
+  var fab = document.querySelector('.fab');
+  var sectionCtas = document.querySelectorAll('[data-secta]');
+  if (fab && sectionCtas.length && 'IntersectionObserver' in window) {
+    var ctaVisible = new Map();
+    var fabIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { ctaVisible.set(entry.target, entry.isIntersecting); });
+      var any = false;
+      ctaVisible.forEach(function (v) { if (v) any = true; });
+      fab.classList.toggle('is-hidden', any);
+    }, { threshold: 0.35 });
+    sectionCtas.forEach(function (el) { fabIO.observe(el); });
+  }
+
+  /* ---- ink cursor trail — desktop only, idle-init so it never delays the hero ---- */
+  function initInkTrail() {
+    var canvas = document.querySelector('.ink-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var points = [];
+    function size() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    size();
+    window.addEventListener('resize', size);
+    window.addEventListener('mousemove', function (e) {
+      points.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+      if (points.length > 36) points.shift();
+    });
+    (function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var now = performance.now();
+      while (points.length && now - points[0].t > 620) points.shift();
+      if (points.length > 1) {
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 1.4;
+        for (var i = 1; i < points.length; i++) {
+          var age = (now - points[i].t) / 620;
+          ctx.strokeStyle = 'rgba(22,21,15,' + ((1 - age) * 0.16).toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.moveTo(points[i - 1].x, points[i - 1].y);
+          ctx.lineTo(points[i].x, points[i].y);
+          ctx.stroke();
+        }
+      }
+      requestAnimationFrame(draw);
+    })();
+  }
+  if (!reduced && finePointer) {
+    if ('requestIdleCallback' in window) requestIdleCallback(initInkTrail, { timeout: 1500 });
+    else setTimeout(initInkTrail, 400);
+  }
+
+  /* ---- GSAP / ScrollTrigger — deferred CDN scripts run before DOMContentLoaded,
+         so the guards below see the real load result; every path degrades cleanly ---- */
+  function initMotionEngine() {
+    if (reduced) return;
+    // Wheel scrolling stays NATIVE (1:1, no smoothing engine) — a smooth-scroll library
+    // intercepts every wheel tick and eases toward the target, which reads as a laggy
+    // "limiter" on a long page. Only anchor-link jumps get an eased glide, via native
+    // scrollTo({behavior:'smooth'}), honoring each section's scroll-margin-top.
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var target = document.querySelector(a.getAttribute('href'));
+        if (!target) return;
+        e.preventDefault();
+        var margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+        var y = target.getBoundingClientRect().top + window.scrollY - margin;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+        history.pushState(null, '', a.getAttribute('href'));
+      });
+    });
+    if (window.gsap && window.ScrollTrigger) {
+      gsap.registerPlugin(ScrollTrigger);
+      // ScrollTrigger binds to native scroll by default — no smooth-scroll bridge needed.
+      // ink sections ride ~56px (≈8% viewport) into the cream above them — transform only
+      document.querySelectorAll('[data-ride]').forEach(function (el) {
+        gsap.fromTo(el, { y: 56 }, {
+          y: 0,
+          ease: 'none',
+          scrollTrigger: { trigger: el, start: 'top bottom', end: 'top 15%', scrub: true }
+        });
+      });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMotionEngine);
+  } else {
+    initMotionEngine();
+  }
+})();
+</script>
+</body>
+</html>
