@@ -344,8 +344,17 @@ Müşterinin **kendi sitesine** koyacağı hâli. Motor tarafı aynı endpoint, 
 | S3 | **Turnstile challenge görünümü** | Cloudflare kendi widget'ını çizer; snippet ona yer ayırmalı |
 | S4 | **Cross-origin hata** | CORS reddi → W60'ın snippet'e özgü hâli |
 
-> **DOĞRULANAMADI:** n8n webhook'unun bugün CORS başlıklarını nasıl döndürdüğü repoda kayıtlı
-> değil. Snippet inşa edilmeden önce ölçülmeli.
+> ✅ **CORS ÖLÇÜLDÜ (2026-09-02, Tur B — canlı gözlem, n8n/config değiştirilmedi).** Production
+> webhook'a yabancı bir `Origin` ile OPTIONS + POST atıldı:
+> - **Preflight (OPTIONS): 204** · `access-control-allow-origin:` **istek Origin'i YANSITILIYOR**
+>   (origin-reflective = her origin'e izin) · `access-control-allow-methods: OPTIONS, POST` ·
+>   `access-control-allow-headers: content-type` · `access-control-max-age: 300`.
+> - **POST (widget-şekilli, Turnstile token'sız): 403 `turnstile_failed`** — ve gerçek cevap da
+>   aynı `access-control-allow-origin` başlığını taşıyor. Motor fail-closed reddetti; state
+>   yazılmadı (Turnstile kapısı state'ten önce).
+> **Sonuç: snippet için PROXY GEREKMİYOR** — cross-origin doğrudan POST çalışır. Güvenlik notu:
+> origin-yansıtma "herkese açık" demektir; bu endpoint'in çevre savunması zaten Turnstile +
+> edge rate-limit (bilinçli model, README T1 limiti ile tutarlı).
 
 ---
 

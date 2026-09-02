@@ -221,12 +221,40 @@
   .mock-ribbon{position:absolute;top:66px;right:0;z-index:40;width:110px;height:110px;overflow:hidden;pointer-events:none}
   .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
 
-  .fab{position:fixed;right:26px;bottom:24px;z-index:90;display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--cream);border-radius:999px;font-size:14.5px;font-weight:600;padding:14px 24px;text-decoration:none;box-shadow:0 16px 38px -14px rgba(22,21,15,.55);transition:transform .3s var(--ease),opacity .3s var(--ease);animation:fabin .45s var(--ease) .4s backwards}
+  .fab{position:fixed;right:26px;bottom:24px;z-index:90;display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--cream);border:none;cursor:pointer;border-radius:999px;font-size:14.5px;font-weight:600;padding:14px 24px;text-decoration:none;box-shadow:0 16px 38px -14px rgba(22,21,15,.55);transition:transform .3s var(--ease),opacity .3s var(--ease);animation:fabin .45s var(--ease) .4s backwards}
   .fab:hover{transform:translateY(-2px)}
   .fab:active{transform:scale(.97)}
   .fab .online-dot{width:8px;height:8px;background:var(--oxide-soft)}
   .fab.is-hidden{opacity:0 !important;transform:translateY(10px);pointer-events:none}
   @keyframes fabin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ---------- SITE WIDGET — the Tur A panel, embedded (Stage 2) ----------
+     Closed start = real-visitor default (the Tur A "starts open" behavior was for review).
+     PE contract preserved: with NO JS the panel is OPEN and the full thread reads statically;
+     the .is-open gate exists only under html.js. Interior locked in Tur A — not redesigned. */
+  .site-panel{position:fixed;right:26px;bottom:88px;z-index:89;width:390px;max-width:calc(100vw - 32px);background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12),0 30px 60px -30px rgba(22,21,15,.5);overflow:hidden;display:flex;flex-direction:column;transform-origin:bottom right}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;transition:background .15s var(--ease),color .15s var(--ease)}
+  .panel-close:hover{background:rgba(22,21,15,.08);color:var(--ink)}
+  .site-panel .thread{padding:18px;display:flex;flex-direction:column;gap:12px;max-height:min(60vh,440px);overflow-y:auto}
+  .site-panel .msg{max-width:88%}
+  .site-panel .pair .msg{max-width:100%}
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  /* open/close gate — ONLY under html.js (no-JS keeps the panel open and readable) */
+  .js .site-panel:not(.is-open){display:none}
+  .js .site-panel.is-open{animation:panelin .32s var(--ease) both}
+  @keyframes panelin{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  /* staged reveal inside the widget thread — same gate family as the hero chat */
+  .js .site-panel .thread .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .site-panel .thread .msg.in{opacity:1;transform:none}
+  .js .site-panel .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
 
   /* paper grain — inline turbulence, no image files */
   .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
@@ -252,12 +280,18 @@
     .hero-grid{grid-template-columns:1fr}
     .chat-window{max-width:100%;justify-self:stretch}
   }
+  @media (max-width:480px){
+    .site-panel{left:12px;right:12px;bottom:82px;width:auto;max-width:none}
+    .site-panel .thread{max-height:52vh}
+  }
 
   /* ---------- reduced motion: kill everything, show everything ---------- */
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
     *,*::before,*::after{animation:none !important;transition:none !important}
     .js .chat-body .msg{opacity:1 !important;transform:none !important}
+    .js .site-panel .thread .msg{opacity:1 !important;transform:none !important}
+    .js .site-panel:not(.is-open){display:none} /* gate stays; open shows all instantly */
     .js [data-reveal]{opacity:1 !important;transform:none !important}
     .js .razor-closer path{stroke-dashoffset:0 !important}
     .typing{display:none !important}
@@ -454,9 +488,75 @@
 
 <div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
 
-<!-- ═══ L8 · FLOATING CTA PILL — behavior STATIC (§1 L8): auto-hides while any section CTA is
-     on screen (IO dedup below). Stage 2 of Tur B turns this pill into the widget launcher. ═══ -->
-<a class="fab" href="#chat"><span class="online-dot"></span><span>Book by text</span></a>
+<!-- ═══ THE WIDGET — Tur A panel embedded (Stage 2). Interior locked in Tur A
+     (design/mockups/widget/booking.html Flow A — W61 · W1 · W10 · W11 · W12 · W13);
+     NOT redesigned here. Closed on load (real-visitor default); the floating pill below is the
+     launcher. With NO JS the panel renders OPEN and fully readable (PE contract). ═══ -->
+<section class="site-panel" id="site-panel" role="dialog" aria-label="Book by text — Demo Barber Co.">
+  <div class="panel-head">
+    <span class="panel-avatar" aria-hidden="true">DB</span>
+    <div class="panel-id">
+      <!-- CONFIG: business.name -->
+      <strong class="panel-name">Demo Barber Co.</strong>
+      <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
+    </div>
+    <button class="panel-close" type="button" data-close aria-label="Close chat">×</button>
+  </div>
+  <div class="thread" role="log" aria-live="polite">
+    <!-- W61 · FRONTEND-ONLY welcome (K4) · SOURCE: SCREEN-INVENTORY §2.1 W61 ({business.name} from config) -->
+    <div class="msg bot" data-step="0">Hi! I'm the Demo Barber Co. assistant — I can book, change or cancel an appointment, or answer questions. How can I help?<span class="stamp">14:00</span></div>
+    <!-- W1: no engine greeting — the first engine reply below is already the intent answer -->
+    <!-- MOCK user input -->
+    <div class="msg user" data-step="1">Hi — do you have anything Friday afternoon?<span class="stamp">14:00</span></div>
+    <!-- W10 · SOURCE: messageTemplates.askService · node: Slot Gate. Chips from config services[]. -->
+    <div class="pair">
+      <div class="typing" data-typing="2" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="msg bot" data-step="2">Which service would you like? (Haircut / Beard Trim / Haircut + Beard)
+        <span class="slots">
+          <span class="chip chip-on">Haircut · €25</span>
+          <span class="chip">Beard Trim · €15</span>
+          <span class="chip">Haircut + Beard · €35</span>
+        </span>
+        <span class="stamp">14:00</span>
+      </div>
+    </div>
+    <!-- MOCK user input -->
+    <div class="msg user" data-step="3">Haircut<span class="stamp">14:01</span></div>
+    <!-- W11 · SOURCE: messageTemplates.askDateTime · node: Slot Gate -->
+    <div class="pair">
+      <div class="typing" data-typing="4" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="msg bot" data-step="4">What day and time works for you?<span class="stamp">14:01</span></div>
+    </div>
+    <!-- MOCK user input -->
+    <div class="msg user" data-step="5">Friday at 15:30<span class="stamp">14:02</span></div>
+    <!-- W12 · SOURCE: literal in Compute Availability — `${svcName}, ${fmt} — shall I book it? (yes / no)` -->
+    <div class="pair">
+      <div class="typing" data-typing="6" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="msg bot" data-step="6">Haircut, Friday 4 Sep 15:30 — shall I book it? (yes / no)
+        <span class="slots">
+          <span class="chip chip-on">yes</span>
+          <span class="chip">no</span>
+        </span>
+        <span class="stamp">14:02</span>
+      </div>
+    </div>
+    <!-- MOCK user input -->
+    <div class="msg user" data-step="7">yes<span class="stamp">14:02</span></div>
+    <!-- W13 · SOURCE: messageTemplates.bookingConfirmed · node: Build Booked State -->
+    <div class="pair">
+      <div class="typing" data-typing="8" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="msg bot confirm" data-step="8"><strong>✓</strong> You're booked: Haircut, Friday 4 Sep 15:30. See you then!<span class="stamp">14:03</span></div>
+    </div>
+  </div>
+  <div class="panel-foot" aria-hidden="true">
+    <span class="panel-input">Type a message…</span>
+    <span class="panel-send">↑</span>
+  </div>
+</section>
+
+<!-- ═══ L8 · FLOATING PILL — now the WIDGET LAUNCHER (Stage 2; §1 L8 auto-hide behavior kept:
+     the pill yields while a section CTA is on screen, unless the panel is open). STATIC. ═══ -->
+<button class="fab" type="button" id="widget-launcher" aria-expanded="false" aria-controls="site-panel"><span class="online-dot"></span><span>Book by text</span></button>
 
 <div class="grain" aria-hidden="true"></div>
 
@@ -556,9 +656,56 @@
       entries.forEach(function (entry) { ctaVisible.set(entry.target, entry.isIntersecting); });
       var any = false;
       ctaVisible.forEach(function (v) { if (v) any = true; });
-      fab.classList.toggle('is-hidden', any);
+      var panelOpen = document.getElementById('site-panel').classList.contains('is-open');
+      fab.classList.toggle('is-hidden', any && !panelOpen);
     }, { threshold: 0.35 });
     sectionCtas.forEach(function (el) { fabIO.observe(el); });
+  }
+
+  /* ---- SITE WIDGET (Stage 2) — launcher toggle + one-shot staged reveal.
+         Enhancement only: with JS off the panel is open and the whole thread is static. ---- */
+  var sitePanel = document.getElementById('site-panel');
+  var launcher = document.getElementById('widget-launcher');
+  var widgetPlayed = false;
+  function playWidgetThread() {
+    if (widgetPlayed) return;
+    widgetPlayed = true;
+    var thread = sitePanel.querySelector('.thread');
+    var msgs = thread.querySelectorAll('.msg');
+    if (reduced) { msgs.forEach(function (m) { m.classList.add('in'); }); return; }
+    var t = 350;
+    msgs.forEach(function (m) {
+      var step = m.getAttribute('data-step');
+      var typing = thread.querySelector('.typing[data-typing="' + step + '"]');
+      if (typing) {
+        (function (ty, on, off) {
+          setTimeout(function () { ty.classList.add('on'); }, on);
+          setTimeout(function () { ty.classList.remove('on'); }, off);
+        })(typing, t, t + 900);
+        t += 900;
+      }
+      (function (mm, at) {
+        setTimeout(function () {
+          mm.classList.add('in');
+          thread.scrollTop = thread.scrollHeight; // keep the newest bubble in view
+        }, at);
+      })(m, t);
+      t += m.classList.contains('user') ? 700 : 900;
+    });
+  }
+  function setWidgetOpen(open) {
+    sitePanel.classList.toggle('is-open', open);
+    launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) playWidgetThread();
+  }
+  if (sitePanel && launcher) {
+    launcher.addEventListener('click', function () {
+      setWidgetOpen(!sitePanel.classList.contains('is-open'));
+    });
+    sitePanel.querySelector('[data-close]').addEventListener('click', function () {
+      setWidgetOpen(false);
+      launcher.focus();
+    });
   }
 
   /* ---- ink cursor trail — desktop only, idle-init so it never delays the hero ---- */
