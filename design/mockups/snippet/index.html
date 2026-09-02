@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widget install · Snippet — Cream &amp; Ink</title>
+<!--
+  TUR B-2 · STAGE 2 — THE INSTALL PAGE (design/mockups/snippet/index.html).
+  This is a SCREEN: the page a client reads to put the widget on their own site.
+  Single source of screens: docs/SCREEN-INVENTORY.md §3 (S1–S4). Visual language: the locked
+  Cream & Ink + Tur A polish signatures. The embed URL is a VISIBLY MARKED placeholder
+  ([WIDGET-URL]) — the real CDN address exists only after the Phase 6 deploy; we never invent one.
+  S4's customer text is W60 from SCREEN-INVENTORY §2.10.1 (frontend fixed text, single source).
+  tokens.css deliberately NOT used (wrong palette — BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — same family as every Tur A/B page:
+     JS-only affordances (the copy button) exist only under html.js. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — locked (Tur A). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,4vw,48px)}
+
+  /* ---------- masthead (Tur A chrome: folio rule, kicker dash) ---------- */
+  .mast{padding:clamp(36px,5vw,64px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:62ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{position:relative;display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:14px 0 12px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* folio rule */
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pages-nav a{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .pages-nav a:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+
+  .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
+  .razor path{stroke:currentColor;fill:none;stroke-width:1.5}
+  .js .razor .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:drawline 1.6s var(--ease) .3s forwards}
+  @keyframes drawline{to{stroke-dashoffset:0}}
+
+  .sect{padding:clamp(34px,5vw,58px) 0 0}
+  .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-kicker::before{content:'';display:inline-block;width:26px;height:2px;background:var(--oxide);vertical-align:middle;margin-right:10px}
+  .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
+  .sect-note{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:10px}
+  .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  /* ---------- install steps ---------- */
+  .steps{counter-reset:step;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:26px}
+  .step{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);padding:18px 20px;transition:transform .25s var(--ease),box-shadow .25s var(--ease)}
+  .step:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  .step::before{counter-increment:step;content:counter(step);display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--cream);font-family:var(--font-display);font-weight:600;font-size:15px;margin-bottom:10px}
+  .step h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+  .step p{font-size:14px;color:var(--muted);margin-top:6px}
+  .step p code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:12.5px;color:var(--ink);background:rgba(255,253,247,.9);border:1px solid var(--edge);border-radius:4px;padding:1px 6px}
+
+  /* the ONE line — newspaper-clipping code block with a copy affordance */
+  .embed{margin-top:26px;border:1.5px solid var(--ink);border-radius:6px;background:var(--ink);color:var(--cream);box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden}
+  .embed-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 18px;border-bottom:1px solid rgba(241,238,230,.2);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stamp);font-weight:600}
+  .copy-btn{display:none;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--cream);border:1px solid rgba(241,238,230,.4);border-radius:999px;padding:6px 14px;transition:background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease)}
+  .js .copy-btn{display:inline-block}
+  .copy-btn:hover{border-color:var(--cream)}
+  .copy-btn.done{background:var(--oxide);border-color:var(--oxide)}
+  .embed pre{margin:0;padding:18px 20px;overflow-x:auto}
+  .embed code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:13.5px;line-height:1.7;white-space:pre}
+  .embed .ph{color:var(--oxide-soft);font-style:italic} /* visibly marked placeholder */
+  .embed-note{padding:10px 20px 14px;font-size:13px;color:var(--stamp);border-top:1px solid rgba(241,238,230,.2)}
+  .embed-note strong{color:var(--cream)}
+  .copy-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)} /* SR announcement */
+
+  .demo-cta{display:inline-flex;align-items:center;gap:10px;margin-top:22px;font-size:14.5px;font-weight:600;padding:12px 24px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .demo-cta:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .demo-cta .online-dot{width:8px;height:8px;border-radius:50%;background:var(--oxide);display:inline-block}
+
+  /* ---------- ink band + cards (Tur A chrome) ---------- */
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px);border-top:3px solid var(--oxide)}
+  .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
+  .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
+  .ink-band p{font-size:14px;color:var(--stamp);max-width:56ch}
+
+  .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-top:24px}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:rgba(255,253,247,.6);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column;transition:transform .25s var(--ease),box-shadow .25s var(--ease),opacity .5s var(--ease)}
+  .state-card:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  .js .state-card{opacity:0;transform:translateY(14px)}
+  .js .state-card.in{opacity:1;transform:none}
+  .js .state-card.in:hover{transform:translate(-2px,-2px)}
+  .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
+  .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .state-body{padding:16px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .state-note{font-size:12.5px;color:var(--muted);padding:0 16px 12px;line-height:1.5}
+  .state-note strong{color:var(--oxide)}
+  .state-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  /* REVIEW-ONLY tech strip — removed in production */
+  .tech{border-top:1px dashed var(--rule);padding:8px 16px 10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  /* S1 miniature — an abstract FOREIGN page frame with our launcher in the corner */
+  .mini-host{position:relative;border:1px solid var(--edge);border-radius:10px;background:#f7faf8;min-height:190px;overflow:hidden}
+  .mini-host .bar{height:26px;background:#e8f3ec;border-bottom:1px solid #d7e4db;display:flex;align-items:center;gap:6px;padding:0 10px}
+  .mini-host .bar i{width:8px;height:8px;border-radius:50%;background:#d7e4db;display:block}
+  .mini-host .ghost{background:#e8f3ec;border-radius:6px;margin:12px 14px 0;height:14px;max-width:60%}
+  .mini-host .ghost.w2{max-width:84%;height:10px}
+  .mini-host .ghost.w3{max-width:40%;height:10px}
+  .mini-pill{position:absolute;right:12px;bottom:12px;display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:var(--cream);border-radius:999px;font-size:12px;font-weight:600;padding:9px 16px;box-shadow:0 10px 24px -10px rgba(22,21,15,.55)}
+  .mini-pill .online-dot{width:6px;height:6px;border-radius:50%;background:var(--oxide-soft);display:inline-block}
+
+  /* S3 miniature — panel fragment with the reserved Turnstile slot visible */
+  .mini-panel{border:1.5px solid var(--ink);border-radius:6px;background:var(--cream);overflow:hidden;box-shadow:5px 5px 0 rgba(22,21,15,.1)}
+  .mini-panel .row{padding:10px 14px;border-top:1px solid var(--frame);font-size:12px;color:var(--muted)}
+  .mini-panel .row:first-child{border-top:none;display:flex;align-items:center;gap:8px}
+  .mini-panel .avatar{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--cream);display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:10px}
+  .mini-panel .name{font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--ink)}
+  .ts-slot{margin:10px 14px;border:1.5px dashed var(--oxide);border-radius:6px;padding:12px;font-size:12px;color:var(--muted);text-align:center}
+  .ts-slot strong{color:var(--oxide);display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px}
+  .mini-input{margin:0 14px 12px;background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:8px 14px;font-size:12px;color:var(--muted)}
+
+  /* S4 — carrier-layer system strip (the locked class contract: not a bot bubble) */
+  .sysnote{text-align:center;font-size:12.5px;color:var(--muted);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:8px 14px;letter-spacing:.01em}
+
+  .group{padding-top:clamp(30px,4vw,46px)}
+  .group-rule{display:flex;align-items:baseline;gap:14px;border-top:2px solid var(--ink);padding-top:10px}
+  .group-rule h3{font-size:clamp(19px,2.4vw,24px);font-weight:600;letter-spacing:-.01em}
+  .group-rule .src{margin-left:auto;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+  .group-note{font-size:14px;color:var(--muted);max-width:66ch;margin-top:8px}
+  .group-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .group-note strong{color:var(--ink)}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:480px){
+    .state-grid{grid-template-columns:1fr}
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .state-card{opacity:1 !important;transform:none !important}
+    .state-card:hover{transform:none !important}
+    .pages-nav a:hover,.demo-cta:hover{transform:none !important}
+    .razor .draw{stroke-dashoffset:0 !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur B-2 — Snippet · Install page</p>
+  <h1 class="mast-title">One line, any site<span class="dot">.</span></h1>
+  <p class="mast-sub">This is the page a client reads to put the assistant on their own website.
+    The widget arrives fully styled and fully isolated — the host page's CSS can't touch it, and
+    it can't touch the host page. Everything the customer sees inside it is the same engine-locked
+    conversation as everywhere else.</p>
+  <div class="mast-meta">
+    <span><strong>4</strong>&nbsp;states (S1–S4)</span>
+    <span>Source&nbsp;<strong>SCREEN-INVENTORY §3</strong></span>
+    <span>Isolation&nbsp;<strong>Shadow DOM + all:initial</strong></span>
+    <span>CORS&nbsp;<strong>measured — no proxy needed</strong></span>
+  </div>
+  <nav class="pages-nav" aria-label="Related pages">
+    <a class="here" href="index.html" aria-current="page">Install page</a>
+    <a href="host-demo.html">Live demo — customer-site simulation</a>
+    <a href="../widget/index.html">Widget review (Tur A)</a>
+  </nav>
+  <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
+    <path class="draw" d="M8 16 H150 l10 -7 12 7 12 -7 12 7 12 -7 12 7 H412"/>
+    <path d="M150 16 a4 4 0 1 1 -0.1 0" opacity=".5"/>
+  </svg>
+</header>
+
+<main>
+
+  <!-- ══════════════ INSTALL — the customer-facing instruction (a SCREEN) ══════════════ -->
+  <section class="sect wrap" aria-labelledby="install-h">
+    <p class="sect-kicker">Install</p>
+    <h2 class="sect-title" id="install-h">Three steps, no rebuild</h2>
+    <p class="sect-note">Works on any page that can include a script tag — a hand-written site, a
+      CMS theme, a site-builder's custom-HTML block. No account, no framework, no build step.</p>
+
+    <ol class="steps">
+      <li class="step">
+        <h3>Copy the line</h3>
+        <p>One script tag is the whole install — use the copy button below.</p>
+      </li>
+      <li class="step">
+        <h3>Paste it before <code>&lt;/body&gt;</code></h3>
+        <p>At the end of your page's HTML, just above the closing <code>&lt;/body&gt;</code> tag —
+          on every page where you want the assistant.</p>
+      </li>
+      <li class="step">
+        <h3>Done</h3>
+        <p>The “Book by text” pill appears bottom-right. Your pages, styles and scripts are left
+          completely untouched.</p>
+      </li>
+    </ol>
+
+    <!-- THE one line. [WIDGET-URL] is a VISIBLY MARKED placeholder — the real CDN address
+         exists only after the Phase 6 deploy; we never invent one (honesty-demos). -->
+    <div class="embed">
+      <div class="embed-head">
+        <span>The snippet — the whole install</span>
+        <button class="copy-btn" type="button" id="copy-btn" aria-label="Copy the embed line">Copy</button>
+      </div>
+      <pre><code id="embed-line">&lt;script src="https://<span class="ph">[WIDGET-URL]</span>/barber-widget.js" defer&gt;&lt;/script&gt;</code></pre>
+      <div class="embed-note"><strong>[WIDGET-URL]</strong> is your install address — it comes with
+        your setup, together with your own services, prices and opening hours (all of it is
+        configuration, not code).</div>
+    </div>
+    <span class="copy-live" role="status" aria-live="polite" id="copy-live"></span>
+
+    <a class="demo-cta" href="host-demo.html"><span class="online-dot"></span>See it live on a simulated customer site</a>
+  </section>
+
+  <!-- ══════════════ ink band ══════════════ -->
+  <div class="ink-band">
+    <div class="wrap">
+      <h2>State by state</h2>
+      <p>The four snippet-specific states from the inventory. The dashed strip under every card is
+        review-only and disappears in production.</p>
+    </div>
+  </div>
+
+  <!-- REVIEW-ONLY: the .tech strips below exist for this design review; they are NOT part of
+       the production install page and will be removed. -->
+
+  <section class="group wrap" aria-labelledby="gs">
+    <div class="group-rule">
+      <h3 id="gs">Snippet states</h3>
+      <span class="src">SCREEN-INVENTORY §3 · S1–S4</span>
+    </div>
+    <p class="group-note">The engine and every conversation state are identical to the demo site —
+      the motor makes no channel distinction (all 65 widget states apply as-is). These four are
+      what the <strong>embedding</strong> adds.</p>
+    <div class="state-grid">
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">S1</span><span class="state-name">Closed launcher on a foreign page</span></div>
+        <div class="state-body">
+          <!-- S1 · the only visible element until clicked; respectful of the host page.
+               Miniature shows an ABSTRACT foreign page (host-demo palette) + our pill. -->
+          <div class="mini-host" role="img" aria-label="A foreign web page with the booking pill in its bottom-right corner">
+            <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="ghost" aria-hidden="true"></div>
+            <div class="ghost w2" aria-hidden="true"></div>
+            <div class="ghost w3" aria-hidden="true"></div>
+            <span class="mini-pill"><span class="online-dot"></span>Book by text</span>
+          </div>
+        </div>
+        <p class="state-note">Until clicked, the snippet adds exactly <strong>one visible
+          element</strong> — the pill. No banners, no overlays, no layout shift on the host page.</p>
+        <div class="tech"><span><b>adds to host DOM</b> 1 element + fonts link</span><span><b>z</b> 2147483000</span><span><b>source</b> §3 S1</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">S2</span><span class="state-name">CSS isolation</span></div>
+        <div class="state-body">
+          <p class="state-note" style="padding:0">The widget lives in a <strong>Shadow DOM</strong>
+            with an <code>all:initial</code> root: the host's fonts, colors, resets and even
+            <em>same-named classes</em> (<code>.chip</code>, <code>.panel</code>,
+            <code>.launcher</code>…) cannot reach in — and no widget style leaks out. The live demo
+            page attacks it with seven hostile-CSS scenarios, including real class collisions, and
+            the widget stays pixel-true.</p>
+        </div>
+        <p class="state-note">Proof: <a href="host-demo.html">host-demo.html</a> — its
+          “integration note” card is a leak canary. Decision + rejected alternatives (iframe,
+          namespace) recorded in ARCH-DEC.</p>
+        <div class="tech"><span><b>isolation</b> Shadow DOM (open) + all:initial</span><span><b>fonts</b> injected at document level</span><span><b>source</b> §3 S2</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">S3</span><span class="state-name">Turnstile challenge slot</span></div>
+        <div class="state-body">
+          <!-- S3 · Cloudflare draws its own widget; the panel RESERVES this space. Shown here
+               with the slot visible; in use it stays hidden until a challenge is required
+               (managed/invisible mode most turns). Turnstile-in-shadow compatibility is a NAMED
+               Phase 6 build validation (ARCH-DEC). -->
+          <div class="mini-panel" role="img" aria-label="Widget panel fragment with the reserved Turnstile challenge area visible">
+            <div class="row"><span class="avatar" aria-hidden="true">DB</span><span class="name">Demo Barber Co.</span></div>
+            <div class="ts-slot"><strong>Security check</strong>Cloudflare Turnstile renders its challenge here when required</div>
+            <div class="mini-input">Type a message…</div>
+          </div>
+        </div>
+        <p class="state-note">Same protection as the demo site: the engine requires a Turnstile
+          token on the widget channel (fail-closed — our CORS probe got
+          <code>403 turnstile_failed</code> without one). The slot stays hidden until Cloudflare
+          actually needs to show a challenge.</p>
+        <div class="tech"><span><b>slot</b> .turnstile-slot (hidden by default)</span><span><b>engine</b> Reject Bot Request · <span class="hx">403</span></span><span><b>source</b> §3 S3</span></div>
+      </div>
+
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">S4</span><span class="state-name">Cross-origin failure</span></div>
+        <div class="state-body">
+          <!-- S4 · W60's snippet-specific variant. CORS is MEASURED OPEN (2026-09-02: preflight
+               204, origin-reflective ACAO — no proxy needed), so this state covers the RESIDUAL
+               failures: network down, a corporate proxy stripping headers, the salon endpoint
+               unreachable. Carrier-layer voice — a system strip, never a bot bubble (locked
+               class contract). TEXT SOURCE: SCREEN-INVENTORY §2.10.1 W60 (frontend fixed text). -->
+          <div class="sysnote">We can't reach the salon right now. Please try again in a moment.</div>
+        </div>
+        <p class="state-note">CORS itself is <strong>measured open</strong> (preflight 204,
+          origin-reflective — no proxy in the architecture). What remains is honest network
+          failure — shown in the carrier's voice, not the bot's, exactly as on page 3 of the
+          widget review.</p>
+        <div class="tech"><span><b>layer</b> network (no engine counterpart)</span><span><b>text</b> W60 — frontend fixed (§2.10.1)</span><span><b>source</b> §3 S4</span></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review page · no real customer data · the embed URL is a visibly marked placeholder
+  (the real address ships with the Phase 6 deploy) · widget interior locked in Tur A ·
+  design language: Direction A “Cream &amp; Ink”.
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — with JS off the code line is plain selectable text (copy button hidden). */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* copy the embed line (placeholder included — the customer replaces [WIDGET-URL]) */
+  var btn = document.getElementById('copy-btn');
+  var live = document.getElementById('copy-live');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      var text = document.getElementById('embed-line').textContent;
+      function done(ok) {
+        btn.textContent = ok ? 'Copied' : 'Select & copy';
+        btn.classList.toggle('done', ok);
+        live.textContent = ok ? 'Embed line copied to clipboard.' : 'Copy failed — select the line and copy manually.';
+        setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); live.textContent = ''; }, 2200);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+      } else {
+        /* legacy fallback: temporary textarea + execCommand */
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        done(ok);
+      }
+    });
+  }
+
+  /* card scroll-reveal — same PE contract as every Tur A/B page */
+  var cards = document.querySelectorAll('.state-card');
+  if (reduced || !('IntersectionObserver' in window)) {
+    cards.forEach(function (c) { c.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    cards.forEach(function (c) { io.observe(c); });
+  }
+})();
+</script>
+</body>
+</html>
