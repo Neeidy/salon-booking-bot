@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner dashboard · States &amp; badges — Cream &amp; Ink</title>
+<!--
+  TUR C · STAGE 2 — STATES, ERRORS & THE 24-BADGE SPECIMEN (design/mockups/dashboard/states.html).
+  Single source of screens: docs/SCREEN-INVENTORY.md §4 — this page covers D5 · D6 · D8 · D12 ·
+  D16 · D17 · D18 · D19 · D20, the 24 alert classes of §4.c, and the ownerAlert.enabled=false
+  warning of §4.d. The live board (D1-D4 · D7 · D9-D11 · D13-D15) is index.html.
+
+  Layout language + tokens: identical to index.html (newspaper-ledger idiom, Cream & Ink locked,
+  Tur A polish signatures). Badge families follow the LOCKED widget class contract (ARCH-DEC
+  2026-08-31): conversation = solid muted · external system = DASHED oxide · budget/guard =
+  oxide-soft · calendar/Airtable MISMATCH = filled oxide · unreached customer = heavy oxide
+  outline · ops = solid ink · background jobs = dashed muted.
+
+  HONESTY RULES APPLIED HERE:
+  · D16 has NO DATA SOURCE (n8n execution log is not externally queryable) — it is drawn as an
+    explicit gap, never as an empty-but-fine list. A "no recent errors" list would be a lie.
+  · D12 (queue clean) must not read as "nothing has gone wrong": alerts without a conversation
+    row (normalize_drift, first-contact spend_cap) leave NO Airtable trace at all.
+  · D19 is the visual face of RISK 2: the message is NOT "slow" — it is "the bot has priority,
+    wait 30 s". Hammering refresh makes it worse, so the button is DISABLED with a countdown.
+  · Empty states D5 and D6 are deliberately DIFFERENT (a quiet day vs. a client who has not
+    started) — same data shape, different truth, different tone.
+
+  All values MOCK; phones/ids masked (§5). Wired in the Phase 6 build.
+  tokens.css deliberately NOT used (wrong palette — BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — same family as every Tur A/B/C page. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — locked (Tur A). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    /* paper tints — one source instead of hand-rolled alphas per page (Tur C note) */
+    --paper:rgba(255,253,247,.6);
+    --paper-solid:rgba(255,253,247,.9);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .wrap{max-width:1360px;margin:0 auto;padding:0 clamp(16px,3vw,44px)}
+
+  /* ---------- masthead (Tur A chrome) ---------- */
+  .mast{padding:clamp(36px,5vw,64px) 0 0}
+  .mast-eyebrow{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--oxide)}
+  .mast-title{font-weight:600;font-size:clamp(40px,6vw,68px);line-height:1.02;letter-spacing:-.015em;margin-top:10px}
+  .mast-sub{font-size:16px;color:var(--muted);max-width:66ch;margin-top:16px}
+  .mast-sub code{font-family:inherit;font-weight:600;color:var(--ink)}
+  .mast-meta{position:relative;display:flex;flex-wrap:wrap;gap:10px 26px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:26px;padding:14px 0 12px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .mast-meta::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .mast-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .pages-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pages-nav a{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;white-space:nowrap;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .pages-nav a:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .pages-nav .here{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+
+  .razor{display:block;margin:clamp(30px,4vw,48px) auto 0;width:min(420px,70%);color:var(--ink)}
+  .razor path{stroke:currentColor;fill:none;stroke-width:1.5}
+  .js .razor .draw{stroke-dasharray:600;stroke-dashoffset:600;animation:drawline 1.6s var(--ease) .3s forwards}
+  @keyframes drawline{to{stroke-dashoffset:0}}
+
+  .sect{padding:clamp(30px,4vw,52px) 0 0}
+  .sect-kicker{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide)}
+  .sect-kicker::before{content:'';display:inline-block;width:26px;height:2px;background:var(--oxide);vertical-align:middle;margin-right:10px}
+  .sect-title{font-weight:600;font-size:clamp(24px,3.2vw,34px);letter-spacing:-.01em;margin-top:6px}
+  .sect-note{font-size:14.5px;color:var(--muted);max-width:70ch;margin-top:10px}
+  .sect-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .ink-band{background:var(--ink);color:var(--cream);margin-top:clamp(40px,6vw,72px);border-top:3px solid var(--oxide)}
+  .ink-band .wrap{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 28px;padding-top:26px;padding-bottom:26px}
+  .ink-band h2{font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.01em}
+  .ink-band p{font-size:14px;color:var(--stamp);max-width:60ch}
+
+  /* ---------- state cards ---------- */
+  .state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px;margin-top:24px}
+  .state-card{border:1.5px solid var(--ink);border-radius:6px;background:var(--paper);box-shadow:5px 5px 0 rgba(22,21,15,.1);display:flex;flex-direction:column;transition:transform .25s var(--ease),box-shadow .25s var(--ease),opacity .5s var(--ease)}
+  .state-card:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  .js .state-card{opacity:0;transform:translateY(14px)}
+  .js .state-card.in{opacity:1;transform:none}
+  .js .state-card.in:hover{transform:translate(-2px,-2px)}
+  .state-card.warn{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .state-card.warn:hover{box-shadow:7px 7px 0 rgba(180,71,46,.18)}
+  .state-card.warn .state-id{color:var(--oxide)}
+  .state-card.wide{grid-column:1 / -1}
+  .state-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .state-id{font-family:var(--font-display);font-weight:600;font-size:15px}
+  .state-name{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .state-body{padding:18px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+  .state-note{font-size:12.5px;color:var(--muted);padding:0 16px 12px;line-height:1.5}
+  .state-note strong{color:var(--oxide)}
+  .state-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+  /* REVIEW-ONLY tech strip — removed in production */
+  .tech{border-top:1px dashed var(--rule);padding:8px 16px 10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  /* ---------- empty-state figure (the shared shape; tone comes from the copy) ---------- */
+  .empty{border:1px dashed var(--edge);border-radius:6px;padding:26px 20px;text-align:center;background:var(--paper)}
+  .empty-mark{display:block;margin:0 auto 12px;width:34px;height:34px;color:var(--stamp)}
+  .empty-mark svg{width:100%;height:100%;stroke:currentColor;stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .empty-title{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+  .empty-body{font-size:13px;color:var(--muted);margin-top:6px;max-width:40ch;margin-left:auto;margin-right:auto}
+  .empty.calm{border-style:solid;border-color:var(--rule)}
+  .empty.first .empty-mark{color:var(--oxide-soft)}
+
+  /* ---------- loading skeleton (D18) ---------- */
+  .sk-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .sk{background:linear-gradient(90deg,rgba(22,21,15,.07),rgba(22,21,15,.13),rgba(22,21,15,.07));background-size:200% 100%;border-radius:4px;height:12px;flex:1}
+  .js .sk{animation:shimmer 1.4s linear infinite}
+  .sk.w1{max-width:64px}.sk.w2{max-width:120px}.sk.w3{max-width:90px}
+  @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+  .loading-label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .spin{width:13px;height:13px;flex-shrink:0}
+  .spin svg{width:100%;height:100%;stroke:var(--oxide);stroke-width:2;fill:none;stroke-linecap:round}
+  .js .spin{animation:rot 1.1s linear infinite}
+  @keyframes rot{to{transform:rotate(360deg)}}
+
+  /* ---------- error panels (D19 · D20) ---------- */
+  .err{border:1.5px solid var(--oxide);border-radius:6px;background:var(--paper);padding:18px 20px}
+  .err-head{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+  .err-head .glyph{width:16px;height:16px;color:var(--oxide);flex-shrink:0}
+  .err-head .glyph svg{width:100%;height:100%;stroke:currentColor;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .err-body{font-size:13.5px;color:var(--muted);margin-top:8px}
+  .err-body strong{color:var(--ink)}
+  .err-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .btn-ink{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--cream);text-decoration:none;display:inline-block}
+  .btn-ghost{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;border:1px solid rgba(22,21,15,.3);text-decoration:none;display:inline-block}
+  .btn-ghost:hover{border-color:var(--ink)}
+  .btn-disabled{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;border:1px dashed var(--edge);color:var(--muted);cursor:not-allowed}
+  .countdown{font-size:12.5px;color:var(--oxide);font-weight:600;font-variant-numeric:tabular-nums}
+  .stale{font-size:12px;color:var(--muted);border-top:1px solid var(--rule);margin-top:12px;padding-top:10px}
+
+  /* ---------- D16 · the honest gap ---------- */
+  .gap{border:1.5px dashed var(--oxide);border-radius:6px;padding:20px;background:var(--paper)}
+  .gap-title{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--oxide);letter-spacing:-.01em}
+  .gap-body{font-size:13.5px;color:var(--muted);margin-top:8px}
+  .gap-body code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  /* ---------- switches warning (§4.d) ---------- */
+  .kill{border:1.5px solid var(--oxide);border-left-width:6px;border-radius:6px;background:var(--oxide);color:var(--cream);padding:18px 22px}
+  .kill h3{font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .kill p{font-size:13.5px;margin-top:6px;max-width:80ch;color:rgba(241,238,230,.9)}
+  .kill code{font-family:inherit;font-weight:600;color:var(--cream)}
+
+  /* ---------- 24-badge specimen ---------- */
+  .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 9px;border-radius:4px;border:1px solid var(--rule);border-left-width:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .badge-conv{border-left-color:var(--muted)}
+  .badge-infra{border-left-style:dashed;border-left-color:var(--oxide)}
+  .badge-guard{border-left-color:var(--oxide-soft)}
+  .badge-mismatch{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
+  .badge-send{border:1.5px solid var(--oxide);color:var(--oxide);border-left-width:3px}
+  .badge-ops{border-left-color:var(--ink)}
+  .badge-bg{border-left-style:dashed;border-left-color:var(--muted);color:var(--muted)}
+  .fam{border-top:2px solid var(--ink);position:relative;padding-top:14px;margin-top:22px}
+  .fam::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .fam-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .fam-title{font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:-.01em}
+  .fam-count{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .fam-action{margin-left:auto;font-size:12.5px;color:var(--muted)}
+  .fam-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .fam-note{font-size:12.5px;color:var(--muted);margin-top:8px;max-width:78ch}
+  .fam-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .notgiven{border:1px dashed var(--edge);border-radius:6px;padding:16px 18px;margin-top:24px;background:var(--paper)}
+  .notgiven h3{font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .notgiven p{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .notgiven .list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .nb{font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 9px;border-radius:4px;border:1px dashed var(--edge);color:var(--muted);white-space:nowrap;text-decoration:line-through}
+
+  .foot{margin-top:clamp(48px,7vw,84px);border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+  .foot a{font-weight:600}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  @media (max-width:960px){.state-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}}
+  @media (max-width:480px){
+    .state-grid{grid-template-columns:1fr}
+    .mast-eyebrow{max-width:calc(100% - 78px)} /* keep clear of the MOCK ribbon */
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .state-card{opacity:1 !important;transform:none !important}
+    .state-card:hover,.pages-nav a:hover{transform:none !important}
+    .razor .draw{stroke-dashoffset:0 !important}
+  }
+</style>
+</head>
+<body>
+
+<header class="mast wrap">
+  <p class="mast-eyebrow">Design review · Tur C — Dashboard · Stage 2 / 2</p>
+  <h1 class="mast-title">Empty, loading, broken<span class="dot">.</span></h1>
+  <p class="mast-sub">The states a demo never shows and an owner meets on a bad day. Two
+    different kinds of empty, a load, two failures with different remedies, one panel with
+    <code>no data source at all</code> — plus the specimen of all 24 alert classes. Nothing here
+    pretends: a screen that cannot know something says so.</p>
+  <div class="mast-meta">
+    <span><strong>9</strong>&nbsp;states (D5 · D6 · D8 · D12 · D16 · D17 · D18 · D19 · D20)</span>
+    <span><strong>24</strong>&nbsp;alert badges</span>
+    <span>Source&nbsp;<strong>SCREEN-INVENTORY §4</strong></span>
+    <span>Palette&nbsp;<strong>Cream &amp; Ink</strong></span>
+  </div>
+  <nav class="pages-nav" aria-label="Dashboard pages">
+    <a href="index.html">Live board (D1–D4 · D7 · D9–D11 · D13–D15)</a>
+    <a class="here" href="states.html" aria-current="page">States &amp; badges</a>
+    <a href="../widget/index.html">Widget review (Tur A)</a>
+  </nav>
+  <svg class="razor" viewBox="0 0 420 26" aria-hidden="true">
+    <path class="draw" d="M8 16 H150 l10 -7 12 7 12 -7 12 7 12 -7 12 7 H412"/>
+    <path d="M150 16 a4 4 0 1 1 -0.1 0" opacity=".5"/>
+  </svg>
+</header>
+
+<main>
+
+  <!-- ══════════════ EMPTY STATES ══════════════ -->
+  <section class="sect wrap" aria-labelledby="empty-h">
+    <p class="sect-kicker">Empty</p>
+    <h2 class="sect-title" id="empty-h">Two kinds of nothing</h2>
+    <p class="sect-note">Same query, same shape, <strong>different truth</strong>: a quiet
+      Tuesday is not a client who has never taken a booking. §4 lists them as separate screens
+      (D5 vs D6) for exactly that reason — and the copy is where the difference lives.</p>
+    <div class="state-grid">
+
+      <!-- D5 · today empty, but the book is not -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D5</span><span class="state-name">No appointments today</span></div>
+        <div class="state-body">
+          <div class="empty calm">
+            <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span>
+            <p class="empty-title">Nothing booked for today</p>
+            <p class="empty-body">Your next appointment is <strong>Friday 4 Sep, 10:30</strong> — Haircut, Max Mustermann.</p>
+          </div>
+        </div>
+        <p class="state-note">A calm empty: the shop is open, the book simply has no rows for
+          <em>today</em>. It points forward to the next real row (already in the same batch read —
+          <code>0 extra requests</code>) so the owner never wonders whether the page is broken.</p>
+        <div class="tech"><span><b>source</b> D5 · §4.a</span><span><b>reads</b> 0 extra (same appointments batch)</span></div>
+      </div>
+
+      <!-- D6 · no appointments at all — a NEW client. Different tone (§4.a: "henüz başlamadınız") -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D6</span><span class="state-name">No appointments ever</span></div>
+        <div class="state-body">
+          <div class="empty first">
+            <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></span>
+            <p class="empty-title">Your book is still empty</p>
+            <p class="empty-body">Nothing has been booked yet. Once a customer texts the assistant, their appointment appears here automatically.</p>
+          </div>
+        </div>
+        <p class="state-note">A first-run empty — the tone §4.a asks for (“you haven't started
+          yet”), not an error and not a silence. Distinct from D5: <strong>zero rows in the whole
+          table</strong>, not zero rows today.</p>
+        <div class="tech"><span><b>source</b> D6 · §4.a</span><span><b>reads</b> 0 extra</span></div>
+      </div>
+
+      <!-- D8 · no leads -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D8</span><span class="state-name">No leads</span></div>
+        <div class="state-body">
+          <div class="empty calm">
+            <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16v12H4zM4 6l8 6 8-6"/></svg></span>
+            <p class="empty-title">No leads captured</p>
+            <p class="empty-body">Leads land here when the assistant can't finish a request itself — a group booking, an unusual question.</p>
+          </div>
+        </div>
+        <div class="tech"><span><b>source</b> D8 · §4.b</span><span><b>reads</b> 0 extra (same leads batch)</span></div>
+      </div>
+
+      <!-- D12 · queue clean — with the honest caveat that "clean" ≠ "nothing happened" -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D12</span><span class="state-name">Handoff queue clean</span></div>
+        <div class="state-body">
+          <div class="empty calm">
+            <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+            <p class="empty-title">No conversation is waiting</p>
+            <p class="empty-body">Nobody is locked in a handoff right now. The assistant is answering on its own.</p>
+          </div>
+        </div>
+        <p class="state-note"><strong>“Clean” is not “nothing went wrong.”</strong> Alerts whose
+          sender has no conversation row — <code>normalize_drift</code>, a first-contact
+          <code>spend_cap</code> — leave <em>no Airtable trace at all</em> and can never appear in
+          this queue. The queue is the truth about <em>locks</em>, not about incidents.</p>
+        <div class="tech"><span><b>source</b> D12 · §4.c</span><span><b>reads</b> 0 extra (same conversations batch)</span></div>
+      </div>
+
+      <!-- D17 · system health all-good -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D17</span><span class="state-name">Everything nominal</span></div>
+        <div class="state-body">
+          <div class="empty calm">
+            <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+            <p class="empty-title">No open flags</p>
+            <p class="empty-body">Kill-switch off · dry-run off · alerts on · spend $3.12 of $10.00 · Turnstile on.</p>
+          </div>
+        </div>
+        <p class="state-note">Restates the switch values rather than saying a bare “all good” —
+          the reassurance has to be <em>checkable</em>. Derived from the same reads plus config;
+          it can only report what is persisted (see D16).</p>
+        <div class="tech"><span><b>source</b> D17 · §4.d</span><span><b>reads</b> 0 extra (derived)</span></div>
+      </div>
+
+      <!-- D18 · loading — the 4 reads in flight -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D18</span><span class="state-name">Loading</span></div>
+        <div class="state-body">
+          <p class="loading-label"><span class="spin" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M14 8a6 6 0 1 1-6-6"/></svg></span>Reading 4 tables…</p>
+          <div>
+            <div class="sk-row"><span class="sk w1"></span><span class="sk w2"></span><span class="sk"></span><span class="sk w3"></span></div>
+            <div class="sk-row"><span class="sk w1"></span><span class="sk w2"></span><span class="sk"></span><span class="sk w3"></span></div>
+            <div class="sk-row"><span class="sk w1"></span><span class="sk w2"></span><span class="sk"></span><span class="sk w3"></span></div>
+          </div>
+        </div>
+        <p class="state-note">Four batch reads, one skeleton — the layout is reserved so nothing
+          jumps when data lands. With JS off (or reduced motion) the shimmer is simply static.</p>
+        <div class="tech"><span><b>source</b> D18 · §4.e</span><span><b>reads</b> 4 (in flight)</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ FAILURES ══════════════ -->
+  <section class="sect wrap" aria-labelledby="fail-h">
+    <p class="sect-kicker">Failures</p>
+    <h2 class="sect-title" id="fail-h">Two failures, two remedies</h2>
+    <p class="sect-note">One is <strong>our own budget</strong> pushing back (wait — and stop
+      refreshing), the other is <strong>the door</strong> (sign in again). Different causes,
+      different actions, so they must never look like one generic “error”.</p>
+    <div class="state-grid">
+
+      <!-- D19 · Airtable 429 — THE VISUAL FACE OF RISK 2 -->
+      <div class="state-card warn wide">
+        <div class="state-head"><span class="state-id">D19 ⚠</span><span class="state-name">Airtable rate limit — the bot has priority</span></div>
+        <div class="state-body">
+          <div class="err">
+            <p class="err-head"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13.4 3.6 v3.9 c0 3.4-2.4 5.6-5.4 6.9 -3-1.3-5.4-3.5-5.4-6.9 v-3.9 Z"/><path d="M8 6v3M8 11h.01"/></svg></span>Data paused for 30 seconds</p>
+            <p class="err-body">The booking assistant and this dashboard share one Airtable base
+              (<strong>5 requests per second, base-wide</strong>). The limit was just hit, so the
+              dashboard <strong>steps back and lets the bot through</strong> — customers keep
+              getting answers; you get your data a moment later.</p>
+            <p class="err-body"><strong>Please don't keep pressing refresh</strong> — every extra
+              attempt extends the penalty for the bot too. The button re-enables itself.</p>
+            <div class="err-actions">
+              <button class="btn-disabled" type="button" disabled aria-disabled="true">Refresh</button>
+              <span class="countdown" role="status">re-enabling in 24 s</span>
+            </div>
+            <p class="stale">Showing the last successful read — <strong>15:22</strong>. Times and
+              statuses may have changed since.</p>
+          </div>
+        </div>
+        <p class="state-note"><strong>This is Risk 2 made visible.</strong> The message is not
+          “slow” or “try again”: it names the shared budget, says the bot wins, and disables the
+          one control that would make things worse. The stale-data line keeps the numbers honest
+          while they are frozen.</p>
+        <div class="tech"><span><b>source</b> D19 · §4.e · §4.0 budget</span><span><b>HTTP</b> <span class="hx">429</span> + 30 s penalty, base-wide</span><span><b>action</b> refresh disabled + countdown</span></div>
+      </div>
+
+      <!-- D20 · Cloudflare Access session expired -->
+      <div class="state-card">
+        <div class="state-head"><span class="state-id">D20</span><span class="state-name">Session expired</span></div>
+        <div class="state-body">
+          <div class="err">
+            <p class="err-head"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0"/></svg></span>Please sign in again</p>
+            <p class="err-body">Your access session has expired. This dashboard sits behind
+              <strong>Cloudflare Access</strong> — signing in again takes a few seconds and your
+              data is untouched.</p>
+            <div class="err-actions">
+              <a class="btn-ink" href="#sign-in">Sign in</a>
+              <span class="err-body" style="margin:0">Nothing was lost — no data is cached in the browser.</span>
+            </div>
+          </div>
+        </div>
+        <p class="state-note">A door problem, not a data problem — so no stale numbers are shown
+          behind it, and the only action is the one that fixes it.</p>
+        <div class="tech"><span><b>source</b> D20 · §4.e</span><span><b>layer</b> Cloudflare Access (never the app)</span></div>
+      </div>
+
+      <!-- D16 · NO SOURCE — the honest gap -->
+      <div class="state-card warn">
+        <div class="state-head"><span class="state-id">D16 🕳</span><span class="state-name">Recent errors — no source</span></div>
+        <div class="state-body">
+          <div class="gap">
+            <p class="gap-title">Not available in this version</p>
+            <p class="gap-body">A list of recent system errors would have to come from the
+              workflow engine's execution log, and that log <strong>can't be read from
+              here</strong>. Rather than show an empty list that looks like “no errors”, this
+              panel stays honestly blank.</p>
+            <p class="gap-body">What you <em>can</em> rely on: every incident that touches a
+              conversation appears in the <a href="index.html">handoff queue</a> with its alert
+              class, and the owner alerts go to Telegram.</p>
+          </div>
+        </div>
+        <p class="state-note"><strong>§4.d marks D16 as “KAYNAK YOK”.</strong> An empty list here
+          would be the exact lie this project forbids — “no recent errors” when the truth is “we
+          cannot see them”. The gap is drawn, labelled, and pointed at what does work.</p>
+        <div class="tech"><span><b>source</b> D16 · §4.d</span><span><b>data source</b> <span class="hx">none — n8n log not externally queryable</span></span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════ the silencing switch ══════════════ -->
+  <section class="sect wrap" aria-labelledby="kill-h">
+    <p class="sect-kicker">Switch warning</p>
+    <h2 class="sect-title" id="kill-h">When alerts are off<span class="dot">.</span></h2>
+    <p class="sect-note">§4.d: <code>ownerAlert.enabled=false</code> silences <em>every</em> alert
+      class, and there is no second channel. If the dashboard rendered that as a normal “off”
+      toggle, the owner would read a silent system as a calm one — so it takes over the panel.</p>
+    <div class="kill" role="alert" style="margin-top:20px">
+      <h3>Owner alerts are switched OFF</h3>
+      <p>While <code>ownerAlert.enabled = false</code>, <strong>no alert of any class reaches
+        Telegram</strong> — handoffs, calendar mismatches, spend caps, background-job failures:
+        all silent. There is no second channel. A quiet queue means nothing until this is back on.</p>
+    </div>
+    <p class="sect-note">Rendered as a full-width oxide block, not a chip: this is the one switch
+      whose “off” state can hide every other problem on the page.</p>
+  </section>
+
+  <!-- ══════════════ ink band ══════════════ -->
+  <div class="ink-band">
+    <div class="wrap">
+      <h2>24 alert classes</h2>
+      <p>Grouped by what the owner has to DO about them — and styled by the same class families
+        the widget uses, so a fault always looks like a fault.</p>
+    </div>
+  </div>
+
+  <!-- REVIEW-ONLY: the .tech strips above exist for this design review; they are NOT part of
+       the production dashboard and will be removed. -->
+
+  <section class="sect wrap" aria-labelledby="badges-h">
+    <p class="sect-kicker">Specimen</p>
+    <h2 class="sect-title" id="badges-h">Every badge, by what it demands</h2>
+    <p class="sect-note">Source: <code>Build Owner Alert</code> (main, 21 static classes across 28
+      source nodes) + dynamic <code>zernio_send_failed</code> + the reminders and purge workflows'
+      own alert builders — <strong>24 classes</strong> (SCREEN-INVENTORY §4.c). Badge families
+      follow the locked widget contract: solid muted = conversation · dashed oxide = external
+      system down · oxide-soft = budget guard · filled oxide = calendar/Airtable mismatch (the
+      urgent group) · heavy oxide outline = the customer never got a reply.</p>
+
+    <!-- FAMILY 1 · conversation handoff (3) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Conversation handed over</span>
+        <span class="fam-count">3 classes</span>
+        <span class="fam-action">→ take the conversation, then release the lock (D11)</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-conv">handoff</span>
+        <span class="badge badge-conv">handoff_lock</span>
+        <span class="badge badge-conv">max_turns</span>
+      </div>
+    </div>
+
+    <!-- FAMILY 2 · calendar/Airtable mismatch (7) — the most urgent -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Calendar ↔ Airtable mismatch</span>
+        <span class="fam-count">7 classes · most urgent</span>
+        <span class="fam-action">→ fix the calendar / Airtable by hand</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-mismatch">orphan_event</span>
+        <span class="badge badge-mismatch">mirror_failed</span>
+        <span class="badge badge-mismatch">cancel_mirror_failed</span>
+        <span class="badge badge-mismatch">reconcile_conflict</span>
+        <span class="badge badge-mismatch">reconcile_unresolved</span>
+        <span class="badge badge-mismatch">verify_unavailable</span>
+        <span class="badge badge-mismatch">state_unsaved</span>
+      </div>
+      <p class="fam-note">Filled oxide because these are the only classes where <strong>the two
+        systems disagree</strong> and the dashboard cannot tell which is right — Google Calendar
+        is the truth, <code>appointments</code> is a mirror.</p>
+    </div>
+
+    <!-- FAMILY 3 · external system down (5) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">External system down</span>
+        <span class="fam-count">5 classes</span>
+        <span class="fam-action">→ check system status; transient</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-infra">llm_unavailable</span>
+        <span class="badge badge-infra">calendar_unavailable</span>
+        <span class="badge badge-infra">lead_unavailable</span>
+        <span class="badge badge-infra">state_unavailable</span>
+        <span class="badge badge-infra">cancel_delete_failed</span>
+      </div>
+      <p class="fam-note">Dashed oxide — the same signature the widget uses for
+        <code>infra-unavailable</code>, so “something is down” reads the same on both surfaces.</p>
+    </div>
+
+    <!-- FAMILY 4 · customer never reached (1) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Customer never got the reply</span>
+        <span class="fam-count">1 class</span>
+        <span class="fam-action">→ message them yourself</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-send">zernio_send_failed</span>
+      </div>
+      <p class="fam-note">Its own treatment because the remedy is unique: the answer exists, the
+        customer just never received it.</p>
+    </div>
+
+    <!-- FAMILY 5 · budget (2) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Budget</span>
+        <span class="fam-count">2 classes</span>
+        <span class="fam-action">→ a spending decision</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-guard">spend_cap</span>
+        <span class="badge badge-guard">spend_meter_unavailable</span>
+      </div>
+      <p class="fam-note">Oxide-soft = the widget's <code>guard-trip</code> signature: the system
+        protected itself, nothing is broken.</p>
+    </div>
+
+    <!-- FAMILY 6 · operations (4) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Operational</span>
+        <span class="fam-count">4 classes</span>
+        <span class="fam-action">→ investigate</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-ops">normalize_drift</span>
+        <span class="badge badge-ops">dedupe_marker_failed</span>
+        <span class="badge badge-ops">reply_fallback</span>
+        <span class="badge badge-ops">cancel_needs_human</span>
+      </div>
+    </div>
+
+    <!-- FAMILY 7 · background jobs (2) -->
+    <div class="fam">
+      <div class="fam-head">
+        <span class="fam-title">Background jobs</span>
+        <span class="fam-count">2 classes</span>
+        <span class="fam-action">→ reminders / cleanup stopped</span>
+      </div>
+      <div class="fam-badges">
+        <span class="badge badge-bg">reminder_error</span>
+        <span class="badge badge-bg">purge_error</span>
+      </div>
+      <p class="fam-note"><code>purge_error</code> arrives with a <code>branch</code> value
+        (<code>processed_messages</code> or <code>conversations_pii</code>) — the badge carries it
+        as a suffix when present.</p>
+    </div>
+
+    <!-- what NEVER alerts — so the dashboard doesn't imply completeness -->
+    <div class="notgiven">
+      <h3>No alert is raised for these — don't wait for one</h3>
+      <p>§4.c: deliberately silent, each for a reason. A dashboard that implied “everything alerts”
+        would be claiming a completeness the system doesn't have.</p>
+      <div class="list">
+        <span class="nb">race_lost</span>
+        <span class="nb">kill-switch trip</span>
+        <span class="nb">duplicate message</span>
+        <span class="nb">403 unsigned</span>
+        <span class="nb">403 Turnstile</span>
+        <span class="nb">widget-lane normalize reject</span>
+      </div>
+      <p>Reasons: a lost race is a <em>normal</em> outcome of write-then-verify · the owner set the
+        kill-switch themselves · a duplicate was already answered · and alerting on unauthenticated
+        rejects would hand an attacker a denial-of-service primitive.</p>
+    </div>
+
+    <p class="sect-note" style="margin-top:22px"><strong>One more limit, stated once:</strong>
+      <code>last_alert_class</code> is a <em>last</em> value, not a history — a newer class
+      overwrites the previous one, and a throttled alert (30 min per class + sender) is never
+      recorded at all. So these badges tell you the latest delivered class per conversation,
+      never the full story of a day.</p>
+  </section>
+
+</main>
+
+<footer class="foot wrap">
+  Demo / mock review page · no real customer data · every value MOCK, ids and phones masked ·
+  screens and field names from <code>docs/SCREEN-INVENTORY.md §4</code> +
+  <code>docs/DATA-MODEL.md</code> · live board: <a href="index.html">index.html</a> ·
+  design language: Direction A “Cream &amp; Ink”.
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — no-JS shows every card, skeletons static, countdown text as written. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cards = document.querySelectorAll('.state-card');
+  if (reduced || !('IntersectionObserver' in window)) {
+    cards.forEach(function (c) { c.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    cards.forEach(function (c) { io.observe(c); });
+  }
+})();
+</script>
+</body>
+</html>
