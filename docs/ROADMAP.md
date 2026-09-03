@@ -143,6 +143,29 @@ CP order (risk↓ × cheap-first, ARCH-DEC §5 2026-08-24): **CP5a owner-alert**
 - ✅ **BULGU-1/BULGU-2 doküman düzeltmesi.** "21 alert sınıfı" → **24** (21 main statik + dinamik `zernio_send_failed` + `reminder_error` + `purge_error`; 21 yalnız main'in statik kümesiydi). "15 node `stage=handoff` yazıyor" → **18**.
 - **BULGU-4** (`tokens.css` yanlış palet): dosya Design'a verilmeyecek, SCREEN-INVENTORY §0'da "KULLANILMAYACAK" işaretli. **BULGU-7** → Phase 7 adlandırılmış madde (yukarıda). **BULGU-8** → Phase 6'nın tek yazma aksiyonu zaten bu.
 
+## TASARIM AŞAMASI — DONE 2026-09-02 (`c491c36` → `46385ed`)
+
+Girdi: `docs/SCREEN-INVENTORY.md` (98 ekran/durum). Çıktı: **9 statik tasarım yüzeyi**, hepsi tek
+başına açılır (build yok), her balon/alan **kaynak-yorumlu** ve motora karşı doğrulanmış.
+
+| Tur | Çıktı | Commit |
+|---|---|---|
+| **A** — widget | `design/mockups/widget/` index + booking(15) + cancel-reschedule(25) + handoff-errors(17) + faq-lead(8) = **65 durum** | `1927dfb` → `d15106f`, cila `a20d695`+`13b3ed9` |
+| **B** — berber sitesi | `design/mockups/site/index.html` (L1-L9 + gömülü widget, kapalı başlar) | `4fedbd9` → `a09afa8` |
+| **B-2** — snippet | `design/mockups/snippet/` `barber-widget.js` (Shadow DOM) + düşmanca `host-demo.html` + kurulum sayfası (S1-S4) | `65172e2` → `704c656` |
+| **C** — dashboard | `design/mockups/dashboard/` `index.html` (D1-D4·D7·D9-D11·D13-D15) + `states.html` (D5·D6·D8·D12·D16-D20 + 24 rozet) | `0a2f8a2` → `46385ed` |
+
+**Turda kapanan belirsizlikler:** K1 · **K2=C** · **K4=B** (W61 frontend karşılaması) · K7 ·
+**BULGU-9** (motorda var olan 4 erteleme literali → W62-W65) · `stage='handoff'` yazıcı sayısı
+**18→17** düzeltildi · **CORS ölçüldü** (§3: preflight 204, origin-yansıtmalı ACAO, token'sız POST
+403 `turnstile_failed` → **snippet için proxy gerekmiyor**).
+
+**Kilitli sözleşmeler build'e taşınır** (ARCH-DEC §5): üç handoff sınıfının görsel imzası ·
+Shadow DOM + `:host{all:initial}` izolasyonu · Cream & Ink token seti · cila imzaları ·
+erişilebilirlik 5 maddesi.
+
+⚠ **Tasarım bugün config-CONSISTENT, config-WIRED değil** — bağlama Phase 6 build'inin işi.
+
 ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 1a idempotency · 1b concurrency/no-double-book · 2 Google Calendar write · 3 webhook verification ·
 4 secret+PII handling · 5 handoff threshold · 6 error visibility · 7 n8n control-plane exposure ·
