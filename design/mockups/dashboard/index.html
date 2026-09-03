@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner dashboard · Live board — Cream &amp; Ink</title>
+<!--
+  TUR C · STAGE 1 — THE LIVE BOARD (design/mockups/dashboard/index.html).
+  Single source of screens: docs/SCREEN-INVENTORY.md §4 (this page: D1-D4 · D7 · D9-D11 ·
+  D13-D15). Field names from docs/DATA-MODEL.md. Empty/loading/error states + the 24-badge
+  legend live on states.html (Stage 2).
+
+  LAYOUT-LANGUAGE DECISION (recorded): the widget's chat idiom does not fit a dense
+  back-office. This page extends the APPROVED dashboard variant's newspaper-LEDGER idiom —
+  KPI cards with the 5px offset shadow (§0 signature), 2px-ink-topped tables with thin folio
+  rule, enum chips, an oxide attention column — plus the Tur A polish signatures (oxide full
+  stop, kicker dash, folio rules). Same palette and type, denser grammar.
+
+  RISK 1 — THE THREE NOTIFY STATES (last_alert_class, Codex #5 semantics):
+  The field is written ONLY after Telegram delivery succeeds. Therefore, per DATA-MODEL:
+    (b) field set   → the owner WAS told: "notified · {class} · {time}".
+    (c) field EMPTY on a stage=handoff row → NOT "no alert": it means "delivery unverified" —
+        either the alert was never generated or it FAILED to reach Telegram, and Airtable
+        cannot tell the two apart (delivery-failure leaves are terminal and write nothing —
+        only the n8n execution log knows). NOT DERIVABLE from the dashboard's data → the UI
+        says so honestly (dashed oxide badge) instead of dressing it up as calm.
+    (stale) field set but old → delivered THEN, but alerts throttle 30 min per class+sender,
+        so a NEWER event may have been suppressed; the timestamp is shown with its age.
+  A legend under the queue spells out all three.
+
+  RISK 2 — AIRTABLE BUDGET (5 req/s/base, shared with the BOT):
+  This page = 4 batch reads TOTAL (appointments · leads · conversations[stage=handoff] ·
+  bot_metrics), each panel annotated with its read count; the split into Today/Upcoming/Past is
+  done SERVER-side (§4.0), not by extra queries. Row-level requests: ZERO — every
+  detail view (D4/D10) expands data already fetched (native <details>, no JS required).
+  Auto-refresh: NONE — a manual refresh button re-runs the same 4 reads. The bot has priority;
+  a 429 hits the whole base for 30s (D19, states.html).
+
+  All rows are Mustermann-style MOCK data; phones/sender keys MASKED even in mock (§5 rule).
+  Wired in the Phase 6 build — today this page is config/DATA-MODEL-consistent, not wired.
+  tokens.css deliberately NOT used (wrong palette — BULGU-4).
+-->
+<script>
+  /* Progressive-enhancement gate — same family as every Tur A/B page. */
+  document.documentElement.classList.add('js');
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Cream & Ink tokens — locked (Tur A). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:'Fraunces',serif;
+    --font-ui:'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .wrap{max-width:1360px;margin:0 auto;padding:0 clamp(16px,3vw,44px)}
+
+  /* ---------- top bar ---------- */
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(241,238,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  .topbar-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:66px;padding-top:10px;padding-bottom:10px}
+  .brand{font-family:var(--font-display);font-weight:600;font-size:21px;letter-spacing:-.01em}
+  .topbar-role{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.4);border-radius:999px;padding:4px 12px}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar-date{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .refresh{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:7px 14px;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .refresh:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .refresh svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}
+
+  /* data-budget strip — RISK 2 made visible (folio rule, Tur A signature) */
+  .budget{position:relative;display:flex;flex-wrap:wrap;gap:8px 24px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:18px;padding:12px 0 10px;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .budget::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .budget strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .budget .hx{color:var(--oxide)}
+
+  /* ---------- shared atoms (ledger idiom, from the approved variant) ---------- */
+  .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin:0 0 10px}
+  .eyebrow::before{content:"";width:26px;height:2px;background:currentColor}
+  .section-note{font-size:13px;color:var(--muted);margin:0 0 14px;max-width:70ch}
+  .section-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .chip{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.04em;padding:3px 11px;border-radius:999px;border:1px solid rgba(22,21,15,.3);white-space:nowrap}
+  .chip-ink{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .chip-oxide{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
+  .chip-line-oxide{border-color:var(--oxide);color:var(--oxide)}
+  .chip-off{border-style:dashed;color:var(--muted)}
+
+  /* ALERT-CLASS BADGES — family styling ALIGNED WITH THE LOCKED WIDGET CLASS CONTRACT:
+     conversation family = solid muted edge (intent-handoff signature) · external-system
+     family = DASHED oxide (infra signature) · budget family = solid oxide-soft (guard
+     signature) · calendar/Airtable MISMATCH family (most urgent) = FILLED oxide ·
+     unreached-customer = heavy oxide outline · ops = solid ink · background jobs = dashed
+     muted. Full 24-badge specimen on states.html. */
+  .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 9px;border-radius:4px;border:1px solid var(--rule);border-left-width:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .badge-conv{border-left-color:var(--muted)}
+  .badge-infra{border-left-style:dashed;border-left-color:var(--oxide)}
+  .badge-guard{border-left-color:var(--oxide-soft)}
+  .badge-mismatch{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
+  .badge-send{border:1.5px solid var(--oxide);color:var(--oxide);border-left-width:3px}
+  .badge-ops{border-left-color:var(--ink)}
+  .badge-bg{border-left-style:dashed;border-left-color:var(--muted);color:var(--muted)}
+
+  /* the three notify states (RISK 1) */
+  .notify{display:inline-flex;flex-direction:column;gap:2px}
+  .notify small{font-size:10.5px;letter-spacing:.04em;color:var(--muted)}
+  .notify-unverified .badge{border:1.5px dashed var(--oxide);border-left-width:3px;color:var(--oxide);background:none}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{padding:clamp(22px,3vw,40px) 0 clamp(8px,1.2vw,14px)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(14px,1.6vw,22px)}
+  .kpi{position:relative;border:1.5px solid var(--ink);border-radius:4px;background:rgba(255,253,247,.55);box-shadow:5px 5px 0 rgba(22,21,15,.1);padding:18px 20px 16px;transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+  .kpi:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  .kpi-label{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .kpi-value{font-family:var(--font-display);font-weight:700;font-size:clamp(30px,3vw,44px);line-height:1.1;margin-top:8px;font-variant-numeric:tabular-nums}
+  .kpi-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .kpi-alert{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .kpi-alert:hover{box-shadow:7px 7px 0 rgba(180,71,46,.18)}
+  .kpi-alert .kpi-value{color:var(--oxide)}
+  .mock-tag{position:absolute;top:10px;right:12px;font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.45);border-radius:3px;padding:1px 6px}
+  /* D14 spend meter bar */
+  .meter{margin-top:10px;height:8px;border:1px solid var(--edge);border-radius:999px;overflow:hidden;background:rgba(255,253,247,.9)}
+  .meter i{display:block;height:100%;background:var(--ink);width:31%}
+
+  /* ---------- board ---------- */
+  .board{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:clamp(20px,2.5vw,36px);align-items:start;padding:clamp(18px,2.2vw,32px) 0 clamp(40px,4vw,64px)}
+
+  .panel{margin-bottom:clamp(26px,2.8vw,40px)}
+  .panel-title{font-weight:600;font-size:clamp(22px,2vw,28px);letter-spacing:-.01em;margin-bottom:6px}
+  .table-scroll{position:relative;overflow-x:auto;border-top:2px solid var(--ink)}
+  .table-scroll::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* folio rule */
+  table{width:100%;border-collapse:collapse;min-width:680px}
+  table.appt{table-layout:fixed}
+  table.appt td,table.appt th{overflow:hidden;text-overflow:ellipsis}
+  th{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px 10px 4px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{font-size:14px;padding:12px 14px 12px 4px;border-bottom:1px solid var(--rule);vertical-align:top}
+  tbody tr{transition:background .2s var(--ease)}
+  tbody tr:hover{background:rgba(255,253,247,.75)}
+  .cell-time{font-family:var(--font-display);font-weight:600;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cell-name{font-weight:600;white-space:nowrap}
+  .cell-dim{color:var(--muted);white-space:nowrap}
+  .cell-phone{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+  .cell-snippet{color:var(--muted);font-style:italic;max-width:30ch}
+  .day-rule td{padding:16px 4px 6px;border-bottom:1px solid var(--rule);font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+  /* D4 · appointment detail — native <details> in the row's last cell: ZERO extra reads,
+     works with JS off, and (unlike a nested table) leaves the cell grid intact. */
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  tr.detail-row > td{padding:0 4px 0 4px;border-bottom:1px solid var(--rule)}
+  tr.detail-row:hover{background:none}
+  details.rowx summary{list-style:none;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  details.rowx summary::-webkit-details-marker{display:none}
+  details.rowx summary::before{content:'▸ ';color:var(--oxide)}
+  details.rowx[open] summary::before{content:'▾ '}
+  details.rowx[open]{background:rgba(255,253,247,.9)}
+  details.rowx .detail-grid{text-align:left}
+  details.rowx summary{padding:8px 2px}
+  .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px 22px;padding:10px 4px 14px;font-size:12.5px}
+  .detail-grid dt{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .detail-grid dd{margin:0;font-variant-numeric:tabular-nums;word-break:break-all}
+  .detail-grid code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px}
+
+  /* REVIEW-ONLY tech strip (reads budget per panel) — removed in production */
+  .tech{border-top:1px dashed var(--rule);margin-top:10px;padding-top:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  /* ---------- attention column: HANDOFF QUEUE (D9-D11) ---------- */
+  .queue{border:1.5px solid var(--oxide);border-radius:4px;background:rgba(255,253,247,.55);box-shadow:6px 6px 0 rgba(180,71,46,.16);padding:20px 20px 16px}
+  .queue-title{font-weight:600;font-size:22px;letter-spacing:-.01em;margin-bottom:4px}
+  .queue-note{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .q-card{border-top:1px solid var(--rule);padding:14px 0 12px}
+  .q-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .sender-key{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .q-meta{font-size:11.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .q-msgs{font-size:13px;font-style:italic;color:var(--ink);border-left:2px solid var(--rule);padding-left:10px;margin:8px 0;display:flex;flex-direction:column;gap:3px}
+  details.q-detail{margin-top:8px}
+  details.q-detail summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  details.q-detail summary::-webkit-details-marker{display:none}
+  details.q-detail summary::before{content:'▸ ';color:var(--oxide)}
+  details.q-detail[open] summary::before{content:'▾ '}
+  .q-detail .detail-grid{padding:8px 0 4px 0}
+  /* D11 — THE single write action; two-step confirm, no accidental clicks */
+  .release{margin-top:10px}
+  .release-btn{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--cream);transition:transform .15s var(--ease)}
+  .release-btn:hover{transform:translateY(-1px)}
+  .release-btn:active{transform:scale(.97)}
+  .release-confirm{display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+  .release.confirming .release-btn{display:none}
+  .release.confirming .release-confirm{display:flex}
+  .btn-yes{font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px;background:var(--oxide);color:var(--cream)}
+  .btn-no{font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3)}
+  .btn-no:hover{border-color:var(--ink)}
+  .release-note{font-size:11px;color:var(--muted);margin-top:6px}
+
+  /* notify legend (RISK 1) */
+  .legend3{border-top:1px solid var(--rule);margin-top:14px;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted)}
+  .legend3 .row{display:flex;gap:10px;align-items:baseline}
+  .legend3 .row > span:first-child{flex-shrink:0}
+
+  /* D13 switches + D15 flags */
+  .switches{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;border-top:2px solid var(--ink);position:relative;padding-top:14px}
+  .switches::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .sw{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--rule);padding:7px 2px;font-size:13px}
+  .sw b{font-weight:600;font-size:12.5px}
+  .sw .on{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .sw .off{color:var(--muted);font-style:italic;font-variant-numeric:tabular-nums}
+  .flags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  .foot{border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+  .foot a{font-weight:600}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  /* soft reveal — .js-gated (no-JS shows all) */
+  .js [data-reveal]{opacity:0;transform:translateY(14px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .js [data-reveal].in{opacity:1;transform:none}
+
+  @media (max-width:960px){
+    .board{grid-template-columns:minmax(0,1fr)}
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:480px){
+    .kpi-grid{grid-template-columns:1fr}
+    .topbar-right{margin-left:0;width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js [data-reveal]{opacity:1 !important;transform:none !important}
+    .kpi:hover,.refresh:hover,.release-btn:hover{transform:none !important}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR — brand: CONFIG business.name · timezone: CONFIG business.timezone.
+     The refresh button is the ONLY way data reloads (no auto-refresh — RISK 2). ═══ -->
+<header class="topbar">
+  <div class="wrap topbar-row">
+    <span class="brand">Demo Barber Co.</span>
+    <span class="topbar-role">Owner Dashboard</span>
+    <div class="topbar-right">
+      <span class="topbar-date">Today · Wed 2 Sep, 15:30 (Europe/Vienna)</span>
+      <button class="refresh" type="button" aria-label="Refresh data — re-runs the 4 batch reads">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 1.5v3h-3"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+  <div class="wrap">
+    <!-- RISK 2 · the data budget, on the page itself (review + honest ops surface) -->
+    <div class="budget" aria-label="Airtable data budget">
+      <span>Page load&nbsp;<strong>4 reads</strong>&nbsp;(appointments · leads · conversations · bot_metrics)</span>
+      <span>Row-level requests&nbsp;<strong>0</strong></span>
+      <span>Auto-refresh&nbsp;<strong>none</strong>&nbsp;— manual only</span>
+      <span class="hx">Bot has priority — a 429 stalls the whole base 30s</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ═══ KPI STRIP — all four derived from the SAME 4 batch reads, server-side (0 extra requests).
+       D14 spend meter = bot_metrics.cost_usd / config bot.llmCostCapUsd. ═══ -->
+  <section class="kpis" aria-label="Today at a glance">
+    <div class="kpi-grid">
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">Today's appointments</p>
+        <p class="kpi-value">2</p>
+        <p class="kpi-sub">derived from the appointments read</p>
+      </div>
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">New leads</p>
+        <p class="kpi-value">1</p>
+        <p class="kpi-sub">status: new</p>
+      </div>
+      <!-- D14 · spend meter — bot_metrics (NOT PII): cost_usd / llmCostCapUsd, period_key -->
+      <div class="kpi" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">LLM spend · 2026-09</p>
+        <p class="kpi-value">$3.12<span style="font-size:.45em;color:var(--muted)"> / $10.00</span></p>
+        <div class="meter" role="img" aria-label="31 percent of the monthly LLM budget used"><i></i></div>
+        <p class="kpi-sub">bot_metrics · updated 15:22 UTC</p>
+      </div>
+      <div class="kpi kpi-alert" data-reveal>
+        <span class="mock-tag">mock</span>
+        <p class="kpi-label">Handoff queue</p>
+        <p class="kpi-value">3</p>
+        <p class="kpi-sub">1 delivery unverified</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="board">
+    <div class="board-main">
+
+      <!-- ═══ D1-D4 · APPOINTMENTS — ONE batch read; Today / Upcoming / Past split
+           SERVER-side (§4.0). Detail (D4) = native <details> over already-fetched fields — 0 reads.
+           Fields per DATA-MODEL `appointments`; stored UTC, displayed Europe/Vienna. ═══ -->
+      <section class="panel" data-reveal aria-label="Appointments">
+        <p class="eyebrow">The book</p>
+        <h2 class="panel-title">Appointments<span class="dot">.</span></h2>
+        <p class="section-note">One batch read, split <strong>server-side</strong> into Today · Upcoming · Past (§4.0).
+          Expanding a row opens data already fetched — <code>0 extra requests</code>. Read-only in
+          Phase 6; cancel/reschedule from here is Phase 7.</p>
+        <div class="table-scroll">
+          <!-- ONE table for D1-D3 so every data cell is associated with its scoped <th>
+               (a11y: headers must not live in a separate table). Day groups = <tbody> +
+               a rule row. D4 detail = the row that FOLLOWS its appointment, holding a
+               native <details> — works with JS off, adds 0 requests, and keeps the
+               summary out of the cell grid (no nested tables). -->
+          <table class="appt"><colgroup><col style="width:80px"><col style="width:170px"><col><col style="width:110px"><col style="width:110px"><col style="width:120px"></colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Service</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Status</th>
+                <th scope="col">Reminded</th>
+              </tr>
+            </thead>
+
+            <!-- D1 · TODAY -->
+            <tbody>
+              <tr class="day-rule"><td colspan="6">Today — Wed 2 Sep</td></tr>
+              <tr>
+                <td class="cell-time">16:00</td>
+                <td class="cell-name">L. Mustermann</td>
+                <td>Beard Trim <span class="cell-dim">· €15 · 20 min</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+                <td><span class="cell-dim">✓ Tue 16:00</span></td>
+              </tr>
+              <tr class="detail-row">
+                <td colspan="6">
+                  <details class="rowx">
+                  <summary>Detail</summary>
+                  <dl class="detail-grid">
+                  <div><dt>sender_key</dt><dd><code>whatsapp:+43 ••• ••• 642</code></dd></div>
+                  <div><dt>start_utc → end_utc</dt><dd>14:00Z → 14:20Z</dd></div>
+                  <div><dt>gcal_event_id</dt><dd><code>evt_•••q7f2</code></dd></div>
+                  <div><dt>calendar_id</dt><dd><code>c_•••@group.calendar</code></dd></div>
+                  <div><dt>reminded / reminder_sent</dt><dd>true · Tue 1 Sep 14:00Z <span class="cell-dim">(24 h before)</span></dd></div>
+                  <div><dt>created_at</dt><dd>Mon 31 Aug, 09:12Z</dd></div>
+                  </dl>
+                  </details>
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-time">17:30</td>
+                <td class="cell-name">A. Musterfrau</td>
+                <td>Haircut + Beard <span class="cell-dim">· €35 · 45 min</span></td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+                <td><span class="cell-dim">✓ Tue 17:30</span></td>
+              </tr>
+              <tr class="detail-row">
+                <td colspan="6">
+                  <details class="rowx">
+                  <summary>Detail</summary>
+                  <dl class="detail-grid">
+                  <div><dt>sender_key</dt><dd><code>widget:sess-•••b81</code></dd></div>
+                  <div><dt>start_utc → end_utc</dt><dd>15:30Z → 16:15Z</dd></div>
+                  <div><dt>gcal_event_id</dt><dd><code>evt_•••k3na</code></dd></div>
+                  <div><dt>calendar_id</dt><dd><code>c_•••@group.calendar</code></dd></div>
+                  <div><dt>reminded / reminder_sent</dt><dd>true · Tue 1 Sep 15:30Z <span class="cell-dim">(24 h before)</span></dd></div>
+                  <div><dt>created_at</dt><dd>Tue 1 Sep, 18:40Z</dd></div>
+                  </dl>
+                  </details>
+                </td>
+              </tr>
+            </tbody>
+
+            <!-- D2 · UPCOMING — includes the SAME booking the widget demo makes
+                 (Haircut · Fri 4 Sep 15:30): one story across every surface. -->
+            <tbody>
+              <tr class="day-rule"><td colspan="6">Upcoming — Fri 4 Sep</td></tr>
+              <tr>
+                <td class="cell-time">10:30</td>
+                <td class="cell-name">Max Mustermann</td>
+                <td>Haircut <span class="cell-dim">· €25 · 30 min</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+                <td><span class="cell-dim">—</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">15:30</td>
+                <td class="cell-name">S. Muster</td>
+                <td>Haircut <span class="cell-dim">· €25 · 30 min</span></td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+                <td><span class="cell-dim">—</span></td>
+              </tr>
+            </tbody>
+
+            <!-- D3 · PAST — read-only; a cancelled row keeps the status enum honest -->
+            <tbody>
+              <tr class="day-rule"><td colspan="6">Past — Mon 1 Sep</td></tr>
+              <tr>
+                <td class="cell-time">11:00</td>
+                <td class="cell-name">Erika Musterfrau</td>
+                <td>Haircut <span class="cell-dim">· €25</span></td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">booked</span></td>
+                <td><span class="cell-dim">✓</span></td>
+              </tr>
+              <tr>
+                <td class="cell-time">14:30</td>
+                <td class="cell-name">M. Beispiel</td>
+                <td>Beard Trim <span class="cell-dim">· €15</span></td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-off">cancelled</span></td>
+                <td><span class="cell-dim">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="section-note" style="margin-top:10px">⚠ Truth lives in <strong>Google
+          Calendar</strong> — this table is its mirror. After a <code>mirror_failed</code> /
+          <code>cancel_mirror_failed</code> alert the two can disagree, and this table cannot
+          know: trust the badge, then the calendar.</p>
+        <!-- REVIEW-ONLY -->
+        <div class="tech"><span><b>source</b> D1–D4 · §4.a</span><span><b>reads</b> 1 / 4 (batch; split server-side)</span><span><b>writes</b> 0 (Phase 6 read-only)</span></div>
+      </section>
+
+      <!-- ═══ D7 · LEADS — one batch read; status enum new|contacted|converted (read-only:
+           K3 status-write deferred, see §8). Phones MASKED even in mock (§5). ═══ -->
+      <section class="panel" data-reveal aria-label="Leads">
+        <p class="eyebrow">Lead capture</p>
+        <h2 class="panel-title">Leads<span class="dot">.</span></h2>
+        <p class="section-note">Read-only this phase — changing <code>status</code> from here is
+          open decision K3 (recommended: Phase 7, with the other writes).</p>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Phone</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Status</th>
+                <th scope="col">First message</th>
+                <th scope="col">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-name">Max Mustermann</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;431</td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip">new</span></td>
+                <td class="cell-snippet">"Do you have anything Saturday morning?"</td>
+                <td class="cell-dim">today 11:04</td>
+              </tr>
+              <tr>
+                <td class="cell-name">Erika Musterfrau</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;208</td>
+                <td><span class="chip">widget</span></td>
+                <td><span class="chip chip-line-oxide">contacted</span></td>
+                <td class="cell-snippet">"I'm planning a stag-do for six — can someone get back to me with options?"</td>
+                <td class="cell-dim">today 09:41</td>
+              </tr>
+              <tr>
+                <td class="cell-name">S. Muster</td>
+                <td class="cell-phone">+43&nbsp;•••&nbsp;•••&nbsp;356</td>
+                <td><span class="chip">whatsapp</span></td>
+                <td><span class="chip chip-ink">converted</span></td>
+                <td class="cell-snippet">"Can I book for my son as well?"</td>
+                <td class="cell-dim">Mon 1 Sep</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- REVIEW-ONLY -->
+        <div class="tech"><span><b>source</b> D7 · §4.b</span><span><b>reads</b> 1 / 4 (batch)</span><span><b>writes</b> 0 — K3 open</span></div>
+      </section>
+
+      <!-- ═══ D13 · SWITCHES + D15 · OPEN FLAGS — both derived, 0 extra reads.
+           The 12 keys live as hard-coded literals in the n8n Load Config node (changing one =
+           editing that node) — said honestly below. ═══ -->
+      <section class="panel" data-reveal aria-label="System health">
+        <p class="eyebrow">System health</p>
+        <h2 class="panel-title">Switches &amp; flags<span class="dot">.</span></h2>
+        <p class="section-note">Read-only mirror of the 12 config keys (today they are literals in
+          the n8n <code>Load Config</code> node — changing one means editing that node, not this
+          page). <strong class="dot">⚠ ownerAlert.enabled=false would silence every alert with no
+          second channel</strong> — if it were off, a full-width warning takes over this panel
+          (see states.html).</p>
+        <div class="switches">
+          <div class="sw"><b>bot.killSwitch</b><span class="on">false</span></div>
+          <div class="sw"><b>bot.dryRun</b><span class="on">false</span></div>
+          <div class="sw"><b>whatsappSendDisabled</b><span class="off">true · reminders only</span></div>
+          <div class="sw"><b>ownerAlert.enabled</b><span class="on">true</span></div>
+          <div class="sw"><b>ownerAlert.throttleMinutes</b><span class="on">30</span></div>
+          <div class="sw"><b>widget.turnstile.enabled</b><span class="on">true</span></div>
+          <div class="sw"><b>bot.llmCostCapUsd</b><span class="on">10.00</span></div>
+          <div class="sw"><b>bot.confidenceThreshold</b><span class="on">0.7</span></div>
+          <div class="sw"><b>bot.maxTurnsPerConversation</b><span class="on">12</span></div>
+          <div class="sw"><b>bot.reminderHoursBefore</b><span class="on">24</span></div>
+          <div class="sw"><b>bot.sessionGapMinutes</b><span class="on">30</span></div>
+          <div class="sw"><b>bot.cancellationCutoffHours</b><span class="on">2</span></div>
+        </div>
+        <!-- D15 · open flags — derived from last_alert_class across the conversations read.
+             HONEST LIMIT: last-value-only, no history; alert-less events (normalize_drift,
+             first-contact spend_cap) leave no Airtable trace — this is NOT a full list. -->
+        <div class="flags">
+          <span class="badge badge-conv">handoff · 1</span>
+          <span class="badge badge-infra">calendar_unavailable · 1</span>
+        </div>
+        <p class="section-note" style="margin-top:8px">Open flags are derived from
+          <code>last_alert_class</code> on the queue rows — the <em>last delivered</em> class per
+          conversation, not a history, and never a complete list (some alerts live only in
+          Telegram). Full 24-badge specimen on <a href="states.html">states.html</a>.</p>
+        <!-- REVIEW-ONLY -->
+        <div class="tech"><span><b>source</b> D13 · D15 · §4.d</span><span><b>reads</b> 0 (derived from batches + config)</span><span><b>writes</b> 0</span></div>
+      </section>
+    </div>
+
+    <!-- ═══ D9-D11 · HANDOFF QUEUE — the dashboard's real job. One batch read
+         (conversations where stage='handoff'). Detail (D10) expands fetched data.
+         D11 release = THE single write of Phase 6 (two-step confirm). ═══ -->
+    <aside class="queue" data-reveal aria-label="Handoff queue">
+      <p class="eyebrow">Needs a human</p>
+      <h2 class="queue-title">Handoff queue<span class="dot">.</span></h2>
+      <p class="queue-note">Locked conversations — the bot answers each new message with the lock
+        reply and nothing else. Only you can release a lock (the one write this dashboard has).</p>
+
+      <!-- Q1 · notify state (b): DELIVERED — badge + class + time -->
+      <article class="q-card">
+        <div class="q-head">
+          <span class="sender-key">whatsapp:+43&nbsp;•••&nbsp;••2&nbsp;17</span>
+          <!-- RISK 1 (b): last_alert_class='handoff', last_alert_at=13:58 → the owner WAS told -->
+          <span class="notify"><span class="badge badge-conv">notified · handoff · 13:58</span></span>
+        </div>
+        <p class="q-meta"><span>waiting 1 h 32 m</span><span>last_intent: handoff</span><span>turns: 7</span></p>
+        <div class="q-msgs">
+          <span>"I need something for a wedding, not sure what exactly"</span>
+          <span>"can I talk to someone?"</span>
+        </div>
+        <details class="q-detail">
+          <summary>Details (0 extra reads)</summary>
+          <dl class="detail-grid">
+            <div><dt>stage</dt><dd>handoff</dd></div>
+            <div><dt>slots</dt><dd>service — · date — · time —</dd></div>
+            <div><dt>last_alert_class</dt><dd>handoff (delivered 13:58)</dd></div>
+            <div><dt>computed_reply</dt><dd>"I'm passing you to a team member — we'll get back to you shortly."</dd></div>
+          </dl>
+        </details>
+        <div class="release" data-release>
+          <button class="release-btn" type="button">Release lock</button>
+          <span class="release-confirm">
+            Release? The bot answers this customer again.
+            <button class="btn-yes" type="button">Yes, release</button>
+            <button class="btn-no" type="button">Keep locked</button>
+          </span>
+          <p class="release-note">stage → new · touches nothing else · reversible (a handoff re-locks it)</p>
+        </div>
+      </article>
+
+      <!-- Q2 · notify state (c): EMPTY on a handoff row — DELIVERY UNVERIFIED, said honestly -->
+      <article class="q-card">
+        <div class="q-head">
+          <span class="sender-key">widget:sess-•••a4</span>
+          <!-- RISK 1 (c): last_alert_class EMPTY. NOT "no alert" — the field writes only on
+               DELIVERED alerts; empty = never generated OR failed to reach Telegram, and
+               Airtable cannot tell which (delivery-failure leaves are terminal, no trace).
+               NOT DERIVABLE → the UI must say so, never look calm. -->
+          <span class="notify notify-unverified">
+            <span class="badge">delivery unverified</span>
+            <small>no delivered alert on record — check Telegram / n8n log</small>
+          </span>
+        </div>
+        <p class="q-meta"><span>waiting 18 m</span><span>last_intent: unknown</span><span>turns: 3</span></p>
+        <div class="q-msgs">
+          <span>"do you also do hair colouring for long hair?"</span>
+        </div>
+        <details class="q-detail">
+          <summary>Details (0 extra reads)</summary>
+          <dl class="detail-grid">
+            <div><dt>stage</dt><dd>handoff</dd></div>
+            <div><dt>slots</dt><dd>service — · date — · time —</dd></div>
+            <div><dt>last_alert_class</dt><dd><em>empty — see note above</em></dd></div>
+            <div><dt>computed_reply</dt><dd>"I'm passing you to a team member — we'll get back to you shortly."</dd></div>
+          </dl>
+        </details>
+        <div class="release" data-release>
+          <button class="release-btn" type="button">Release lock</button>
+          <span class="release-confirm">
+            Release? The bot answers this customer again.
+            <button class="btn-yes" type="button">Yes, release</button>
+            <button class="btn-no" type="button">Keep locked</button>
+          </span>
+          <p class="release-note">stage → new · touches nothing else · reversible (a handoff re-locks it)</p>
+        </div>
+      </article>
+
+      <!-- Q3 · notify state (stale): delivered, but old + throttle caveat -->
+      <article class="q-card">
+        <div class="q-head">
+          <span class="sender-key">whatsapp:+43&nbsp;•••&nbsp;••8&nbsp;90</span>
+          <!-- RISK 1 (stale): delivered at 12:31 (calendar_unavailable), 3h old. Alerts
+               throttle 30 min per class+sender — a NEWER event may have been suppressed;
+               the timestamp is the last DELIVERED alert, not the last occurrence. -->
+          <span class="notify">
+            <span class="badge badge-infra">notified · calendar_unavailable · 12:31</span>
+            <small>3 h ago — newer events may be throttled (30 min/class)</small>
+          </span>
+        </div>
+        <p class="q-meta"><span>waiting 3 h 05 m</span><span>last_intent: booking</span><span>turns: 5</span></p>
+        <div class="q-msgs">
+          <span>"Friday at 15:30 if possible"</span>
+          <span>"hello?"</span>
+        </div>
+        <details class="q-detail">
+          <summary>Details (0 extra reads)</summary>
+          <dl class="detail-grid">
+            <div><dt>stage</dt><dd>handoff</dd></div>
+            <div><dt>slots</dt><dd>service Haircut · date Fri 4 Sep · time 15:30</dd></div>
+            <div><dt>last_alert_at</dt><dd>12:31 (delivered)</dd></div>
+            <div><dt>computed_reply</dt><dd>"I'm passing you to a team member — we'll get back to you shortly."</dd></div>
+          </dl>
+        </details>
+        <div class="release" data-release>
+          <button class="release-btn" type="button">Release lock</button>
+          <span class="release-confirm">
+            Release? The bot answers this customer again.
+            <button class="btn-yes" type="button">Yes, release</button>
+            <button class="btn-no" type="button">Keep locked</button>
+          </span>
+          <p class="release-note">stage → new · touches nothing else · reversible (a handoff re-locks it)</p>
+        </div>
+      </article>
+
+      <!-- RISK 1 · the three-state legend, on the surface itself -->
+      <div class="legend3" aria-label="What the notify badge means">
+        <div class="row"><span class="badge badge-conv">notified · class · time</span><span>the owner <strong>was</strong> told — Telegram delivery confirmed (the field writes only then).</span></div>
+        <div class="row"><span class="notify-unverified"><span class="badge">delivery unverified</span></span><span><strong>not</strong> "no alert": the alert never fired <em>or</em> never reached Telegram — Airtable cannot tell which. Check Telegram / the n8n log.</span></div>
+        <div class="row"><span class="badge badge-infra">notified · old time</span><span>delivered <em>then</em>; alerts throttle 30 min per class — newer events may be suppressed.</span></div>
+      </div>
+
+      <!-- REVIEW-ONLY -->
+      <div class="tech"><span><b>source</b> D9–D11 · §4.c</span><span><b>reads</b> 1 / 4 (stage='handoff' batch)</span><span><b>writes</b> <span class="hx">1 max</span> — D11 release (stage→new)</span></div>
+    </aside>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    Demo / mock dashboard · Mustermann-style sample rows, phones &amp; ids masked even in mock ·
+    fields from docs/DATA-MODEL.md · empty / loading / error states + the 24-badge specimen:
+    <a href="states.html">states.html</a> (Stage 2) · design language: Direction A “Cream &amp; Ink”.
+  </div>
+</footer>
+
+<div class="mock-ribbon" aria-hidden="true"><span>Mock</span></div>
+<div class="grain" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  /* Enhancement only — no-JS: everything visible; details/summary are native. */
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* soft reveal */
+  var els = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  if (reduced || !('IntersectionObserver' in window)) {
+    els.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) { entry.target.classList.add('in'); io.unobserve(entry.target); }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -5% 0px' });
+    els.forEach(function (el) { io.observe(el); });
+  }
+
+  /* D11 · two-step release confirm — MOCK: no write happens in this design page.
+     In the build this is the ONLY write (conversations.stage → 'new'). */
+  document.querySelectorAll('[data-release]').forEach(function (box) {
+    var btn = box.querySelector('.release-btn');
+    var yes = box.querySelector('.btn-yes');
+    var no = box.querySelector('.btn-no');
+    btn.addEventListener('click', function () { box.classList.add('confirming'); yes.focus(); });
+    no.addEventListener('click', function () { box.classList.remove('confirming'); btn.focus(); });
+    yes.addEventListener('click', function () {
+      /* mock outcome: the card would leave the queue after the (single) write + next refresh */
+      box.classList.remove('confirming');
+      btn.textContent = 'Released (mock)';
+      btn.disabled = true;
+      btn.style.opacity = .55;
+    });
+  });
+})();
+</script>
+</body>
+</html>
