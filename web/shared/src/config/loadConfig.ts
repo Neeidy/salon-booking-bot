@@ -144,6 +144,34 @@ function getValidator(schemaPath: string, configPath: string): ValidateFunction 
 }
 
 /**
+ * Validate an ALREADY-PARSED config object against the committed schema. Same validator, same errors as
+ * the file path — the env-var source (CLIENT_CONFIG_JSON, used by the site's prebuild) must not get its
+ * own second-class check. `source` only labels the error message.
+ */
+export function validateConfigObject(
+  raw: unknown,
+  options: { schemaPath?: string; repoRoot?: string; source?: string } = {},
+): ClientConfig {
+  const root = options.repoRoot ?? DEFAULT_REPO_ROOT;
+  const schemaPath = options.schemaPath ?? join(root, 'schemas/client.config.schema.json');
+  const source = options.source ?? '(in-memory config)';
+  if (!existsSync(schemaPath)) {
+    throw new ConfigContractError(
+      `committed schema not found at ${schemaPath} — the config cannot be validated, so it will not be trusted`,
+      source,
+    );
+  }
+  const validate = getValidator(schemaPath, source);
+  if (!validate(raw)) {
+    throw new ConfigContractError(
+      `${source} does NOT satisfy schemas/client.config.schema.json:\n${formatErrors(validate.errors)}`,
+      source,
+    );
+  }
+  return raw as ClientConfig;
+}
+
+/**
  * Read + validate the client config, and report WHICH file was used. Throws ConfigContractError on a
  * missing/unreadable file, unparseable JSON, an unusable schema, or any schema violation.
  * Never returns a partially-valid config.
@@ -170,14 +198,8 @@ export function loadConfigDetailed(options: LoadConfigOptions = {}): LoadedConfi
     throw new ConfigContractError(`${configPath} is not valid JSON: ${(e as Error).message}`, configPath);
   }
 
-  const validate = getValidator(schemaPath, configPath);
-  if (!validate(raw)) {
-    throw new ConfigContractError(
-      `${configPath} does NOT satisfy schemas/client.config.schema.json:\n${formatErrors(validate.errors)}`,
-      configPath,
-    );
-  }
-  return { config: raw as ClientConfig, configPath, usedFallback };
+  const config = validateConfigObject(raw, { schemaPath, repoRoot: root, source: configPath });
+  return { config, configPath, usedFallback };
 }
 
 /** The common case: just give me the config. Use loadConfigDetailed() when the source file matters. */

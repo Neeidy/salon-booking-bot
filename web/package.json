@@ -1,9 +1,10 @@
 {
   "name": "salon-booking-bot-web",
   "private": true,
-  "description": "Vitrin frontend workspace (Phase 6). TWO apps, not one: `site` (public landing + widget + snippet) deploys to Vercel, `dashboard` (owner PII surface) deploys to our own server behind Cloudflare Access. They are separate packages ON PURPOSE — the strongest proof that the Airtable PAT and the PII read path never ship to Vercel is that the code is not there. A single app gated by an env flag would be security-by-flag, which is not security (ARCH-DEC, Phase 6 decision D-1).",
+  "description": "Vitrin frontend workspace (Phase 6). TWO apps, not one: `site` (public landing + widget + snippet) deploys to Vercel, `dashboard` (owner PII surface) deploys to our own server behind Cloudflare Access. They are separate packages ON PURPOSE \u2014 the strongest proof that the Airtable PAT and the PII read path never ship to Vercel is that the code is not there. A single app gated by an env flag would be security-by-flag, which is not security (ARCH-DEC, Phase 6 decision D-1).",
   "workspaces": [
-    "shared"
+    "shared",
+    "site"
   ],
   "engines": {
     "node": ">=22.18",

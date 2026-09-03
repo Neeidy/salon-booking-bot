@@ -34,6 +34,13 @@ Scan before any push / screenshot / export:
   carried `channels.widget.turnstile` (rejected) and `ownerAlert` (undeclared). The root and `bot` objects
   are `additionalProperties:false`, so a future live-only key fails here instead of drifting silently.
 
+- **push-guard drift (Phase 6):** run `bash scripts/check-hook-drift.sh` — the push secret-scan that actually
+  RUNS lives at `~/.claude/hooks/secret-scan.sh`; the reviewable canonical copy is `scripts/secret-scan.sh`.
+  Non-zero exit = the running guard is not the reviewed guard. "Not installed" is reported, not failed.
+- **generated client config (Phase 6):** `web/site/config.generated.json` is the build-time config artifact.
+  It is gitignored and MUST stay untracked — with a real client it holds that client's whole config. If it
+  ever appears in `git status` as tracked/staged, BLOCK the push.
+
 - **config TYPES drift (Phase 6):** run `node scripts/generate-config-types.cjs --check` — the TypeScript
   types the frontend compiles against (`web/shared/src/config/client.config.types.ts`) are GENERATED from
   the committed `schemas/client.config.schema.json`. Non-zero exit = someone hand-edited the generated file

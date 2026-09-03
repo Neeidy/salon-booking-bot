@@ -72,3 +72,6 @@ n8n/.snapshots/
 # NOTE: n8n/screenshots/ and design/mockups/ are NOT ignored (portfolio / vitrin assets).
 # design/mockups/variants/ holds the DELIVERED Phase-1 surface mockups (landing, then
 # widget + dashboard) — committed for Cowork to review from git.
+
+# Build-time config bridge output — may contain a REAL client config (Phase 6)
+web/site/config.generated.json
