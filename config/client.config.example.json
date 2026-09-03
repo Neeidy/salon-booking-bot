@@ -5,6 +5,8 @@
     "timezone": "Europe/Vienna",
     "locale": "en-AT"
   },
+  "$comment_demoMode": "Frontend-only flag. TRUE here because this example IS the public demo deployment — honesty-demos.md requires the mock ribbon to stay visible on a demo. A real client install sets it false (or omits it).",
+  "demoMode": true,
   "googleCalendarId": "REPLACE_WITH_CALENDAR_ID@group.calendar.google.com",
   "branding": {
     "primaryColor": "#16150F",

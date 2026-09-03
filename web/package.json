@@ -1,0 +1,15 @@
+{
+  "name": "salon-booking-bot-web",
+  "private": true,
+  "description": "Vitrin frontend workspace (Phase 6). TWO apps, not one: `site` (public landing + widget + snippet) deploys to Vercel, `dashboard` (owner PII surface) deploys to our own server behind Cloudflare Access. They are separate packages ON PURPOSE — the strongest proof that the Airtable PAT and the PII read path never ship to Vercel is that the code is not there. A single app gated by an env flag would be security-by-flag, which is not security (ARCH-DEC, Phase 6 decision D-1).",
+  "workspaces": [
+    "shared"
+  ],
+  "engines": {
+    "node": ">=22.18",
+    "$comment": "22.18 not 22: flag-free TypeScript type-stripping and .ts import specifiers (used by @salon/shared and its node --test run) land in 22.18 / 23.6. On 22.0-22.5 this package does not run."
+  },
+  "scripts": {
+    "check": "npm run --workspaces --if-present check"
+  }
+}

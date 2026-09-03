@@ -1,0 +1,18 @@
+{
+  "name": "@salon/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Code shared by web/site and web/dashboard: config loading + validation, display formatting, PII masking, design tokens. Server/build-time only \u2014 nothing here may be imported into a browser bundle.",
+  "exports": {
+    "./config": "./src/config/loadConfig.ts"
+  },
+  "scripts": {
+    "test": "node --test src/config/loadConfig.test.ts",
+    "gen:types": "node ../../scripts/generate-config-types.cjs",
+    "check": "node ../../scripts/generate-config-types.cjs --check && node --test src/config/loadConfig.test.ts"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
+  }
+}

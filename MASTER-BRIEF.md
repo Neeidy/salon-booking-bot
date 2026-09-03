@@ -189,6 +189,8 @@ Each layer catches a different class of error → no single point of dependency.
 | 7 | n8n control-plane exposure — only webhook endpoints public; editor/admin UI never on the internet (behind auth / Cloudflare Access) | 1/3 — admin takeover | [ ] |
 | 8 | Booking mutation via bot (cancel/reschedule = delete-write on real appointments) | 1+4 — irreversible + shared state | [ ] |
 | 9 | Dashboard auth (PII + destructive surface) | 3 — data leak / unauthorized destructive | [ ] |
+| 10 | **Dashboard API layer authz** (Phase 6) — our own API layer is the only path to Airtable: PAT never reaches a browser, PAT is READ-ONLY, the endpoint is not a general proxy, and the Vercel bundle contains no dashboard/PII code path | 3 — data leak | [ ] |
+| 11 | **D11 owner write path** (Phase 6) — release-handoff-lock via a new n8n webhook: HMAC + Access Service Auth + action allow-list + target validation + write-then-verify + owner-alert + idempotent replay | 1+4 — unauthorized write on shared state | [ ] |
 
 ## 10. Roadmap (Phase 0 → 8) + Definition of Done
 

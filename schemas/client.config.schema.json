@@ -13,6 +13,11 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "demoMode": {
+      "type": "boolean",
+      "description": "FRONTEND-ONLY — no n8n node reads it (same class as branding.*). true → every surface shows the mock/demo ribbon + footer notice (.claude/rules/honesty-demos.md); false → a real client install shows neither. OPTIONAL, omitted = false, so the live engine Load Config does not need to carry it. Added in Phase 6 (SCREEN-INVENTORY §8 K5, option A) — deliberately NOT added earlier, because a config key with no consumer is a trap for the next client; the consumer (web/) exists as of this phase.",
+      "default": false
+    },
     "business": {
       "type": "object",
       "required": [
@@ -48,7 +53,8 @@
         },
         "logoUrl": {
           "type": "string",
-          "format": "uri"
+          "pattern": "^(https://|/[^/])",
+          "description": "Rendered on the PUBLIC site, so this is an ENFORCED pattern, not a decorative \"format\": ajv runs without ajv-formats, which silently ignores unknown formats — the old \"format\":\"uri\" looked like a constraint and enforced nothing. CONTRACT for a client: either an absolute https:// URL or a root-relative path (/logo.svg) for a self-hosted logo. http://, javascript:, and PROTOCOL-RELATIVE //host/logo.png are all rejected — the last one matters because it silently loads from a third-party host over the page scheme, which is exactly the dependency a public demo must not have. No regex lookahead is used, so the pattern stays portable across validators."
         }
       }
     },

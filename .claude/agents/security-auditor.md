@@ -34,6 +34,16 @@ Scan before any push / screenshot / export:
   carried `channels.widget.turnstile` (rejected) and `ownerAlert` (undeclared). The root and `bot` objects
   are `additionalProperties:false`, so a future live-only key fails here instead of drifting silently.
 
+- **config TYPES drift (Phase 6):** run `node scripts/generate-config-types.cjs --check` — the TypeScript
+  types the frontend compiles against (`web/shared/src/config/client.config.types.ts`) are GENERATED from
+  the committed `schemas/client.config.schema.json`. Non-zero exit = someone hand-edited the generated file
+  or changed the schema without regenerating, i.e. a second truth next to the contract
+  (`.claude/rules/contract-integrity.md`). Fix by regenerating, never by editing the file.
+- **frontend config contract (Phase 6):** run `npm test -w @salon/shared` from `web/` — proves the loader
+  REJECTS a config that violates the committed schema (missing required block, typo'd root key, wrong type,
+  unparseable JSON, unvalidatable config). A frontend that renders a contract-violating config is the same
+  BULGU-3 failure, one surface over.
+
 - **content parity (CP4 sub-step 3):** run `N8N_API_URL=… N8N_API_KEY=… python3 scripts/check-content-parity.py`
   — per executable node, the committed `parameters`/`credentials` must match the LIVE workflow (sanitize
   placeholders + n8n serialization noise normalized; sticky notes excluded). Catches a changed Code body /
