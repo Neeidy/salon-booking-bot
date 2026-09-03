@@ -1,15 +1,34 @@
-// The app reads the BUILD-TIME artifact, never the filesystem: scripts/build-config.mjs validated it
-// against the committed schema before writing it. Measured reason (2026-09-03): a dynamic readFileSync
-// here made Next trace the whole project into the server output, and config/ + schemas/ were not traced
-// at all — so any non-static read would have failed on a real deployment.
-import config from '../config.generated.json';
+// The barber demo site — L1-L9 (docs/SCREEN-INVENTORY.md §1), ported from the approved
+// design/mockups/site/index.html. Section order and markup are the locked visual contract; the
+// values behind them now come from client config instead of being hand-written.
+import { SiteHeader } from '../components/site/SiteHeader';
+import { Hero } from '../components/site/Hero';
+import { Menu } from '../components/site/Menu';
+import { Craft } from '../components/site/Craft';
+import { HoursPlace } from '../components/site/HoursPlace';
+import { Closer } from '../components/site/Closer';
+import { SiteFooter } from '../components/site/SiteFooter';
+import { MockRibbon } from '../components/site/MockRibbon';
+import { SitePanel } from '../components/site/SitePanel';
+import { SiteChrome } from '../components/site/SiteChrome';
+import { SiteMotion } from '../components/site/SiteMotion';
 
 export default function Page() {
   return (
-    <main>
-      <h1>{config.business.name}</h1>
-      <p>demoMode: {String(config.demoMode === true)}</p>
-      <ul>{config.services.map((s) => (<li key={s.id}>{s.name} — {s.durationMin}min — €{s.priceEUR}</li>))}</ul>
-    </main>
+    <>
+      <SiteHeader />
+      <main>
+        <Hero />
+        <Menu />
+        <Craft />
+        <HoursPlace />
+        <Closer />
+      </main>
+      <SiteFooter />
+      <MockRibbon />
+      <SitePanel />
+      <SiteChrome />
+      <SiteMotion />
+    </>
   );
 }

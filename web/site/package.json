@@ -2,7 +2,7 @@
   "name": "@salon/site",
   "private": true,
   "version": "0.0.0",
-  "description": "Public barber demo site (L1-L9) + chat widget + embeddable snippet. Deploys to Vercel. Contains NO dashboard code and NO Airtable access \u2014 that separation is the point (Phase 6 decision D-1).",
+  "description": "Public barber demo site (L1-L9) + chat widget + embeddable snippet. Deploys to Vercel. Contains NO dashboard code and NO Airtable access — that separation is the point (Phase 6 decision D-1).",
   "scripts": {
     "predev": "node scripts/build-config.mjs",
     "dev": "next dev",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@salon/shared": "*",
+    "gsap": "^3.12.5",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

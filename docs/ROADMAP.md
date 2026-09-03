@@ -219,7 +219,29 @@ Each CP waits for its own written approval (plan-gate).
     item, and heavier: a blocked font breaks the LOCKED typography (GSAP degrades gracefully), and visitor IPs reach a
     third party on an EU-framed demo. Fix in 6a-2 by self-hosting via `next/font` (build-time download, no runtime
     request, not Vercel-specific).
-  - ☐ 6a-2 → design surfaces ported to Next.js (site L1-L9 + widget W1-W65), config-wired, GSAP self-hosted.
+  - ▶ **6a-2 slice 1 — the barber demo site (L1-L9) ported and CONFIG-WIRED (2026-09-03).** `web/site`
+    (Next.js 16 App Router, plain CSS per D-8). `globals.css` is a VERBATIM transcription of the approved
+    mockup's style block and `motion-engine.js` a verbatim transcription of its inline script — the visual
+    contract is locked, so the port is a transcription, not a redesign. Config now drives brand name,
+    services (rows generated from `services[]`, not hardcoded), working hours (**grouped from the data**,
+    so a client who closes Wednesday gets correct rows without a code change), `faq.address` + `faq.parking`,
+    and the footer place (derived; falls back to brand-only rather than printing a mangled fragment).
+    **Third-party runtime dependencies removed:** GSAP is an npm dependency (bundled, served from our origin)
+    and the fonts are self-hosted via `next/font` — **the font finding was NOT in the plan**: the mockup pulled
+    Fraunces + Instrument Sans from `fonts.googleapis.com`/`fonts.gstatic.com`, same class as the named GSAP
+    item and heavier (a blocked font breaks the LOCKED typography, and visitor IPs reach a third party on an
+    EU-framed demo).
+    **Measured, not assumed:** `Ajv is not a constructor` did **not** occur (0 hits in a real build) · pixel diff
+    vs the mockup **0.002% desktop / 0.008% mobile at identical page heights** · 0 horizontal overflow at 1280
+    and 390 · 0 failed requests · 0 console errors on mobile.
+    **Two real defects the visual check caught (a DOM check would have passed both):** (1) the panel was
+    transcribed loosely — missing the `[data-close]` hook the motion engine binds to — and the resulting throw
+    inside a React effect **unmounted the root and blanked the whole page**; the panel is now verbatim AND the
+    motion engine is wrapped so the animation layer can never take the content down (the mockup's own
+    progressive-enhancement contract, which the React port had silently broken). (2) `next/font` rejects a fixed
+    weight list on a variable font (Fraunces), which failed the build until the axes matched the mockup's request.
+  - ☐ 6a-2 slice 2 → the widget (W1-W65) made LIVE against the real endpoint (the embedded panel is a static
+    transcription today and is labelled as such — it is not wired to the engine yet).
 - ☐ **6b — embeddable snippet.** GATE: Turnstile inside Shadow DOM must be PROVEN before the snippet ships.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
   **HARD GATE (security-auditor round 2, 2026-09-03):** the BUILD-TIME server/client boundary — a lint rule forbidding

@@ -1,0 +1,270 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Cream & Ink — barber demo site.
+   PORTED VERBATIM from design/mockups/site/index.html (Tur B, approved 2026-09-02).
+   The visual contract is LOCKED: this file is a transcription, not a redesign. Any change here
+   must be a design decision taken first, not a side effect of the port.
+   ONLY change vs the mockup: the Google Fonts <link> is gone — Fraunces + Instrument Sans are now
+   self-hosted via next/font (build-time download, no runtime third-party request), and the family
+   names arrive as CSS variables (--font-display / --font-ui) set on <html>.
+   design/mockups/tokens.css is deliberately NOT used (wrong palette — BULGU-4).
+   ───────────────────────────────────────────────────────────────────────────── */
+  :root{
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;         /* accent on cream — display sizes only */
+    --oxide-soft:#D98B66;    /* accent on ink blocks */
+    --muted:#5C594E;         /* secondary text on cream (≥4.5:1) */
+    --stamp:#C9C4B4;         /* timestamps on ink bubbles */
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-display:var(--font-fraunces),'Fraunces',Georgia,serif;
+    --font-ui:var(--font-instrument),'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  html{scroll-behavior:auto} /* wheel scroll is native/1:1; anchor glide handled in JS */
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  a{color:inherit}
+  button{font:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  [id]{scroll-margin-top:90px} /* sticky header must never clip an anchored heading */
+  .wrap{max-width:1240px;margin:0 auto}
+  .wrap-narrow{max-width:1000px;margin:0 auto}
+
+  a:focus-visible,button:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .ink-block .dot{color:var(--oxide-soft)}
+
+  /* ---------- shared atoms ---------- */
+  .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin:0 0 14px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:currentColor}
+  .ink-block .eyebrow{color:var(--oxide-soft)}
+  .btn{display:inline-flex;align-items:center;gap:10px;font-size:14.5px;font-weight:600;padding:13px 26px;border-radius:999px;text-decoration:none;transition:transform .15s var(--ease),background .15s var(--ease),border-color .15s var(--ease)}
+  .btn:active{transform:scale(.97)}
+  .btn-ink{background:var(--ink);color:var(--cream);border:1px solid var(--ink)}
+  .btn-ink:hover{background:#000}
+  .btn-ghost{color:var(--ink);border:1px solid rgba(22,21,15,.3)}
+  .btn-ghost:hover{border-color:var(--ink)}
+  .btn-outline-cream{color:var(--cream);border:1px solid rgba(241,238,230,.4)}
+  .btn-outline-cream:hover{border-color:var(--cream)}
+  .btn-cream{background:var(--cream);color:var(--ink);font-size:15px;padding:15px 30px}
+  .btn-cream:hover{background:#FFF}
+
+  /* ---------- header ---------- */
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(241,238,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:18px;height:66px;padding:0 clamp(20px,4vw,48px)}
+  .brand{font-family:var(--font-display);font-weight:600;font-size:20px;letter-spacing:-.01em}
+  .site-nav{display:flex;gap:26px}
+  .nav-link{font-size:14px;font-weight:500;color:var(--muted);text-decoration:none;border-bottom:1px solid transparent;transition:color .15s var(--ease),border-color .15s var(--ease)}
+  .nav-link:hover{color:var(--ink);border-bottom-color:var(--oxide)}
+  .header-cta{font-size:14px;padding:10px 20px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:clamp(56px,6.5vw,100px) clamp(20px,4vw,48px) clamp(64px,7vw,110px)}
+  .hero-grid{display:grid;grid-template-columns:1.06fr .94fr;gap:clamp(36px,5vw,80px);align-items:center}
+  .hero .eyebrow{margin-bottom:26px}
+  .hero-title{font-weight:600;font-size:clamp(46px,6.4vw,94px);line-height:1.02;letter-spacing:-.015em}
+  .hero-title .line{display:block;overflow:hidden}
+  .hero-title .line-accent{padding:0 .06em;margin:0 -.06em} /* italic overshoot must not clip in the mask */
+  .hero-title .line-inner{display:block;animation:lineup .55s var(--ease) both}
+  .hero-title .line:nth-child(1) .line-inner{animation-delay:.1s}
+  .hero-title .line:nth-child(2) .line-inner{animation-delay:.26s}
+  .hero-title .line:nth-child(3) .line-inner{animation-delay:.42s}
+  .hero-title em{font-style:italic;color:var(--oxide);font-weight:500;position:relative}
+  /* "paint" moment, opacity-only: an ink copy sits on top and fades out at .95s,
+     revealing the static oxide text underneath — no color animation needed */
+  .hero-title em::after{content:attr(data-text);position:absolute;inset:0;color:var(--ink);pointer-events:none;opacity:0;animation:inkveil .35s var(--ease) .95s both}
+  .razor{display:block;max-width:80%}
+  .razor-hero{margin:18px 0 26px}
+  .razor-hero path{stroke-dasharray:430;animation:drawline .8s var(--ease) .85s both}
+  .hero-sub{font-size:17.5px;color:var(--muted);max-width:44ch;margin:0 0 30px}
+  .hero-ctas{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+
+  @keyframes lineup{from{transform:translateY(115%)}to{transform:translateY(0)}}
+  @keyframes inkveil{from{opacity:1}to{opacity:0}}
+  @keyframes drawline{from{stroke-dashoffset:430}to{stroke-dashoffset:0}}
+  /* hero load choreography waits behind the curtain, then resumes untouched */
+  .intro-play .ha,.intro-play .ha::after{animation-play-state:paused !important}
+
+  /* ---------- chat window — framed newspaper clipping ---------- */
+  .chat-window{background:var(--cream);border:1.5px solid var(--ink);border-radius:4px;box-shadow:8px 8px 0 rgba(22,21,15,.12);overflow:hidden;max-width:470px;width:100%;justify-self:end}
+  .chat-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--frame)}
+  .chat-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .chat-id{line-height:1.35}
+  .chat-name{display:block;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em}
+  .chat-status{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .online-dot{width:7px;height:7px;border-radius:50%;background:var(--oxide);display:inline-block;animation:dotpulse 2.6s var(--ease) 1.6s infinite}
+  .chat-body{padding:20px;display:flex;flex-direction:column;gap:12px;min-height:330px}
+  .msg{max-width:88%;padding:12px 16px;font-size:14.5px;line-height:1.5}
+  .msg.user{align-self:flex-end;max-width:84%;background:var(--ink);color:var(--cream);border-radius:16px 16px 4px 16px}
+  .msg.bot{align-self:flex-start;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px}
+  .msg.confirm{border-left:3px solid var(--oxide)}
+  .msg.confirm strong{color:var(--oxide)}
+  .stamp{display:block;font-size:10.5px;margin-top:5px;color:var(--muted)}
+  .msg.user .stamp{color:var(--stamp)}
+  .slots{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .slots + .stamp{margin-top:7px}
+  .chip{font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3)}
+  .chip-on{border-color:var(--ink);background:var(--ink);color:var(--cream)}
+  /* Typing overlays the upcoming bot message's reserved slot (absolute inside .pair):
+     toggling it must never change the panel's height, or everything below the hero
+     shifts mid-conversation and anchor destinations computed at click time go stale. */
+  .pair{position:relative;align-self:flex-start;max-width:88%}
+  .pair .msg.bot{max-width:100%}
+  .typing{position:absolute;top:0;left:0;z-index:1;display:none;gap:5px;background:#FFF;border:1px solid var(--edge);border-radius:16px 16px 16px 4px;padding:13px 16px}
+  .typing.on{display:flex}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);display:block;animation:dotb 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  .chat-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--frame)}
+  .chat-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 18px}
+  .chat-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+  /* staged conversation — hidden ONLY when JS is present; no-JS reads the full thread */
+  .js .chat-body .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .chat-body .msg.in{opacity:1;transform:none}
+  /* the picked chip pops once, right after its bubble lands */
+  .js .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @keyframes dotb{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+  @keyframes dotpulse{0%,100%{transform:scale(1)}14%{transform:scale(1.5)}30%{transform:scale(1)}}
+
+  /* ---------- menu — newspaper price list ---------- */
+  .menu{padding:clamp(56px,6vw,96px) clamp(20px,4vw,48px)}
+  .section-title{font-weight:600;font-size:clamp(30px,3.6vw,48px);line-height:1.08}
+  .menu-list{list-style:none;margin:34px 0 0;border-top:2px solid var(--ink);position:relative}
+  .menu-list::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* Tur A thick+thin folio rule */
+  .menu-row{display:flex;align-items:baseline;gap:16px;padding:26px 4px;border-bottom:1px solid var(--rule);transition:background .2s var(--ease),transform .2s var(--ease)}
+  .menu-row:hover,.menu-row:focus-within{background:rgba(255,253,247,.75);transform:translateX(4px)}
+  .menu-name{font-family:var(--font-display);font-weight:600;font-size:clamp(22px,2.3vw,30px);letter-spacing:-.01em}
+  .leader{flex:1;height:2px;transform:translateY(-6px);min-width:24px;background-image:radial-gradient(circle,rgba(22,21,15,.38) 1.1px,transparent 1.5px);background-size:8px 2px;background-repeat:repeat-x}
+  .menu-row:hover .leader,.menu-row:focus-within .leader{animation:leadcrawl .8s linear infinite}
+  @keyframes leadcrawl{to{background-position:16px 0}}
+  .menu-time{font-variant:all-small-caps;letter-spacing:.08em;font-size:15px;color:var(--muted);white-space:nowrap}
+  .menu-price{font-family:var(--font-display);font-weight:700;font-size:clamp(22px,2.3vw,30px);font-variant-numeric:tabular-nums}
+
+  /* scroll reveals — hidden ONLY under html.js, so no-JS never orphans content */
+  .js [data-reveal="left"]{opacity:0;transform:translateX(-24px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .js [data-reveal="left"].in{opacity:1;transform:none}
+  .js .menu-list li:nth-child(2){transition-delay:.06s}
+  .js .menu-list li:nth-child(3){transition-delay:.12s}
+
+  /* ---------- ink blocks (craft + closer) ---------- */
+  .ink-block{background:var(--ink);color:var(--cream);position:relative;z-index:1;will-change:transform;border-top:3px solid var(--oxide)} /* Tur A cream→ink oxide strip */
+  .craft{padding:clamp(72px,8vw,128px) clamp(20px,4vw,48px)}
+  .craft-title{font-weight:500;font-size:clamp(34px,4.6vw,64px);line-height:1.1;letter-spacing:-.01em}
+  .craft-title em,.ink-block em{font-style:italic;color:var(--oxide-soft)}
+  .craft-body{color:var(--cream);max-width:52ch;font-size:17px;margin:24px 0 34px}
+  .craft .eyebrow{margin-bottom:22px}
+
+  /* ---------- hours strip ---------- */
+  .hours{padding:clamp(56px,6vw,88px) clamp(20px,4vw,48px)}
+  .hours .eyebrow{margin-bottom:22px}
+  .hours-grid{border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));position:relative}
+  .hours-grid::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* folio rule */
+  .hours-cell{padding:26px 20px 26px 4px}
+  .hours-cell:last-child{padding-right:4px}
+  .hours-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .hours-value{font-family:var(--font-display);font-weight:600;font-size:clamp(20px,1.8vw,25px);margin-top:6px;font-variant-numeric:tabular-nums}
+  .hours-value.closed{font-weight:500;font-style:italic;color:var(--oxide)}
+  .place{margin-top:26px;border-bottom:1px solid var(--rule);padding-bottom:26px}
+  .place-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .place-value{font-family:var(--font-display);font-weight:600;font-size:clamp(19px,2vw,26px);margin-top:8px;max-width:30ch;text-wrap:pretty}
+  .place-note{font-size:14.5px;color:var(--muted);margin-top:10px;max-width:58ch}
+
+  /* ---------- closer — razor bookend ---------- */
+  .closer{padding:clamp(72px,8vw,120px) clamp(20px,4vw,48px)}
+  .closer-row{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
+  .closer-title{font-weight:500;font-style:italic;font-size:clamp(32px,4.4vw,60px);line-height:1.08;letter-spacing:-.01em}
+  .razor-closer{margin-top:18px}
+  .js .razor-closer path{stroke-dasharray:430;stroke-dashoffset:430}
+  .js .razor-closer.in path{animation:drawline .8s var(--ease) .15s both}
+
+  /* ---------- footer ---------- */
+  .site-footer{padding:34px clamp(20px,4vw,48px) 42px;border-top:1px solid var(--hairline)}
+  .footer-row{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+
+  /* ---------- overlays ---------- */
+  .mock-ribbon{position:absolute;top:66px;right:0;z-index:40;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+
+  .fab{position:fixed;right:26px;bottom:24px;z-index:90;display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--cream);border:none;cursor:pointer;border-radius:999px;font-size:14.5px;font-weight:600;padding:14px 24px;text-decoration:none;box-shadow:0 16px 38px -14px rgba(22,21,15,.55);transition:transform .3s var(--ease),opacity .3s var(--ease);animation:fabin .45s var(--ease) .4s backwards}
+  .fab:hover{transform:translateY(-2px)}
+  .fab:active{transform:scale(.97)}
+  .fab .online-dot{width:8px;height:8px;background:var(--oxide-soft)}
+  .fab.is-hidden{opacity:0 !important;transform:translateY(10px);pointer-events:none}
+  @keyframes fabin{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ---------- SITE WIDGET — the Tur A panel, embedded (Stage 2) ----------
+     Closed start = real-visitor default (the Tur A "starts open" behavior was for review).
+     PE contract preserved: with NO JS the panel is OPEN and the full thread reads statically;
+     the .is-open gate exists only under html.js. Interior locked in Tur A — not redesigned. */
+  .site-panel{position:fixed;right:26px;bottom:88px;z-index:89;width:390px;max-width:calc(100vw - 32px);background:var(--cream);border:1.5px solid var(--ink);border-radius:6px;box-shadow:8px 8px 0 rgba(22,21,15,.12),0 30px 60px -30px rgba(22,21,15,.5);overflow:hidden;display:flex;flex-direction:column;transform-origin:bottom right}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
+  .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+  .panel-id{line-height:1.35;flex:1;min-width:0}
+  .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
+  .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;transition:background .15s var(--ease),color .15s var(--ease)}
+  .panel-close:hover{background:rgba(22,21,15,.08);color:var(--ink)}
+  .site-panel .thread{padding:18px;display:flex;flex-direction:column;gap:12px;max-height:min(60vh,440px);overflow-y:auto}
+  .site-panel .msg{max-width:88%}
+  .site-panel .pair .msg{max-width:100%}
+  .panel-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--frame)}
+  .panel-input{flex:1;font-size:14px;color:var(--muted);background:#FFF;border:1px solid var(--edge);border-radius:999px;padding:10px 16px}
+  .panel-send{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  /* open/close gate — ONLY under html.js (no-JS keeps the panel open and readable) */
+  .js .site-panel:not(.is-open){display:none}
+  .js .site-panel.is-open{animation:panelin .32s var(--ease) both}
+  @keyframes panelin{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  /* staged reveal inside the widget thread — same gate family as the hero chat */
+  .js .site-panel .thread .msg{opacity:0;transform:translateY(8px);transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .js .site-panel .thread .msg.in{opacity:1;transform:none}
+  .js .site-panel .msg.in .chip-on{animation:chippop .5s var(--ease) .15s both}
+  @keyframes chippop{0%{transform:scale(.85)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+
+  /* paper grain — inline turbulence, no image files */
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  .ink-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:74;pointer-events:none}
+
+  /* intro curtain — plays once per session; exists visually only under .intro-play */
+  .intro{display:none}
+  .js.intro-play .intro{display:block;position:fixed;inset:0;z-index:95;cursor:pointer}
+  .intro-half{position:absolute;left:0;right:0;height:50.2%;background:var(--ink)}
+  .intro-half.top{top:0;animation:introhalfup .5s var(--ease) .62s both}
+  .intro-half.bottom{bottom:0;animation:introhalfdown .5s var(--ease) .62s both}
+  .intro-razor{position:absolute;left:5%;top:calc(50% - 13px);width:90%;height:26px;animation:fadeout .3s var(--ease) .62s both}
+  .intro-razor path{stroke-dasharray:100;animation:draw100 .55s var(--ease) .05s both}
+  @keyframes introhalfup{to{transform:translateY(-102%)}}
+  @keyframes introhalfdown{to{transform:translateY(102%)}}
+  @keyframes fadeout{to{opacity:0}}
+  @keyframes draw100{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+
+  /* ---------- mobile ---------- */
+  @media (max-width:840px){
+    .site-nav{display:none}
+    .hero-grid{grid-template-columns:1fr}
+    .chat-window{max-width:100%;justify-self:stretch}
+  }
+  @media (max-width:480px){
+    .site-panel{left:12px;right:12px;bottom:82px;width:auto;max-width:none}
+    .site-panel .thread{max-height:52vh}
+  }
+
+  /* ---------- reduced motion: kill everything, show everything ---------- */
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js .chat-body .msg{opacity:1 !important;transform:none !important}
+    .js .site-panel .thread .msg{opacity:1 !important;transform:none !important}
+    .js .site-panel:not(.is-open){display:none} /* gate stays; open shows all instantly */
+    .js [data-reveal]{opacity:1 !important;transform:none !important}
+    .js .razor-closer path{stroke-dashoffset:0 !important}
+    .typing{display:none !important}
+    .intro{display:none !important}
+  }
