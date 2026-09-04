@@ -45,6 +45,25 @@ if (isDemoMode(config)) { /* mock ribbon stays visible — honesty-demos.md */ }
 `demoMode` is **frontend-only** (no n8n node reads it, same class as `branding.*`) and optional —
 absent means `false`, i.e. a real client install shows no mock ribbon.
 
+## Browser-visible build inputs (slice 2 — the live widget)
+
+`web/site` needs two values at build time. They live in `web/site/.env.local` (gitignored) or in the
+deploy platform's environment — **never in a committed file**. Names only, for reference:
+
+| Variable | What | Secret? |
+|---|---|---|
+| `NEXT_PUBLIC_WEBHOOK_URL` | full URL of the widget inbound webhook (`https://<n8n-host>/webhook/barber-inbound`) | no — the endpoint is public by design |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile **site** key | no — site keys are public |
+
+The Turnstile **secret** key is not here and never reaches the frontend: it lives in n8n, which is what
+verifies the token.
+
+> **The distinction that matters.** `NEXT_PUBLIC_*` values are inlined into the browser bundle, so the
+> DEPLOYED OUTPUT carries the webhook URL. That is expected — the browser has to know where to post.
+> But `scripts/check-no-host-leak.sh` protects the **repository**, not the build output: it stays green
+> because these values exist only in env, and the build output (`.next/`) is gitignored. Read the guard
+> as "the host is not in git", not as "the host is nowhere".
+
 ## Commands
 ```bash
 cd scripts && npm ci     # the type generator + its pinned prettier live HERE, not in web/

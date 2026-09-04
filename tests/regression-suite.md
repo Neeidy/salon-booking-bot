@@ -275,6 +275,31 @@ injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + 
 **BASELINE = healthy.** Re-run `run-regression.sh` at the start of a phase and after every step;
 any drop from 18/18, or any MUST-NOT-RUN node appearing, is a regression.
 
+### ⚙ Turnstile gate — TWO-WAY probe (added 2026-09-04 after the gate was found open)
+
+Curl-only, no browser needed for two of the three legs. **All three must pass before any widget goes
+live.** This exists because CP5b-1 was drilled in ONE direction ("no token → 403") and that green result
+was taken as proof of the whole control; a fake token in fact passed straight through to the brain.
+
+| # | Setup | Expected | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|---|
+| T1 | POST widget payload **with no `turnstileToken`** | **403** `{"ok":false,"error":"turnstile_failed"}` | Turnstile Gate → Verify Turnstile → Reject Bot Request | Check Bot Guards, Extract Intent, Save State |
+| T2 | POST the SAME payload with `"turnstileToken":"garbage-token"` | **403** `turnstile_failed` — a non-empty string must NOT be enough | Verify Turnstile → Turnstile Valid?[false] → Reject Bot Request | Extract Intent, Save State, any Airtable write |
+| T3 | Browser-solved REAL token from the widget | **200** with a `reply` | Turnstile Valid?[true] → Resume After Turnstile → brain | Reject Bot Request |
+
+Payload for T1/T2 (`message_id` is REQUIRED — without it the request dies at `Validate Payload` with
+400 `invalid_payload` and the probe proves nothing about Turnstile):
+
+```
+{"sessionId":"<drill-id>","messageId":"<drill-id>-1","text":"hello","turnstileToken":"<omit | garbage>"}
+```
+
+**Cleanup:** T3 (and any leg that reaches the brain) writes `Conversations` + `processed_messages` rows —
+delete them and verify the search returns 0, as CP4d-1 did. T2 must write nothing; if it does, that is
+itself the failure.
+
+**Recorded result 2026-09-04 (before the fix):** T1 ✓ 403 · T2 ✗ **200, reached the brain** · T3 not run.
+
 ### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning
 
 Spend-cap and dry-run are proven via the execution API + the `bot_metrics`/`conversations` columns (never the
