@@ -18,7 +18,7 @@
  * BUILD. It never silently falls back to disk — a deploy that quietly served demo data while the
  * operator believed it was serving a client's would be exactly the silent failure this repo forbids.
  */
-import { writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfigDetailed, validateConfigObject, isDemoMode } from '@salon/shared/config';
@@ -68,6 +68,56 @@ if (raw && raw.trim()) {
       fail('the example config is being used but demoMode is not true — the mock ribbon would be hidden on a demo build. Refusing to ship a demo that does not say it is one.');
     }
   }
+}
+
+// ── PUBLIC-DEPLOY HONESTY GATE ──────────────────────────────────────────────────────────────────
+// A demoMode:false build carries NO mock ribbon, NO demo footer notice and NO noindex. That is correct
+// for a real client. It is a LIE for our fictional example clients: publishing "Hofgasse Barbers" would
+// put a business that does not exist on the public web, indexable, with nothing saying it is a sample
+// (.claude/rules/honesty-demos.md). A ROADMAP warning does not stop a deploy — this does.
+//
+// Public is assumed when DEPLOY_TARGET=public, or when a hosting platform announces itself
+// (VERCEL_ENV=production|preview). Assuming public on detection is the fail-safe direction.
+const deployTarget = (process.env.DEPLOY_TARGET || '').toLowerCase();
+const vercelEnv = (process.env.VERCEL_ENV || '').toLowerCase();
+const isPublic = deployTarget === 'public' || vercelEnv === 'production' || vercelEnv === 'preview';
+const isDemo = isDemoMode(config);
+// Detect a fictional example client by CONTENT, not by file path. Checking the path was not enough:
+// piping an example file's JSON through CLIENT_CONFIG_JSON made it look like a real client config and
+// the hard block silently did not fire (found by drilling this gate, 2026-09-04). The committed example
+// configs are the definitive list of shops that do not exist, so compare against their business names.
+function committedExampleNames() {
+  const dir = resolve(SITE_ROOT, '../../config');
+  try {
+    return readdirSync(dir)
+      .filter((f) => /^client\.config\.example.*\.json$/.test(f))
+      .map((f) => {
+        try { return JSON.parse(readFileSync(join(dir, f), 'utf8'))?.business?.name; } catch { return null; }
+      })
+      .filter(Boolean);
+  } catch { return []; }
+}
+const exampleNames = committedExampleNames();
+const fromCommittedExample = exampleNames.includes(config.business.name);
+
+if (isPublic && !isDemo) {
+  if (fromCommittedExample) {
+    // No acknowledgement can make this right: a committed example client is fictional by definition.
+    fail(`refusing to build "${config.business.name}" for a PUBLIC target: it is a committed EXAMPLE client\n`
+      + `  (source: ${source}; matched against config/client.config.example*.json).\n`
+      + '  An example config describes a shop that does not exist, and demoMode:false strips every marker\n'
+      + '  that would say so. A real client deployment supplies its config through CLIENT_CONFIG_JSON or a\n'
+      + '  gitignored config/client.config.json — never through a committed example.');
+  }
+  const ack = process.env.CLIENT_DEPLOYMENT_ACK || '';
+  if (ack !== config.business.name) {
+    fail('this is a PUBLIC build of a demoMode:false config — it will show NO "this is a demo" marker.\n'
+      + `  If "${config.business.name}" is a real client you are deploying for, say so deliberately:\n`
+      + `      CLIENT_DEPLOYMENT_ACK="${config.business.name}"\n`
+      + (ack ? `  (got CLIENT_DEPLOYMENT_ACK="${ack}", which does not match the config's business name)\n` : '')
+      + '  The acknowledgement must name the business, so it cannot be copied blindly between clients.');
+  }
+  console.warn(`\n⚠  PUBLIC build for a REAL client — "${config.business.name}". No demo markers will be shown.`);
 }
 
 // `site` is OPTIONAL at the schema root so the engine's own partial Load Config still validates — but
