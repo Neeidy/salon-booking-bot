@@ -70,5 +70,13 @@ if (raw && raw.trim()) {
   }
 }
 
+// `site` is OPTIONAL at the schema root so the engine's own partial Load Config still validates — but
+// THIS build cannot render a page without it, and falling back to hardcoded copy would put the shop's
+// voice back in the code as a second source of truth. So require it here, where it is actually needed.
+if (!config.site) {
+  fail('the config has no `site` block (page copy). The site cannot be built without it — adding fallback '
+    + 'copy in the components would re-create the very second-source-of-truth this block removes.');
+}
+
 writeFileSync(OUT, JSON.stringify(config, null, 2) + '\n');
 console.log(`config: ${source} → config.generated.json  (business="${config.business.name}", demoMode=${isDemoMode(config)}, services=${config.services.length})`);

@@ -181,7 +181,7 @@ Hepsi `Answer FAQ` node'u, tek turluk, state yazmaz, çıkış `Send Reply To Or
 
 | ID | Ekran | Metin | Stage |
 |---|---|---|---|
-| W19 | Onay iste | **literal**: `Cancel your {servis} on {ne zaman}? Reply "yes" to cancel, or anything else to keep it.` (+ birden fazla randevu varsa `(you have N bookings — this cancels the {when} one)`) | `cancel_confirming` |
+| W19 | Onay iste | **literal** (`Build Cancel-Confirm State`): `Cancel your {servis} on {ne zaman}?{çoklu} Reply "yes" to cancel, or anything else to keep it.` — ⚠ **düzeltildi 2026-09-03:** çoklu-randevu cümleciği `?` ile ` Reply` **ARASINA** girer, cümlenin sonuna değil: `` ` (you have N bookings — this cancels the {when} one)` ``. Tek randevuda `{çoklu}` boş dizedir. Mockup doğruydu, bu satır gevşekti. | `cancel_confirming` |
 | W20 | İptal edildi | `cancelDone` → "Done — your {service} on {when} is cancelled." | `cancelled` |
 | W21 | Zaten iptalmiş | `cancelAlreadyDone` (GCal 404/410) | `cancelled` |
 | W22 | Vazgeçildi | `cancelAborted` → "No problem — your booking stands." | `new` |

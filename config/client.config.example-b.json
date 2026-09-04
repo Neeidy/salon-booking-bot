@@ -1,21 +1,31 @@
 {
-  "$comment": "MOCK example config for one client. Copy to client.config.json (gitignored) and fill per client. NON-SECRET only — no API keys, no tokens (those live in n8n Credentials / Vercel env). Validated against ../schemas/client.config.schema.json.",
+  "$comment": "SECOND example client — the proof of the template claim. FICTIONAL shop, not a real customer (.claude/rules/honesty-demos.md): 'Hofgasse Barbers' does not exist. Same CODE as the demo client, different CONFIG only — different name, 4 services instead of 3, a different closed-day pattern (Mon AND Sun), a different city/timezone, its own page copy, and its own message templates. demoMode is false, so this build carries NO mock ribbon: it must therefore NEVER be published as if it were a real shop's site — it exists to prove that a second client needs config + credentials, not code.",
   "business": {
-    "name": "Demo Barber Co.",
-    "timezone": "Europe/Vienna",
-    "locale": "en-AT"
+    "name": "Hofgasse Barbers",
+    "timezone": "Europe/Berlin",
+    "locale": "en-DE"
   },
-  "$comment_demoMode": "Frontend-only flag. TRUE here because this example IS the public demo deployment — honesty-demos.md requires the mock ribbon to stay visible on a demo. A real client install sets it false (or omits it).",
-  "demoMode": true,
+  "$comment_demoMode": "false = a delivered client install: no mock ribbon, no demo footer notice, no noindex. The demo client (client.config.example.json) is the one that keeps demoMode true.",
+  "demoMode": false,
   "$comment_site": "Frontend-only page copy = the shop's own voice. Values here are TODAY'S wording, moved verbatim out of the components; changing the site's marketing text is now a CONFIG edit, not a code edit. Structural labels (nav, section eyebrows, CTA wording) stay in code on purpose.",
   "site": {
-    "tagline": "Barbershop · Vienna, first district",
-    "headline": ["Pick a time and", "the chair is yours", "to the minute"],
-    "subline": "Send one message. Open times come back in the reply, and so does the confirmation. No phone call, no app.",
-    "menuTitle": "Prices, plain as print",
-    "craftTitle": ["Hot towel. Straight razor.", "A chair that runs on time."],
-    "craftBody": "One chair, one appointment at a time. Nothing is double-booked, nothing is rushed — your cut gets the time it needs.",
-    "closerTitle": ["Walk in booked.", "Walk out sharp"]
+    "tagline": "Barbershop · Prenzlauer Berg, Berlin",
+    "headline": [
+      "Two chairs,",
+      "no queue,",
+      "one message"
+    ],
+    "subline": "Tell us the day. We send back what is open, and hold the chair once you say yes.",
+    "menuTitle": "What it costs",
+    "craftTitle": [
+      "Scissors, clippers, cut-throat.",
+      "Finished with a hot towel."
+    ],
+    "craftBody": "We keep the day loose enough to do the work properly. If a cut needs ten more minutes, it gets them — the next chair is already accounted for.",
+    "closerTitle": [
+      "Book it in a line.",
+      "Sit down on time"
+    ]
   },
   "googleCalendarId": "REPLACE_WITH_CALENDAR_ID@group.calendar.google.com",
   "branding": {
@@ -25,26 +35,69 @@
   },
   "channels": {
     "whatsapp": {
-      "enabled": true,
+      "enabled": false,
       "provider": "zernio",
       "accountId": "REPLACE_WITH_ZERNIO_ACCOUNT_ID",
-      "reminderTemplate": { "name": "appointment_reminder", "language": "en_US" }
+      "reminderTemplate": {
+        "name": "appointment_reminder",
+        "language": "en_US"
+      }
     },
-    "widget": { "enabled": true, "provider": "webchat", "turnstile": { "enabled": true } },
-    "instagram": { "enabled": false, "provider": "meta-graph" }
+    "widget": {
+      "enabled": true,
+      "provider": "webchat",
+      "turnstile": {
+        "enabled": true
+      }
+    },
+    "instagram": {
+      "enabled": false,
+      "provider": "meta-graph"
+    }
   },
   "services": [
-    { "id": "haircut", "name": "Haircut", "durationMin": 30, "priceEUR": 25 },
-    { "id": "beard", "name": "Beard Trim", "durationMin": 20, "priceEUR": 15 },
-    { "id": "haircut_beard", "name": "Haircut + Beard", "durationMin": 45, "priceEUR": 35 }
+    {
+      "id": "skin_fade",
+      "name": "Skin Fade",
+      "durationMin": 35,
+      "priceEUR": 32
+    },
+    {
+      "id": "classic_cut",
+      "name": "Classic Cut",
+      "durationMin": 30,
+      "priceEUR": 28
+    },
+    {
+      "id": "beard_sculpt",
+      "name": "Beard Sculpt",
+      "durationMin": 25,
+      "priceEUR": 20
+    },
+    {
+      "id": "cut_beard",
+      "name": "Cut & Beard",
+      "durationMin": 55,
+      "priceEUR": 45
+    }
   ],
   "workingHours": {
-    "mon": ["10:00-19:00"],
-    "tue": ["10:00-19:00"],
-    "wed": ["10:00-19:00"],
-    "thu": ["10:00-19:00"],
-    "fri": ["10:00-19:00"],
-    "sat": ["10:00-18:00"],
+    "mon": [],
+    "tue": [
+      "09:00-18:00"
+    ],
+    "wed": [
+      "09:00-18:00"
+    ],
+    "thu": [
+      "09:00-18:00"
+    ],
+    "fri": [
+      "09:00-19:00"
+    ],
+    "sat": [
+      "09:00-16:00"
+    ],
     "sun": []
   },
   "bot": {
@@ -60,16 +113,19 @@
     "whatsappSendDisabled": true,
     "llmPricePer1kTokensIn": 0.001,
     "llmPricePer1kTokensOut": 0.005,
-    "llmCostCapUsd": 10.00
+    "llmCostCapUsd": 10.0
   },
   "$comment_ownerAlert": "Owner-alert channel (Telegram). enabled=false silences EVERY alert class, silently — there is no second channel. These two values MUST match across the three Load Configs (main / reminders / purge); scripts/check-cancel-validation-parity.py asserts it.",
-  "ownerAlert": { "enabled": true, "throttleMinutes": 30 },
+  "ownerAlert": {
+    "enabled": true,
+    "throttleMinutes": 30
+  },
   "messageTemplates": {
-    "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",
+    "askService": "Which one would you like? (Skin Fade / Classic Cut / Beard Sculpt / Cut & Beard)",
     "askDateTime": "What day and time works for you?",
-    "bookingConfirmed": "You're booked: {service}, {date} {time}. See you then!",
-    "handoff": "I'm passing you to a team member — we'll get back to you shortly.",
-    "handoffLocked": "A team member is already helping you here — they'll reply shortly.",
+    "bookingConfirmed": "Booked — {service}, {date} at {time}. See you then.",
+    "handoff": "Let me get one of the barbers to answer that — they'll come back to you shortly.",
+    "handoffLocked": "One of the barbers is on this already — they'll reply here shortly.",
     "leadCaptured": "Thanks! We've got your details and someone from the team will reach out soon.",
     "faqUnknown": "Good question — let me check with the team and get back to you on that.",
     "slotJustTaken": "Sorry — that time was just taken. A team member will help you find another slot.",
@@ -79,7 +135,7 @@
     "cancelCutoff": "That booking is too close to its time to cancel here — please call us and we'll sort it out.",
     "cancelUnavailable": "I couldn't reach the calendar to cancel just now — a team member will follow up shortly.",
     "cancelNeedsHuman": "I found your booking but can't cancel it automatically — a team member will cancel it for you.",
-    "cancelDone": "Done — your {service} on {when} is cancelled.",
+    "cancelDone": "Cancelled — your {service} on {when} is off the book.",
     "cancelAlreadyDone": "That booking is already cancelled — nothing more to do.",
     "cancelAborted": "No problem — your booking stands.",
     "cancelTargetGone": "I couldn't find that booking to cancel anymore — a team member will follow up shortly.",
@@ -95,8 +151,8 @@
     "reminder": "Reminder: your {service} is booked for {when}. See you soon!"
   },
   "faq": {
-    "address": "We're at Musterstrasse 12, 1010 Vienna — 2 minutes from Stephansplatz U-Bahn.",
-    "parking": "Street parking is available on Musterstrasse; there's also a paid garage 100m away on Beispielgasse.",
-    "walkin": "Walk-ins are welcome whenever a chair is free, but booking ahead guarantees your slot."
+    "address": "We're at Hofgasse 7, 10405 Berlin — three minutes from Prenzlauer Allee S-Bahn.",
+    "parking": "Parking is metered on Hofgasse until 20:00; the side streets past the school are free after 18:00.",
+    "walkin": "Two chairs means a walk-in often works, but a booked slot is the only one we hold."
   }
 }

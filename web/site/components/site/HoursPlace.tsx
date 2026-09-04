@@ -2,7 +2,7 @@
 // address: CONFIG faq.address, FULL SENTENCE verbatim (K7/BULGU-5 — never split into street/city) ·
 // parking: CONFIG faq.parking (this is the first surface to use it, sanctioned by §1).
 import { config } from '../../lib/config';
-import { hoursRows } from '../../lib/config';
+import { hoursRows, directionsUrl } from '../../lib/config';
 
 export function HoursPlace() {
   const rows = hoursRows();
@@ -23,6 +23,11 @@ export function HoursPlace() {
             <h3 className="place-label">Find us</h3>
             {config.faq?.address && <p className="place-value">{config.faq.address}</p>}
             {config.faq?.parking && <p className="place-note">{config.faq.parking}</p>}
+            {directionsUrl() && (
+              <a className="btn btn-ghost place-directions" href={directionsUrl()!} target="_blank" rel="noopener noreferrer">
+                Get directions
+              </a>
+            )}
           </div>
         )}
       </div>

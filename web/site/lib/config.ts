@@ -64,3 +64,17 @@ export function shortAddress(): string | null {
   const candidate = (m?.[1] ?? '').trim().replace(/[.,;]$/, '');
   return candidate.length >= 4 && candidate.length <= 80 ? candidate : null;
 }
+
+/**
+ * "Get directions" target. A PLAIN outbound link, not an embed: no API key, no cookie, no script, and
+ * nothing is requested until the visitor clicks. A live map embed would put a third party's tracking
+ * inside the CLIENT'S site and hand them the cookie-consent obligation; a rendered static map image is
+ * not an option either, because every free provider forbids caching/redistributing it in a product we
+ * resell (ARCH-DEC 2026-09-03). Address text + parking + this link do the same job with none of that.
+ */
+export function directionsUrl(): string | null {
+  const a = config.faq?.address;
+  const target = shortAddress() ?? a;
+  if (!target) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(target)}`;
+}

@@ -10,6 +10,42 @@ export interface ClientConfig {
    * FRONTEND-ONLY — no n8n node reads it (same class as branding.*). true → every surface shows the mock/demo ribbon + footer notice (.claude/rules/honesty-demos.md); false → a real client install shows neither. OPTIONAL, omitted = false, so the live engine Load Config does not need to carry it. Added in Phase 6 (SCREEN-INVENTORY §8 K5, option A) — deliberately NOT added earlier, because a config key with no consumer is a trap for the next client; the consumer (web/) exists as of this phase.
    */
   demoMode?: boolean;
+  /**
+   * FRONTEND-ONLY page copy — no n8n node reads it (same class as branding.* and demoMode). This is the SHOP'S OWN VOICE: two different clients must not ship the same marketing sentences, or the "every client gets their own site" claim is false on inspection. Structural UI labels (nav items, section eyebrows, CTA wording) are deliberately NOT here — they are identical for every client, and a config key nobody needs to change is a trap for the next client. OPTIONAL at the root so the engine's own Load Config (which has no page copy) still validates; the site build requires it and fails closed without it. NOTE: headline/menuTitle/closerTitle end WITHOUT a full stop — the oxide period is markup (<span class="dot">), not text.
+   */
+  site?: {
+    /**
+     * Hero eyebrow — what the shop is and where, in one line.
+     */
+    tagline: string;
+    /**
+     * Hero headline, exactly 3 lines; line 2 is set in the accent italic. No trailing period on line 3.
+     *
+     * @minItems 3
+     * @maxItems 3
+     */
+    headline: [string, string, string];
+    subline: string;
+    /**
+     * No trailing period.
+     */
+    menuTitle: string;
+    /**
+     * Two lines; line 2 is set in the accent italic.
+     *
+     * @minItems 2
+     * @maxItems 2
+     */
+    craftTitle: [string, string];
+    craftBody: string;
+    /**
+     * Two lines. No trailing period on line 2.
+     *
+     * @minItems 2
+     * @maxItems 2
+     */
+    closerTitle: [string, string];
+  };
   business: {
     name: string;
     /**
@@ -143,6 +179,39 @@ export interface ClientConfig {
   [k: string]:
     | string
     | boolean
+    | {
+        /**
+         * Hero eyebrow — what the shop is and where, in one line.
+         */
+        tagline: string;
+        /**
+         * Hero headline, exactly 3 lines; line 2 is set in the accent italic. No trailing period on line 3.
+         *
+         * @minItems 3
+         * @maxItems 3
+         */
+        headline: [string, string, string];
+        subline: string;
+        /**
+         * No trailing period.
+         */
+        menuTitle: string;
+        /**
+         * Two lines; line 2 is set in the accent italic.
+         *
+         * @minItems 2
+         * @maxItems 2
+         */
+        craftTitle: [string, string];
+        craftBody: string;
+        /**
+         * Two lines. No trailing period on line 2.
+         *
+         * @minItems 2
+         * @maxItems 2
+         */
+        closerTitle: [string, string];
+      }
     | {
         name: string;
         /**

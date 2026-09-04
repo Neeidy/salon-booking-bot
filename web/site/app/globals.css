@@ -268,3 +268,15 @@
     .typing{display:none !important}
     .intro{display:none !important}
   }
+
+/* ── Phase 6 additions — no new tokens, no new colours, no new fonts ─────────────────────────────
+   Hero scenario rotation: all four scenarios stay in the DOM so the markup is complete without JS;
+   CSS shows the first one. Under html.js the component controls which is active. */
+.chat-window .scenario{display:none}
+.chat-window .scenario:first-of-type{display:flex}
+html.js .chat-window .scenario{display:none}
+html.js .chat-window .scenario.is-active{display:flex}
+.chat-window .scenario{transition:opacity .4s var(--ease)}
+@media (prefers-reduced-motion: reduce){ .chat-window .scenario{transition:none} }
+/* Directions link sits with the address block, using the existing ghost-button style. */
+.place-directions{margin-top:14px;display:inline-flex}

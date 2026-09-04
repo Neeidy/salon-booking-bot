@@ -7,7 +7,7 @@ export function Menu() {
     <section className="menu" id="menu">
       <div className="wrap-narrow">
         <p className="eyebrow">The menu</p>
-        <h2 className="section-title">Prices, plain as print<span className="dot">.</span></h2>
+        <h2 className="section-title">{config.site!.menuTitle}<span className="dot">.</span></h2>
         <ul className="menu-list">
           {config.services.map((s) => (
             <li key={s.id} data-reveal="left">
