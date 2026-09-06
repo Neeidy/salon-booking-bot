@@ -298,7 +298,23 @@ Payload for T1/T2 (`message_id` is REQUIRED — without it the request dies at `
 delete them and verify the search returns 0, as CP4d-1 did. T2 must write nothing; if it does, that is
 itself the failure.
 
-**Recorded result 2026-09-04 (before the fix):** T1 ✓ 403 · T2 ✗ **200, reached the brain** · T3 not run.
+**Recorded results.** 2026-09-04 (BEFORE the fix): T1 ✓ 403 · T2 ✗ **200, reached the brain** · T3 not run. 2026-09-06 (AFTER provisioning a real widget and PUBLISHING): **T1 ✓ 403 · T2 ✓ 403 · T2d (realistic fake token) ✓ 403 · T3 ✓ 200** with a real engine reply from a real browser. T1/T2/T2d MUST-NOT-RUN proven by column (no `conversations` row); T3 verified server-side (`stage`, `computed_reply` byte-identical to the screen).
+
+> ⚠ **T3 cannot be run headlessly here.** Cloudflare's challenge platform aborts in this headless Chromium (`ERR_ABORTED`, later `Error 600010`), in both Managed and Invisible mode. That is an ENVIRONMENT limit, not a product failure — T3 needs a real browser. Do not let a headless red on T3 be read as a broken gate, and do not let its absence be read as a pass.
+
+### ⚙ T2e — the widget's self-diagnosis probe (NOT YET DRILLED, added 2026-09-06)
+
+When a send throws, `lib/chatClient.ts` fires one follow-up `fetch(..., {mode:'no-cors', body:'{}'})` to tell
+"reached the server" apart from "never left the browser". Reasoning says it lands on the T1 path (no token →
+`Reject Bot Request` 403, brain MUST-NOT-RUN). **That is reasoning, not measurement** — and `mode:'no-cors'`
+forbids setting headers, so the browser sends `content-type: text/plain`, which T1 never exercised.
+
+| # | Setup | Expected | MUST-NOT-RUN |
+|---|---|---|---|
+| T2e | `POST {}` with `content-type: text/plain` and no token | **403** `turnstile_failed`, no `conversations` row | Check Bot Guards, Extract Intent, Save State |
+
+Until this is run, the probe's engine-side behaviour is assumed, not known — which is the thing this repo keeps
+being burned by. It also doubles the edge rate-limit spend on a failing send; see the rate-limit item below.
 
 ### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning
 

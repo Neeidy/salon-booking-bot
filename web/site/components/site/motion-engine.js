@@ -126,6 +126,10 @@ export function runMotionEngine() {
     sitePanel.classList.toggle('is-open', open);
     launcher.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) playWidgetThread();
+    if (open) {
+      var inputEl = sitePanel.querySelector('.panel-input');
+      if (inputEl && inputEl.focus) setTimeout(function () { inputEl.focus(); }, 260);
+    }
   }
   if (sitePanel && launcher) {
     launcher.addEventListener('click', function () {
@@ -183,8 +187,32 @@ export function runMotionEngine() {
     // intercepts every wheel tick and eases toward the target, which reads as a laggy
     // "limiter" on a long page. Only anchor-link jumps get an eased glide, via native
     // scrollTo({behavior:'smooth'}), honoring each section's scroll-margin-top.
+    /* ===== ADDITION — NOT part of the Tur B transcription (2026-09-06) =====
+       Every "Book by text" CTA pointed at #chat: the hero's DECORATIVE demo, whose composer is two
+       aria-hidden spans. That was right while the panel was itself a static transcription — the whole
+       page was a demo. The moment the panel went LIVE it became a trap: the site's primary call to
+       action scrolled the visitor to a chat box that looks real and cannot be typed into. It was found
+       by walking into it on the first real run.
+       So #chat clicks — and a click on the hero's fake composer — now OPEN THE LIVE PANEL. The anchors
+       keep their href, so with JS off they still scroll to the readable hero demo and the
+       progressive-enhancement contract is unchanged. ===================================== */
+    document.querySelectorAll('a[href="#chat"]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        if (!sitePanel) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setWidgetOpen(true);
+      }, true);
+    });
+    var heroFoot = document.querySelector('.chat-window .chat-foot');
+    if (heroFoot && sitePanel) {
+      heroFoot.style.cursor = 'pointer';
+      heroFoot.addEventListener('click', function () { setWidgetOpen(true); });
+    }
+
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
       a.addEventListener('click', function (e) {
+        if (a.getAttribute('href') === '#chat') return;   // handled by the addition above
         var target = document.querySelector(a.getAttribute('href'));
         if (!target) return;
         e.preventDefault();

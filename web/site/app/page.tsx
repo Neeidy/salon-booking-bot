@@ -10,10 +10,16 @@ import { Closer } from '../components/site/Closer';
 import { SiteFooter } from '../components/site/SiteFooter';
 import { MockRibbon } from '../components/site/MockRibbon';
 import { SitePanel } from '../components/site/SitePanel';
+import { LiveChatPanel } from '../components/site/LiveChatPanel';
+import { readEndpointConfig } from '../lib/chatClient';
 import { SiteChrome } from '../components/site/SiteChrome';
 import { SiteMotion } from '../components/site/SiteMotion';
+import { config } from '../lib/config';
 
 export default function Page() {
+  // LIVE panel when the endpoint is configured; the static transcription otherwise, so a checkout
+  // without .env.local still builds and renders honestly rather than shipping a dead input box.
+  const endpoint = readEndpointConfig();
   return (
     <>
       <SiteHeader />
@@ -26,7 +32,7 @@ export default function Page() {
       </main>
       <SiteFooter />
       <MockRibbon />
-      <SitePanel />
+      {endpoint ? <LiveChatPanel config={config} endpoint={endpoint} /> : <SitePanel />}
       <SiteChrome />
       <SiteMotion />
     </>

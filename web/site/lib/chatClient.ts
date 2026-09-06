@@ -37,6 +37,7 @@ export interface EndpointConfig { webhookUrl: string; turnstileSiteKey: string }
 export const FRONTEND_TEXT = {
   blocked: "We couldn't verify this browser. Please reload the page and try again.",
   offline: "That didn't reach us — check your connection and try again.",
+  timeout: "That took too long to answer. Please try again.",
   unexpected: 'Something went wrong on our side. Please try again in a moment.',
 } as const;
 
@@ -93,8 +94,40 @@ export async function sendMessage(
       body: JSON.stringify({ sessionId, messageId, text, turnstileToken }),
       signal: ctrl.signal,
     });
-  } catch {
-    return { kind: 'system', text: FRONTEND_TEXT.offline, origin: 'frontend', status: 0 };
+  } catch (e) {
+    // Distinguish the failure instead of collapsing every throw into "check your connection".
+    // A timeout, a CORS rejection and a blocking extension are three different problems, and one
+    // message for all three hides which one the visitor (or we) actually hit. The customer still sees
+    // one plain sentence; the DETAIL goes to the console, where a drill can read it.
+    const err = e as Error;
+    const aborted = err?.name === 'AbortError';
+    // SELF-DIAGNOSIS. A thrown fetch has two very different causes and the browser refuses to tell them
+    // apart for security reasons. A follow-up `no-cors` probe does tell them apart: it resolves (opaque)
+    // whenever the request actually REACHED a server, and throws only when it never left the machine.
+    //   reached=true  -> the response carried no CORS headers (e.g. an edge block/challenge page)
+    //   reached=false -> blocked before the wire (extension, DNS, offline, firewall)
+    if (!aborted) {
+      void fetch(endpoint.webhookUrl, { method: 'POST', mode: 'no-cors', body: '{}' })
+        .then(() => console.error('[widget] diagnosis: request REACHED the server, but its response had no '
+          + 'CORS headers — typically an edge block/rate-limit or challenge page, not a connection problem.'))
+        .catch((e2) => console.error('[widget] diagnosis: request NEVER LEFT the browser '
+          + `(${(e2 as Error)?.name}) — an extension, DNS, firewall or offline network.`));
+    }
+    // Log the PATH, never the full URL: the host is a redaction target in this project, and a console
+    // line ends up in screenshots and bug reports. (That is not hypothetical — it is exactly how the
+    // host reached a screenshot during the first live run.) The path carries all the diagnostic value.
+    let path = '(unparseable endpoint)';
+    try { path = new URL(endpoint.webhookUrl).pathname; } catch { /* keep the placeholder */ }
+    console.error('[widget] send failed:', aborted ? 'timeout' : (err?.name || 'unknown'), err?.message || '', {
+      path, hadToken: Boolean(turnstileToken),
+    });
+    return {
+      kind: 'system',
+      text: aborted ? FRONTEND_TEXT.timeout : FRONTEND_TEXT.offline,
+      origin: 'frontend',
+      status: 0,
+      error: aborted ? 'timeout' : `fetch_failed:${err?.name || 'unknown'}`,
+    };
   } finally {
     clearTimeout(timer);
   }
