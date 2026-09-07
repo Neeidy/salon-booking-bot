@@ -312,7 +312,7 @@ Each CP waits for its own written approval (plan-gate).
   such turns used to raise an owner alert. Closed by one node, **`Confirm Pending & Uncertain?`**, ahead of the abort
   gates. `Confidence & Intent Gate` was renamed **`Invalid or Handoff Gate`** (it no longer reads confidence);
   `.claude/rules/handoff.md` and `testing.md` were CORRECTED to match the engine. Config in BOTH places (repo examples + inline `Load Config`); different text per client proves it is a template.
-  Details + residual risk: ARCH-DEC §5 (2026-09-07). Commit: `<hash>`
+  Details + residual risk: ARCH-DEC §5 (2026-09-07). Commit: `9e9768a`
   - ⚠ **RESIDUAL, NOT FIXED: the permanent lock still exists — it moved from turn 1 to turn 2.** `hi` then `hello`
     still mutes the visitor forever. The cure is a TTL; see the open items below.
 
