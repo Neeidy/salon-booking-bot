@@ -65,6 +65,7 @@
   "$comment_ownerAlert": "Owner-alert channel (Telegram). enabled=false silences EVERY alert class, silently — there is no second channel. These two values MUST match across the three Load Configs (main / reminders / purge); scripts/check-cancel-validation-parity.py asserts it.",
   "ownerAlert": { "enabled": true, "throttleMinutes": 30 },
   "messageTemplates": {
+    "askIntent": "Hi! I can help you book, change or cancel an appointment — what would you like?",
     "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",
     "askDateTime": "What day and time works for you?",
     "bookingConfirmed": "You're booked: {service}, {date} {time}. See you then!",

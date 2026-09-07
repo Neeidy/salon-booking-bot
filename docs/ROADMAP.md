@@ -53,7 +53,7 @@ execution API) → understood, one small step at a time. No production publish u
   - ✅ **3b-fix — LLM-unavailable path split (Cowork gate 2026-07-20):** the `Extract Intent` error output no longer shares `Handoff Reply`; it routes to a dedicated **`LLM Unavailable Reply`** (`503` · `error:"llm_unavailable"` · polite `reply` kept from config) → an LLM infra outage (timeout / 5xx / rate-limit / quota) is now **DISTINGUISHABLE** from a conversational handoff (fixes a silent failure). CP5 Telegram owner-alert attaches to this node. ⚠ **5xx triggers a provider retry:** before Phase 4 (Zernio calls this webhook and may retry on a 503) the status-code policy will be reviewed, and Phase-3 idempotency (`processed_messages`) will cover those repeats. **Transport note:** every Respond node is the Phase-2 transport layer; in Phase 4 the reply is sent via the Zernio send API and the webhook response becomes an ACK (adapter boundary, same logic as node 28).
   - ✅ **3c Validate + gate (DONE 2026-07-22):**
     - ✅ **3c.1 Validate Intent (built 2026-07-21):** `Parse Intent`→`Validate Intent` — `stop_reason` trust-gate · defensive `JSON.parse` (bad shape → handoff, never a node crash) · `toLowerCase` intent/faqTopic · **ajv-standalone validator COMPILED from committed `schemas/intent.schema.json`** (the Code node cannot `require` ajv — this instance blocks it; `scripts/compile-intent-validator.cjs` generates the self-contained validator, `--check` is the drift-guard) · `state.last_intent` = intent, or `'invalid'` when validation fails. Verified via execution API (exec 29): real call → `book`/`0.93`/`2026-07-22`/`15:00`/Alex, `valid:true`, `last_intent:book`; 5 branches unit-tested (good · refusal · schema-bad · parse-err · weird-shape). Drift-guard triggers: CP3 DoD gate + on `intent.schema.json` change.
-    - ✅ **3c.2 Gate + handoff classes (built 2026-07-22):** `Confidence & Intent Gate` (`valid===false` OR `confidence < 0.7` OR intent ∈ {handoff, unknown, cancel, reschedule}) → `Mark Handoff` (explicitly sets `stage='handoff'`) / `Save State`; single `Save State` with the `last_intent` mapping re-opened; `Build Reply` reply conditional on the written `stage`. Verified via execution API — book(30)→normal (`stage=new`, `last_intent=book`) · cancel(31)→intent-handoff (Airtable `stage=handoff`+`last_intent=cancel`) · jailbreak(32)→handoff · low-conf(33, conf 0.2)→handoff · guard-trip(34)→Save State skipped, `stage` not polluted · invalid→handoff (3c.1 unit). **Three handoff classes proven distinct** ([handoff.md](../.claude/rules/handoff.md)): guard-trip (200, transient) · infra-unavailable (503) · intent-handoff (200, writes `stage=handoff`).
+    - ✅ **3c.2 Gate + handoff classes (built 2026-07-22):** `Confidence & Intent Gate` *(renamed `Invalid or Handoff Gate` on 2026-09-07)* (`valid===false` OR `confidence < 0.7` OR intent ∈ {handoff, unknown, cancel, reschedule}) → `Mark Handoff` (explicitly sets `stage='handoff'`) / `Save State`; single `Save State` with the `last_intent` mapping re-opened; `Build Reply` reply conditional on the written `stage`. Verified via execution API — book(30)→normal (`stage=new`, `last_intent=book`) · cancel(31)→intent-handoff (Airtable `stage=handoff`+`last_intent=cancel`) · jailbreak(32)→handoff · low-conf(33, conf 0.2)→handoff · guard-trip(34)→Save State skipped, `stage` not polluted · invalid→handoff (3c.1 unit). **Three handoff classes proven distinct** ([handoff.md](../.claude/rules/handoff.md)): guard-trip (200, transient) · infra-unavailable (503) · intent-handoff (200, writes `stage=handoff`).
     - ⚠ LLM = real cost → **draft-only, no public publish** until Phase-5 brakes.
   - **DoD parity:** the n8n `Build LLM Request` prompt rules stay RULE-LEVEL equivalent to `prompts/intent-extraction.md` (not byte-identical) — checked before CP3 is called done.
 
@@ -295,6 +295,83 @@ Each CP waits for its own written approval (plan-gate).
   evaluates an imported module's top-level code before the importer's body, a secret-touching module imported ahead of the
   tripwire is never protected by it. Today the blast radius is bounded only because `loadConfig` touches nothing but the
   NON-SECRET client config — that stops being true at 6c.
+- ✅ **ENGINE FIX (in-phase, 2026-09-07) — `unknown` ≠ `handoff`: a bare greeting no longer mutes the bot.**
+  Measured first: `hi` → `intent=unknown`, `stage=handoff`, `turn_count=1` (Airtable, not a screenshot). The single
+  confidence/intent gate was split into tiers — `Invalid or Handoff Gate` (`valid!==true || intent==='handoff'`,
+  first-turn handoff, unchanged) → **`Uncertain Turn?`** → **`Repeat Uncertain?`** → **`Build Clarify State`**
+  (`messageTemplates.askIntent`, leaves `stage` UNCHANGED — `Save State` rewrites the existing value, so no lock forms). Counter reuses `last_intent` (`'clarify'`), no new Airtable column.
+  **Order (corrected before release, after `flow-reviewer` found a regression in the first wiring):** the abort gates
+  run BEFORE the clarify tier — `Abort Cancel?` / `Abort Reschedule?` already own a turn that arrives while a
+  confirmation is pending, and clarify had been stealing it, silently burning the confirm TTL. *(The "accepted
+  trade-off" recorded here in the first draft — that an unclear turn during a pending confirmation loses that
+  confirmation — was WITHDRAWN hours later; see the second correction below. What remains is narrower: only a
+  CONFIDENT non-confirm turn drops the confirmation.)* Drills D1–D4 + D2b + D6/D7 + booking/reschedule/cancel/FAQ/lead/jailbreak/lock-silence,
+  every one verified from the Airtable row. **Second correction the same day (also from `flow-reviewer`, also missed by
+  the drills and all nine guards):** the reorder alone left a low-confidence `confirm` slipping past `Abort Cancel?`
+  (which only fires on `intent !== 'confirm'`) — same silent stale-TTL failure, and a visibility REGRESSION because
+  such turns used to raise an owner alert. Closed by one node, **`Confirm Pending & Uncertain?`**, ahead of the abort
+  gates. `Confidence & Intent Gate` was renamed **`Invalid or Handoff Gate`** (it no longer reads confidence);
+  `.claude/rules/handoff.md` and `testing.md` were CORRECTED to match the engine. Config in BOTH places (repo examples + inline `Load Config`); different text per client proves it is a template.
+  Details + residual risk: ARCH-DEC §5 (2026-09-07). Commit: `<hash>`
+  - ⚠ **RESIDUAL, NOT FIXED: the permanent lock still exists — it moved from turn 1 to turn 2.** `hi` then `hello`
+    still mutes the visitor forever. The cure is a TTL; see the open items below.
+
+**OPEN ITEMS opened or confirmed by this fix (none of these are done):**
+- ☐ **F1 — calendar arithmetic is delegated to the LLM and never verified (CRT-level, BOOKING path).** Execution 1927:
+  prompt said `Monday, 2026-09-07`, customer said **Friday**, LLM returned `2026-09-12` (Saturday) at `confidence=0.92`;
+  a GCal event was created on the wrong day and nothing compared the named weekday to the produced date. Violates
+  "deterministic before AI". Direction (design belongs in that phase's plan): the LLM returns the RELATIVE expression,
+  CODE resolves the date in the shop timezone, plus a weekday↔date consistency check that rejects the turn on mismatch.
+- ☐ **F2 — two-turn reschedule creates a SECOND booking (CRT-level).** `Reschedule Lookup`'s ask-slot branch leaves
+  `stage=booked` and persists no reschedule target, so the next turn classifies as `book`. Needs an Airtable schema
+  change (a new `stage` value) — Yigitcan's UI work. Observed live; `run-regression.sh` missed it because its scenario
+  passes date+time in one message.
+- ☐ **Revive `tests/run-regression.sh`** — DEAD since 2026-09-06: it posts a dummy Turnstile token and the real secret
+  now rejects it (`403 turnstile_failed`). Needs a real-token path. Until then regression is manual.
+- ☐ **Handoff lock TTL + D11** (the still-open half of the 2026-09-06 named blockers). **SCOPE GREW on 2026-09-07 —
+  the TTL work MUST cover this new path:** `Confirm Pending & Uncertain?` deliberately routes an uncertain turn that
+  arrives during a cancel/reschedule confirmation to `Mark Handoff`, i.e. straight into the PERMANENT lock. That is the
+  right call today (never act on a distrusted classification while a booking hangs on it, and the owner is alerted),
+  but it means a hesitant customer can now be locked out by one turn inside a confirmation window. **A TTL that only
+  covers the two-consecutive-uncertain-turns path would leave this one locked forever.**
+- ☐ **`askIntent` is stage-agnostic** — measured in drill D2b: mid-`collecting` it replies "book, change or cancel"
+  to someone who was asked for a day/time. Behaviour is correct (no lock, slots kept); only the wording is wrong.
+  After the reorder the `*_confirming` variants are out of scope (the abort gates take those turns); **two variants
+  remain open: `collecting` (measured) and `ready` ("shall I book it?" pending — not yet drilled).** The stage-aware
+  template also carries the better answer for a pending confirmation: keep the TTL alive and repeat the confirmation
+  question instead of dropping it.
+- ☐ **Restore `Find Conversation Row.limit = 1` on the LIVE workflow (declared deviation, pre-existing).** The
+  committed export had it, live does not — proven on the pre-change backup and live. Re-sanitising made the export
+  match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable
+  search may return more than one row and `Record Alert Class` runs per item.
+- ☐ **Declare `messageTemplates` keys in `schemas/client.config.schema.json`.** Today it is an open
+  `additionalProperties:{type:string}` map, so a client config missing `askIntent` (or any template) passes the config
+  guard and only degrades at runtime. `Build Clarify State` now carries a defensive literal, which limits the blast
+  radius but does not close the contract gap.
+- ☐ **Turnstile secret lives in a NODE PARAMETER, not an n8n Credential** (security-auditor F2). Correctly sanitised in
+  the committed export, so no leak today — but structurally weaker than the Zernio HMAC secret, which lives in a
+  credential and never enters the workflow JSON at all. Every raw export and snapshot carries it in clear text;
+  `.gitignore` is the only defence. Contradicts the 2026-08-23 decision that stated this very principle.
+- ☐ **Mask the vendor sandbox number in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor F1). It is Zernio's
+  shared sandbox BOT number, not customer PII, and predates this commit — but a public repo need not expose vendor
+  infrastructure. Cosmetic, low priority. **When closing this, do NOT restate the number in the commit or the item
+  itself** — the first draft of this very line repeated it and increased exposure instead of reducing it.
+- ☐ **`scripts/secret-scan.sh` — two capability gaps (security-auditor M1+M2), the FOURTH instance of the
+  "assumed to work, never proven able to fail" pattern.** (a) Called with no stdin payload it returns `exit 0`
+  silently, so "secret-scan ran, clean" can mean "it scanned nothing"; (b) it only diffs `origin/main..HEAD`, so an
+  uncommitted change gets ZERO coverage; (c) its generic rule misses `N8N_ENCRYPTION_KEY` (the named target of this
+  very check) and its OpenAI pattern misses modern `sk-proj-…` keys — both proven with fixtures in an isolated repo.
+  Fix direction: add `encryption[_-]?key` to the generic rule, widen to `sk-(proj-)?[A-Za-z0-9_-]{32,}`, make a
+  payload-less invocation fail loudly — then prove each one RED before believing it.
+- ☐ **Redact the two Airtable record ids already committed in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor
+  LOW-1 precedent). They are not secrets and are useless without the base id and a PAT (neither is in git), but they
+  point at conversation rows that carry `recent_messages`, and `security-secrets.md` treats PII as a secret. A new one
+  was caught and redacted before this commit; the pre-existing pair predates it.
+- ☐ **`.env.example` has no `TURNSTILE_SECRET` entry** although Turnstile is live (security-auditor L3). Pairs with
+  the open item about moving that secret out of a node parameter into a credential.
+- ☐ **Widget refresh splits UI from state** — `sessionStorage` (by design) keeps the conversation across a reload, but
+  the panel repaints empty, so the visitor sees a clean widget while the engine is mid-conversation (or locked). Fix
+  direction: show the transcript, do NOT drop the session.
 - ☐ **6d — D11 release-handoff-lock**, the phase's only write action, via a new protected n8n path.
 
 ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)

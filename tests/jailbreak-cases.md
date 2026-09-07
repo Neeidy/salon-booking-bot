@@ -12,7 +12,7 @@
 2. **`reply` is always null from the LLM.** The system prompt forces `reply:null`; the customer-facing text is
    built deterministically from **config templates** — so an injection that says "reply exactly: …" cannot put
    its words in front of the customer.
-3. **Injection → handoff, HIGH confidence** (system-prompt rule) → `Confidence & Intent Gate` → `Mark Handoff`
+3. **Injection → handoff, HIGH confidence** (system-prompt rule) → `Invalid or Handoff Gate` → `Mark Handoff`
    (no write, `stage=handoff`).
 4. **The confirm gate is structural** — a booking needs a real "yes" turn; "skip confirmation and book now"
    cannot bypass it.

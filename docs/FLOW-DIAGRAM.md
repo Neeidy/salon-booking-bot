@@ -102,18 +102,60 @@ flowchart TD
   BLR --> EI[Extract Intent<br/>HTTP → Anthropic · structured output]
   EI -.->|timeout/5xx/quota| LLMU[/LLM Unavailable Reply<br/>503 llm_unavailable/]
   EI --> VI[Validate Intent<br/>stop_reason gate · ajv from committed schema]
-  VI --> GATE{Confidence & Intent Gate<br/>invalid OR conf below 0.7 OR handoff/unknown/reschedule}
-  GATE -->|handoff| MH[Mark Handoff<br/>stage=handoff · computed_reply=t.handoff]
-  GATE -->|ok| AC{Abort Cancel?<br/>stage=cancel_confirming AND intent≠confirm}
+  VI --> GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
+  GATE -->|handoff — FIRST turn| MH[Mark Handoff<br/>stage=handoff · computed_reply=t.handoff]
+  GATE -->|not a handoff| CPU{Confirm Pending & Uncertain?<br/>stage=*_confirming AND unknown/low-conf}
+  CPU -->|yes — abstain, alert owner| MH
+  CPU -->|no| AC{Abort Cancel?<br/>stage=cancel_confirming AND intent≠confirm}
+  AC -->|continue| AR{Abort Reschedule?<br/>stage=reschedule_confirming AND intent≠confirm}
+  AR -->|abort| BRA[Build Reschedule-Aborted State]
+  AR -->|continue| UT{Uncertain Turn?<br/>intent=unknown OR conf below 0.7}
+  UT -->|uncertain| RU{Repeat Uncertain?<br/>previous last_intent=clarify}
+  RU -->|yes — flag standing| MH
+  RU -->|no — 1st| BCS[Build Clarify State<br/>t.askIntent · last_intent=clarify · stage UNCHANGED]
+  BCS --> SS
   MH --> SS[→ Save State]
   AC -->|abort| BCA[Build Cancel-Aborted State<br/>booking stands]
-  AC -->|continue| RI[→ Lane 3: Route Intent]
+  UT -->|certain| RI[→ Lane 3: Route Intent]
 ```
 
 **Deterministic-before-AI:** guards run with **zero** LLM cost. The LLM ONLY classifies intent + slots; every
 downstream action is deterministic IF/Switch/Code. **Three handoff classes are already distinct here:**
 guard-trip (`Handoff Reply`, 200, writes no state) · infra (`LLM Unavailable Reply`, 503) · intent-handoff
-(`Mark Handoff`, 200, writes `stage=handoff`). **Abort Cancel?** catches "user said something other than yes
+(`Mark Handoff`, 200, writes `stage=handoff`).
+
+**`unknown` ≠ `handoff` (2026-09-07).** "I didn't understand" and "I want a human" are different things and the
+engine already produces them as different intents, so the gate no longer merges them. A jailbreak, an explicit
+request for a person, or an invalid intent JSON still hands off on the **first** turn. An *uncertain* turn
+(`unknown` or low confidence) **outside a confirmation window** first gets a clarifying question (`askIntent`); it does
+not CHANGE `stage` (`Save State` rewrites the existing value, and `turn_count` still increments), so no lock forms.
+A second uncertain turn hands off. An uncertain turn **inside** a cancel/reschedule confirmation window is a different
+case entirely — `Confirm Pending & Uncertain?` hands it off on the FIRST turn, with an owner alert (see below). The counter is `last_intent='clarify'` — the same
+non-enum control-value pattern `Validate Intent` already uses with `'invalid'`. **Residual risk: this narrows the
+blast radius, it does not remove the lock** — two uncertain turns still lock permanently, because the lock has no
+TTL (open item).
+
+**Order is a responsibility boundary, not a detail.** `Confirm Pending & Uncertain?` runs first: it owns an UNCERTAIN turn inside a confirmation window and hands off (with an owner alert) rather than letting a distrusted classification drop a pending confirmation — `handoff.md`'s "abstain, never guess". Only then do `Abort Cancel?` / `Abort Reschedule?` take a **CONFIDENT** non-confirm turn — that, and only that, is
+what they own. ⚠ This path feeds the permanent lock, so the TTL work must cover it.
+
+This order took two corrections in one day, both from `flow-reviewer`, neither caught by the drills or the guards.
+The first wiring put clarify ahead of the abort gates and silently burned the confirm TTL. The second wiring fixed
+the `unknown` route but not the low-confidence one: `Abort Cancel?` only fires on `intent !== 'confirm'`, so a
+*hesitant* confirmation (`intent=confirm, confidence=0.6`) still slipped through, clarified, advanced `turn_count`
+past `confirm_turn`, and the customer's next explicit "yes" got *"your booking stands"* — with **no owner alert**,
+a visibility REGRESSION, since such turns used to reach `Mark Handoff`. An earlier draft of this document recorded
+that as an "accepted trade-off"; **that acceptance was WITHDRAWN** and `Confirm Pending & Uncertain?` closes it.
+**The trade-off that REMAINS is narrower:** a CONFIDENT non-confirm turn during a confirmation window still drops
+the confirmation and answers "your booking stands" — `Abort Cancel?`'s designed behaviour, fail-closed, nothing
+deleted. Carrying the TTL and repeating the confirmation question belongs to the stage-aware template work (open).
+
+**The counter is a STICKY FLAG, not a true consecutive counter.** `last_intent='clarify'` is cleared only by a turn
+that WRITES state; reply paths that write none (handoff-lock · guard-trip · LLM-unavailable 503 · spend-cap ·
+idempotent replay · state-error) leave it standing. So clarify → an outage turn → one uncertain turn hands off
+immediately, even though the two uncertain turns were not truly consecutive. Known and accepted — "consecutive" in
+this document is shorthand, not a literal guarantee.
+
+**Abort Cancel?** catches "user said something other than yes
 while a cancel is awaiting confirmation" → the pending cancel is dropped (booking stands).
 
 ---

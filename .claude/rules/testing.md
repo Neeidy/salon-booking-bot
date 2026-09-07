@@ -9,7 +9,9 @@
 - **Double-booking:** two customers, same slot, ~same time → exactly one booking + handoff (see [booking-integrity.md](booking-integrity.md)).
 - **Idempotency:** the same inbound message delivered twice → one booking, not two.
 - **Prompt injection / jailbreak:** a message trying to change the bot's instructions → treated as data (see [prompt-injection.md](prompt-injection.md)).
-- **Low confidence:** ambiguous message → human handoff, not a wrong guess (see [handoff.md](handoff.md)).
+- **Uncertain turn (`unknown` or low confidence):** the FIRST one gets a clarifying question and writes no new
+  `stage` (no lock); a SECOND in a row hands off; one that arrives **while a confirmation is pending** hands off
+  immediately with an owner alert. Never a wrong guess (see [handoff.md](handoff.md)).
 - **Invalid LLM output:** intent JSON fails `schemas/intent.schema.json` → error branch + handoff, not silent retry.
 - **Timezone/DST:** a booking near a DST boundary lands at the correct wall-clock time.
 

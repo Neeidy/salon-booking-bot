@@ -2,10 +2,16 @@
 
 **Purpose:** when the bot isn't sure, a human takes over — quietly and quickly.
 
-- **Threshold:** `confidence < 0.7` → **human handoff** (starting value, aligned across the flow; tune with
-  real data). The number lives in config, not hard-coded in scattered nodes.
-- **Below-threshold behavior = abstain / fallback → handoff.** The bot never *guesses* the action. It is
-  better to hand off than to book the wrong slot.
+- **Threshold:** `confidence < 0.7` (config, not hard-coded in scattered nodes) marks a turn **UNCERTAIN**.
+  Uncertain is not the same as "the customer wants a human" — since 2026-09-07 the two are handled separately:
+  - **A confirmation is pending** (`cancel_confirming` / `reschedule_confirming`) → **handoff immediately**
+    (`Confirm Pending & Uncertain?` → `Mark Handoff`, owner alert). Never act on a classification we distrust
+    while a booking hangs on it.
+  - **Otherwise** → the FIRST uncertain turn gets a clarifying question (`messageTemplates.askIntent`) and
+    writes no new `stage`, so no lock forms; a SECOND uncertain turn in a row hands off.
+  - `intent = 'handoff'` (explicit request, jailbreak) and invalid intent JSON still hand off on the FIRST turn.
+- **Below-threshold behavior = abstain, never guess.** The bot does not act on an intent it distrusts. Asking one
+  clarifying question is abstaining; booking, cancelling or dropping a pending confirmation is guessing.
 - LLM self-reported confidence is poorly calibrated — prefer clear intent-classification with an explicit
   "unsure" path over trusting a raw self-score.
 - **Handoff = notify the owner** (visible alert) with the conversation context, and tell the customer a human
@@ -28,7 +34,8 @@ Three handoff classes — never merged:
 |---|---|---|---|
 | guard-trip | kill-switch / max-turns | no (transient) | 200 |
 | infra-unavailable | external system down | no (transient) | 5xx + `error` flag |
-| intent-handoff | low confidence / cancel / unknown | yes (`stage=handoff`, `last_intent`) | 200 |
+| intent-handoff | explicit handoff · invalid intent · uncertain turn **while a confirmation is pending** · SECOND consecutive uncertain turn | yes (`stage=handoff`, `last_intent`) | 200 |
+| clarify | FIRST uncertain turn (no confirmation pending) | `last_intent='clarify'` only — **no `stage` change, so no lock** | 200 |
 
 Rationale: if an outage looks like a normal handoff, nobody ever learns the system is broken —
 exactly the silent failure this repo forbids.

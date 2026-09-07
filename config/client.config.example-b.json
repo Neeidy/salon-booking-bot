@@ -121,6 +121,7 @@
     "throttleMinutes": 30
   },
   "messageTemplates": {
+    "askIntent": "Welcome to Hofgasse Barbers — would you like to book, move or cancel a visit?",
     "askService": "Which one would you like? (Skin Fade / Classic Cut / Beard Sculpt / Cut & Beard)",
     "askDateTime": "What day and time works for you?",
     "bookingConfirmed": "Booked — {service}, {date} at {time}. See you then.",

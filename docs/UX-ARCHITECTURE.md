@@ -77,7 +77,7 @@ whatsapp akışları bu belgede **gerçek** kabul edilir; sadece abonelik kapal�
 
 Ortak sözleşme: her akış `Normalize Inbound` → front-gate'ler (§3) → `Load State` → `Merge State`
 → `Check Handoff Lock` → `Check Bot Guards` → `Spend Gate` → `Extract Intent` (LLM) →
-`Validate Intent` → `Confidence & Intent Gate` → `Route Intent` zincirinden geçer. Cevap metni
+`Validate Intent` → `Invalid or Handoff Gate` → `Confirm Pending & Uncertain?` → `Abort Cancel?` → `Abort Reschedule?` → `Uncertain Turn?` → `Route Intent` zincirinden geçer. Cevap metni
 **tek kaynaktan** gelir: `computed_reply` (Refactor #5) — her builder onu yazar,
 `Build Reply Payload` okur, boşsa `reply_fallback` bayrağı kalkar.
 
@@ -441,7 +441,7 @@ değiştirmek n8n editöründe kod düzenlemek demek; `client.config.example.jso
 | `ownerAlert.throttleMinutes` | `30` | aynı | alert penceresi |
 | `channels.widget.turnstile.enabled` | `true` | `Turnstile Gate` | bot koruması |
 | `bot.llmCostCapUsd` | `10.00` | `Eval Spend` · `Spend Gate` | aylık sert tavan |
-| `bot.confidenceThreshold` | `0.7` | `Confidence & Intent Gate` | altı → devir |
+| `bot.confidenceThreshold` | `0.7` | `Uncertain Turn?` + `Confirm Pending & Uncertain?` | altı = BELİRSİZ tur. Onay penceresindeyse → devir (owner alert); değilse → 1. turda açıklayıcı soru, 2. ardışıkta devir (2026-09-07) |
 | `bot.maxTurnsPerConversation` | `12` | `Check Bot Guards` | tur tavanı |
 | `bot.reminderHoursBefore` | `24` | `Compute Reminder Window` | hatırlatma penceresi |
 | `bot.sessionGapMinutes` | `30` | `Build Reply Payload` | "Welcome back!" eşiği |
