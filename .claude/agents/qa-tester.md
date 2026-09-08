@@ -14,7 +14,12 @@ Mandatory scenarios (from `.claude/rules/testing.md`):
 - **Idempotency:** same message twice → one booking.
 - **Concurrency:** two customers, same slot, ~same time → exactly one booking + handoff.
 - **Low confidence:** ambiguous message → handoff (not a wrong guess).
-- **Invalid intent JSON:** fails `schemas/intent.schema.json` → error branch + handoff.
+- **Invalid intent JSON:** fails `schemas/intent.schema.json` → always VISIBLE (owner alert), but the class
+  depends on WHICH failure (see [../rules/handoff.md](../rules/handoff.md)). Model did not answer (bad
+  `stop_reason` · unparseable JSON · non-object) → handoff, locks turn one. Well-formed answer that breaks the
+  schema → **extraction-transient**: replies `notUnderstood`, **no `stage` write**, escalates only on a SECOND
+  consecutive one. ⚠ Test the key being **ABSENT**, not `null` — a present-but-null key VALIDATES, and that is
+  precisely why the old drill passed while a price question was being locked out.
 - **Jailbreak:** cases from `tests/jailbreak-cases.md` all fail safely.
 - **Timezone/DST:** booking lands at the correct wall-clock time.
 

@@ -81,6 +81,15 @@ const ORCHESTRATION = [
   "    slots: valid ? parsed.slots : null,",
   "    valid,",
   "    invalid_reason: reason,",
+  "    // TRANSIENT vs LOCKING (2026-09-09f, Codex MED-6). A payload that PARSED but failed the committed schema",
+  "    // is an extraction defect on OUR side of the contract, not a customer intent. It used to reach",
+  "    // `Invalid or Handoff Gate` and write stage='handoff' — a PERMANENT lock: Codex sent",
+  "    // {\"intent\":\"answer_faq\",\"confidence\":0.92,\"slots\":{\"faqTopic\":\"price\"}} (the `dateExpr` key simply",
+  "    // absent) and a customer asking a price question was muted for good. That is the same class as the `hi`",
+  "    // bug this phase opened with, so it is not being shipped twice. The three failures ABOVE (bad",
+  "    // stop_reason, unparseable JSON, non-object) keep the lock: those are not a contract slip, they are the",
+  "    // model not answering at all. This flag is what `Extraction Transient?` routes on.",
+  "    extraction_transient: !valid,",
   "    state: { ...ctx.state, last_intent: valid ? parsed.intent : 'invalid' }",
   "  } }];",
   "}",
@@ -141,7 +150,22 @@ if (process.argv.includes("--check")) {
     console.error("DRIFT-CHECK: '" + NODE_NAME + "' node has no GENERATED markers — cannot verify."); process.exit(1);
   }
   if (committed.block === fresh) {
-    console.log("DRIFT-CHECK: OK — committed validator matches schemas/intent.schema.json."); process.exit(0);
+    // WHOLE-NODE check, added 2026-09-09f. Comparing ONLY the generated block left the hand-written
+    // orchestration as a SECOND TRUTH: this file's ORCHESTRATION constant and the committed node body could
+    // diverge and every guard stayed green. It actually happened in this round — the `extraction_transient`
+    // flag was edited into the node and this file still printed the old orchestration, so `--check` said OK
+    // while `compile-intent-validator.cjs` (print mode) would have silently reverted the fix on the next
+    // regeneration. That is precisely what .claude/rules/contract-integrity.md forbids, so the guard now
+    // covers the whole node, not just the part that is easy to compare.
+    const wf = JSON.parse(fs.readFileSync(WORKFLOW_PATH, "utf8"));
+    const nodeJs = ((wf.nodes || []).find((n) => n.name === NODE_NAME).parameters || {}).jsCode || "";
+    if (nodeJs !== fullNodeCode()) {
+      console.error("DRIFT-CHECK: MISMATCH — the generated validator is current, but the committed '"
+        + NODE_NAME + "' node body differs from a fresh full compile (orchestration drift).");
+      console.error("  → reconcile ORCHESTRATION in this file with the node, or regenerate the node from it.");
+      process.exit(1);
+    }
+    console.log("DRIFT-CHECK: OK — committed '" + NODE_NAME + "' node (orchestration + validator) matches a fresh compile of schemas/intent.schema.json."); process.exit(0);
   }
   console.error("DRIFT-CHECK: MISMATCH — the committed validator differs from a fresh compile of the schema.");
   console.error("  → regenerate: node scripts/compile-intent-validator.cjs, re-paste into '" + NODE_NAME + "', re-sanitize.");

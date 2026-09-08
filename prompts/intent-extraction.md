@@ -124,8 +124,17 @@ Each shows a customer message → the exact JSON to return. (Relative dates assu
 - **CP4 stage-aware injection (rule-level):** when the conversation `stage` is `collecting`, the request-builder
   appends a *booking-in-progress* context — the slots collected so far + "the customer's message most likely
   supplies the missing detail(s); extract service/date/time/name and keep intent `book` unless they clearly
-  switch topic (a question, cancel, etc.)". This lets a bare follow-up like "tomorrow 3pm" be read as booking
-  slots across turns. It changes NOTHING about the allowed intents or the schema.
+  switch topic (a question, cancel, etc.)" + **(v4.1, 2026-09-09f)** "report ONLY what THIS message says: if it
+  names no day, BOTH `date` and `dateExpr` must be null — the engine already holds the collected slots and
+  carries them forward itself; never copy a collected value back into your answer". This lets a bare follow-up
+  like "tomorrow 3pm" be read as booking slots across turns. It changes NOTHING about the allowed intents or
+  the schema. **Why the addition:** this block SHOWS the model the collected date, which invited it to echo that
+  date back; in the same round the `echo_of_validated_slot` exception was narrowed to the confirm lifecycle
+  (Codex HIGH-2b), so an echo in `collecting` is now REFUSED and the day is re-asked. Refusing is correct —
+  Codex's counterexample was exactly that shape ("in two weeks" + `dateExpr:null` + the stored date, the
+  customer's qualifier silently dropped) — but an echo that still happens costs a needless re-ask, and this
+  line removes the *reason* for the echo rather than loosening the guard. ⚠ It does not eliminate the cost:
+  a model may echo anyway. First item on the live-drill list (`docs/ROADMAP.md`).
 - **`stageContext` injection (rule-level):** a SECOND conditional block appends confirmation semantics when `stage`
   is `confirming`, `cancel_confirming` or `reschedule_confirming` — "a clear agreement (yes/yep/ok/sure/confirm/go
   ahead/do it) means intent=confirm; anything else (no/keep it/never mind) means they do NOT". That is the

@@ -122,8 +122,14 @@ Each layer catches a different class of error → no single point of dependency.
   **dry-run default** · **global kill-switch** (force bot into handoff-only mode).
 - **Prompt injection = data, not instructions** — allow-list actions: book / capture-lead / answer-FAQ;
   no other write.
-- **Structured-output JSON-schema validation** — schema-fail (invalid JSON) → **error branch + handoff
-  (VISIBLE)** + bounded retry; never a silent infinite retry.
+- **Structured-output JSON-schema validation** — a failure is ALWAYS **VISIBLE** (owner alert) and always
+  bounded; never a silent infinite retry. ⚠ **Refined 2026-09-09f — "schema-fail → handoff" was too coarse
+  and it locked out real customers.** The model NOT ANSWERING (bad `stop_reason`, unparseable JSON,
+  non-object) → handoff, locks on turn one. A well-formed answer that violates the committed schema is OUR
+  contract defect, not a customer intent → **extraction-transient**: owner-alerted, off every write path, no
+  `stage` write, and it escalates to a handoff only on a SECOND consecutive one. Codex found the old rule
+  muting a customer who asked a price (the required `dateExpr` key was simply absent).
+  See [.claude/rules/handoff.md](.claude/rules/handoff.md).
 - **Error branch visible** — no silent failure.
 - **Idempotency** (same message processed twice) — dedupe on message-ID via a **persistent store**
   (Airtable `processed_messages` + TTL). *This alone does NOT prevent double-booking.*

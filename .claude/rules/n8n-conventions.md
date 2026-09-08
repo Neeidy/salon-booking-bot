@@ -8,7 +8,7 @@
   LLM) has an error path that notifies the owner. Silent failure is forbidden.
 - **Infra failure ≠ a normal handoff** — an external-system outage returns a *distinct* response (status
   code + `error:"<system>_unavailable"` flag) from its own node so an owner-alert can hook it; it is one of
-  the three handoff classes in [handoff.md](handoff.md), never merged with a conversational handoff.
+  the handoff classes in [handoff.md](handoff.md) (five since 2026-09-09f), never merged with a conversational handoff.
 - **Deterministic before AI.** Menu / price / hours / slot lookups = IF/Switch nodes, not an LLM call.
   The LLM is only for genuine free-text intent extraction.
 - **Idempotency + booking integrity:** see [booking-integrity.md](booking-integrity.md) — dedupe on

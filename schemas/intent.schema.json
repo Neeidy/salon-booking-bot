@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://salon-booking-bot/schemas/intent.schema.json",
   "title": "intent",
-  "description": "The structured output the LLM must return per message. Validated in n8n; on failure → error branch + handoff (MASTER-BRIEF §7).",
+  "description": "The structured output the LLM must return per message. Validated in n8n against THIS file. A failure is always visible, but the class depends on WHICH failure (see .claude/rules/handoff.md): the model not answering at all (bad stop_reason, unparseable JSON, non-object) hands off and locks; a well-formed answer that violates THIS schema is extraction-transient — owner-alerted, kept off every write path, no stage write, and it escalates to a handoff only on a SECOND consecutive one.",
   "type": "object",
   "required": [
     "intent",

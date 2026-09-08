@@ -129,6 +129,174 @@ def check_sanitised(comm):
     return len(comm['nodes'])
 
 
+def check_published_matches_draft(live):
+    """The graph that RUNS is `activeVersion`, not `nodes`. Both parity guards compare `nodes` — the DRAFT.
+
+    WHY (measured 2026-09-09f, not assumed): the API response carries BOTH — `nodes` is the draft the editor
+    and the API write, `activeVersion.nodes` is the published graph the production webhook executes. On this
+    instance an API PUT auto-publishes, so the two are equal today and every "committed == live" statement in
+    this repo happens to be true. But NOTHING was checking it: a draft saved in the editor without publishing,
+    or an instance that stops auto-publishing, leaves both parity guards GREEN while the running system is a
+    different workflow. That is the same failure shape as `check_live_not_sanitised` — a guard measuring the
+    wrong artefact — and it is worth more, because it silently invalidates every other claim these guards make.
+
+    Older n8n responses carry no `activeVersion`; there is nothing to compare then, and the function says so
+    rather than passing quietly.
+    """
+    av = live.get('activeVersion') or {}
+    pub = av.get('nodes')
+    if not isinstance(pub, list):
+        print('published-vs-draft: SKIPPED — this n8n response carries no activeVersion '
+              '(nothing to compare; the draft IS what runs)')
+        return
+    d = {n['name']: n for n in live.get('nodes', [])}
+    p = {n['name']: n for n in pub}
+    bad = []
+    only_d, only_p = sorted(set(d) - set(p)), sorted(set(p) - set(d))
+    if only_d:
+        bad.append('nodes in the DRAFT but not PUBLISHED: %s' % only_d)
+    if only_p:
+        bad.append('nodes PUBLISHED but not in the draft: %s' % only_p)
+    # Compare everything that changes BEHAVIOUR, not just `parameters`. The first version compared parameters
+    # alone while its success line said "identical" — a rewired connection, a disabled node, a swapped
+    # credential or a changed onError all passed (`code-reviewer`, third pass). A structural claim has to be
+    # as wide as the sentence that reports it.
+    FIELDS = ('parameters', 'credentials', 'type', 'typeVersion', 'disabled', 'onError',
+              'alwaysOutputData', 'executeOnce', 'retryOnFail')
+    for nm in sorted(set(d) & set(p)):
+        for f in FIELDS:
+            if json.dumps(d[nm].get(f), sort_keys=True) != json.dumps(p[nm].get(f), sort_keys=True):
+                bad.append("node %r: published %r differs from the draft" % (nm, f))
+    dc, pc = live.get('connections') or {}, av.get('connections') or {}
+    if json.dumps(dc, sort_keys=True) != json.dumps(pc, sort_keys=True):
+        bad.append('the published CONNECTIONS differ from the draft (a rewire that never went live, or vice versa)')
+    if bad:
+        print('UNPUBLISHED DRAFT — the workflow that RUNS is not the one this guard compares:')
+        for b in bad:
+            print('  - ' + b)
+        print('Publish the workflow, or stop treating "committed == live" as a statement about production.')
+        sys.exit(1)
+    print('published-vs-draft OK — %d published nodes match the draft on %s + connections, so "live" means '
+          'the graph that actually runs' % (len(p), '/'.join(FIELDS)))
+
+
+def _committed_placeholders(comm):
+    """Every placeholder token the COMMITTED export actually contains, collected DIRECTLY.
+
+    ⚠ It does NOT reuse `_walk_ids()`. That helper filters placeholders OUT by design (it hunts for real
+    values), so building this set from it silently produced an EMPTY Airtable half — the guard below would
+    have missed the very class its own incident report named. Caught by `security-auditor` on 2026-09-09f,
+    inside the same round that added the guard: an unproven coverage claim, exactly what
+    `.claude/rules/reporting.md` forbids. `_selftest_coverage()` now proves each class instead of asserting it.
+    """
+    blob = json.dumps(comm)
+    found = set()
+    for pat in (r'REPLACE_WITH[A-Z0-9_]*(?:@group\.calendar\.google\.com)?',
+                r'(?:app|tbl|viw|rec|fld)[A-Za-z0-9]{14}'):
+        for m in re.finditer(pat, blob):
+            if _is_placeholder(m.group(0)) and len(m.group(0)) >= 8:
+                found.add(m.group(0))
+    for n in comm['nodes']:
+        for v in (_cal_id(n), _turnstile_secret(n),
+                  (n.get('parameters') or {}).get('chatId') if n.get('type') == 'n8n-nodes-base.telegram' else None):
+            if isinstance(v, str) and _is_placeholder(v) and len(v) >= 8:
+                found.add(v)
+    return found
+
+
+def _selftest_coverage(placeholders, comm):
+    """Prove the set covers every sanitise class the COMMITTED file actually contains — and FAIL if not.
+
+    A guard that names classes it cannot see is worse than one that names none: it stops the next reviewer
+    from looking. Printing the covered list was still not enough (`code-reviewer`, 2026-09-09f): if the
+    collection regressed the way it already did once — `_walk_ids()` filtered placeholders OUT, so the whole
+    Airtable half was silently empty — the run would stay GREEN and only the printed line would get shorter,
+    and nobody diffs two green runs. So presence in the FILE is measured independently here and a class that
+    is in the file but missing from the set is an error, not a shorter sentence.
+    """
+    classes = {
+        'google calendar id': lambda p: p.endswith('@group.calendar.google.com'),
+        'airtable base id':   lambda p: p.startswith('app'),
+        'airtable table id':  lambda p: p.startswith('tbl'),
+        'credential id':      lambda p: p.startswith('REPLACE_WITH') and 'CREDENTIAL' in p,
+        'turnstile secret':   lambda p: 'TURNSTILE' in p,
+        'telegram chatId':    lambda p: 'CHAT_ID' in p,
+    }
+    blob = json.dumps(comm)
+    # what the committed file DEMONSTRABLY contains, measured without going through the collector
+    signatures = {
+        'google calendar id': r'REPLACE_WITH[A-Z0-9_]*@group\.calendar\.google\.com',
+        'airtable base id':   r'appXXXXXXXXXXXXXX',
+        'airtable table id':  r'tblXXXXXXXXXXXXXX',
+        'credential id':      r'REPLACE_WITH[A-Z0-9_]*CREDENTIAL_ID',
+        'turnstile secret':   r'REPLACE_WITH[A-Z0-9_]*TURNSTILE[A-Z0-9_]*',
+        'telegram chatId':    r'REPLACE_WITH[A-Z0-9_]*CHAT_ID',
+    }
+    in_file = {k for k, pat in signatures.items() if re.search(pat, blob)}
+    covered = {k for k, f in classes.items() if any(f(p) for p in placeholders)}
+    missed = sorted(in_file - covered)
+    if missed:
+        print('PLACEHOLDER COLLECTION IS INCOMPLETE — these classes are present in %s but the guard did not '
+              'collect them, so it cannot detect them in live: %s' % (COMMITTED, ', '.join(missed)))
+        print('Fix _committed_placeholders(); a class it cannot see is a class it silently does not guard.')
+        sys.exit(1)
+    return sorted(covered)
+
+
+def check_live_not_sanitised(live, comm):
+    """LIVE-side: the running workflow must NOT contain the committed PLACEHOLDERS.
+
+    WHY THIS EXISTS — a real incident on 2026-09-09f, caused by this guard's own blind spot. A resync step
+    pushed committed node bodies to live and swept up `Load Config` along with the intended nodes, replacing
+    the real Google Calendar id and Airtable ids with placeholders. The bot was broken in production, and
+    THIS GUARD RAN GREEN — because `build_smap()` derives the mask FROM live: once live holds the placeholder,
+    the placeholder maps to itself and both sides compare equal. The guard was structurally incapable of
+    seeing it. (Restored from a pre-change backup; ARCH-DEC 2026-09-09f.)
+
+    Direction matters: `check_sanitised()` proves the COMMITTED side has no real value; this proves the LIVE
+    side has no placeholder. A parity guard that only compares the two can be satisfied by breaking both.
+    """
+    placeholders = _committed_placeholders(comm)
+    covered = _selftest_coverage(placeholders, comm)
+    blob = json.dumps(live)
+    # EXEMPTIONS — exact tokens, never patterns. A value that is a placeholder in LIVE **by design** is not a
+    # broken push, and screaming about it every run is how a guard gets switched off (ARCH-DEC 2026-09-03:
+    # "a noisy guard gets switched off, and a switched-off guard is worse than none"). Each entry names WHY,
+    # and the guard PRINTS the ones it skipped, so an exemption cannot quietly become permanent.
+    #   ZERNIO_ACCOUNT_ID — the Zernio account was never provisioned (CP4d is gated on it) and
+    #   `bot.whatsappSendDisabled: true` means the live send branch never runs. Remove this line the day the
+    #   real account id is installed; the guard will then protect it like every other real value.
+    # ⚠ This token lives in `n8n/workflow.reminders.sanitized.json`, NOT in the main export — a reviewer who
+    # greps only `workflow.sanitized.json` will conclude the set is dead code (one did, 2026-09-09f). Run the
+    # guard against the reminders workflow and the skip line below prints.
+    EXEMPT = {'REPLACE_WITH_ZERNIO_ACCOUNT_ID'}
+    # Containment is checked on a token boundary, not as a bare substring: `..._ID` must not report itself
+    # "present" because live happens to hold `..._ID_V2`. That superstring would fire on its own (it is a
+    # committed placeholder too, so it cannot be MASKED) — but a guard's information line has to be true as
+    # well as safe (`security-auditor` INFO-1, 2026-09-09f).
+    def present(ph):
+        return re.search(r'(?<![A-Za-z0-9_])' + re.escape(ph) + r'(?![A-Za-z0-9_])', blob) is not None
+    skipped = sorted(ph for ph in placeholders if ph in EXEMPT and present(ph))
+    hits = sorted(ph for ph in placeholders if present(ph) and ph not in EXEMPT)
+    if skipped:
+        print('live-not-sanitised: %d exempted placeholder(s) ARE present in live by design: %s'
+              % (len(skipped), ', '.join(skipped)))
+    # An exemption that no longer applies must SAY SO rather than sit there forever. The removal condition
+    # used to live only in a comment, which nothing enforces (`security-auditor` LOW, 2026-09-09f).
+    dead = sorted(ph for ph in EXEMPT if ph in placeholders and not present(ph))
+    if dead:
+        print('live-not-sanitised: exemption(s) NO LONGER NEEDED — live now holds a real value for %s. '
+              'Delete them from EXEMPT so the guard protects it like every other id.' % ', '.join(dead))
+    if hits:
+        print('LIVE IS SANITISED — the RUNNING workflow contains committed placeholders, so it cannot work:')
+        for h in hits:
+            where = sorted({n['name'] for n in live['nodes'] if h in json.dumps(n)})
+            print('  - %r in %s' % (h, where))
+        print('A sanitized export was pushed to live. Restore the real values from a pre-change backup.')
+        sys.exit(1)
+    return covered
+
+
 # The real-id -> committed-placeholder map is DERIVED from the (live, committed) pair itself — NEVER
 # hardcoded. This file is committed to a PUBLIC repo, so it must contain no real base/table/calendar/host/
 # credential id (security-secrets.md). The reals are read from the LIVE workflow (via the API) and $N8N_HOST;
@@ -277,6 +445,8 @@ def main():
     live = json.load(urllib.request.urlopen(req, timeout=30))
     comm = json.load(open(COMMITTED, encoding='utf-8'))
 
+    check_published_matches_draft(live)
+    live_covered = check_live_not_sanitised(live, comm)
     smap = build_smap(live, comm)
 
     STICKY = 'n8n-nodes-base.stickyNote'
@@ -312,6 +482,8 @@ def main():
         for f in fails:
             print('  -', f)
         sys.exit(1)
+    print('live-not-sanitised OK — the running workflow contains none of the committed placeholders; '
+          'classes actually covered by this run: ' + ', '.join(live_covered))
     print(f'content parity OK — {len(lby)} executable nodes match live byte-for-byte '
           '(sanitize placeholders + n8n serialization noise normalized; sticky notes excluded)')
     sys.exit(0)

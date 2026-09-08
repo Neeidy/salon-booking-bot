@@ -74,9 +74,15 @@ const CASES = [
   ['RESIDUAL CODEX-4a "on friday" is bare after stripping -> BOOKS (accepted gap)',
     'I am away all this week, haircut on friday at 11', {dateExpr:'on friday',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['STILL CAUGHT CODEX-4b "in five weeks" — by the weekday-signature check, not raw text',
-    'in five weeks, haircut friday at 11', {dateExpr:'friday',date:'2026-10-16',time:'11:00'},
-    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+  // ⚠ KNOWN-FAILING — RESTORED VERBATIM 2026-09-09f. The committed version of this row had Codex's model
+  // date silently moved from 2026-09-11 to 2026-10-16 and was then labelled "STILL CAUGHT": the input was
+  // edited until it passed. Codex's actual counterexample is below, unchanged, and it is NOT caught — with
+  // the model agreeing on this week's Friday there is no disagreement for the clipping check to see. It is
+  // recorded as a known failure (E20), not rewritten again. The row asserts the WRONG behaviour on purpose,
+  // so that the day someone closes E20 this row goes red and has to be re-read.
+  ['KNOWN-FAILING CODEX-4b "in five weeks" is NOT caught (E20) — the sentence shifts the week, dateExpr does not',
+    'in five weeks, haircut friday at 11', {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['CODEX-6a "sun-kissed" + a date the customer typed -> KEPT, no alarm',
     'sun-kissed balayage on 2026-09-11 at 11', {dateExpr:'2026-09-11',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
@@ -104,10 +110,10 @@ const CASES = [
   // ============ AMENDMENT 2026-09-09b — the echo vs a genuinely new date
   ['confirm echo of the validated slot is NOT a new claim', 'yes',
     {dateExpr:null,date:'2026-09-11',time:'11:00'}, {date:'2026-09-11',dropped:false,cls:null,outcome:'echo_of_validated_slot'},
-    {slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'}],
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'},intent:'confirm'}],
   ['a DIFFERENT date with no expression is STILL refused', 'yes',
     {dateExpr:null,date:'2026-09-18',time:'11:00'}, {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'},
-    {slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'}],
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'},intent:'confirm'}],
   ['no stored slot at all -> a bare date is still refused', 'book me',
     {dateExpr:null,date:'2026-09-11',time:'11:00'}, {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'}],
 
@@ -127,25 +133,30 @@ const CASES = [
 
   // ============ GRAMMAR EXPANSION (scope item 2) — qualifiers that cannot move the day are stripped,
   // so ordinary wording resolves instead of re-asking. Anything that CAN move the day is not stripped.
-  ['strip: "friday afternoon"', 'x', {dateExpr:'friday afternoon',date:'2026-09-11',time:'15:00'},
+  // ⚠ 2026-09-09f: every row in this block used to pass a placeholder customer text of 'x'. That was only
+  // ever valid because the relative side had NO provenance check — the very asymmetry Codex HIGH-2a found.
+  // With the check in place a placeholder text is not a weaker fixture, it is an INVALID one, so each row
+  // now carries the sentence the expression was supposedly copied from. This is a fixture correction, not a
+  // relaxation: the assertions (date / dropped / class / outcome) are unchanged.
+  ['strip: "friday afternoon"', 'haircut friday afternoon', {dateExpr:'friday afternoon',date:'2026-09-11',time:'15:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "fri morning"', 'x', {dateExpr:'fri morning',date:'2026-09-11',time:'11:00'},
+  ['strip: "fri morning"', 'haircut fri morning', {dateExpr:'fri morning',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "friday evening"', 'x', {dateExpr:'friday evening',date:'2026-09-11',time:'18:00'},
+  ['strip: "friday evening"', 'haircut friday evening', {dateExpr:'friday evening',date:'2026-09-11',time:'18:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "on friday"', 'x', {dateExpr:'on friday',date:'2026-09-11',time:'11:00'},
+  ['strip: "on friday"', 'haircut on friday at 11', {dateExpr:'on friday',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "this friday"', 'x', {dateExpr:'this friday',date:'2026-09-11',time:'11:00'},
+  ['strip: "this friday"', 'haircut this friday at 11', {dateExpr:'this friday',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "friday this week"', 'x', {dateExpr:'friday this week',date:'2026-09-11',time:'11:00'},
+  ['ANCHOR: "friday this week" resolves when that day is still ahead', 'haircut friday this week at 11', {dateExpr:'friday this week',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: "friday please"', 'x', {dateExpr:'friday please',date:'2026-09-11',time:null},
+  ['strip: "friday please"', 'haircut friday please', {dateExpr:'friday please',date:'2026-09-11',time:null},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['strip: punctuation', 'x', {dateExpr:'friday.',date:'2026-09-11',time:null},
+  ['strip: punctuation', 'haircut friday.', {dateExpr:'friday.',date:'2026-09-11',time:null},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['NOT stripped: "next friday" still refused', 'x', {dateExpr:'next friday',date:'2026-09-18',time:null},
+  ['NOT stripped: "next friday" still refused', 'haircut next friday', {dateExpr:'next friday',date:'2026-09-18',time:null},
     {date:null,dropped:true,cls:'date_ambiguous',outcome:'ambiguous_next'}],
-  ['NOT stripped: "friday next week" still asks', 'x', {dateExpr:'friday next week',date:'2026-09-18',time:null},
+  ['NOT stripped: "friday next week" still asks', 'haircut friday next week', {dateExpr:'friday next week',date:'2026-09-18',time:null},
     {date:null,dropped:true,cls:'date_unresolved',outcome:'unresolved_expr'}],
 
   // ============ ISO PROVENANCE — the customer typed it, or it does not count
@@ -156,7 +167,11 @@ const CASES = [
     {dateExpr:'2026-09-11',date:'2026-09-11',time:'11:00'},
     {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
 
-  // ============ WEEK-CONTEXT: fires on a bare weekday, silent on ordinary bookings
+  // ============ WEEK CONTEXT CARRIED BY THE SENTENCE — CORRECTED HEADER 2026-09-09f (Codex HIGH-3).
+  // This header used to read "fires on a bare weekday, silent on ordinary bookings", describing a rule that
+  // had already been DELETED (2026-09-09d). Nothing below fires it. These rows assert the ACCEPTED GAP E20:
+  // a week shift the sentence carries but `dateExpr` does not is NOT detected here; the confirmation step
+  // (weekday + full date) is the only thing that catches it.
   ['RESIDUAL: "away all this week" -> BOOKS this week (accepted gap, ARCH-DEC 2026-09-09d)', "I'm away all this week, so haircut friday at 11:00",
     {dateExpr:'friday',date:'2026-09-12',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'llm_date_ignored'}],
@@ -178,7 +193,7 @@ const CASES = [
   ['NO week context: "midweek"/"biweekly"/"weeknights"', 'biweekly midweek weeknights, haircut friday at 11:00',
     {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['NO week context: unnegated "this week"', 'haircut friday this week at 11:00',
+  ['the ANCHOR comes from dateExpr, never from the sentence: "this week" in the text alone changes nothing', 'haircut friday this week at 11:00',
     {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['week context does NOT fire when the expression is not bare', 'in two weeks, haircut friday next week',
@@ -202,16 +217,18 @@ const CASES = [
   ['FR-1e conversational "how is your week going" must NOT abstain', 'how is your week going? friday at 11',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  // KNOWINGLY GIVEN UP 2026-09-09c: 'in' is direction-blind ("I last came in june" is past), so month
-  // references only count behind a forward preposition. Losing "in october" is accepted BECAUSE a veto now
-  // asks instead of locking — the rule need not be perfect, the mistake needs to be cheap.
+  // ⚠ CORRECTED 2026-09-09f (Codex HIGH-3). This block used to justify itself with "a veto now asks instead
+  // of locking". THERE IS NO VETO — it was removed in 2026-09-09e, in the same commit that shipped this
+  // comment, so the sentence was false the moment it was written. The month/ordinal rules it describes were
+  // removed too (2026-09-09d). What the rows below actually assert is the accepted gap: every one of these
+  // sentences resolves to this week's Friday and books.
   ['GIVEN UP: "in october" no longer abstains', 'friday at 11 in october',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['RESIDUAL forward month DOES abstain: "starting october" -> BOOKS (accepted gap)', 'starting october, friday at 11',
+  ['ACCEPTED GAP "starting october" -> BOOKS this week\'s friday', 'starting october, friday at 11',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['RESIDUAL forward month DOES abstain: "from june onwards" -> BOOKS (accepted gap)', 'from june onwards, friday at 11',
+  ['ACCEPTED GAP "from june onwards" -> BOOKS this week\'s friday', 'from june onwards, friday at 11',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['RESIDUAL FR-2b a day offset -> BOOKS (accepted gap)', 'back in 10 days - friday at 11',
@@ -234,7 +251,7 @@ const CASES = [
   ['GIVEN UP: a BARE ordinal no longer abstains', 'the friday of the 21st at 11',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['RESIDUAL an ordinal behind a forward preposition still abstains -> BOOKS (accepted gap)', 'from the 21st, friday at 11',
+  ['ACCEPTED GAP "from the 21st" -> BOOKS this week\'s friday', 'from the 21st, friday at 11',
     {dateExpr:'friday',date:null,time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['GIVEN UP: "in may" no longer abstains', 'friday at 11 in may',
@@ -270,6 +287,134 @@ const CASES = [
     {dateExpr:'friday, please',date:null,time:null},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
 
+  // ============ CODEX ROUND-3 COUNTEREXAMPLES — verbatim, permanent. Same standing criterion as round 1:
+  // the auditor's inputs become the regression suite. None of these were edited to make them pass.
+
+  // --- HIGH-2a: PROVENANCE ASYMMETRY. The ISO side demanded the customer's own text; the relative side
+  // demanded nothing, so the model could answer a DIFFERENT day than the one the customer named.
+  ['CODEX-H2a customer said friday, dateExpr says saturday -> refused (relative provenance)',
+    'can I come friday at 11', {dateExpr:'saturday',date:'2026-09-12',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['CODEX-H2a the same check is SILENT when the customer really typed that day',
+    'can I come saturday at 11', {dateExpr:'saturday',date:'2026-09-12',time:'11:00'},
+    {date:'2026-09-12',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['CODEX-H2a a "tomorrow" the customer never typed is refused too',
+    'can I come friday at 11', {dateExpr:'tomorrow',date:'2026-09-08',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  // The hole a PLAIN substring check would leave, closed by the word boundary. Found in self-review, not by
+  // an auditor — recorded because "the auditor did not catch it" is not evidence that it was not there.
+  ['boundary: "sat" hiding inside "satisfied" is NOT the customer typing Saturday',
+    'I was satisfied last time, can I come friday at 11', {dateExpr:'sat',date:'2026-09-12',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['boundary: a standalone "sat" IS the customer typing it',
+    'sat at 11 please', {dateExpr:'sat',date:'2026-09-12',time:'11:00'},
+    {date:'2026-09-12',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['boundary: punctuation still counts as a boundary ("friday." / "friday,")',
+    'haircut friday, at 11', {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  // ⚠ REPLACED 2026-09-09f. The row here used to read `boundary: a hyphen counts too ("mon-fri")` with the
+  // text 'are you open mon-fri? book me fri at 11' — which contains a STANDALONE `fri`, so it passed on that
+  // word and said nothing about the hyphen. `code-reviewer` killed it with a mutant that flipped the boundary
+  // class: the suite stayed 115/115. A row that cannot fail is not a row. These three DO fail without the fix,
+  // and every one of them is a real accept measured on the previous version — the same Codex HIGH-2a shape
+  // (the model naming a day the customer never chose), hiding inside ordinary salon vocabulary.
+  ['boundary: "sun" inside "sun-kissed" is vocabulary, not a chosen Sunday',
+    'sun-kissed balayage at 11', {dateExpr:'sun',date:'2026-09-13',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['boundary: "sat" inside "sat/sun opening hours" is a question, not a booking',
+    'what are your sat/sun opening hours?', {dateExpr:'sat',date:'2026-09-12',time:null},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['boundary: "mon" inside "mon-fri" is an hours RANGE, not a chosen Monday',
+    'are you open mon-fri?', {dateExpr:'mon',date:'2026-09-07',time:null},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['boundary: the same word standing alone in the same sentence IS the customer choosing it',
+    'are you open mon-fri? book me on fri at 11', {dateExpr:'fri',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  // The STATED COST of the boundary, asserted so it is a known behaviour and not a surprise: an abbreviation
+  // the customer did not type is refused. dateExpr is VERBATIM by contract, and this fails cheaply (a re-ask).
+  ['the leading "coming" strip is NOT redundant — it carries a model-added prefix through provenance',
+    'can i come friday at 11', {dateExpr:'coming friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['boundary COST: the model abbreviates "friday" to "fri" -> refused, turn re-asks',
+    'can I come friday at 11', {dateExpr:'fri',date:'2026-09-11',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['boundary: an ISO date glued to a longer number is not the customer typing it',
+    'my ref is 2026-09-110, book me', {dateExpr:'2026-09-11',date:'2026-09-11',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+  ['CODEX-H2a capitalisation is not forgery — the check is case-insensitive on both sides',
+    'Can I come Friday at 11?', {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['CODEX-H2a the qualifier may be stripped and the DAY still has to be in the text',
+    'haircut friday morning', {dateExpr:'saturday morning',date:'2026-09-12',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_forged',outcome:'expr_not_from_customer'}],
+
+  // --- HIGH-2b: the echo exception looked at NEITHER intent NOR stage. Codex walked in through `collecting`.
+  // Flipping the two fixtures above from 'confirming' to 'collecting' left the old suite at 82/82 — i.e. the
+  // boundary was never tested at all. All four corners are pinned now.
+  ['CODEX-H2b collecting + "in two weeks" + dateExpr:null + the stored date echoed back -> REFUSED',
+    'in two weeks', {dateExpr:null,date:'2026-09-11',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'collecting'},intent:'book'}],
+  ['CODEX-H2b right stage, wrong intent -> REFUSED',
+    'tomorrow please', {dateExpr:null,date:'2026-09-11',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'},intent:'book'}],
+  ['CODEX-H2b right intent, no confirmation pending -> REFUSED',
+    'yes', {dateExpr:null,date:'2026-09-11',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'collecting'},intent:'confirm'}],
+  ['CODEX-H2b cancel_confirming is a confirm lifecycle -> the echo is allowed',
+    'yes', {dateExpr:null,date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'echo_of_validated_slot'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'cancel_confirming'},intent:'confirm'}],
+  ['CODEX-H2b reschedule_confirming likewise',
+    'yes', {dateExpr:null,date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'echo_of_validated_slot'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'reschedule_confirming'},intent:'confirm'}],
+  // The OTHER side of the same boundary, and the reason the prompt changed in this round: a slot-filling turn
+  // that names no day at all must NOT be refused — it must resolve to nothing, so `Merge Slots` carries the
+  // already-validated stored date forward deterministically (`fresh.date ?? stored.date`). `no_date` sets
+  // date_dropped=false, which is exactly what keeps that carry-forward alive. If this row ever flips to
+  // `date_without_expr`, mid-booking customers are being asked for the day twice.
+  ['collecting + a message with no day at all -> nothing to resolve, nothing dropped (stored date survives)',
+    '11am please', {dateExpr:null,date:null,time:'11:00'},
+    {date:null,dropped:false,cls:null,outcome:'no_date'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:null},stage:'collecting'},intent:'book'}],
+  ['CODEX-H2b a confirm turn whose date is NOT the stored one is still refused',
+    'yes', {dateExpr:null,date:'2026-09-18',time:'11:00'},
+    {date:null,dropped:true,cls:'date_expr_missing',outcome:'date_without_expr'},
+    {state:{slots:{serviceId:'haircut',date:'2026-09-11',time:'11:00'},stage:'confirming'},intent:'confirm'}],
+
+  // --- MED-5: the clipping check fired where no clipping is possible. It now runs ONLY on a bare-weekday
+  // resolution (`next_occurrence`) and compares NORMALISED dates.
+  ['CODEX-M5a an ISO date the customer typed is not clipping-checked', 'book 2026-09-11 at 11',
+    {dateExpr:'2026-09-11',date:'2026-09-18',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'llm_date_ignored'}],
+  ['CODEX-M5a "tomorrow" is not clipping-checked either (same weekday, a week out)', 'haircut tomorrow at 11',
+    {dateExpr:'tomorrow',date:'2026-09-15',time:'11:00'},
+    {date:'2026-09-08',dropped:false,cls:null,outcome:'llm_date_ignored'}],
+  // ⚠ FLIPPED 2026-09-09f, and this row is OURS, not Codex's — Codex MED-5a's own input is the ISO row above
+  // and it is untouched. This one was an extrapolation ("an anchor carries no qualifier to lose") and
+  // `code-reviewer` refuted the reasoning: the anchor can be INVENTED by the model, and excluding it let one
+  // token switch `week_ambiguous` off. Measured on Wed 2026-09-09, text "i am away, can i book friday the week
+  // after" with model date 2026-09-18: `friday` REFUSED, `this friday` BOOKED 2026-09-11 with no alert. An
+  // anchor narrows which week we may answer; it does not buy immunity from the disagreement signal.
+  ['an anchor the customer DID type is clipping-checked like any other weekday resolution', 'haircut friday this week at 11',
+    {dateExpr:'friday this week',date:'2026-09-18',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+  ['...and the INVENTED anchor (no "this" anywhere in the text) cannot disable week_ambiguous either',
+    'i am away, can i book friday the week after', {dateExpr:'this friday',date:'2026-09-18',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+  ['...while an anchor the model did NOT contradict still resolves', 'haircut friday this week at 11',
+    {dateExpr:'friday this week',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['CODEX-M5b the same calendar day in another format is AGREEMENT, not a week apart', 'haircut friday at 11',
+    {dateExpr:'friday',date:'2026-09-11T00:00:00',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['CODEX-M5b a real week-apart disagreement in that same format IS still caught', 'haircut friday at 11',
+    {dateExpr:'friday',date:'2026-09-18T00:00:00',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+
   // ============ weekday-is-today boundary
   ['weekday IS today, time already passed -> abstain (same weekday)', 'monday 08:00',
     {dateExpr:'monday',date:'2026-09-07',time:'08:00'},
@@ -281,9 +426,12 @@ const CASES = [
 ];
 
 let pass = 0, fail = 0;
-for (const [label, text, slots, exp, state] of CASES) {
+for (const [label, text, slots, exp, extra] of CASES) {
   let out;
-  try { out = run(state ? { text, slots, state } : { text, slots }); }
+  // `extra` is merged into the item verbatim: since 2026-09-09f the echo exception reads BOTH `intent` and
+  // `state.stage`, so a fixture that only carried `state` could not express "the stage is right, the intent
+  // is not" — and that pair is exactly the boundary Codex HIGH-2b walked through.
+  try { out = run(extra ? { text, slots, ...extra } : { text, slots }); }
   catch (e) { console.log('  CRASH  ' + label + ' -> ' + e.message); fail++; continue; }
   const got = { date: out.slots.date, dropped: out.date_dropped,
                 cls: out.date_alert_class, outcome: out.date_resolution.outcome };
@@ -293,6 +441,75 @@ for (const [label, text, slots, exp, state] of CASES) {
   else { fail++; console.log('  FAIL   ' + label + '\n         got  ' + JSON.stringify(got)
                              + '\n         want ' + JSON.stringify(exp)); }
 }
+// ---- "THIS WEEK" IS AN ANCHOR (Codex HIGH-1 — our own regression, measured by Codex on a Saturday clock).
+// Each row carries its OWN clock: a single Monday `now` structurally cannot express "the anchored day is
+// already behind us", so claiming this coverage off the shared clock would be a claim the suite cannot make.
+// The LLM date is null in every row, exactly as Codex reported it, so the expected value can come from
+// nothing but the resolver.
+const ANCHORED = [
+  ['ANCHOR CODEX-H1 Saturday clock — "friday this week" must NOT roll to next Friday',
+    '2026-09-12T07:00:00Z', 'haircut friday this week at 11', 'friday this week', '11:00',
+    {date:null,dropped:true,cls:'date_anchor_past',outcome:'anchor_past'}],
+  ['ANCHOR CODEX-H1 same day, asked time already gone -> refuse (never roll a week)',
+    '2026-09-11T07:00:00Z', 'haircut friday this week at 08:00', 'friday this week', '08:00',
+    {date:null,dropped:true,cls:'date_anchor_past',outcome:'anchor_past'}],
+  ['ANCHOR CODEX-H1 same day, asked time still ahead -> today resolves',
+    '2026-09-11T07:00:00Z', 'haircut friday this week at 11', 'friday this week', '11:00',
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['ANCHOR the UNanchored twin still rolls forward — the anchor is what changes the answer',
+    '2026-09-12T07:00:00Z', 'haircut friday at 11', 'friday', '11:00',
+    {date:'2026-09-18',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['ANCHOR a mid-week clock with the day still ahead resolves inside THIS week',
+    '2026-09-09T07:00:00Z', 'haircut friday this week at 11', 'friday this week', '11:00',
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  // ⚠ code-reviewer, 2026-09-09f: `friday this week` anchored but `this friday` did not — `stripQualifiers`
+  // deleted the leading `this` before `splitAnchor` ever saw it, so on a Saturday the commoner phrasing still
+  // answered 2026-09-18 in silence. The Monday-clock row in CASES could not see it (both readings give the
+  // same date there). These two rows are the same sentence in two word orders and must agree.
+  ['ANCHOR both word orders agree: "this friday" on a Saturday refuses, exactly like "friday this week"',
+    '2026-09-12T07:00:00Z', 'haircut this friday at 11', 'this friday', '11:00',
+    {date:null,dropped:true,cls:'date_anchor_past',outcome:'anchor_past'}],
+  ['ANCHOR "this friday" mid-week still resolves inside THIS week',
+    '2026-09-09T07:00:00Z', 'haircut this friday at 11', 'this friday', '11:00',
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  // Mutation note, recorded because a survivor was explained rather than waved away: adding `coming` to
+  // splitAnchor's prefix regex SURVIVES, because `stripQualifiers` removes a leading `coming` before
+  // `splitAnchor` ever sees it — equivalent by ORDERING, not by behaviour. The combined mutant (drop `coming`
+  // from the strip list AND anchor it) DOES kill this row, so the row is not vacuous.
+  // ⚠ RETRACTED CLAIM, 2026-09-09f. This block briefly said mutant M33 (dropping `coming` from
+  // `stripQualifiers`) was "proven EQUIVALENT by a 32928-input differential sweep with ZERO behavioural
+  // differences". THE SWEEP WAS RIGGED THE SAME WAY THE ANCHOR SWEEP WAS: it built the customer text FROM the
+  // dateExpr, so `occursIn` was true in every single input — and the provenance branch is the ONE place the
+  // strip changes behaviour. `code-reviewer` produced the counterexample in one attempt; it is the row below.
+  // The strip is NOT redundant: it is what lets a `coming` the MODEL added still pass provenance.
+  // A dimension held constant is not a dimension swept. Third time this round.
+  // ⚠ ORDERING, RECORDED (code-reviewer, 2026-09-09f): `stripQualifiers` removes a leading `coming` BEFORE
+  // `splitAnchor` runs, so `coming friday` is unanchored but **`this coming friday` IS anchored** (the `this`
+  // prefix survives and `coming` is gone by then). On a Saturday that phrase therefore RE-ASKS, even though a
+  // person saying it almost certainly means next Friday. Direction is safe (an extra question, never a wrong
+  // day) and the alternative — teaching `splitAnchor` about `coming` — reopens the natural-language race this
+  // repo abandoned on 2026-09-09d. Asserted so the behaviour is a decision on the record, not a surprise.
+  ['ANCHOR "this coming friday" IS anchored (ordering), so a Saturday clock re-asks — accepted',
+    '2026-09-12T07:00:00Z', 'haircut this coming friday at 11', 'this coming friday', '11:00',
+    {date:null,dropped:true,cls:'date_anchor_past',outcome:'anchor_past'}],
+  ['ANCHOR "coming friday" is NOT an anchor — it points forward, so it still rolls (accepted, unchanged)',
+    '2026-09-12T07:00:00Z', 'haircut coming friday at 11', 'coming friday', '11:00',
+    {date:'2026-09-18',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['ANCHOR "monday this week" on a Friday is in the past -> refuse, never next Monday',
+    '2026-09-11T07:00:00Z', 'haircut monday this week at 11', 'monday this week', '11:00',
+    {date:null,dropped:true,cls:'date_anchor_past',outcome:'anchor_past'}],
+];
+for (const [label, nowISO, text, expr, time, exp] of ANCHORED) {
+  const out = run({ text, slots: { dateExpr: expr, date: null, time } }, nowISO);
+  const got = { date: out.slots.date, dropped: out.date_dropped,
+                cls: out.date_alert_class, outcome: out.date_resolution.outcome };
+  const ok = got.date === exp.date && got.dropped === exp.dropped && got.cls === exp.cls
+          && got.outcome === exp.outcome && out.date_alert === (exp.cls !== null);
+  if (ok) { pass++; console.log('  ok     ' + label); }
+  else { fail++; console.log('  FAIL   ' + label + '\n         got  ' + JSON.stringify(got)
+                             + '\n         want ' + JSON.stringify(exp)); }
+}
+
 // ---- DST + month-end, each with its own pinned clock. A single fixed `now` cannot reach them: from
 // 2026-09-07 every weekday resolves inside 09-07..09-13, so claiming DST/month-end coverage off that clock
 // would be a claim the suite structurally cannot make.
@@ -390,6 +607,99 @@ const bare = run({ text: 'hi', slots: null });
 if (bare.date_dropped === false && bare.date_alert === false && bare.date_resolution === undefined) {
   pass++; console.log('  ok     no slots this turn -> flags defined, nothing resolved');
 } else { fail++; console.log('  FAIL   no-slots path: ' + JSON.stringify(bare)); }
+
+// ---- THE ANCHOR SAFETY PROPERTY, PROVEN BY EXHAUSTION rather than argued in a comment.
+// The node deliberately does NOT demand that a `this` came from the customer. The reason is a PROPERTY: an
+// anchored resolution is always the unanchored resolution or a REFUSAL — so an anchor the model invented can
+// only cost a re-ask, never book a different day. If that property stops holding, the exemption goes with it.
+//
+// ⚠ THIS SWEEP WAS ITSELF VACUOUS ON ITS FIRST COMMIT (code-reviewer, 2026-09-09f). It pinned `date: null` in
+// BOTH arms — and `slots.date` is the single variable the property depends on, because the clipping check
+// keys on a disagreement between the model's date and ours. With a real `slots.date` the anchored branch
+// returned `anchored_week`, which the clipping check did not cover, so ONE invented token silently disabled
+// `week_ambiguous`: on Wed 2026-09-09, text "i am away, can i book friday the week after" with model date
+// 2026-09-18 gave `friday` -> REFUSE, `this friday` -> BOOKS 2026-09-11 with no alert. 4956 violations in
+// 9408 inputs. A sweep that excludes the variable under test proves nothing; the `date` dimension is part of
+// the sweep now, and the fix was written only after this went red.
+{
+  const DAYS_L = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const TIMES  = [null, '08:00', '11:00', '23:30', '00:01'];
+  // null · agreeing · same weekday one and two weeks out (the clipping signature) · a different weekday
+  const DATE_OF = (base) => [null, base,
+    DateTime.fromISO(base).plus({ weeks: 1 }).toISODate(),
+    DateTime.fromISO(base).minus({ weeks: 1 }).toISODate(),
+    DateTime.fromISO(base).plus({ days: 1 }).toISODate()];
+  let violations = 0, refusals = 0, checked = 0, firstViolation = null;
+  for (let d = 0; d < 21; d++) for (const h of [0, 7, 12, 20]) {
+    const iso = DateTime.fromISO('2026-09-01T00:00:00Z').plus({ days: d, hours: h }).toISO();
+    for (const day of DAYS_L) for (const t of TIMES) {
+      const at = t ? ' at ' + t : '';
+      // the unanchored answer is the yardstick, so the date candidates are built around IT
+      const probe = run({ text: 'haircut ' + day + at, slots: { dateExpr: day, date: null, time: t } }, iso);
+      for (const dt of DATE_OF(probe.slots.date || '2026-09-11')) {
+        const a = run({ text: 'haircut this ' + day + at, slots: { dateExpr: 'this ' + day, date: dt, time: t } }, iso);
+        const u = run({ text: 'haircut ' + day + at,       slots: { dateExpr: day,          date: dt, time: t } }, iso);
+        checked++;
+        // ⚠ ATTRIBUTED refusals only. The first version counted every anchored refusal, and most of them come
+        // from the UNANCHORED side (a `dt` one week out trips `week_ambiguous` in both arms) — so a mutant
+        // that made `splitAnchor` a no-op still showed 5880 "refusals" and the sweep stayed GREEN while the
+        // anchor did nothing at all (code-reviewer, third pass). Counting only refusals the anchor CAUSED is
+        // what makes this non-vacuous: with the no-op mutant that count is 0 and the row goes red.
+        if (a.slots.date === null) { if (u.slots.date !== null) refusals++; }
+        else if (a.slots.date !== u.slots.date) {
+          violations++;
+          if (!firstViolation) firstViolation = { iso, day, t, dt, anchored: a.slots.date, unanchored: u.slots.date };
+        }
+      }
+    }
+  }
+  if (firstViolation) console.log('         first violation: ' + JSON.stringify(firstViolation));
+  // `refusals > 0` matters as much as `violations === 0`: without it the property would also hold for an
+  // anchor that does nothing at all, and the assertion would be vacuous.
+  if (violations === 0 && refusals > 0) {
+    pass++; console.log('  ok     anchor safety: ' + checked + ' inputs, 0 dates the unanchored path would not give, '
+                        + refusals + ' refusals (so the anchor is not a no-op)');
+  } else {
+    fail++; console.log('  FAIL   anchor safety: violations=' + violations + ' refusals=' + refusals);
+  }
+}
+
+// ---- TWO LANES, CHECKED SEPARATELY — never by generalisation (three times in this phase a drill on the
+// booking lane was read as proof for the reschedule lane, and three times it was wrong; the worst was
+// `Reschedule Lookup` reading `$('Validate Intent')`, UPSTREAM of the guard, so the whole reschedule branch
+// bypassed it). This is the DOMINATOR check that would have caught it: delete `Resolve Date` from the graph
+// and neither date-writer may still be reachable from `Validate Intent`.
+{
+  const conns = JSON.parse(fs.readFileSync(WF, 'utf8')).connections;
+  const reach = (from, skip) => {
+    const seen = new Set(), q = [from];
+    while (q.length) {
+      const n = q.shift();
+      for (const b of ((conns[n] || {}).main || [])) for (const c of (b || [])) {
+        if (c.node === skip || seen.has(c.node)) continue;
+        seen.add(c.node); q.push(c.node);
+      }
+    }
+    return seen;
+  };
+  const WRITERS = ['Merge Slots', 'Reschedule Lookup'];   // the only two nodes that put a NEW date into state
+  const fromResolve = reach('Resolve Date');
+  const bypass = reach('Validate Intent', 'Resolve Date');
+  for (const w of WRITERS) {
+    const ok = fromResolve.has(w) && !bypass.has(w);
+    if (ok) { pass++; console.log('  ok     lane: ' + w + ' is downstream of Resolve Date and unreachable without it'); }
+    else { fail++; console.log('  FAIL   lane: ' + w + ' downstream=' + fromResolve.has(w) + ' bypassable=' + bypass.has(w)); }
+  }
+  // and each lane must actually HONOUR the refusal, not merely sit downstream of it
+  const nodeSrc = (n) => JSON.parse(fs.readFileSync(WF, 'utf8')).nodes.find(x => x.name === n).parameters.jsCode;
+  const ms = nodeSrc('Merge Slots'), rl = nodeSrc('Reschedule Lookup');
+  const msOk = /date_dropped === true/.test(ms) && /dropped \? null/.test(ms);
+  const rlOk = /date_dropped === true\) \? null/.test(rl) && /\$\('Resolve Date'\)/.test(rl);
+  if (msOk) { pass++; console.log('  ok     lane booking: Merge Slots nulls the date when Resolve Date refused'); }
+  else { fail++; console.log('  FAIL   lane booking: Merge Slots does not honour date_dropped'); }
+  if (rlOk) { pass++; console.log('  ok     lane reschedule: Reschedule Lookup reads Resolve Date and honours date_dropped'); }
+  else { fail++; console.log('  FAIL   lane reschedule: Reschedule Lookup does not read Resolve Date / ignores date_dropped'); }
+}
 
 console.log(`\nresolve-date: ${pass}/${pass + fail} pass (node code read from n8n/workflow.sanitized.json, now=${NOW} ${TZ})`);
 process.exit(fail ? 1 : 0);

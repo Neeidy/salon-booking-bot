@@ -6,9 +6,11 @@
 >
 > **How to read it.** Solid arrow = happy path. Dashed arrow = an error / branch / handoff exit. Every
 > external call (Anthropic, Google Calendar, Airtable) has a **visible** error exit — silent failure is
-> forbidden ([n8n-conventions](../.claude/rules/n8n-conventions.md)). The three handoff classes never merge
+> forbidden ([n8n-conventions](../.claude/rules/n8n-conventions.md)). The five handoff classes never merge
 > ([handoff.md](../.claude/rules/handoff.md)): **guard-trip** (200, transient, no state write) ·
-> **infra-unavailable** (5xx + `error` flag) · **intent-handoff** (200, writes `stage=handoff`).
+> **infra-unavailable** (5xx + `error` flag) · **intent-handoff** (200, writes `stage=handoff`) ·
+> **clarify** (200, `last_intent` only) · **extraction-transient** (200, `last_intent` only + owner alert).
+> *(⚠ 2026-09-09f: the count was raised to five here while the list stayed at three — corrected.)*
 
 ## Overview — the lanes
 
@@ -104,8 +106,14 @@ flowchart TD
   EI --> VI[Validate Intent<br/>stop_reason gate · ajv from committed schema]
   VI --> RD[Resolve Date<br/>dateExpr resolved in shop tz · the LLM date has NO authority]
   RD --> DM{Date Alert?}
-  DM -.->|alert| OA[/Build Owner Alert<br/>date_ambiguous · date_week_ambiguous<br/>date_expr_forged · date_unresolved · date_expr_missing/]
-  DM --> GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
+  DM -.->|alert| OA[/Build Owner Alert<br/>date_ambiguous · date_week_ambiguous · date_anchor_past<br/>date_expr_forged · date_unresolved · date_expr_missing/]
+  DM --> ETR{Extraction Transient?<br/>schema-only · intent≠handoff · no *_confirming pending}
+  ETR -->|yes — OUR contract slip| REF{Repeat Extraction Failure?<br/>previous last_intent=invalid}
+  REF -->|yes — 2nd in a row| MH
+  REF -->|no — 1st| BER[Build Extraction-Retry State<br/>t.notUnderstood · NO stage write · owner alert]
+  BER --> SS
+  BER -.->|extraction_invalid| OA
+  ETR -->|no| GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
   GATE -->|handoff — FIRST turn| MH[Mark Handoff<br/>stage=handoff · computed_reply=t.handoff]
   GATE -->|not a handoff| CPU{Confirm Pending & Uncertain?<br/>stage=*_confirming AND unknown/low-conf}
   CPU -->|yes — abstain, alert owner| MH
@@ -126,13 +134,22 @@ flowchart TD
 customer's own wording for the day — including a date they typed themselves. **`Resolve Date`** resolves it with
 Luxon in `business.timezone`, and that is the only place a booking date can come from. The LLM's `slots.date` is
 **not a value — only a disagreement signal**: a different weekday means the model slipped and is ignored; the same
-weekday a different week means the wording may have lost a qualifier, so the turn **abstains**. An expression the
+weekday a different week means the wording may have lost a qualifier, so the turn **abstains** — but only for a
+BARE-WEEKDAY resolution, and only after both dates are normalized (2026-09-09f: an ISO date the customer typed and
+a `2026-09-11T00:00:00`-vs-`2026-09-11` pair were both being refused for a clipping that cannot happen). An expression the
 engine cannot resolve **abstains too (fail-closed)** — it is never replaced by the model's answer, which is how
 "friday morning" once produced a Saturday booking. `next <weekday>` is refused (two readings a week apart), an ISO
-date in `dateExpr` is accepted only if that exact text is in the customer's message, and a week shift the sentence carries but `dateExpr` does not is
+date in `dateExpr` is accepted only if that exact text is in the customer's message — and **since 2026-09-09f a
+RELATIVE expression must occur there too** (a case-insensitive substring presence check, never an interpretation):
+the customer typed `friday`, the model answered `saturday`, and Saturday was being booked. **`this week` inside
+`dateExpr` is an ANCHOR, not noise:** it pins the current ISO week and can never roll forward, so a day already
+past (or whose time has passed today) **abstains** — stripping it was our own regression, and on a Saturday
+`friday this week` had answered the NEXT Friday. A week shift the sentence carries but `dateExpr` does not is
 **NOT detected** — that rule was removed 2026-09-09d after four rounds of false claims and false positives; the
 confirmation step (weekday + full date) is the only thing that catches it. Recorded gap, not closed. A `dateExpr` that is missing while the date EQUALS the already-validated
-stored slot is a confirm **echo** and proceeds. **NO WRITE VETO (removed 2026-09-09e).** A veto mechanism briefly made a refusal on the current turn binding on
+stored slot is a confirm **echo** and proceeds — **only** when `intent='confirm'` AND a confirmation is actually
+pending (2026-09-09f: the exception read neither, so in `collecting` a message like "in two weeks" was accepted as
+an echo and the customer's qualifier vanished). **NO WRITE VETO (removed 2026-09-09e).** A veto mechanism briefly made a refusal on the current turn binding on
 the write. It was removed: it closed a VISIBLE, recoverable defect (the customer's qualifying sentence ignored on
 the confirm turn) and produced three SILENT, irreversible ones — an outage, booking the refused date, and a double
 booking on the reschedule lane. **Accepted, recorded gap:** on a confirm turn the engine writes the date it SHOWED
@@ -141,13 +158,33 @@ guard. Both event-id gates route an invalid event to `Mark Handoff`. Expressions
 set (`11 september`, `the 15th`, non-English wording) now ASK rather than trusting the model.
 
 **Deterministic-before-AI:** guards run with **zero** LLM cost. The LLM ONLY classifies intent + slots; every
-downstream action is deterministic IF/Switch/Code. **Three handoff classes are already distinct here:**
+downstream action is deterministic IF/Switch/Code. **Five handoff classes are already distinct here:**
 guard-trip (`Handoff Reply`, 200, writes no state) · infra (`LLM Unavailable Reply`, 503) · intent-handoff
-(`Mark Handoff`, 200, writes `stage=handoff`).
+(`Mark Handoff`, 200, writes `stage=handoff`) · clarify (`Build Clarify State`, 200, `last_intent` only) ·
+extraction-transient (`Build Extraction-Retry State`, 200, `last_intent` only + owner alert).
+
+**An EXTRACTION failure is not a handoff either (2026-09-09f, Codex MED-6).** A payload that parsed but failed the
+committed schema is our contract defect, not a customer intent. Codex sent an ordinary price question whose required
+`dateExpr` key was simply **absent** — not null — and it wrote `stage='handoff'`: a permanent lock on a customer who
+did nothing wrong, the same class as the `hi` bug that opened this phase. `Extraction Transient?` now splits it out
+to `Build Extraction-Retry State`, which replies `notUnderstood`, writes **no `stage`** (so no lock forms), stays off
+every write path, and alerts the owner (`extraction_invalid`). A jailbreak or explicit handoff request still locks on
+turn one, and so do the three hard failures (bad `stop_reason`, unparseable JSON, non-object) — the model not
+answering at all is a different thing from the model breaking the contract. **Two bounds keep it from becoming
+a new hole, both added after the L2 review found them missing:** a schema failure arriving while a
+cancel/reschedule confirmation is pending goes to the handoff gate as before (inserted in front of
+`Invalid or Handoff Gate`, this node had been jumping `Confirm Pending & Uncertain?` and silently burning the
+confirm TTL — the customer's next "yes" would answer *"your booking stands"*); and a SECOND consecutive
+extraction failure escalates to `Mark Handoff`, the same two-strike shape as the clarify ladder, so a
+systematic contract failure cannot spend 12 turns re-asking against one throttled owner alert. ⚠ The earlier drill for this used
+`dateExpr: null`, a PRESENT key, which validates; "null" and "absent" are different tests and that was the whole bug.
 
 **`unknown` ≠ `handoff` (2026-09-07).** "I didn't understand" and "I want a human" are different things and the
 engine already produces them as different intents, so the gate no longer merges them. A jailbreak, an explicit
-request for a person, or an invalid intent JSON still hands off on the **first** turn. An *uncertain* turn
+request for a person, or **a model that did not answer at all** (bad `stop_reason` · unparseable JSON ·
+non-object) still hands off on the **first** turn. ⚠ *Corrected 2026-09-09f: this sentence used to say
+"invalid intent JSON", which the paragraph above now contradicts — a well-formed answer that breaks the
+schema is `extraction-transient` and does NOT lock on turn one.* An *uncertain* turn
 (`unknown` or low confidence) **outside a confirmation window** first gets a clarifying question (`askIntent`); it does
 not CHANGE `stage` (`Save State` rewrites the existing value, and `turn_count` still increments), so no lock forms.
 A second uncertain turn hands off. An uncertain turn **inside** a cancel/reschedule confirmation window is a different
@@ -515,7 +552,7 @@ A single fan-in, deliberately OFF the reply path so it can never block or change
 ## The invariants this diagram encodes (why the shapes are what they are)
 - **Deterministic before AI** — the LLM only classifies; every action is IF/Switch/Code.
 - **Every external call has a visible error exit** — 400 / 503 with an `error` flag, never a silent failure.
-- **Three handoff classes never merge** — guard-trip (200) · infra (5xx) · intent-handoff (200, writes state).
+- **Five handoff classes never merge** — guard-trip (200) · infra (5xx) · intent-handoff (200, writes `stage`) · clarify (200, writes `last_intent` only) · **extraction-transient** (200, writes `last_intent` only, owner-alerted). ⚠ This line said "Three" while `handoff.md` listed four; corrected 2026-09-09f when the fifth was added.
 - **Zero double-book** — idempotency (dedupe + deterministic event id) + write-then-verify.
 - **Fail-closed cancel** — a "yes" deletes a real event, so every cancel gate defaults to "do nothing".
 - **Book-new-first reschedule** — open + verify the NEW booking before touching the OLD one; commit is

@@ -355,12 +355,17 @@ Each CP waits for its own written approval (plan-gate).
   A THIRD reopens the rule itself — no patch on a patch.**
 - ✅ **CRT #12 ROUND-2 — the mismatch rule RE-OPENED, resolver made AUTHORITATIVE (2026-09-09).** Codex refuted 6
   of 8 claims and returned four HIGH findings with one root cause: the resolver was advisory. The LLM's
-  `slots.date` now has no authority at all — it is a disagreement signal, never a value. Six scoped changes:
-  provenance + write veto (incl. **`Reschedule Event ID Valid?`**, a gate the reschedule write path never had);
-  fail-closed + grammar expansion; `dateExpr` REQUIRED in the schema with ISO accepted only when the customer
-  typed it; the week-context rule generalised so no numeric list can be outrun; parity guards comparing
-  `disabled`/`onError`; and the `sun-kissed`/`weds` false alarms removed by DELETING the raw-text backstop
-  rather than tuning it. Amendment 2026-09-09b after a stop condition: the confirm echo is not a new claim.
+  `slots.date` now has no authority at all — it is a disagreement signal, never a value.
+  ⚠ **CORRECTED 2026-09-09f (Codex HIGH-3):** this bullet used to list six "scoped changes" as delivered, and
+  **two of them no longer exist** — the *provenance stamp + write veto* were removed the same day
+  (2026-09-09e) and the *generalised week-context rule* was removed before that (2026-09-09d). Recording the
+  removal further down the file did not make this line true; a reader stops at the first statement. What
+  actually shipped in round 2 and still stands: fail-closed resolution + the grammar expansion; `dateExpr`
+  REQUIRED in the committed schema with an ISO value accepted only when the customer typed it; the
+  weekday-signature clipping check; the parity guards extended to compare `disabled`/`onError`; and
+  **`Reschedule Event ID Valid?`**, a gate the reschedule write path never had (it survived the veto removal
+  and routes its invalid branch to `Mark Handoff`). The `sun-kissed`/`weds` false alarms went away because the
+  raw-text backstop was DELETED, not tuned. Amendment 2026-09-09b after a stop condition: the confirm echo is not a new claim.
   82/82 unit, 14/14 mutations killed, regression 28/28, 12 guards green. ARCH-DEC 2026-09-09.
 - ⊘ **[SUPERSEDED 2026-09-09e — the veto was REMOVED entirely.]** A veto briefly asked instead of locking via
   `Date Veto?`. Real handoffs (jailbreak, explicit request, stray `yes`) still lock on turn one with an owner alert —
@@ -370,7 +375,12 @@ Each CP waits for its own written approval (plan-gate).
 - ✅ **WEEK-CONTEXT RULE REMOVED (2026-09-09d), threshold invoked.** Four rounds, three false claims about its
   own regex, seven false positives, one outage, one safety regression — for a date the confirmation step already
   shows. Semantic inference over raw text with a regex is abandoned. **The weekday-signature clipping check is
-  KEPT** (pure date comparison, no raw text, zero false positives, still catches a real subset).
+  KEPT** (pure date comparison, no raw text, still catches a real subset).
+  ⚠ **CORRECTED 2026-09-09f: the "zero false positives" claim is WITHDRAWN.** Codex found two, and both were
+  live: an ISO date the customer typed himself was refused because the model's own guess landed a week out
+  (MED-5a), and `2026-09-11T00:00:00` vs `2026-09-11` — the same day in two formats — read as a week apart
+  (MED-5b). The check is now scoped to bare-weekday resolutions and compares normalized dates; what can be
+  said about false positives is only "none known after the 2026-09-09f fixes", which is not the same sentence.
   ⚠ **RESIDUAL RISK, RECORDED AND NOT CLOSED:** when the week context is lost the engine MAY PROPOSE the wrong
   week's day; the confirmation step (weekday + full date) is the only thing that catches it. N2 is therefore no
   longer an open defect — it is part of this accepted gap. ARCH-DEC 2026-09-09d.
@@ -382,6 +392,121 @@ Each CP waits for its own written approval (plan-gate).
   provenance stamp are gone; both event-id gates route their invalid branch to `Mark Handoff`. The mechanism became
   more expensive than the defect it closed — three silent, irreversible bugs against one visible, recoverable one.
   ARCH-DEC 2026-09-09e.
+- ✅ **CRT #12 ROUND-3 — Codex's four remaining findings closed + the round's own false claims withdrawn (2026-09-09f).**
+  **(1) HIGH-1 `this week` is an ANCHOR, not noise** — our own regression: stripping it made `friday this week`
+  identical to `friday`, so on Saturday 2026-09-12 the engine answered 2026-09-18, moving the customer into a week
+  they had excluded. It now pins the current ISO week, never rolls forward, and abstains when that day (or its time
+  today) has passed (`anchor_past` → `date_anchor_past`). It reads `dateExpr`, never the sentence — the raw-text rule
+  removed on 2026-09-09d stays removed. **(2) HIGH-2 provenance symmetry + echo scope** — a RELATIVE `dateExpr` must
+  now occur in the customer's message (case-insensitive substring **presence**, never interpretation), because the
+  customer typed `friday`, the model could answer `saturday`, and Saturday was booked; and `echo_of_validated_slot`
+  now requires `intent='confirm'` AND a pending-confirmation stage, because it read neither and accepted a stored
+  date echoed back in `collecting`. **(3) MED-5 clipping false positives** — the check is scoped to bare-weekday
+  resolutions and compares NORMALIZED dates. **(4) MED-6 the permanent lock** — a schema-only extraction failure
+  (Codex's payload had the required `dateExpr` key **absent**, not null) wrote `stage='handoff'` on a customer asking
+  a price. New `Extraction Transient?` → `Build Extraction-Retry State`: `notUnderstood`, **no `stage` write**, off
+  every write path, owner-alerted (`extraction_invalid`); jailbreak/explicit handoff and the three hard failures
+  still lock on turn one. **(5) HIGH-3 false claims withdrawn AT THE POINT WHERE THEY STOOD** — the resolver header's
+  "every date … or the turn abstains"; the round-2 bullet above listing the removed veto and removed week rule as
+  delivered; "zero false positives" (there were two, both live); two test comments describing a deleted veto and a
+  deleted rule; and **the CODEX-4b fixture, whose input had been edited until it passed** — restored verbatim and
+  now asserting the WRONG behaviour under a `KNOWN-FAILING` label, because that is what the system does (E20).
+  ⚠ **`c11e8cc`'s commit message is also wrong and is corrected HERE rather than rewritten.** It says the
+  surviving work "touches one lane"; `Resolve Date` is on BOTH lanes (booking via `Merge Slots`, reschedule via
+  `Reschedule Lookup`) and this round changed `Build LLM Request` too. The message is left intact on purpose:
+  Codex audited the range `5caf0aa..c11e8cc` and rewriting a commit an auditor has quoted destroys the trail.
+  A git-only reviewer finds the correction here, in the live-state surface they read anyway.
+  ⚠ **Also corrected in this round:** the `collecting` prompt block SHOWED the model the collected date, which
+  invited it to echo that date back — and with the echo exception narrowed, an echo there is now refused and the
+  day re-asked. Refusing is right (that IS Codex's counterexample), but the echo's *cause* was ours, so the
+  block now says "report ONLY what THIS message says". This reduces the needless re-ask; it cannot eliminate it,
+  and measuring the residual rate is the FIRST item on the live-drill list below.
+  **⚠ INCIDENT INSIDE THIS ROUND — production was briefly broken and the parity guard stayed GREEN.** A resync
+  step pushed committed node bodies to live and swept up `Load Config`, replacing the real Google Calendar id and
+  Airtable ids with `REPLACE_WITH_…`. `check-content-parity.py` could not see it: it derives its mask FROM live, so
+  a placeholder in live maps to itself and both sides compare equal — **a parity guard that only compares two
+  artefacts is satisfied by breaking both.** Restored byte-for-byte from a pre-change backup and verified (real
+  calendar id back, no `REPLACE_WITH` anywhere in live, exactly the 6 intended node edits + 3 new nodes differ from
+  the pre-round live). New `check_live_not_sanitised()` closes the direction; fail-ability proven both ways by
+  replaying the incident against a captured copy. **The guard was NOISY on first contact and that was fixed before it shipped, not after:** run against the reminders workflow it fired on `REPLACE_WITH_ZERNIO_ACCOUNT_ID`, which is in LIVE **by design** — the Zernio account was never provisioned (CP4d is gated on it) and `bot.whatsappSendDisabled: true` means the send branch never runs. A guard that screams about a known state is how a guard gets switched off (ARCH-DEC 2026-09-03), so it takes an EXACT-TOKEN exemption list, each entry carrying its reason and its removal condition, and it PRINTS the exemptions it skipped on every run so one cannot quietly become permanent. Proven exact-token: a neighbouring `REPLACE_WITH_ZERNIO_CREDENTIAL_ID` still fires. **AND A SECOND, LARGER BLIND SPOT SURFACED WHILE PROVING THE FIRST.** The n8n API response carries BOTH `nodes` (the draft the API and the editor write) and `activeVersion.nodes` (the PUBLISHED graph the production webhook executes) — and **both parity guards were comparing the draft**. Measured, not assumed: on this instance an API PUT auto-publishes, so the two are byte-identical today and every "committed == live" statement in this repo happens to be true. Nothing was checking it. A draft saved in the editor without publishing — or an instance that stops auto-publishing — would leave every guard GREEN while the running system was a different workflow, which silently invalidates every other claim those guards make. New `check_published_matches_draft()`; fail-ability proven both ways (an unpublished-draft replay exits 1; a response with no `activeVersion` says SKIPPED rather than passing quietly). ⚠ This also CORRECTS the repo's working assumption that the production URL needs a manual Publish: for API writes it does not. **Honesty limit: the incident above was not captured with its `activeVersion`, so "production was broken" rests on the auto-publish behaviour measured afterwards, not on a snapshot taken at the time.**
+  **Found in passing and closed:** `compile-intent-validator.cjs --check` compared only the generated block, leaving
+  the orchestration a second truth — it drifted inside this very round with every guard green; the guard now
+  compares the WHOLE node (fail-ability proven by mutation).
+  **Verification.** `tests/unit/resolve-date.test.cjs` **126/126** (every Codex counterexample verbatim; per-clock
+  anchored cases; a graph DOMINATOR check proving `Merge Slots` and `Reschedule Lookup` are unreachable without
+  `Resolve Date` — the check that would have caught the round-2 reschedule bypass) · new
+  `tests/unit/validate-intent.test.cjs` **33/33** (executes the committed `Extraction Transient?` and
+  `Repeat Extraction Failure?` expressions themselves, and RUNS the retry builder rather than only grepping it) ·
+  **34 code mutants: 32 killed, 2 equivalent and each PROVEN so** — M16 pinned by a test, M29 shown non-vacuous by
+  a combined mutant. **M33 was claimed equivalent and was NOT** — the claim is retracted and the mutant now dies on
+  a committed row; **M34** (`splitAnchor` made a no-op) is the mutant the first version of the sweep could not see
+  and now does · **8 guard fail-ability proofs, all fired** (orchestration drift · live-sanitised calendar id ·
+  live-sanitised Airtable id · exemption exact-token · unpublished draft · draft-only rewire · incomplete
+  placeholder collection · `Resolve Date` removed from the chain) · **15 guard runs green** (3 workflows × live+content parity, host-leak, computed-reply, cancel-parity,
+  outbound-inventory, config-schema, intent-validator, hook-drift, hero-engine). ARCH-DEC 2026-09-09f.
+  Commit: `<hash-f1r3>`
+  **L2 review round — and it did not pass on the first submission.** **THE L2 RE-REVIEW THEN REJECTED THE FIX ITSELF, and it was right.**  **A THIRD PASS THEN FOUND THE SAME MISTAKE TWICE MORE, IN THE FIXES THEMSELVES — and that repetition is the finding.** (i) The corrected anchor sweep's vacuity guard did not guard: it counted EVERY anchored refusal, and most come from the unanchored side, so a mutant that made `splitAnchor` a no-op — the 2026-09-09e regression itself — still showed 5880 refusals and stayed GREEN. Refusals are now ATTRIBUTED (`a === null && u !== null`); the no-op mutant drops to 0 and dies. (ii) The M33 EQUIVALENCE claim was false: its 32928-input differential sweep built the customer text FROM the `dateExpr`, so `occursIn` was true in every input — and the provenance branch is the one place the `coming` strip changes behaviour (text "can i come friday at 11" + `dateExpr:"coming friday"`: base resolves, mutant refuses). Claim retracted, killing row added. **Three sweeps in one round, each rigged the same way: a dimension the property depends on held constant.** That is now the round's actual lesson, above any individual date rule — a sweep is only as wide as its narrowest fixed axis, and "proven by exhaustion" is the most convincing form an unproven claim can take. Also corrected in the third pass: this cell's own MED-5 sentence still said "an explicit anchor carries no qualifier to lose" while the cell elsewhere said `anchored_week` IS checked (fixed in place, §6); `docs/DATA-MODEL.md`'s `last_intent` row still called the field "debug/analysis" while two live gates read it as an escalation strike; and `check_published_matches_draft()` compared only `parameters` while reporting "identical" — it now compares credentials/type/typeVersion/disabled/onError/alwaysOutputData/executeOnce/retryOnFail and the connections, fail-proven with a draft-only rewire. `code-reviewer` verified 9 of 10 claims and demolished the tenth: the anchor exemption was justified by a PROPERTY ("an anchored resolution is always the unanchored one or a refusal") that the round had "proven by exhaustion" — **with `slots.date` pinned to null in both arms, i.e. with the one variable the property depends on excluded**. With a real `slots.date` the anchored branch returned `anchored_week`, which the clipping check did not cover, so **one invented token switched `week_ambiguous` off**: on Wed 2026-09-09, text *"i am away, can i book friday the week after"* with model date 2026-09-18, `dateExpr:"friday"` REFUSED while `dateExpr:"this friday"` BOOKED 2026-09-11 with no alert — 2982 violations in the corrected sweep. `anchored_week` is now clipping-checked like any other weekday resolution (an anchor narrows WHICH week we may answer; it does not buy immunity from the disagreement signal), the sweep carries the `date` dimension, and the round's own contradicting fixture — OURS, not Codex's — was flipped. Order was kept honest: the test was widened and seen RED (2982/9408) BEFORE the fix was written. Three further findings: `last_intent='invalid'` survives an owner's `stage`-only unlock and silently turns the two-strike ladder into one strike (recorded as the unlock procedure in `docs/DATA-MODEL.md`); the coverage self-test only PRINTED its classes, so a regression like the one it was written for would shorten a line instead of failing — it now measures class presence in the committed file independently and exits 1 on a gap; and `this coming friday` anchors while `coming friday` does not, an ordering effect now asserted rather than left to be discovered. **The pattern across both L2 rounds is one thing: four of the twelve findings were tests that could not fail** — a placeholder fixture text, a fixture satisfied by another word in its own sentence, a coverage set built through a helper that excluded what it collected, and a property sweep with the decisive variable held constant.  `flow-reviewer` and `code-reviewer`
+  INDEPENDENTLY found the same MEDIUM: `Extraction Transient?` was inserted in FRONT of `Invalid or Handoff Gate`,
+  so a schema failure during a cancel/reschedule confirmation stopped reaching `Confirm Pending & Uncertain?` — the
+  pending confirm survived but `turn_count` advanced, the `confirm_turn` TTL went stale, and the customer's next
+  "yes" got *"your booking stands"*. `code-reviewer` found four more that the build's own tests had passed over:
+  **(a)** `this friday` was NOT anchored (`stripQualifiers` deleted the leading `this` before `splitAnchor` saw it),
+  so Codex HIGH-1 was still live in the commoner word order — the Monday-clock fixture structurally could not see
+  it; **(b)** the word-boundary treated `-` and `/` as separators, so `sun-kissed balayage` + `dateExpr:"sun"` booked
+  a SUNDAY, `sat/sun opening hours` a Saturday and `mon-fri` a Monday — the exact Codex HIGH-2a shape, inside the
+  repo's own documented trap word; **(c)** the fixture named *"a hyphen counts too"* contained a standalone `fri`
+  and passed on that word, so the boundary mutant survived it — a row that cannot fail; **(d)** the no-stage canary
+  was a text grep that would miss an assignment. `security-auditor` (PASS on secrets/PII) found the new
+  `check_live_not_sanitised()` guard's **Airtable half was structurally dead** — it built its placeholder set via
+  `_walk_ids()`, which filters placeholders OUT — i.e. an unproven coverage claim in the very guard written to stop
+  an unproven state. All fixed; each fix carries its own mutant, and the guard now PRINTS the classes it proved
+  (calendar · airtable base · airtable table · credential · turnstile · telegram) instead of naming them by hand.
+  **The generalisable part: three of the eight findings were tests that could not fail** — a fixture with a
+  placeholder text, a fixture whose sentence satisfied the assertion by another route, and a coverage set built
+  from a helper that excluded what it was supposed to collect.
+  ⚠ **NOT VERIFIED IN THIS ROUND, stated plainly:** no live execution drill and no live regression run — see the
+  open item below. The claims above rest on unit + guard evidence against the committed export, which
+  `check-content-parity.py` proves byte-identical to live.
+- ☐ **`date_expr_forged` alert RATE is unmeasured, and the threshold is declared here BEFORE measuring —
+  NAMED item (`code-reviewer`, 2026-09-09f).** The relative-provenance check refuses on a word boundary, so an
+  ordinary model paraphrase raises the same class as a genuine day-swap: text `can i come friday at 11` with
+  `dateExpr:"fri"` → `date_expr_forged`, and so does `dateExpr:"friday"` against text `…fri at 11`. Harmless
+  behaviour (a re-ask), but the owner reads it as forgery. **Declared now, not after the data:** if
+  `date_expr_forged` exceeds **20% of date-carrying turns** (the same alarm-fatigue threshold as ARCH-DEC
+  2026-09-08), the class splits — `date_expr_mismatch` (an abbreviation/expansion of a day the customer DID
+  type, no ping) vs `date_expr_forged` (a DIFFERENT day, ping). **No rate has been measured; this is a risk,
+  not a finding.** It joins the live-drill list below.
+- ☐ **`conversations.gcal_event_id` is WRITE-ONLY and gets blanked by every non-booking turn — NAMED item, found
+  2026-09-09f while tracing the new transient path.** `Save State` maps it as `{{ $json.gcal_event_id || '' }}`,
+  but `Merge State` never reads that column back into `state`, so on every path that reaches the plain `Save State`
+  (FAQ, clarify, cancel-confirm, handoff, and now extraction-retry) the value is rewritten to `''`. **Shown, not
+  assumed:** the only nodes touching `$json.gcal_event_id` are `Save State`, `Write Appointment` and
+  `Save State (Post-Write)`; the three readers (`Cancel Lookup`, `Reschedule Lookup`, `Validate Reschedule Target`)
+  all read `t.fields.gcal_event_id` from the **appointments** row, never from `conversations`. So nothing breaks
+  today — it is a dead column that LOOKS load-bearing, which is its own hazard. **Pre-existing, NOT introduced by
+  this round** (`Build Clarify State` and `Answer FAQ` have always done it). Recorded, not built — outside this
+  round's agreed scope.
+- ✅ **DECISION, recorded because the safe call is as worth recording as the mistake (Yigitcan, 2026-09-09f):
+  Turnstile was NOT switched off unilaterally to make the regression harness runnable.** Running
+  `tests/run-regression.sh` needs `channels.widget.turnstile.enabled` flipped false in the live `Load Config` —
+  i.e. **disabling a security control on a PUBLIC endpoint** — plus real LLM spend and real Google Calendar +
+  Airtable rows to clean afterwards. The round's remaining budget could not also guarantee the restore and the
+  cleanup, and an unrestored drill window is a worse outcome than a declared gap. The gap was declared instead;
+  the drill needs the approver's word, not the builder's convenience. (This also sits beside the round's own
+  incident, where a live mutation WAS made carelessly — the contrast is the point.)
+- ☐ **LIVE DRILL DEBT for round 3 (2026-09-09f) — NAMED item.** The five behaviours changed in round 3 have unit and
+  parity evidence but **no live execution evidence**. Running the harness needs `channels.widget.turnstile.enabled`
+  flipped false in the live `Load Config` for a drill window (the suite otherwise gets `403 turnstile_failed`), makes
+  real LLM calls and creates real Google Calendar events + Airtable rows that must then be cleaned. That is a live
+  mutation of a security control and a cost-incurring run; it was **not** started inside a round whose remaining
+  budget could not also guarantee the restore and the cleanup — an unrestored drill window is a worse outcome than a
+  declared gap. Drill list when it runs, FIRST item first: **(0) the `collecting` echo rate** — book a service, then reply with
+  only a time, and read whether the model still returns the stored date (if it does, the customer is asked for the
+  day twice; this is the one behaviour this round could make WORSE, and it has no unit answer because it depends on
+  the model) · `friday this week` on a Saturday clock → re-ask · a swapped weekday →
+  re-ask + `date_expr_forged` alert · `collecting` + "in two weeks" → re-ask, old date NOT booked · a price question
+  whose payload omits `dateExpr` → answered or re-asked, `stage` NOT `handoff` (read the Airtable column, never the
+  reply) · an ordinary booking and an ordinary reschedule, tracked as TWO separate lanes.
 - ☐ **`scripts/secret-scan.sh` does not recognise the leak class that has actually happened here — TWICE**
   (`security-auditor`, 2026-09-09). It ran the guard's own RULES against a realistic payload: a real
   `googleCalendarId`, a numeric Telegram `chatId`, `app…`/`tbl…` ids and an n8n credential id were **all missed**;
