@@ -79,3 +79,6 @@ web/site/config.generated.json
 # Next.js 16 auto-generates these agent-instruction files on dev/build (tool output, not our content).
 web/site/AGENTS.md
 web/site/CLAUDE.md
+
+# Playwright MCP scratch (page snapshots + console logs — can capture tokens/PII)
+.playwright-mcp/

@@ -486,16 +486,42 @@ Each CP waits for its own written approval (plan-gate).
   today — it is a dead column that LOOKS load-bearing, which is its own hazard. **Pre-existing, NOT introduced by
   this round** (`Build Clarify State` and `Answer FAQ` have always done it). Recorded, not built — outside this
   round's agreed scope.
-- ✅ **DECISION, recorded because the safe call is as worth recording as the mistake (Yigitcan, 2026-09-09f):
-  Turnstile was NOT switched off unilaterally to make the regression harness runnable.** Running
-  `tests/run-regression.sh` needs `channels.widget.turnstile.enabled` flipped false in the live `Load Config` —
-  i.e. **disabling a security control on a PUBLIC endpoint** — plus real LLM spend and real Google Calendar +
-  Airtable rows to clean afterwards. The round's remaining budget could not also guarantee the restore and the
-  cleanup, and an unrestored drill window is a worse outcome than a declared gap. The gap was declared instead;
-  the drill needs the approver's word, not the builder's convenience. (This also sits beside the round's own
-  incident, where a live mutation WAS made carelessly — the contrast is the point.)
-- ☐ **LIVE DRILL DEBT for round 3 (2026-09-09f) — NAMED item.** The five behaviours changed in round 3 have unit and
-  parity evidence but **no live execution evidence**. Running the harness needs `channels.widget.turnstile.enabled`
+- ✅ **Turnstile drill window — NOT taken unilaterally, then AUTHORISED and taken (2026-09-09f).** The build
+  refused to flip `channels.widget.turnstile.enabled` on its own: that disables a security control on a PUBLIC
+  endpoint, and the contrast with this round's own careless live mutation is the point — the drill needs the
+  approver's word, not the builder's convenience. **Yigitcan then gave that word** ("kapalı kalsın, testler
+  bitince açarız") and the window was opened and closed under it. ⚠ Correcting the first version of this line,
+  which said the flip did not happen: it did. **What was done, in order:** the live `Load Config` was backed up
+  (md5 `4eb40140…`); exactly ONE field changed, asserted character-for-character (`turnstile: { enabled: true }`
+  → `false`, length +1, no placeholder introduced); the drill ran; the node was restored FROM THE BACKUP (not by
+  reversing the patch) and verified **byte-for-byte in BOTH the draft and the published graph**, same md5; and
+  the gate was proven live again in its REJECT direction — `POST /webhook/barber-inbound` with no token →
+  **403 `turnstile_failed`**. All guards green after the window closed.
+- ◐ **LIVE DRILL for round 3 (2026-09-09f) — REGRESSION PROVEN, THE NEW BEHAVIOURS NOT.** Read the two halves
+  separately; they are not the same claim.
+  **PROVEN LIVE (execs 2588-2594, read from the execution API and the Airtable column, never from the reply):**
+  D1 a price question answers `Haircut is €25.` and `stage` stays `new` — **no lock** · D2 a second message in the
+  same session gets `Beard Trim is €15.`, `Check Handoff Lock` false branch, `turn_count=2` — the conversation is
+  not muted · **D3 the ORIGINAL DEFECT REPRODUCED ITSELF AND THE ENGINE OVERRODE IT**: for *"Can I get a haircut
+  friday morning at 11?"* the model returned `2026-09-12` — **a Saturday** — and the engine wrote `2026-09-11`
+  (`dateExpr:"friday morning"` → stripped `friday`, `outcome: llm_date_ignored`). That is F1's founding bug,
+  live, corrected, unplanned · D4 `yes` → `echo_of_validated_slot`, `race_lost:false`, `race_other_count:0`, and
+  `Verify Slot` re-read Google Calendar and found **exactly one** event · D5 *"I want to talk to a person"* →
+  `Mark Handoff`, `stage=handoff` on turn ONE, Telegram alert delivered (`message_id 284`) · **cancel path
+  (execs 2593/2594, added because cleanup used the product's own route):** `Delete Booking Event` → **HTTP 204**,
+  `Classify Cancel Delete` → `deleted` **by status code, not by text**, row → `cancelled`, confirm TTL fresh
+  (`confirm_turn "6"` = `turn_count 6`).
+  **NOT PROVEN LIVE, and not to be read as proven:** the three NEW nodes' new behaviour. `Extraction Transient?`
+  executed on every turn and took the FALSE branch every time; **`Repeat Extraction Failure?` and
+  `Build Extraction-Retry State` never executed at all** — they appear in no execution. Their triggers cannot be
+  induced live: the model does not omit the `dateExpr` KEY on demand, and the `this week` anchor needs a weekend
+  clock. So the honest statement is *"three nodes entered the main path and broke none of the existing
+  behaviour"* — NOT *"the new path was drilled"*. Unit + mutation evidence is all the new path has.
+  **Cleanup, proven:** 9 rows created (1 conversation, 1 appointment, 7 processed_messages) and all 9 deleted;
+  re-queries return empty; `booked` appointments are the same 4 pre-drill rows. The Google Calendar event was
+  removed by the bot's own cancel flow (204), not by hand.
+- ☐ **STILL UNDRILLED after the round-3 window — NAMED item.** The five behaviours changed in round 3 still have
+  unit and parity evidence but **no live execution evidence of their own triggers**. Running the harness needs `channels.widget.turnstile.enabled`
   flipped false in the live `Load Config` for a drill window (the suite otherwise gets `403 turnstile_failed`), makes
   real LLM calls and creates real Google Calendar events + Airtable rows that must then be cleaned. That is a live
   mutation of a security control and a cost-incurring run; it was **not** started inside a round whose remaining
@@ -594,7 +620,17 @@ Each CP waits for its own written approval (plan-gate).
   asserted the pre-`9e9768a` behaviour (gibberish → handoff on turn 1). `9e9768a` had updated the suite DOC and not
   this runnable, and nothing caught it because the runnable was dead. Both corrected; the clarify tier now has its own
   scenarios 18b/18c. See ARCH-DEC 2026-08-17 rule, evidence (6).
-- ☐ **Handoff lock TTL + D11** (the still-open half of the 2026-09-06 named blockers). **SCOPE GREW on 2026-09-07 —
+- ☐ **Handoff lock TTL + D11** (the still-open half of the 2026-09-06 named blockers).
+  ✅ **The MANUAL half of D11 was exercised for real for the first time on 2026-09-09f, and it works.** The
+  drill's own conversation locked on D5 (`stage='handoff'`), and cleaning up required releasing it — so the
+  owner-unlock was performed as the procedure written into `docs/DATA-MODEL.md` that same day describes it:
+  **clear `stage` AND `last_intent` together** (`stage` → `booked`, `last_intent` → empty, edited directly in
+  the Airtable `conversations` row). The next turn then reached the bot normally and the cancel flow ran to
+  completion (execs 2593/2594). Until now this item's manual counterpart had only ever been *asserted*; it is
+  now demonstrated. **What is still open is the AUTOMATION and the TTL** — there is no owner webhook, no
+  `/webhook/owner-*` path exists in the workflow (searched), and nothing expires the lock on its own. The
+  `last_intent` half is the part that would have been missed by anyone clearing only `stage`: two escalation
+  ladders read it, so a `stage`-only unlock leaves the conversation half-armed. **SCOPE GREW on 2026-09-07 —
   the TTL work MUST cover this new path:** `Confirm Pending & Uncertain?` deliberately routes an uncertain turn that
   arrives during a cancel/reschedule confirmation to `Mark Handoff`, i.e. straight into the PERMANENT lock. That is the
   right call today (never act on a distrusted classification while a booking hangs on it, and the owner is alerted),
