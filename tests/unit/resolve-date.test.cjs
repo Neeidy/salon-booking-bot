@@ -36,9 +36,18 @@ const TZ = 'Europe/Vienna';
 const NOW = '2026-09-07T07:00:00Z';                      // Monday, 09:00 shop time
 const CFG = { config: { business: { timezone: TZ } } };
 const node = new Function('$json', '$', 'DateTime', src);
+// The injected DateTime must be the REAL Luxon with ONLY the clock overridden. An earlier version handed
+// over `{ now }` alone; the node then gained a `DateTime.fromISO` call and the suite died with
+// "fromISO is not a function" — a harness that fakes more than it needs can fail on correct code, or worse,
+// pass on broken code because the missing surface was never exercised.
+const clock = (nowISO) => new Proxy(DateTime, {
+  get: (target, prop) => prop === 'now'
+    ? () => DateTime.fromISO(nowISO || NOW, { zone: 'utc' })
+    : Reflect.get(target, prop),
+});
 const run = (json, nowISO, tz) => node(json,
   () => ({ first: () => ({ json: tz ? { config: { business: { timezone: tz } } } : CFG }) }),
-  { now: () => DateTime.fromISO(nowISO || NOW, { zone: 'utc' }) })[0].json;
+  clock(nowISO))[0].json;
 
 // [label, customer text, LLM slots, expected {date, dropped, cls, outcome}]
 const CASES = [
@@ -46,8 +55,14 @@ const CASES = [
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['MISMATCH — LLM returns a Saturday for "friday"', 'friday at 11', {dateExpr:'friday',date:'2026-09-12',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
-  ['MISMATCH — code wins on "tomorrow" too', 'tomorrow', {dateExpr:'tomorrow',date:'2026-09-15',time:null},
+  ['MISMATCH — code wins on "tomorrow" too', 'tomorrow', {dateExpr:'tomorrow',date:'2026-09-16',time:null},
     {date:'2026-09-08',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
+  // Consequence of the generic weekday rule, pinned deliberately: even for "tomorrow", a disagreement that
+  // is an exact multiple of 7 days reads as the clipping signature and abstains. A false abstain here costs
+  // one re-ask; guessing costs an irreversible wrong booking. Rare in practice — a model's date error slips
+  // by ONE day far more often than by exactly seven (measured: the only live mismatch was Wed -> Thu).
+  ['exact +7 disagreement abstains even for "tomorrow"', 'tomorrow', {dateExpr:'tomorrow',date:'2026-09-15',time:null},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
   ['"next <weekday>" is REFUSED, not guessed', 'next tuesday', {dateExpr:'next tuesday',date:'2026-09-15',time:null},
     {date:null,dropped:true,cls:'date_ambiguous',outcome:'ambiguous_next'}],
   ['backstop — dateExpr missing while a day is named', 'see you friday', {dateExpr:null,date:'2026-09-12',time:null},
@@ -66,15 +81,17 @@ const CASES = [
   // unparsed so the LLM's date survives; if the model ever CLIPS it to "friday", the code would win with
   // a date a week early. See ARCH-DEC 2026-09-08 and drills E16a/b.
   ['clipping guard — "friday next week" stays unparsed', 'friday next week', {dateExpr:'friday next week',date:'2026-09-18',time:'11:00'},
-    {date:'2026-09-18',dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
+    {date:'2026-09-18',dropped:false,cls:null,outcome:'date_unverified'}],
   ['clipping guard — "the friday after next" stays unparsed', 'the friday after next', {dateExpr:'the friday after next',date:'2026-09-25',time:null},
-    {date:'2026-09-25',dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
+    {date:'2026-09-25',dropped:false,cls:null,outcome:'date_unverified'}],
   ['documented gap — "in two weeks" keeps the LLM date', 'in two weeks', {dateExpr:'in two weeks',date:'2026-09-21',time:null},
-    {date:'2026-09-21',dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
+    {date:'2026-09-21',dropped:false,cls:null,outcome:'date_unverified'}],
   ['ISO passthrough', 'on 2026-09-11', {dateExpr:'2026-09-11',date:'2026-09-11',time:null},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
-  ['weekday IS today, asked time already passed -> +7', 'monday 08:00', {dateExpr:'monday',date:'2026-09-07',time:'08:00'},
-    {date:'2026-09-14',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
+  // Monday-today vs Monday-next-week are the same weekday, so this now ABSTAINS rather than overriding —
+  // and that is the better answer: "monday at 08:00" on a Monday at 09:00 is genuinely ambiguous.
+  ['weekday IS today, asked time passed -> abstain (same weekday)', 'monday 08:00', {dateExpr:'monday',date:'2026-09-07',time:'08:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
   ['weekday IS today, asked time still ahead -> today', 'monday 11:00', {dateExpr:'monday',date:'2026-09-07',time:'11:00'},
     {date:'2026-09-07',dropped:false,cls:null,outcome:'resolved_by_code'}],
   ['weekday was YESTERDAY -> next week', 'sunday 11:00', {dateExpr:'sunday',date:'2026-09-13',time:'11:00'},
@@ -82,7 +99,37 @@ const CASES = [
   // A customer-supplied string must never reach Object.prototype: DAYS['constructor'] passes a truthy
   // check and then crashes now.set({weekday: Object}). Own-property lookup only.
   ['prototype key "constructor" is not a weekday', 'constructor', {dateExpr:'constructor',date:'2026-09-11',time:null},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'date_unverified'}],
+  // ---- CLIPPING GUARD (ruling 2026-09-08b). Same weekday a different week = the clipping signature:
+  // the code must ABSTAIN, because it cannot know whether the wording carried a week offset dateExpr lost.
+  ['clipping signature — same weekday, +1 week -> ABSTAIN', 'friday in two weeks at 11',
+    {dateExpr:'friday',date:'2026-09-18',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+  ['clipping signature — same weekday, +2 weeks -> ABSTAIN', 'friday after next at 11',
+    {dateExpr:'friday',date:'2026-09-25',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
+  // ---- and the guard must NOT swallow a plain arithmetic error: a DIFFERENT weekday still lets code win.
+  ['arithmetic error — different weekday -> CODE STILL WINS', 'friday at 11',
+    {dateExpr:'friday',date:'2026-09-12',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
+  ['arithmetic error — off by one the other way -> CODE STILL WINS', 'friday at 11',
+    {dateExpr:'friday',date:'2026-09-10',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
+  ['unusable LLM date is not a clipping signal', 'friday at 11',
+    {dateExpr:'friday',date:'not-a-date',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:'date_mismatch',outcome:'mismatch'}],
+  // ---- MEASUREMENT ONLY: dateExpr present but unparseable. Behaviour unchanged (LLM date kept, no drop,
+  // no alert) — the label exists so the size of this hole can be counted from executions.
+  ['date_unverified — "fri morning"', 'fri morning at 11',
+    {dateExpr:'fri morning',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'date_unverified'}],
+  ['date_unverified — "friday next week" (kept, NOT dropped)', 'friday next week at 11',
+    {dateExpr:'friday next week',date:'2026-09-18',time:'11:00'},
+    {date:'2026-09-18',dropped:false,cls:null,outcome:'date_unverified'}],
+  ['no dateExpr at all stays unresolved_llm_date_kept', 'book 2026-09-11 at 11',
+    {dateExpr:null,date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
+
   ['no date given at all', 'a haircut', {dateExpr:null,date:null,time:null},
     {date:null,dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
 
@@ -123,24 +170,20 @@ for (const [label, text, slots, exp] of CASES) {
 // resolver: with matching dates these cases stayed green even when resolveDate was stubbed to return null.
 // The DST clock sits just past midnight Vienna, where `plus({days:1})` and `plus({hours:24})` diverge —
 // the classic DST bug is invisible at 08:00.
+const off1 = (iso) => DateTime.fromISO(iso).plus({ days: 1 }).toISODate();   // wrong, and a DIFFERENT weekday
 const DATED = [
-  ['DST — "tomorrow" across the 2026-10-25 changeover', '2026-10-24T22:30:00Z', 'tomorrow',
-    {dateExpr:'tomorrow',date:'2026-12-01',time:'11:00'}, '2026-10-26'],
-  ['DST — weekday landing ON the switch day', '2026-10-20T07:00:00Z', 'sunday',
-    {dateExpr:'sunday',date:'2026-12-01',time:'11:00'}, '2026-10-25'],
-  ['month-end — Tue 29 Sep -> Thu 1 Oct', '2026-09-29T07:00:00Z', 'thursday',
-    {dateExpr:'thursday',date:'2026-12-01',time:'11:00'}, '2026-10-01'],
-  ['month-end — "tomorrow" across 30 Sep', '2026-09-30T07:00:00Z', 'tomorrow',
-    {dateExpr:'tomorrow',date:'2026-12-01',time:'11:00'}, '2026-10-01'],
+  ['DST — "tomorrow" across the 2026-10-25 changeover', '2026-10-24T22:30:00Z', 'tomorrow', 'tomorrow', '2026-10-26'],
+  ['DST — weekday landing ON the switch day',           '2026-10-20T07:00:00Z', 'sunday',   'sunday',   '2026-10-25'],
+  ['month-end — Tue 29 Sep -> Thu 1 Oct',               '2026-09-29T07:00:00Z', 'thursday', 'thursday', '2026-10-01'],
+  ['month-end — "tomorrow" across 30 Sep',              '2026-09-30T07:00:00Z', 'tomorrow', 'tomorrow', '2026-10-01'],
   // BACK-FILL branch: `if (d < now.startOf('day')) d = d.plus({weeks:1})`. From a Monday every weekday is
   // already ahead, so this line was never entered — deleting it, or flipping it to .minus(), left the suite
   // green while the second form books into the PAST. Needs a clock late in the week.
-  ['back-fill — Monday asked on a Friday goes to NEXT week', '2026-09-11T07:00:00Z', 'monday',
-    {dateExpr:'monday',date:'2026-12-01',time:'11:00'}, '2026-09-14'],
-  ['back-fill — Tuesday asked on a Friday goes to NEXT week', '2026-09-11T07:00:00Z', 'tuesday',
-    {dateExpr:'tuesday',date:'2026-12-01',time:'11:00'}, '2026-09-15'],
+  ['back-fill — Monday asked on a Friday goes to NEXT week',  '2026-09-11T07:00:00Z', 'monday',  'monday',  '2026-09-14'],
+  ['back-fill — Tuesday asked on a Friday goes to NEXT week', '2026-09-11T07:00:00Z', 'tuesday', 'tuesday', '2026-09-15'],
 ];
-for (const [label, nowISO, text, slots, wantDate] of DATED) {
+for (const [label, nowISO, text, expr, wantDate] of DATED) {
+  const slots = { dateExpr: expr, date: off1(wantDate), time: '11:00' };
   const out = run({ text, slots }, nowISO);
   const ok = out.slots.date === wantDate && out.date_resolution.code === wantDate
           && out.date_resolution.outcome === 'mismatch';   // the code overrode a wrong LLM date
@@ -160,7 +203,7 @@ const DAY_KEYS = [['monday','2026-09-14'],['mon','2026-09-14'],['tuesday','2026-
 let keyFails = 0;
 for (const [key, want] of DAY_KEYS) {
   // 08:00 already passed at the 09:00 shop clock, so 'monday'/'mon' must roll a week forward, not sit on today
-  const out = run({ text: key + ' at 08:00', slots: { dateExpr: key, date: '2026-12-01', time: '08:00' } });
+  const out = run({ text: key + ' at 08:00', slots: { dateExpr: key, date: off1(want), time: '08:00' } });
   if (!(out.slots.date === want && out.date_resolution.reason === 'next_occurrence')) {
     keyFails++; console.log('  FAIL   DAYS key ' + JSON.stringify(key) + ' -> ' + out.slots.date + ', want ' + want);
   }
@@ -171,9 +214,10 @@ if (keyFails) { fail++; } else { pass++; console.log('  ok     all ' + DAY_KEYS.
 // `business.timezone`, and hardcoding 'Europe/Vienna' in the node must fail here. At 13:00Z it is still
 // 7 Sep in Vienna but already 8 Sep in Auckland, so the same clock yields two different "today"s.
 {
-  const vie = run({ text: 'today', slots: { dateExpr: 'today', date: '2026-12-01', time: null } },
+  // wrong dates one day off the truth in each zone, so neither reads as the clipping signature
+  const vie = run({ text: 'today', slots: { dateExpr: 'today', date: '2026-09-08', time: null } },
                    '2026-09-07T13:00:00Z');
-  const akl = run({ text: 'today', slots: { dateExpr: 'today', date: '2026-12-01', time: null } },
+  const akl = run({ text: 'today', slots: { dateExpr: 'today', date: '2026-09-09', time: null } },
                    '2026-09-07T13:00:00Z', 'Pacific/Auckland');
   if (vie.slots.date === '2026-09-07' && akl.slots.date === '2026-09-08') {
     pass++; console.log('  ok     the shop timezone comes from config, not a hardcoded zone (Vienna vs Auckland)');

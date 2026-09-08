@@ -338,15 +338,26 @@ Each CP waits for its own written approval (plan-gate).
   - ⚠ **Deliberate gap (not resolved, LLM's date used unchecked):** `in two weeks` · `in 3 days` · `next week` ·
     `next month` · `the 15th` / `on the 3rd` · `this weekend` · `end of the month` · `11 September` / `Sep 11` ·
     any non-English wording. Parsing problems, not arithmetic.
-- ☐ **CLIPPING HARDENING for the date ruling — proposed, NOT built (needs Yigitcan's ruling).** Since 2026-09-08 the
-  code's date wins a mismatch, and the only thing preventing a clipped `dateExpr` (`friday next week` → `friday`) from
-  overwriting a CORRECT LLM date is a measurement with **n=2**. Deterministic hardening, no text scraping: on a
-  mismatch, compare the WEEKDAY of the LLM's date against the resolved weekday. **Different weekday** = a plain
-  arithmetic error (the original defect, e.g. "wednesday" → a Thursday) → code wins, as today. **Same weekday, a
-  different week** = exactly the clipping signature, and the code cannot know whether the customer's full wording
-  carried a week offset that `dateExpr` lost → abstain and re-ask, the same treatment `next <weekday>` already gets.
-  This keeps every correction the ruling was made for while closing the hole it opened. Not built: it changes
-  approved behaviour and needs its own gate.
+- ✅ **CLIPPING HARDENING — BUILT 2026-09-08 (approved ruling).** On a mismatch the WEEKDAYS of the two dates are
+  compared: different weekday = arithmetic slip → code wins (unchanged); same weekday, different week = the clipping
+  signature → abstain and re-ask (`week_ambiguous` → `date_week_ambiguous`). No text scraping, no config, no schema.
+  49/49 unit cases; 7 of 8 mutations on the guard killed (the 8th is an equivalent mutant — see ARCH-DEC 2026-09-08b).
+  ⚠ **Drill was asymmetric and is reported as such:** the arithmetic-slip direction reproduced SIX times live
+  (execs 2178-2186); the same-weekday direction could NOT be induced in 7 natural attempts, so it rests on unit
+  evidence against the live node code, not a live drill.
+- ☐ **RESIDUAL CLASS the guard does NOT cover — needs a ruling (ARCH-DEC 2026-09-08c).** Measured during the drill:
+  "I'm away all this week, so haircut friday at 11:00" → the model reduces `dateExpr` to `"friday"` (week context gone)
+  and its own date is off by ONE day, so the guard sees a plain arithmetic slip and the code wins with **this week's
+  Friday** — offered to someone who just said they are away this week (execs 2184, 2185). **Before the 2026-09-08
+  ruling this was dropped and re-asked, so for this class the ruling made the outcome worse.** Deterministic option
+  matching existing precedent: the backstop already reads raw text solely to decide whether to REFUSE, never to derive
+  a date; the same shape would be "week-shifting phrase in the text while `dateExpr` is a bare weekday → abstain".
+- ☐ **READ THE `date_unverified` RATE IN A WEEK (opened 2026-09-08, measurement only).** A `dateExpr` that is present
+  but unparseable now carries its own outcome label and nothing else — no drop, no ping, no branch. It is the one path
+  the original wrong-day defect can still cross unseen, and its size is unknown. Already visible in the first drill:
+  "book me a haircut on wednesday the 10th at 14:00" (exec 2177) → `dateExpr:"wednesday the 10th"` unparsed → the LLM's
+  `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep". Count `outcome='date_unverified'`
+  across executions, then decide on evidence whether to widen the resolver or the guard.
 - ☐ **`tests/unit/resolve-date.test.cjs` executes committed workflow code unsandboxed** (`security-auditor`,
   2026-09-08). It runs `new Function(...)` on the `jsCode` read from `n8n/workflow.sanitized.json`; inside that body
   `process.env` and `require` are reachable (measured, not assumed). On a PUBLIC repo this turns the workflow JSON
