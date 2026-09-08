@@ -52,7 +52,12 @@ ALL = {n['name']: text(n['name']) for n in w['nodes']}
 fails = []
 
 # 1) gid shape regex — every [0-9a-v]{lo,hi} must be exactly {5,1024}; exactly 3 occurrences
-GID_NODES = ['Event ID Valid?', 'Cancel Lookup', 'Validate Cancel Target', 'Reschedule Lookup', 'Validate Reschedule Target']
+# 'Reschedule Event ID Valid?' added 2026-09-09: the reschedule write path had NO validity gate at all
+# (Build Reschedule Event Request wrote straight to the calendar), so the booking path's gate was mirrored
+# onto it. It carries the same gid shape regex by design — this guard CAUGHT the addition as a 5!=6 count,
+# which is the intended behaviour: a new member of this family must be reviewed, not silently absorbed.
+GID_NODES = ['Event ID Valid?', 'Reschedule Event ID Valid?', 'Cancel Lookup', 'Validate Cancel Target',
+             'Reschedule Lookup', 'Validate Reschedule Target']
 gid_forms = collections.Counter()
 gid_seen = []
 for name, t in ALL.items():
@@ -61,8 +66,10 @@ for name, t in ALL.items():
         gid_seen.append(name)
 if set(gid_forms) != {('5', '1024')}:
     fails.append(f"gid shape regex DRIFT — expected only [0-9a-v]{{5,1024}}, found forms {dict(gid_forms)} in {sorted(set(gid_seen))}")
-elif gid_forms[('5', '1024')] != 5:
-    fails.append(f"gid shape regex count {gid_forms[('5', '1024')]} != 5 — expected in {GID_NODES}, found in {sorted(set(gid_seen))}")
+elif gid_forms[('5', '1024')] != len(GID_NODES):
+    # count derived from GID_NODES, not hardcoded: the literal 5 and the list could drift apart, and then the
+    # guard would report a number that no longer matches its own expectation.
+    fails.append(f"gid shape regex count {gid_forms[('5', '1024')]} != {len(GID_NODES)} — expected in {GID_NODES}, found in {sorted(set(gid_seen))}")
 
 # 2) confirm_turn canonical regex ^[1-9][0-9]*$ — exactly the three confirm-freshness gates
 CT_NODES = ['Confirm Fresh?', 'Verify Confirm Live', 'Reschedule Fresh?']
@@ -220,7 +227,7 @@ if fails:
         print('  -', f)
     sys.exit(1)
 
-print('cancel-validation parity OK — gid regex 5x identical [0-9a-v]{5,1024} (incl. Reschedule Lookup + '
+print(f'cancel-validation parity OK — gid regex {len(GID_NODES)}x identical [0-9a-v]{{5,1024}} (incl. Reschedule Lookup + '
       'Validate Reschedule Target); '
       'confirm_turn regex 3x ^[1-9][0-9]*$ (Confirm Fresh?, Verify Confirm Live, Reschedule Fresh?); '
       'Cancel Lookup + Validate Cancel Target + Reschedule Lookup all check {finite start_utc, gid shape, '

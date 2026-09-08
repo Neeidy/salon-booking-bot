@@ -441,7 +441,7 @@ cannot be automated through the widget today; that is the gate working as design
 ### Date resolution — arithmetic taken away from the LLM (added 2026-09-07, CRT #12)
 
 `Resolve Date` resolves `slots.dateExpr` (the customer's own wording) with Luxon in `business.timezone`;
-`slots.date` from the LLM is only a cross-check. **E8 is the gate the whole fix hangs on — run it FIRST:** if
+`slots.date` from the LLM has **no authority at all** since 2026-09-09 — it is a disagreement signal, never a value. **E8 is the gate the whole fix hangs on — run it FIRST:** if
 `dateExpr` ever comes back as a resolved date instead of raw wording, the arithmetic has silently returned to the
 LLM and every row below is meaningless.
 
@@ -456,13 +456,19 @@ class, and the ping must be replaced by a `date_resolution` log record. Measured
 2022–2099: **1 mismatch / 30 date-carrying turns = 3.3%** → ping stays. Re-measure whenever the prompt or the model
 changes; a single event in 30 samples cannot rule out a true rate above the threshold.
 
+> ⚠ **E7 · E15 · E16a · E17a-c · E18a · E19 · E20a-b were written against the PRE-2026-09-09 rule** (the LLM's
+> date as a fallback value, classes `date_mismatch` / `date_unverified`). The 2026-09-09 re-opening deliberately
+> INVERTED several of them. This file is a drill script, so a stale PASS expectation here is worse than none:
+> **E21 · E22 · E23 · E24 are the current contract.** Rows above them are kept as history, struck through where
+> the expectation is now wrong.
+
 | # | Input | Expected | Evidence |
 |---|---|---|---|
 | **E8** | any booking message with a relative day | `slots.dateExpr` carries the RAW wording (`"friday"`), never a date | execution → `Validate Intent` output. **Measured 2026-09-07 (exec 1998): `dateExpr:"friday"`, `date:"2026-09-11"`** |
 | E1 | `haircut on friday at 11:00` | that week's Friday | Airtable `slot_date=2026-09-11` ✔ |
 | E2 | `haircut tomorrow at 11:00` | today+1 | `slot_date=2026-09-08` ✔ |
 | E3 | `haircut next tuesday at 11:00` | **refused** — date dropped, `askDateTime` re-ask, owner alert | `slot_date` EMPTY · exec 2006 (the gate was named `Date Mismatch?` then; renamed `Date Alert?` 2026-09-08): `Resolve Date`+`Date Mismatch?`+`Send Owner Alert (Telegram)` ran, **`Book Appointment` and `Write Appointment` did NOT** ✔ |
-| E7 | `haircut in two weeks at 11:00` | unresolved → LLM's date kept, flow unchanged | `slot_date=2026-09-21` ✔ (documented gap, not a fix) |
+| ~~E7~~ | `haircut in two weeks at 11:00` | **SUPERSEDED 2026-09-09 — the old expectation (LLM's date kept) is now a DEFECT.** Fail-closed: `unresolved_expr` → date dropped → re-ask, `date_unresolved` alert. Do not restore the old assertion | see E21/E23 |
 | E9–E12 | weekday-is-today (time ahead / passed) · weekday-was-yesterday · `this` vs `next` · DST changeover · month-end | per the rule table |
 | **E15** | `can I come wednesday at 14:00` where the LLM answers with a **different** day | **the CODE's date wins**, booking proceeds, owner alerted `date_mismatch` | exec 2044: `expr="wednesday"` `llm=2026-09-10` (a **Thursday**) `code=2026-09-09` → `slot_date=2026-09-09` · `Send Owner Alert (Telegram)` ran ✔ |
 | **E16a** | `friday next week at 11:00` | `dateExpr` carries the **WHOLE** expression → unresolvable → LLM's date kept | exec 2022: `expr="friday next week"`, `code=None`, `outcome=unresolved_llm_date_kept` ✔ |
@@ -471,12 +477,25 @@ changes; a single event in 30 samples cannot rule out a true rate above the thre
 | E14 | book, then `reschedule to friday at 15:00` | the reschedule path uses the RESOLVED date, not the LLM's | exec 2039: `code=2026-09-11` → reply *"to Friday 11 Sep 15:00"* ✔ |
 | **E18a** | `haircut friday at 11:00` where the LLM answers a DIFFERENT weekday | arithmetic slip → **code wins**, booking continues, owner alerted | execs 2178/2179/2180/2184/2185/2186 (six times): `expr="friday"` `llm=2026-09-12` (a **Saturday**) `code=2026-09-11` → `mismatch`, `date_mismatch`, Telegram fired ✔ |
 | **E18b** | a mismatch where the LLM's date is the SAME weekday a different week | clipping signature → **abstain + re-ask**, no booking | `week_ambiguous` / `date_week_ambiguous`. ⚠ **Unit-only** (`tests/unit/resolve-date.test.cjs`, plus 4 mutations that kill it): could NOT be induced live in 7 natural attempts — the model returns the whole expression, or clips it but is wrong by one day rather than seven |
-| **E19** | `haircut fri morning around 11:00` / `wednesday the 10th at 14:00` | `dateExpr` present but unparseable → `date_unverified`: LLM date KEPT, **no drop, no owner ping** — measurement only | exec 2177: `expr="wednesday the 10th"` unparsed, the LLM's `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep" — the hole, visible ✔ |
-| **E20a** | `I'm away all this week, so haircut friday at 11:00` | week-shifting phrase + bare `dateExpr` → **abstain + re-ask**, owner alerted, no booking | execs 2190/2191/2192: `week_context_lost` / `date_week_context`, `slot_date` dropped, Telegram fired ✔ (before the fix these offered "Friday 11 Sep" — this week — to someone away this week) |
+| **E19** | `haircut fri morning around 11:00` / `wednesday the 10th at 14:00` | `dateExpr` present but unparseable → ~~`date_unverified`~~ (outcome REMOVED 2026-09-09): LLM date KEPT, **no drop, no owner ping** — measurement only | exec 2177: `expr="wednesday the 10th"` unparsed, the LLM's `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep" — the hole, visible ✔ |
+| **E24a** | book → `yes` → `move my appointment to friday at 15:00` → `yes` | the NEW `Reschedule Event ID Valid?` gate passes a legitimate move | exec 2301: gate ran, real `eventId`, `Book Reschedule Appointment` ran → *"Moved — your Haircut is now Friday 11 Sep 15:00"* ✔ |
+| **E24b** | …then `move it to next friday at 16:00` | the refused date must not move anything | exec 2304: `ambiguous_next`, dropped, **no** reschedule write. ⚠ The gate's FALSE branch did not fire — `Reschedule Lookup` refuses first and re-asks, which is a better outcome than the veto's lock. The gate is defence-in-depth BEHIND that refusal; its false branch is **not proven live** |
+| **E21a** | `haircut friday morning at 11:00` | the qualifier is stripped and the day RESOLVES — never the model's Saturday | exec 2217: `expr="friday morning"` → `2026-09-11`, `llm_date_ignored` ✔ (Codex round-1 counterexample: this used to book a **Saturday**) |
+| **E21b** | `in five weeks, haircut friday at 11:00` | **CORRECTED 2026-09-09e** — the week rule is gone. The model returns the whole sentence as `dateExpr`, so this abstains via **fail-closed** (`unresolved_expr`), not via any week rule | exec 2531 ✔ |
+| ~~**E21c**~~ | `I am away all this week, haircut on friday at 11:00` | **SUPERSEDED 2026-09-09d/e — the week-context rule was REMOVED.** This now PROPOSES this week's Friday; only the confirmation step (weekday + full date) catches it. Accepted, recorded gap — the unit suite asserts this same behaviour, do NOT restore the abstain assertion | unit: `tests/unit/resolve-date.test.cjs` asserts this same behaviour under RESIDUAL RISK |
+| **E21d** | `sun-kissed balayage on 2026-09-11 at 11:00` · `my sister weds soon, haircut on 2026-09-11 at 11:00` | date KEPT, **no alarm** — the raw-text day-name backstop was deleted, not tuned | execs 2220/2221: `resolved_by_code` ✔ |
+| **E21e** | a COMPUTED ISO in `dateExpr` that is not in the customer's message | refused (`date_expr_forged`) | unit: `tests/unit/resolve-date.test.cjs` — the model cross-checking its own two values is not a cross-check |
+| **E22a** | book → `yes` | the echo of a validated slot completes a REAL booking | exec 2241: `echo_of_validated_slot`, `Book Appointment`+`Verify Slot`+`Check Race`+`Write Appointment` ran ✔ |
+| ~~**E22b**~~ | book → `yes, next friday` | **SUPERSEDED 2026-09-09e — the veto was REMOVED.** Historical: the write was VETOED and the turn ASKED — no booking on the stored date, and no lock | execs 2448/2449 (2026-09-09d): `vetoed=true` → `Date Veto?` → **`Build Date-Clarify State`** → *"What day and time works for you?"*; the following plain `yes` does **not** book the refused date. ⚠ Route changed — it used to reach `Mark Handoff`; that version left `confirming` + the refused slot in state and booked it two turns later |
+| ~~**E22d**~~ | after a veto, an uncertain turn | **VOID 2026-09-09e — there is no veto.** Historical: the clarify credit survived it (execs 2463/2464). Un-runnable; kept only as the record | — |
+| **E22e** | jailbreak · `I want to talk to a human` · stray `yes` with no validated slot | must lock on turn one with an owner alert | execs 2527/2528 (post-removal) ✔ execs 2527/2528 (post-removal): `Mark Handoff` + Telegram on turn one ✔ |
+| **E22c** | `dateExpr:null` + a date DIFFERENT from the stored slot | still refused | unit-only — could not be induced live: the model emits a `dateExpr` whenever a day is named, so this is a model-malfunction backstop |
+| **E23** | `what are your prices?` · `weekend hours?` · lead · `cancel` · explicit handoff · `hi` | making `dateExpr` REQUIRED must not lock a date-free intent | execs 2211-2216: all `valid=true`, none locked ✔ (the stop condition Yigitcan demanded) |
+| ~~**E20a**~~ | `I'm away all this week, so haircut friday at 11:00` | **SUPERSEDED 2026-09-09d — the week-context rule was REMOVED.** This input now PROPOSES this week's Friday; the confirmation step (weekday + full date) is the only thing that catches it. Accepted, recorded gap — do NOT restore this assertion | execs 2190/2191/2192: `week_context_lost` / `date_week_context`, `slot_date` dropped, Telegram fired ✔ (before the fix these offered "Friday 11 Sep" — this week — to someone away this week) |
 | **E20b** | `haircut friday at 11:00` · `weekly trim…` · `weekend hours…` · `tomorrow at 10:00` | the rule must NOT fire — ordinary bookings continue | execs 2193/2195/2196/2197: `mismatch`/`resolved_by_code`, booking offered ✔. **This half is not optional:** a rule proven only on the abstain side is indistinguishable from a new false-alarm source |
-| **E17a** | `haircut on 2026-09-11 at 14:00, it's for a wedding` | the backstop must NOT fire — an absolute date with no day NAMED | exec 2160: `unresolved_llm_date_kept`, `dropped=false`, no alert, booking proceeds ✔ |
+| **E17a** | `haircut on 2026-09-11 at 14:00, it's for a wedding` | the backstop must NOT fire — an absolute date with no day NAMED | exec 2160: ~~`unresolved_llm_date_kept`~~ (outcome REMOVED 2026-09-09), `dropped=false`, no alert, booking proceeds ✔ |
 | **E17b** | `my friend recommended you, haircut on 2026-09-11 at 14:00` | same | exec 2161 ✔ |
-| **E17c** | `haircut on 2026-09-11 at 14:00 (that is a friday right?)` | the backstop MUST fire — `dateExpr` missing while the text names a day | exec 2162: `expr_missing_but_day_named`, `dropped=true`, `date_expr_missing`, `Send Owner Alert (Telegram)` ran ✔ |
+| **E17c** | `haircut on 2026-09-11 at 14:00 (that is a friday right?)` | the backstop MUST fire — `dateExpr` missing while the text names a day | exec 2162: ~~`expr_missing_but_day_named`~~ (outcome REMOVED 2026-09-09), `dropped=true`, `date_expr_missing`, `Send Owner Alert (Telegram)` ran ✔ |
 
 **Why E17 exists:** the backstop day-name regex was anchored only at the START (`/\b(mon|tues?|wed|thur?s?|fri|sat|sun|…)/`),
 so it PREFIX-matched a salon's most ordinary vocabulary — `wedding`→`wed`, `friend`→`fri`, `money`/`month`→`mon`, plus

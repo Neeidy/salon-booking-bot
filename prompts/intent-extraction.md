@@ -5,7 +5,7 @@
 > [`../schemas/intent.schema.json`](../schemas/intent.schema.json). This file is the **canonical** prompt;
 > CP3 derives a simplified structured-output copy from it (this file stays the source of truth).
 
-## System prompt (v3 — 2026-09-08, F1 date contract)
+## System prompt (v4 — 2026-09-09, fail-closed date contract)
 
 > ⚠ **v2 told the LLM to do calendar arithmetic and was left standing after F1 removed that** — the exact
 > silent contradiction `.claude/rules/governance-sync.md` §6 forbids. Because this file declares itself
@@ -30,10 +30,13 @@ Rules:
 - Extract slots when present; use null when a slot is absent — never invent a value:
     serviceId    — from the services list below
     date         — YYYY-MM-DD (best effort; kept ONLY as a cross-check against the engine's own answer)
-    dateExpr     — the customer's OWN wording for the DAY, verbatim and lowercased ("friday", "this friday",
-                   "next tuesday", "tomorrow"). NEVER resolve it to a calendar date yourself: the engine
-                   resolves it deterministically in the shop timezone, and returning a date here silently
-                   defeats that guard. null when they gave an absolute date or named no day at all.
+    dateExpr     — REQUIRED, always present. The customer's OWN wording for the DAY, verbatim and lowercased,
+                   INCLUDING an absolute date they typed themselves ("friday", "this friday", "friday morning",
+                   "next tuesday", "tomorrow", "2026-09-11"). NEVER a date YOU worked out: the engine resolves
+                   the day itself, and an ISO date here is accepted ONLY when that exact text appears in the
+                   customer's message. null ONLY when they named no day AS THE APPOINTMENT DAY — a day mentioned inside a question about opening hours ("what time do you open on Saturday?") is not an appointment day, so that stays null. (v4, 2026-09-09: it used to be
+                   null for absolute dates — that left the engine nothing to resolve, so under fail-closed every
+                   absolute-date booking would have been re-asked.)
     time         — HH:MM (24-hour)
     customerName — as stated
     notes        — free text worth keeping
@@ -59,7 +62,7 @@ Each shows a customer message → the exact JSON to return. (Relative dates assu
 **1 — book, full slots** (absolute date — keeps the example stable regardless of `{today}`):
 > "Hi, I'd like a haircut on 2026-08-01 at 3pm, name's Alex"
 ```json
-{"intent":"book","confidence":0.93,"slots":{"serviceId":"haircut","date":"2026-08-01","dateExpr":null,"time":"15:00","customerName":"Alex","notes":null,"faqTopic":null},"reply":null}
+{"intent":"book","confidence":0.93,"slots":{"serviceId":"haircut","date":"2026-08-01","dateExpr":"2026-08-01","time":"15:00","customerName":"Alex","notes":null,"faqTopic":null},"reply":null}
 ```
 
 **2 — book, vague / missing slots:**

@@ -250,7 +250,16 @@ def project(node, smap):
         for r in p['rules'].get('values', []) or []:
             if isinstance(r.get('conditions'), dict):
                 strip_cond_meta(r['conditions'])
-    return {'type': node.get('type'), 'parameters': p, 'credentials': canon(node.get('credentials'), smap)}
+    # EXECUTION FLAGS (Codex finding 5, 2026-09-09). These were NOT compared, so a node DISABLED on live —
+    # `Resolve Date` among them — or one whose error routing had been changed left both parity guards GREEN.
+    # "live == committed" was therefore a weaker claim than it read as, for every check that relied on it.
+    # Normalised because n8n omits the field at its default rather than writing it.
+    # NOTE, deliberately not widened here: alwaysOutputData / retryOnFail / executeOnce are also
+    # execution-affecting and remain uncompared — out of scope for this change, recorded in ROADMAP.
+    return {'type': node.get('type'), 'parameters': p,
+            'disabled': bool(node.get('disabled')),
+            'onError': node.get('onError') or 'stopWorkflow',
+            'credentials': canon(node.get('credentials'), smap)}
 
 
 def main():
@@ -290,6 +299,12 @@ def main():
             diff_keys = sorted(k for k in set(lk) | set(ck)
                                if json.dumps(lk.get(k), sort_keys=True) != json.dumps(ck.get(k), sort_keys=True))
             extra = [] if lp['credentials'] == cp['credentials'] else ['credentials']
+            # Name the execution flags explicitly, with both values. Reporting a bare "fields []" for a
+            # disabled node tells the operator nothing — and this is precisely the drift the flags were
+            # added to catch, so its message has to be the clearest one in the guard.
+            for flag in ('disabled', 'onError'):
+                if lp[flag] != cp[flag]:
+                    extra.append(f'{flag} (committed={cp[flag]!r} live={lp[flag]!r})')
             fails.append(f"content DRIFT in '{nm}': fields {diff_keys + extra} differ (committed != live)")
 
     if fails:

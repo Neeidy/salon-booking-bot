@@ -102,9 +102,9 @@ flowchart TD
   BLR --> EI[Extract Intent<br/>HTTP → Anthropic · structured output]
   EI -.->|timeout/5xx/quota| LLMU[/LLM Unavailable Reply<br/>503 llm_unavailable/]
   EI --> VI[Validate Intent<br/>stop_reason gate · ajv from committed schema]
-  VI --> RD[Resolve Date<br/>dateExpr resolved in shop tz · LLM date = cross-check only]
+  VI --> RD[Resolve Date<br/>dateExpr resolved in shop tz · the LLM date has NO authority]
   RD --> DM{Date Alert?}
-  DM -.->|alert| OA[/Build Owner Alert<br/>date_mismatch · date_ambiguous · date_expr_missing/]
+  DM -.->|alert| OA[/Build Owner Alert<br/>date_ambiguous · date_week_ambiguous<br/>date_expr_forged · date_unresolved · date_expr_missing/]
   DM --> GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
   GATE -->|handoff — FIRST turn| MH[Mark Handoff<br/>stage=handoff · computed_reply=t.handoff]
   GATE -->|not a handoff| CPU{Confirm Pending & Uncertain?<br/>stage=*_confirming AND unknown/low-conf}
@@ -122,20 +122,23 @@ flowchart TD
   UT -->|certain| RI[→ Lane 3: Route Intent]
 ```
 
-**Date resolution — arithmetic is CODE's job (2026-09-07).** The LLM returns `slots.dateExpr`, the customer's own
-wording verbatim (`"friday"`, `"tomorrow"`); **`Resolve Date`** turns it into a date with Luxon in
-`business.timezone`, and the LLM's own `slots.date` survives only as a cross-check. A bare or `this <weekday>`
-resolves to the NEXT OCCURRENCE — today counts only while the asked time is still ahead of now. **`next <weekday>`
-is refused on purpose:** its two common readings differ by a week, and guessing writes an irreversible booking.
-**Disagreement → the CODE'S date wins** (ruling 2026-09-08): where the deterministic path resolved the day it is
-the better answer, and dropping it punished the customer for the model's arithmetic error. **Two cases are still DROPPED** — a REFUSED `next <weekday>`, and a missing `dateExpr` while the raw text names a day →
-`Slot Gate` re-asks and **no booking is written** (proven from execution 2006, where `Book Appointment` never ran).
-An UNRESOLVED expression is neither dropped nor alerted: the LLM's date passes unchecked — that is the deliberate gap.
-`Date Alert?` pings the owner on those two plus a mismatch, class split by meaning: `date_mismatch` (code corrected the
-LLM) · `date_ambiguous` · `date_expr_missing`. ⚠ The code's date winning is only safe while the LLM does not CLIP a
-multi-word expression; the anchored regex does NOT protect against that (it only governs whole strings). See ARCH-DEC. Expressions outside the
-relative set (`in two weeks`, `the 15th`, `11 September`, non-English wording) are NOT resolved and the LLM's date
-is used unchecked — an enumerated, deliberate gap; `09/11` is separately a LOCALE ambiguity, not a parsing gap.
+**Date resolution — the ENGINE owns the date (re-opened 2026-09-09).** The LLM returns `slots.dateExpr`, the
+customer's own wording for the day — including a date they typed themselves. **`Resolve Date`** resolves it with
+Luxon in `business.timezone`, and that is the only place a booking date can come from. The LLM's `slots.date` is
+**not a value — only a disagreement signal**: a different weekday means the model slipped and is ignored; the same
+weekday a different week means the wording may have lost a qualifier, so the turn **abstains**. An expression the
+engine cannot resolve **abstains too (fail-closed)** — it is never replaced by the model's answer, which is how
+"friday morning" once produced a Saturday booking. `next <weekday>` is refused (two readings a week apart), an ISO
+date in `dateExpr` is accepted only if that exact text is in the customer's message, and a week shift the sentence carries but `dateExpr` does not is
+**NOT detected** — that rule was removed 2026-09-09d after four rounds of false claims and false positives; the
+confirmation step (weekday + full date) is the only thing that catches it. Recorded gap, not closed. A `dateExpr` that is missing while the date EQUALS the already-validated
+stored slot is a confirm **echo** and proceeds. **NO WRITE VETO (removed 2026-09-09e).** A veto mechanism briefly made a refusal on the current turn binding on
+the write. It was removed: it closed a VISIBLE, recoverable defect (the customer's qualifying sentence ignored on
+the confirm turn) and produced three SILENT, irreversible ones — an outage, booking the refused date, and a double
+booking on the reschedule lane. **Accepted, recorded gap:** on a confirm turn the engine writes the date it SHOWED
+the customer; the correct fix is a product feature (a change request during confirmation as its own intent), not a
+guard. Both event-id gates route an invalid event to `Mark Handoff`. Expressions outside the resolved
+set (`11 september`, `the 15th`, non-English wording) now ASK rather than trusting the model.
 
 **Deterministic-before-AI:** guards run with **zero** LLM cost. The LLM ONLY classifies intent + slots; every
 downstream action is deterministic IF/Switch/Code. **Three handoff classes are already distinct here:**
@@ -392,7 +395,9 @@ flowchart TD
   VRT --> RTV{Reschedule Target Valid?}
   RTV -.->|false| BNH[Build Reschedule-NeedsHuman State<br/>NO insert · NO delete]
   RTV -->|true| BREQ["Build Reschedule Event Request<br/>NEW slot · new deterministic id · ...$json keeps _reschedule_target"]
-  BREQ --> BK[Book Reschedule Appointment<br/>GCal insert the NEW event]
+  BREQ --> REV{Reschedule Event ID Valid?<br/>added 2026-09-09 — this path had NO gate}
+  REV -->|valid| BK[Book Reschedule Appointment<br/>GCal insert the NEW event]
+  REV -->|invalid event| MH2[Mark Handoff]
   BK -.->|error / 409| BIF[[Build Reschedule Insert-Failed State<br/>original stands · book-new-first = old intact]]
   BK -->|success| VSR[Verify Slot (Reschedule)<br/>events.list over the NEW window]
   VSR -.->|read fail| BVU[Build Reschedule Verify-Unavailable State<br/>NEW kept · OLD intact · never delete on unverified read]

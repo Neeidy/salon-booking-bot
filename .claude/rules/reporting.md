@@ -38,6 +38,25 @@ If either surface still describes the *previous* state after the VERDICT block, 
 A live-state surface that lags the commit is silent drift — the same failure `governance-sync.md` forbids
 across surfaces, here across time. (Trigger: memory lagged a full checkpoint behind at CP4, 2026-07-26.)
 
+## A claim ABOUT a guard is written AFTER the mutation test, never beside the code
+Do not write the comment, sticky or doc sentence that says what a guard covers at the same moment you
+write the guard. Break it first, watch the test go red, and then write only what the test actually showed.
+
+Trigger (2026-09-09, three times in one round, all by the same hand):
+- `"Verified by tests/unit/resolve-date.test.cjs, which asserts every DAYS key resolves"` — 8 of 18 keys had
+  no case at all. Committed AND deployed.
+- `"every month reference here requires a preposition"` — two alternatives in that very regex had none,
+  which is why "may 2 of us come friday" fired.
+- `"Only markers that can only point FORWARD are kept"` — `from`, `until`, `after`, `starting` are
+  direction-blind in English ("I have been coming from june"), so seven ordinary sentences abstained.
+
+Each was written in the same keystroke as the code, each sounded right, and none was ever executed. The
+regex was not the defect; the untested justification was. An unproven coverage claim is worse than none —
+it is the reason nobody re-checks, and it makes the next reviewer's job start from a false premise.
+
+Practical form: the mutation run comes first and the sentence quotes it. If you cannot point at the mutant
+that dies, you do not get to write the claim.
+
 ## A STRUCTURAL claim needs evidence too, not just a behavioural one
 "Every X goes through Y", "this is the single entry point", "both paths pass through here" — these are
 claims about the SHAPE of the system, and they are asserted far more casually than claims about behaviour.

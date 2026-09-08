@@ -345,7 +345,7 @@ Each CP waits for its own written approval (plan-gate).
   ⚠ **Drill was asymmetric and is reported as such:** the arithmetic-slip direction reproduced SIX times live
   (execs 2178-2186); the same-weekday direction could NOT be induced in 7 natural attempts, so it rests on unit
   evidence against the live node code, not a live drill.
-- ✅ **WEEK-CONTEXT RULE — BUILT 2026-09-08 (approved; ARCH-DEC 2026-09-08c).** A week-shifting phrase in the raw
+- ⊘ **WEEK-CONTEXT RULE — BUILT 2026-09-08, then REMOVED 2026-09-09d (see the entry above). Kept as history.** A week-shifting phrase in the raw
   text while `dateExpr` is a bare weekday → abstain and re-ask (`week_context_lost` → `date_week_context`). Raw text
   answers only "should I refuse", never "what is the date". Regex designed against a 25-case neighbour table BEFORE
   touching the node (`weekly`/`weekend`/`midweek`/`biweekly` must not fire; `this week` counts only beside an absence
@@ -353,14 +353,71 @@ Each CP waits for its own written approval (plan-gate).
   ordinary bookings alone on execs 2193/2195/2196/2197.
   ⚠ **ESCALATION THRESHOLD (declared before the work, not after): this was the SECOND patch to the mismatch ruling.
   A THIRD reopens the rule itself — no patch on a patch.**
-- ☐ **READ THE `date_unverified` RATE IN A WEEK (opened 2026-09-08, measurement only).** A `dateExpr` that is present
-  but unparseable now carries its own outcome label and nothing else — no drop, no ping, no branch. It is the one path
-  the original wrong-day defect can still cross unseen, and its size is unknown. Already visible twice, both producing a WRONG DAY on screen:
-  "book me a haircut on wednesday the 10th at 14:00" (exec 2177) → `dateExpr:"wednesday the 10th"` unparsed → the LLM's
-  `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep"; and exec 2194, `"haircut friday this week at 11:00"` → `dateExpr:"friday this week"`
-  unparsed → the LLM's `2026-09-12` (a **Saturday**) passed unchecked and the bot offered "Saturday 12 Sep" to someone
-  who said friday. Multi-word `dateExpr` is clearly not rare, so this hole is material, not theoretical. Count `outcome='date_unverified'`
-  across executions, then decide on evidence whether to widen the resolver or the guard.
+- ✅ **CRT #12 ROUND-2 — the mismatch rule RE-OPENED, resolver made AUTHORITATIVE (2026-09-09).** Codex refuted 6
+  of 8 claims and returned four HIGH findings with one root cause: the resolver was advisory. The LLM's
+  `slots.date` now has no authority at all — it is a disagreement signal, never a value. Six scoped changes:
+  provenance + write veto (incl. **`Reschedule Event ID Valid?`**, a gate the reschedule write path never had);
+  fail-closed + grammar expansion; `dateExpr` REQUIRED in the schema with ISO accepted only when the customer
+  typed it; the week-context rule generalised so no numeric list can be outrun; parity guards comparing
+  `disabled`/`onError`; and the `sun-kissed`/`weds` false alarms removed by DELETING the raw-text backstop
+  rather than tuning it. Amendment 2026-09-09b after a stop condition: the confirm echo is not a new claim.
+  82/82 unit, 14/14 mutations killed, regression 28/28, 12 guards green. ARCH-DEC 2026-09-09.
+- ⊘ **[SUPERSEDED 2026-09-09e — the veto was REMOVED entirely.]** A veto briefly asked instead of locking via
+  `Date Veto?`. Real handoffs (jailbreak, explicit request, stray `yes`) still lock on turn one with an owner alert —
+  drilled both ways. This is the fix for the false-positive class as a whole; see ARCH-DEC 2026-09-09c. Original note: Deliberate for now (a lock beats a wrong-day booking) and the node comments now say so instead of
+  claiming a re-ask, but the better route is `Build Clarify State` (writes no `stage`, so no lock forms). Ties into
+  the open handoff-lock TTL item.
+- ✅ **WEEK-CONTEXT RULE REMOVED (2026-09-09d), threshold invoked.** Four rounds, three false claims about its
+  own regex, seven false positives, one outage, one safety regression — for a date the confirmation step already
+  shows. Semantic inference over raw text with a regex is abandoned. **The weekday-signature clipping check is
+  KEPT** (pure date comparison, no raw text, zero false positives, still catches a real subset).
+  ⚠ **RESIDUAL RISK, RECORDED AND NOT CLOSED:** when the week context is lost the engine MAY PROPOSE the wrong
+  week's day; the confirmation step (weekday + full date) is the only thing that catches it. N2 is therefore no
+  longer an open defect — it is part of this accepted gap. ARCH-DEC 2026-09-09d.
+- ⊘ **[SUPERSEDED 2026-09-09e — `Date Veto?` and `Build Date-Clarify State` were DELETED; the whole veto is gone. Kept as the record of why.]** ~~Veto route rebuilt (N9/N10/N11).~~ `Date Veto?` → **`Build Date-Clarify State`** (clears the refused slot,
+  `stage='collecting'`, `askDateTime`, own `last_intent`). Reusing the shared clarify tier had written `confirming`
+  back with the refused slot, so the next "yes" booked the refused date. The `vetoed` stamp now fires only when a
+  date refusal is the SOLE disqualifier, so a stray `yes` still escalates. Drilled six ways.
+- ✅ **WRITE VETO REMOVED ENTIRELY (2026-09-09e).** `Date Veto?`, `Build Date-Clarify State` and the `dateSrc`
+  provenance stamp are gone; both event-id gates route their invalid branch to `Mark Handoff`. The mechanism became
+  more expensive than the defect it closed — three silent, irreversible bugs against one visible, recoverable one.
+  ARCH-DEC 2026-09-09e.
+- ☐ **`scripts/secret-scan.sh` does not recognise the leak class that has actually happened here — TWICE**
+  (`security-auditor`, 2026-09-09). It ran the guard's own RULES against a realistic payload: a real
+  `googleCalendarId`, a numeric Telegram `chatId`, `app…`/`tbl…` ids and an n8n credential id were **all missed**;
+  only the turnstile value matched, and only because the word "secret" appears in the key name. Both real incidents
+  in this repo were caught by `check-content-parity.py`'s sanitise half — a script run by hand. **The automatic push
+  guard does not cover the one class that has bitten us.** Suggested shapes: `@group\.calendar\.google\.com`
+  (excluding the placeholder), `(app|tbl|fld|rec|viw)[A-Za-z0-9]{14}` (excluding `XXXXXXXXXXXXXX`), and
+  `"chatId"\s*:\s*"?-?[0-9]{6,}`. Recorded, not built — outside this round's agreed scope.
+- ☐ **No byte-compare between `Event ID Valid?` and `Reschedule Event ID Valid?`** (`flow-reviewer`, 2026-09-09).
+  `check-cancel-validation-parity.py` counts the gid regex 6× but byte-compares only the `Confirm Fresh?` /
+  `Reschedule Fresh?` pair. Flip `typeValidation` to `loose` on the new gate and every guard stays green while the
+  node's behaviour changes. ~8 lines, same shape as the existing Fresh? block. Recorded, not built — outside this
+  round's agreed scope.
+- ☐ **ACCEPTED GAP — Codex finding 2 (change request during confirmation).** If a customer qualifies a different date
+  on the confirm turn and it cannot be resolved, the engine writes the date it SHOWED them in the confirmation text.
+  Wrong but visible. The correct fix is a **product feature** — a change-request-during-confirmation intent with its
+  own flow — not a guard on the write path. Own phase, own gate. **Do not close this with another guard.**
+- ☐ **`dateExpr` has no `maxLength` in the committed schema** (`security-auditor`): `stripQualifiers` has quadratic
+  backtracking, bounded today only by `max_tokens`. It only ever sees LLM output, never raw customer text (that is a
+  linear `indexOf`), so this is LOW — a `maxLength` would close the class outright.
+- ☐ **LLM input length is uncapped** (`security-auditor`): customer `text` is concatenated into the request with no limit; `max_tokens` caps output only, so input tokens bill unbounded per request until `llmCostCapUsd` trips. Bounded in practice by Turnstile + HMAC, but `spend-safety.md` wants an explicit cap.
+- ☐ **`webhookId` UUID committed on `Receive Inbound Message`** (`security-auditor` round-3, F4). Half of a working
+  test-endpoint URL; harmless while the host is absent (verified across all history), but it is an identifier that
+  need not be in a public repo.
+- ⊘ **[CORRECTED + SUPERSEDED 2026-09-09e.]** This line claimed `Reschedule Lookup` refuses first "so the veto sits
+  behind it as defence-in-depth". **That was FALSE:** the reschedule CONFIRM lane never passes `Reschedule Lookup`
+  (its only inbound is `Find Booking (Reschedule) Errored?`), which is exactly how the veto reached the confirm lane
+  and produced a double booking. A drill on one path was read as proof for all — the failure `reporting.md` warns
+  about. The veto is now removed; the gate's false branch routes to `Mark Handoff`. Its true branch IS proven
+  (exec 2301). Reaching the false branch needs an injected state, i.e. a ⚙ assisted scenario.
+- ☐ **MEASURE THE RE-ASK RATE ON A REPRESENTATIVE SET.** Fail-closed means an unresolvable expression now asks
+  instead of silently using the model's date. Measured 3 of 11 date-carrying turns (27%) on the 2026-09-09
+  drill set — but that set is ADVERSARIAL by construction and is not a traffic estimate. The grammar-expansion
+  scope decision (whether to parse `11 september`, non-English wording, etc.) waits on a real measurement.
+- ☐ **Parity guards still ignore `alwaysOutputData` / `retryOnFail` / `executeOnce`** — execution-affecting
+  fields, out of scope for the 2026-09-09 change which added `disabled` + `onError`.
 - ☐ **`tests/unit/resolve-date.test.cjs` executes committed workflow code unsandboxed** (`security-auditor`,
   2026-09-08). It runs `new Function(...)` on the `jsCode` read from `n8n/workflow.sanitized.json`; inside that body
   `process.env` and `require` are reachable (measured, not assumed). On a PUBLIC repo this turns the workflow JSON
@@ -368,13 +425,13 @@ Each CP waits for its own written approval (plan-gate).
   body instead would violate `contract-integrity.md`, so the risk is accepted and pushed onto the review model for
   now. Fix when CI runs these: `node --permission` or a container, plus a CODEOWNERS-style rule that a PR touching
   `n8n/*.sanitized.json` is reviewed as CODE.
-- ☐ **Plural weekdays resolve nowhere, by design — recorded so the asymmetry is not read as a bug.** The backstop
+- ✅ **Plural weekdays — CLOSED by the 2026-09-09 fail-closed rule** (an unresolvable expression now asks instead of passing the LLM's date through). Original note: — recorded so the asymmetry is not read as a bug.** The backstop
   regex matches `fridays`/`saturdays` (the customer DID name a day) but the resolver's `DAYS` map does not (there is
   no single date to compute from "book me saturdays"). Net effect: `dateExpr:"saturdays"` → `unparsed` →
   `unresolved_llm_date_kept`, i.e. the LLM's date passes unchecked. That is the documented deliberate gap, but the
   plural form was not on its list. The node comment says the alternation must stay "in sync with the DAYS map" —
   that invariant is deliberately ONE-WAY and now says so.
-- ☐ **Backstop day-name regex: two deliberate limits** (`flow-reviewer` 2nd pass, 2026-09-08). (a) **`sat`, `sun`, `wed` and `weds`
+- ✅ **Backstop day-name regex — CLOSED: the backstop was DELETED 2026-09-09**, which is what removed the `sun-kissed`/`weds` false alarms. Original note: (`flow-reviewer` 2nd pass, 2026-09-08). (a) **`sat`, `sun`, `wed` and `weds`
   are ordinary English words** — measured on the live node: "I sat in the chair", "sit in the **sun room**",
   "**sun-kissed** balayage please", "we **wed** on 2026-10-03, need bridal hair", "my sister **weds** soon" all still
   DROP a correct absolute date and send a false `date_expr_missing` alert. `sun-kissed` and bridal wording are core
@@ -385,7 +442,7 @@ Each CP waits for its own written approval (plan-gate).
   (`Freitag`, `Cuma`) are not matched — consistent with the resolver's documented English-only scope, but worth
   naming because the shop is in Vienna. A narrowing that removes (a) without weakening the guard is proposed:
   skip the backstop when the LLM's date appears VERBATIM in the customer's text, since no arithmetic happened.
-- ☐ **`dateExpr` present but UNPARSED leaves no trace at all** (`flow-reviewer` WARN-1, 2026-09-08). `"fri morning"`,
+- ✅ **UNPARSED `dateExpr` — CLOSED 2026-09-09: it no longer passes silently, it ASKS.** ⚠ The fix proposed below (a non-dropping `date_unverified` class) is now the WRONG answer — do not implement it. Original note: (`flow-reviewer` WARN-1, 2026-09-08). `"fri morning"`,
   `"friday next week"` → `unresolved_llm_date_kept`: not dropped, not alerted, and because `date_alert=false` the item
   never reaches `Build Owner Alert`, so the `date_resolution` log object is written **nowhere**. There are TWO such invisible paths, not one
   (correction after a second review): this one, AND `!dateExpr` + a date + NO day name matched in the text — which
@@ -433,7 +490,7 @@ Each CP waits for its own written approval (plan-gate).
   `Find Conversation Row` before `Save State` has created the row, so a delivered Telegram alert can leave the column
   empty (observed: execution 2006 — `Send Owner Alert (Telegram)` ran, column stayed blank). **Consequence for
   METHOD, not just product: the column is valid POSITIVE evidence (written ⇒ alert delivered) but NOT valid negative
-  evidence (empty ⇏ no alert).** Product impact is low — a `date_mismatch` turn does not stick the conversation, so
+  evidence (empty ⇏ no alert).** Product impact is low — a `date_mismatch` turn did not stick the conversation (⚠ that class no longer exists — 2026-09-09), so
   the stamp's purpose (explaining a stuck conversation) does not apply to this class. See the 2026-08-17 rule in
   ARCH-DEC, evidence (5).
 - ☐ **Restore `Find Conversation Row.limit = 1` on the LIVE workflow (declared deviation, pre-existing).** The

@@ -53,7 +53,7 @@
             "string",
             "null"
           ],
-          "description": "The customer's OWN relative date wording, copied VERBATIM and lowercased (e.g. \"friday\", \"this friday\", \"next tuesday\", \"tomorrow\", \"today\"). NEVER a resolved calendar date — the engine resolves it deterministically in the shop timezone. null when the customer named an absolute date or no date at all."
+          "description": "The customer's OWN wording for the DAY, copied VERBATIM and lowercased — including an absolute date they typed themselves (\"friday\", \"this friday\", \"friday morning\", \"tomorrow\", \"2026-09-11\"). NEVER a date YOU computed: the engine resolves the day deterministically in the shop timezone, and an ISO date here is accepted only when that exact string appears in the customer's own message. null ONLY when the customer named no day at all. REQUIRED — a missing key is a contract violation, because the engine cannot distinguish an absent field from a deliberate null, and that ambiguity is what let the model bypass the guard entirely (Codex finding 3)."
         },
         "time": {
           "type": [
@@ -91,7 +91,10 @@
             null
           ]
         }
-      }
+      },
+      "required": [
+        "dateExpr"
+      ]
     },
     "reply": {
       "type": [
