@@ -345,18 +345,21 @@ Each CP waits for its own written approval (plan-gate).
   ⚠ **Drill was asymmetric and is reported as such:** the arithmetic-slip direction reproduced SIX times live
   (execs 2178-2186); the same-weekday direction could NOT be induced in 7 natural attempts, so it rests on unit
   evidence against the live node code, not a live drill.
-- ☐ **RESIDUAL CLASS the guard does NOT cover — needs a ruling (ARCH-DEC 2026-09-08c).** Measured during the drill:
-  "I'm away all this week, so haircut friday at 11:00" → the model reduces `dateExpr` to `"friday"` (week context gone)
-  and its own date is off by ONE day, so the guard sees a plain arithmetic slip and the code wins with **this week's
-  Friday** — offered to someone who just said they are away this week (execs 2184, 2185). **Before the 2026-09-08
-  ruling this was dropped and re-asked, so for this class the ruling made the outcome worse.** Deterministic option
-  matching existing precedent: the backstop already reads raw text solely to decide whether to REFUSE, never to derive
-  a date; the same shape would be "week-shifting phrase in the text while `dateExpr` is a bare weekday → abstain".
+- ✅ **WEEK-CONTEXT RULE — BUILT 2026-09-08 (approved; ARCH-DEC 2026-09-08c).** A week-shifting phrase in the raw
+  text while `dateExpr` is a bare weekday → abstain and re-ask (`week_context_lost` → `date_week_context`). Raw text
+  answers only "should I refuse", never "what is the date". Regex designed against a 25-case neighbour table BEFORE
+  touching the node (`weekly`/`weekend`/`midweek`/`biweekly` must not fire; `this week` counts only beside an absence
+  marker). 60/60 unit cases, 6 mutations killed. **Two-way live drill:** abstains on execs 2190/2191/2192, leaves
+  ordinary bookings alone on execs 2193/2195/2196/2197.
+  ⚠ **ESCALATION THRESHOLD (declared before the work, not after): this was the SECOND patch to the mismatch ruling.
+  A THIRD reopens the rule itself — no patch on a patch.**
 - ☐ **READ THE `date_unverified` RATE IN A WEEK (opened 2026-09-08, measurement only).** A `dateExpr` that is present
   but unparseable now carries its own outcome label and nothing else — no drop, no ping, no branch. It is the one path
-  the original wrong-day defect can still cross unseen, and its size is unknown. Already visible in the first drill:
+  the original wrong-day defect can still cross unseen, and its size is unknown. Already visible twice, both producing a WRONG DAY on screen:
   "book me a haircut on wednesday the 10th at 14:00" (exec 2177) → `dateExpr:"wednesday the 10th"` unparsed → the LLM's
-  `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep". Count `outcome='date_unverified'`
+  `2026-09-10` (a **Thursday**) passed unchecked and the bot offered "Thursday 10 Sep"; and exec 2194, `"haircut friday this week at 11:00"` → `dateExpr:"friday this week"`
+  unparsed → the LLM's `2026-09-12` (a **Saturday**) passed unchecked and the bot offered "Saturday 12 Sep" to someone
+  who said friday. Multi-word `dateExpr` is clearly not rare, so this hole is material, not theoretical. Count `outcome='date_unverified'`
   across executions, then decide on evidence whether to widen the resolver or the guard.
 - ☐ **`tests/unit/resolve-date.test.cjs` executes committed workflow code unsandboxed** (`security-auditor`,
   2026-09-08). It runs `new Function(...)` on the `jsCode` read from `n8n/workflow.sanitized.json`; inside that body

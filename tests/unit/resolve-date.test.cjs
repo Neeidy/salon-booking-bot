@@ -102,10 +102,11 @@ const CASES = [
     {date:'2026-09-11',dropped:false,cls:null,outcome:'date_unverified'}],
   // ---- CLIPPING GUARD (ruling 2026-09-08b). Same weekday a different week = the clipping signature:
   // the code must ABSTAIN, because it cannot know whether the wording carried a week offset dateExpr lost.
-  ['clipping signature — same weekday, +1 week -> ABSTAIN', 'friday in two weeks at 11',
+  // neutral text on purpose: these must exercise the WEEKDAY comparison, not the week-context rule below
+  ['clipping signature — same weekday, +1 week -> ABSTAIN', 'haircut friday at 11',
     {dateExpr:'friday',date:'2026-09-18',time:'11:00'},
     {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
-  ['clipping signature — same weekday, +2 weeks -> ABSTAIN', 'friday after next at 11',
+  ['clipping signature — same weekday, +2 weeks -> ABSTAIN', 'haircut friday at 11',
     {dateExpr:'friday',date:'2026-09-25',time:'11:00'},
     {date:null,dropped:true,cls:'date_week_ambiguous',outcome:'week_ambiguous'}],
   // ---- and the guard must NOT swallow a plain arithmetic error: a DIFFERENT weekday still lets code win.
@@ -129,6 +130,45 @@ const CASES = [
   ['no dateExpr at all stays unresolved_llm_date_kept', 'book 2026-09-11 at 11',
     {dateExpr:null,date:'2026-09-11',time:'11:00'},
     {date:'2026-09-11',dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
+
+  // ---- E20 (ruling 2026-09-08c): the sentence carried a week shift that dateExpr lost. Raw text is read
+  // ONLY to decide whether to REFUSE — never to derive a date. Measured case first (exec 2184).
+  ['E20 — "away all this week" + bare friday -> ABSTAIN', "I'm away all this week, so haircut friday at 11:00",
+    {dateExpr:'friday',date:'2026-09-12',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_context',outcome:'week_context_lost'}],
+  ['E20 — "busy until next week" -> ABSTAIN', "I'm busy until next week — haircut friday at 11:00",
+    {dateExpr:'friday',date:'2026-09-12',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_context',outcome:'week_context_lost'}],
+  ['E20 — "in two weeks" -> ABSTAIN', 'book friday in two weeks at 11',
+    {dateExpr:'friday',date:'2026-09-25',time:'11:00'},
+    {date:null,dropped:true,cls:'date_week_context',outcome:'week_context_lost'}],
+  // ---- the OTHER direction, which is what stops this rule becoming a new false-alarm source
+  ['E20 must NOT fire on an ordinary booking', 'haircut friday at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 must NOT fire on "weekly"', 'weekly trim please, haircut friday at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 must NOT fire on unqualified "weekend"', 'do you have weekend hours? haircut friday at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 must NOT fire on "midweek"/"biweekly"', 'biweekly midweek trim, haircut friday at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 must NOT fire on "two weeks of growth" (no "in")', 'two weeks of growth, haircut friday at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  // "this week" UNNEGATED is week-anchoring, not shifting — and "friday this week" is very common. Without
+  // this case, dropping the absence-marker requirement passed unnoticed (mutation survived, 2026-09-08c).
+  ['E20 must NOT fire on unnegated "this week"', 'haircut friday this week at 11:00',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 must NOT fire on "see you next week" with no day shift intent', 'haircut friday at 11:00, see you then',
+    {dateExpr:'friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
+  ['E20 needs a BARE weekday — "this friday" is not bare', "I'm away this week, haircut this friday at 11:00",
+    {dateExpr:'this friday',date:'2026-09-11',time:'11:00'},
+    {date:'2026-09-11',dropped:false,cls:null,outcome:'resolved_by_code'}],
 
   ['no date given at all', 'a haircut', {dateExpr:null,date:null,time:null},
     {date:null,dropped:false,cls:null,outcome:'unresolved_llm_date_kept'}],
