@@ -26,13 +26,108 @@ import os, sys, json, re, urllib.request
 WF = os.environ.get('N8N_WORKFLOW_ID', 'SL142I47mK6SAz6p')
 API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
-COMMITTED = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
+# Default resolves against the REPO, not the caller's cwd: a relative default made the guard die with
+# FileNotFoundError when run from scripts/, which reads as "the guard failed" rather than "you were in the
+# wrong directory" — a guard that reports a false failure erodes trust as fast as one that stays silent.
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+COMMITTED = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
+    'SANITIZED_PATH', os.path.join(_REPO, 'n8n/workflow.sanitized.json'))
 UA = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36')
 # Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise), so the
 # same guard works whether /api is CF-Access "Bypass" (today) or "Service Auth" (CRT #7 follow-up).
 CF_HDRS = ({'CF-Access-Client-Id': os.environ['CF_ACCESS_CLIENT_ID'],
             'CF-Access-Client-Secret': os.environ['CF_ACCESS_CLIENT_SECRET']}
            if os.environ.get('CF_ACCESS_CLIENT_ID') and os.environ.get('CF_ACCESS_CLIENT_SECRET') else {})
+
+# --- SANITISE CHECK -------------------------------------------------------------------------------
+# These three literals must be placeholders in the COMMITTED export, unconditionally. They live here, at
+# module level and independent of any live fetch, because of a defect found on 2026-09-08: the assertion
+# used to sit INSIDE build_smap(), which only runs after a successful n8n API call — so on a machine with
+# no n8n credentials the script exited before the sanitise check ever ran, and a commit got NO sanitise
+# coverage at all while `.claude/commands/sanitize.md` claimed it "FAILS loudly". A guard that only works
+# where you happen to have credentials is the same class of untested safety net as the inverted test this
+# assertion was written to replace (ARCH-DEC 2026-08-17).
+def _cal_id(node):
+    m = re.search(r'googleCalendarId:\s*"([^"]+)"', (node.get('parameters', {}) or {}).get('jsCode', '') or '')
+    return m.group(1) if m else None
+
+
+def _turnstile_secret(node):
+    bp = (((node.get('parameters') or {}).get('bodyParameters') or {}).get('parameters') or [])
+    for prm in bp:
+        if isinstance(prm, dict) and prm.get('name') == 'secret':
+            return prm.get('value')
+    return None
+
+
+def _is_placeholder(v):
+    return isinstance(v, str) and (v.startswith('REPLACE_WITH') or 'XXXX' in v)
+
+
+def _walk_ids(obj, out):
+    """Collect Airtable base/table ids and credential ids from anywhere in a node."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == 'credentials' and isinstance(v, dict):
+                for cred in v.values():
+                    if isinstance(cred, dict) and isinstance(cred.get('id'), str):
+                        out.append(('credential id', cred['id']))
+            # SUBSTRING, not fullmatch: a real id pasted inside an httpRequest URL or a Code-node string
+            # literal escaped a fullmatch entirely (flow-reviewer planted both, 2026-09-08). view/record/field
+            # ids are included because `sanitize.md` step 2 covers pinned data and Airtable ids generally.
+            if isinstance(v, str):
+                for m in re.finditer(r'(app|tbl|viw|rec|fld)[A-Za-z0-9]{14}', v):
+                    if not _is_placeholder(m.group(0)):
+                        out.append(('airtable id', m.group(0)))
+                for m in re.finditer(r'[0-9a-f]{16,}@group\.calendar\.google\.com', v):
+                    out.append(('google calendar id', m.group(0)))
+            _walk_ids(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _walk_ids(v, out)
+
+
+def check_sanitised(comm):
+    """Committed-side only: no live workflow, no credentials, no network. Exits 1 on a real value.
+
+    Covers the classes `.claude/commands/sanitize.md` step 2 names: calendar id (anywhere, not just
+    Load Config), telegram chatId, turnstile secret, Airtable app/tbl/viw/rec/fld ids (as SUBSTRINGS, so an id
+    inside a URL or a code string is caught), credential ids, and pinData. Webhook URLs / tunnel hostnames are
+    covered by scripts/check-no-host-leak.sh instead, not here. It used to cover only
+    three: a `flow-reviewer` pass on 2026-09-08 planted a real-looking Airtable base id, table id and
+    credential id in a copy and the guard went GREEN — and would have stayed green on the credentialled
+    path too, because when live == committed no mask is built and parity compares equal. That is the SAME
+    shape as the inverted test this function was written to replace, still open for two classes.
+    """
+    bad = []
+    for n in comm['nodes']:
+        ids = []
+        _walk_ids(n, ids)
+        for kind, val in ids:
+            if not _is_placeholder(val):
+                bad.append('%s %r (%s)' % (kind, val[:6] + '…', n['name']))
+        # pinData is named in sanitize.md step 2 and had NO automated check at all: pinned test data is the
+        # most likely carrier of real customer PII in an export refreshed from live.
+        if n.get('pinData') or (isinstance(comm.get('pinData'), dict) and n['name'] in comm['pinData']):
+            bad.append('pinData present (%s) — pinned data must be stripped before commit' % n['name'])
+        v = _cal_id(n)
+        if isinstance(v, str) and v and not _is_placeholder(v):
+            bad.append('googleCalendarId (%s)' % n['name'])
+        if n.get('type') == 'n8n-nodes-base.telegram':
+            ch = (n.get('parameters') or {}).get('chatId')
+            if isinstance(ch, str) and ch and not _is_placeholder(ch):
+                bad.append('telegram chatId (%s)' % n['name'])
+        ts = _turnstile_secret(n)
+        if isinstance(ts, str) and ts and not _is_placeholder(ts):
+            bad.append('turnstile secret (%s)' % n['name'])
+    if bad:
+        print('SANITISE FAILURE — the committed export carries REAL values (not placeholders):')
+        for kind in bad:
+            print('  - ' + kind)
+        print('Restore the placeholders in n8n/workflow.sanitized.json before committing (see .claude/commands/sanitize.md).')
+        sys.exit(1)
+    return len(comm['nodes'])
+
 
 # The real-id -> committed-placeholder map is DERIVED from the (live, committed) pair itself — NEVER
 # hardcoded. This file is committed to a PUBLIC repo, so it must contain no real base/table/calendar/host/
@@ -71,11 +166,13 @@ def build_smap(live, comm):
             if cval and lval != cval:
                 smap[lval] = cval  # real (live) -> placeholder (committed)
 
-    # the calendar id is a literal only in Load Config's googleCalendarId
-    def cal(node):
-        m = re.search(r'googleCalendarId:\s*"([^"]+)"', (node.get('parameters', {}) or {}).get('jsCode', '') or '')
-        return m.group(1) if m else None
-    lcal, ccal = cal(lby.get('Load Config', {})), cal(cby.get('Load Config', {}))
+    # --- SANITISE ASSERTION (added 2026-09-07 after a real calendar id reached the committed export) ---
+    # The masks below used to be applied ONLY when live != committed. That made the PASS condition CONTAIN
+    # the leak condition: if the committed export carried the REAL value, both sides were equal, no mask was
+    # built, and this guard went GREEN at exactly the moment it had to shout. Inverted test, not a gap.
+    # The placeholder ASSERTIONS are not here — they run in check_sanitised() before any live fetch, so a
+    # machine without n8n credentials still gets them. This function only builds the real->placeholder mask.
+    lcal, ccal = _cal_id(lby.get('Load Config', {})), _cal_id(cby.get('Load Config', {}))
     if lcal and ccal and lcal != ccal:
         smap[lcal] = ccal
 
@@ -93,14 +190,8 @@ def build_smap(live, comm):
     # — not a resource-locator or credential, so the leaf walk cannot see it. Map live -> committed placeholder
     # so the masked committed value is not screamed as drift, AND the real secret (when swapped in for the
     # public test secret in Phase 6) never has to sit in git (CP5b-3).
-    def turnstile_secret(node):
-        bp = (((node.get('parameters') or {}).get('bodyParameters') or {}).get('parameters') or [])
-        for p in bp:
-            if isinstance(p, dict) and p.get('name') == 'secret':
-                return p.get('value')
-        return None
     for nm in set(lby) & set(cby):
-        lts, cts = turnstile_secret(lby[nm]), turnstile_secret(cby[nm])
+        lts, cts = _turnstile_secret(lby[nm]), _turnstile_secret(cby[nm])
         if isinstance(lts, str) and isinstance(cts, str) and lts != cts:
             smap[lts] = cts
 
@@ -163,8 +254,14 @@ def project(node, smap):
 
 
 def main():
+    # SANITISE FIRST — it needs no credentials and no network, so it runs even where the parity half cannot.
+    comm_only = json.load(open(COMMITTED, encoding='utf-8'))
+    n_checked = check_sanitised(comm_only)
     if not (API and KEY):
-        print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow')
+        print('sanitise OK — %d committed nodes carry placeholders for every class sanitize.md names: '
+              'calendar id, telegram chatId, turnstile secret, Airtable ids, credential ids, pinData' % n_checked)
+        print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow '
+              '(parity half NOT run)')
         sys.exit(2)
     req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows/{WF}',
         headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})

@@ -4,13 +4,26 @@
   "title": "intent",
   "description": "The structured output the LLM must return per message. Validated in n8n; on failure → error branch + handoff (MASTER-BRIEF §7).",
   "type": "object",
-  "required": ["intent", "confidence", "slots"],
+  "required": [
+    "intent",
+    "confidence",
+    "slots"
+  ],
   "additionalProperties": false,
   "properties": {
     "intent": {
       "type": "string",
       "description": "Allow-list only — no other action exists.",
-      "enum": ["book", "confirm", "cancel", "reschedule", "capture_lead", "answer_faq", "handoff", "unknown"]
+      "enum": [
+        "book",
+        "confirm",
+        "cancel",
+        "reschedule",
+        "capture_lead",
+        "answer_faq",
+        "handoff",
+        "unknown"
+      ]
     },
     "confidence": {
       "type": "number",
@@ -22,20 +35,69 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "serviceId": { "type": ["string", "null"] },
-        "date": { "type": ["string", "null"], "description": "ISO 8601 date (YYYY-MM-DD) or null" },
-        "time": { "type": ["string", "null"], "description": "HH:MM (24h) or null" },
-        "customerName": { "type": ["string", "null"] },
-        "notes": { "type": ["string", "null"] },
+        "serviceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601 date (YYYY-MM-DD) or null"
+        },
+        "dateExpr": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The customer's OWN relative date wording, copied VERBATIM and lowercased (e.g. \"friday\", \"this friday\", \"next tuesday\", \"tomorrow\", \"today\"). NEVER a resolved calendar date — the engine resolves it deterministically in the shop timezone. null when the customer named an absolute date or no date at all."
+        },
+        "time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "HH:MM (24h) or null"
+        },
+        "customerName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "faqTopic": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "For answer_faq only — the FAQ category. Combined with serviceId for price questions.",
-          "enum": ["price", "hours", "services", "address", "parking", "walkin", "other", null]
+          "enum": [
+            "price",
+            "hours",
+            "services",
+            "address",
+            "parking",
+            "walkin",
+            "other",
+            null
+          ]
         }
       }
     },
     "reply": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Optional draft reply text; deterministic templates from config are preferred."
     }
   }

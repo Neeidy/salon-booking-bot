@@ -38,6 +38,20 @@ If either surface still describes the *previous* state after the VERDICT block, 
 A live-state surface that lags the commit is silent drift — the same failure `governance-sync.md` forbids
 across surfaces, here across time. (Trigger: memory lagged a full checkpoint behind at CP4, 2026-07-26.)
 
+## A STRUCTURAL claim needs evidence too, not just a behavioural one
+"Every X goes through Y", "this is the single entry point", "both paths pass through here" — these are
+claims about the SHAPE of the system, and they are asserted far more casually than claims about behaviour.
+They need the same proof: the grep / the connection dump / the reference list, shown.
+
+Trigger (2026-09-07): the date guard was defended as "one node, and both booking and reschedule pass through
+it". `flow-reviewer` then found `Reschedule Lookup` reading `$('Validate Intent')` — UPSTREAM of the guard, so
+the whole reschedule branch bypassed it. The behaviour had been drilled; the topology had only been assumed.
+The same round produced a second instance: renaming a node was called safe without listing its references.
+
+Practical form: before writing "all/every/only/single" about structure, run the search that would DISPROVE it
+and put its output in the report. A structural claim with no shown search is an assumption wearing a fact's
+clothes — and it is the more dangerous kind, because a passing drill on one path reads as proof for all of them.
+
 ## Evidence before abandoning a planned approach
 If the plan specifies an approach (library, node type, API feature) and the build wants to drop it,
 the report MUST include the **evidence** that justified dropping it — the command run and its actual

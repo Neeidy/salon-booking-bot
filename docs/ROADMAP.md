@@ -317,17 +317,87 @@ Each CP waits for its own written approval (plan-gate).
     still mutes the visitor forever. The cure is a TTL; see the open items below.
 
 **OPEN ITEMS opened or confirmed by this fix (none of these are done):**
-- ☐ **F1 — calendar arithmetic is delegated to the LLM and never verified (CRT-level, BOOKING path).** Execution 1927:
-  prompt said `Monday, 2026-09-07`, customer said **Friday**, LLM returned `2026-09-12` (Saturday) at `confidence=0.92`;
-  a GCal event was created on the wrong day and nothing compared the named weekday to the produced date. Violates
-  "deterministic before AI". Direction (design belongs in that phase's plan): the LLM returns the RELATIVE expression,
-  CODE resolves the date in the shop timezone, plus a weekday↔date consistency check that rejects the turn on mismatch.
+- ◐ **F1 — calendar arithmetic taken away from the LLM (CRT #12).** *(NOT ✅ — uncommitted and unpushed; `reporting.md`: a live-state file must not show unpushed work as green.)* The LLM now returns `slots.dateExpr` (the
+  customer's own wording, verbatim); **`Resolve Date`** resolves it with Luxon in `business.timezone`; `slots.date`
+  is only a cross-check. **RULING 2026-09-08: on a disagreement the CODE'S date WINS** (it is the answer the
+  deterministic path computed; dropping it punished the customer for the model's error). Dropping is reserved for
+  what the code genuinely cannot know — a refused `next <weekday>` or a missing `dateExpr` — which re-ask via
+  `askDateTime` with **no booking written**. The gate is **`Date Alert?`** and its classes are split by meaning:
+  `date_mismatch` · `date_ambiguous` · `date_expr_missing`.
+  **Evidence:** `tests/unit/resolve-date.test.cjs` — **40/40**, committed and runnable
+  (`npm --prefix scripts install` once — luxon is a gitignored dev dep — then `node tests/unit/resolve-date.test.cjs`), executing the node code read from the committed export with `now`
+  pinned (weekday-is-today ahead/passed · weekday-was-yesterday · both clipping cases · backstop false-positive
+  AND true-positive · `constructor` key);
+  MUST-NOT-RUN proven from **execution 2006** (`Book Appointment`/`Write Appointment` absent, Telegram alert
+  present); the defect reproduced and corrected live in **exec 2044** (said "wednesday", LLM `2026-09-10` = a
+  Thursday, code `2026-09-09`, code won, owner alerted); reschedule proven to use the resolved date (**exec 2039**);
+  clipping drill green (`friday next week` / `the friday after next` arrive whole — execs 2022/2023); full
+  regression suite **28/28**. Mismatch rate **1/30 date-carrying turns = 3.3%** (7.7% of 13 resolvable), below the
+  20% alarm-fatigue threshold declared BEFORE measuring → the owner ping stays; small sample, standing re-check.
+  Rules, the enumerated gap and the rejected alternatives: ARCH-DEC §5 (2026-09-07 + 2026-09-08). Commit: `<hash-f1>`
+  - ⚠ **Deliberate gap (not resolved, LLM's date used unchecked):** `in two weeks` · `in 3 days` · `next week` ·
+    `next month` · `the 15th` / `on the 3rd` · `this weekend` · `end of the month` · `11 September` / `Sep 11` ·
+    any non-English wording. Parsing problems, not arithmetic.
+- ☐ **CLIPPING HARDENING for the date ruling — proposed, NOT built (needs Yigitcan's ruling).** Since 2026-09-08 the
+  code's date wins a mismatch, and the only thing preventing a clipped `dateExpr` (`friday next week` → `friday`) from
+  overwriting a CORRECT LLM date is a measurement with **n=2**. Deterministic hardening, no text scraping: on a
+  mismatch, compare the WEEKDAY of the LLM's date against the resolved weekday. **Different weekday** = a plain
+  arithmetic error (the original defect, e.g. "wednesday" → a Thursday) → code wins, as today. **Same weekday, a
+  different week** = exactly the clipping signature, and the code cannot know whether the customer's full wording
+  carried a week offset that `dateExpr` lost → abstain and re-ask, the same treatment `next <weekday>` already gets.
+  This keeps every correction the ruling was made for while closing the hole it opened. Not built: it changes
+  approved behaviour and needs its own gate.
+- ☐ **`tests/unit/resolve-date.test.cjs` executes committed workflow code unsandboxed** (`security-auditor`,
+  2026-09-08). It runs `new Function(...)` on the `jsCode` read from `n8n/workflow.sanitized.json`; inside that body
+  `process.env` and `require` are reachable (measured, not assumed). On a PUBLIC repo this turns the workflow JSON
+  from data into an executable surface for any PR author, triggered by running the tests. Hand-copying the node
+  body instead would violate `contract-integrity.md`, so the risk is accepted and pushed onto the review model for
+  now. Fix when CI runs these: `node --permission` or a container, plus a CODEOWNERS-style rule that a PR touching
+  `n8n/*.sanitized.json` is reviewed as CODE.
+- ☐ **Plural weekdays resolve nowhere, by design — recorded so the asymmetry is not read as a bug.** The backstop
+  regex matches `fridays`/`saturdays` (the customer DID name a day) but the resolver's `DAYS` map does not (there is
+  no single date to compute from "book me saturdays"). Net effect: `dateExpr:"saturdays"` → `unparsed` →
+  `unresolved_llm_date_kept`, i.e. the LLM's date passes unchecked. That is the documented deliberate gap, but the
+  plural form was not on its list. The node comment says the alternation must stay "in sync with the DAYS map" —
+  that invariant is deliberately ONE-WAY and now says so.
+- ☐ **Backstop day-name regex: two deliberate limits** (`flow-reviewer` 2nd pass, 2026-09-08). (a) **`sat`, `sun`, `wed` and `weds`
+  are ordinary English words** — measured on the live node: "I sat in the chair", "sit in the **sun room**",
+  "**sun-kissed** balayage please", "we **wed** on 2026-10-03, need bridal hair", "my sister **weds** soon" all still
+  DROP a correct absolute date and send a false `date_expr_missing` alert. `sun-kissed` and bridal wording are core
+  salon vocabulary, so this is not a hypothetical. Note `weds` was ADDED to the regex in this same change (to match
+  the resolver's own `DAYS` map), which widened this surface — recorded rather than left implicit. Kept anyway: the failure is
+  fail-SAFE (re-ask, never a wrong booking), whereas removing the tokens would trade a harmless false alarm for a
+  possible irreversible one, and this repo ranks irreversible above annoying. (b) **Non-English day names**
+  (`Freitag`, `Cuma`) are not matched — consistent with the resolver's documented English-only scope, but worth
+  naming because the shop is in Vienna. A narrowing that removes (a) without weakening the guard is proposed:
+  skip the backstop when the LLM's date appears VERBATIM in the customer's text, since no arithmetic happened.
+- ☐ **`dateExpr` present but UNPARSED leaves no trace at all** (`flow-reviewer` WARN-1, 2026-09-08). `"fri morning"`,
+  `"friday next week"` → `unresolved_llm_date_kept`: not dropped, not alerted, and because `date_alert=false` the item
+  never reaches `Build Owner Alert`, so the `date_resolution` log object is written **nowhere**. There are TWO such invisible paths, not one
+  (correction after a second review): this one, AND `!dateExpr` + a date + NO day name matched in the text — which
+  now includes every form the backstop regex misses (`Freitag`, `tmrw`, `tonight`). Any fix must cover the whole
+  fifth branch, not just `reason === 'unparsed'`. Minimum fix: a fourth,
+  non-dropping class (`date_unverified`) that records `date_resolution` for the owner without re-asking the customer.
+- ☐ **`Resolve Date`'s error output is classified as `state_unavailable`** (`flow-reviewer` WARN-2, 2026-09-08). Its
+  error branch goes to `Send Error Response`, which emits `503 {error:"state_unavailable"}` — but `Resolve Date` is an
+  in-process Code node with nothing to do with the Airtable state store, so the owner is pointed at the wrong system.
+  `.claude/rules/handoff.md` requires an infra failure to be distinguishable PER SYSTEM. Needs its own tagging node
+  (a Code node's error item carries only `{message,error}`, so the class cannot be stamped from `Resolve Date` itself).
+- ☐ **`09/11`-style dates are a LOCALE ambiguity, not a parsing gap** (called out separately from the list above).
+  It is the only format that looks absolute yet resolves to two different days (11 Sep or 9 Nov). The
+  `business.locale` work MUST cover this case.
 - ☐ **F2 — two-turn reschedule creates a SECOND booking (CRT-level).** `Reschedule Lookup`'s ask-slot branch leaves
   `stage=booked` and persists no reschedule target, so the next turn classifies as `book`. Needs an Airtable schema
   change (a new `stage` value) — Yigitcan's UI work. Observed live; `run-regression.sh` missed it because its scenario
   passes date+time in one message.
-- ☐ **Revive `tests/run-regression.sh`** — DEAD since 2026-09-06: it posts a dummy Turnstile token and the real secret
-  now rejects it (`403 turnstile_failed`). Needs a real-token path. Until then regression is manual.
+- ◐ **`tests/run-regression.sh` — runnable again for DRILLS, still not for production.** It posts a dummy Turnstile
+  token, so it passes only while `channels.widget.turnstile.enabled` is flipped off in the live `Load Config` for a
+  drill window (2026-09-08: full suite **28/28** that way). **A real-token path is still open** — as long as the
+  harness cannot run against the production gate, "the suite passes" means "the suite passes with the gate down".
+  **Reviving it immediately paid for itself:** scenarios 18 and 22 FAILED against a correct engine because they still
+  asserted the pre-`9e9768a` behaviour (gibberish → handoff on turn 1). `9e9768a` had updated the suite DOC and not
+  this runnable, and nothing caught it because the runnable was dead. Both corrected; the clarify tier now has its own
+  scenarios 18b/18c. See ARCH-DEC 2026-08-17 rule, evidence (6).
 - ☐ **Handoff lock TTL + D11** (the still-open half of the 2026-09-06 named blockers). **SCOPE GREW on 2026-09-07 —
   the TTL work MUST cover this new path:** `Confirm Pending & Uncertain?` deliberately routes an uncertain turn that
   arrives during a cancel/reschedule confirmation to `Mark Handoff`, i.e. straight into the PERMANENT lock. That is the
@@ -340,6 +410,18 @@ Each CP waits for its own written approval (plan-gate).
   remain open: `collecting` (measured) and `ready` ("shall I book it?" pending — not yet drilled).** The stage-aware
   template also carries the better answer for a pending confirmation: keep the TTL alive and repeat the confirmation
   question instead of dropping it.
+- ☐ **The dropped-date re-ask wording is wrong** (measured, deliberately not fixed). **Scope narrowed 2026-09-08:**
+  since the ruling a `mismatch` no longer re-asks at all, so this now affects only `date_ambiguous`
+  (`next <weekday>`) and `date_expr_missing`. The customer says "next tuesday at 11:00" and the bot answers
+  `askDateTime` — *"What day and time works for you?"* — as if it had not heard them; they gave both. The right answer disambiguates ("Tuesday 15 Sep or Tuesday 22 Sep?"), which needs a new
+  template + config key and does not close any error class. Flow is unharmed: the customer can answer and continue.
+- ☐ **`conversations.last_alert_class` is lost on a conversation's FIRST turn.** The alert branch reaches
+  `Find Conversation Row` before `Save State` has created the row, so a delivered Telegram alert can leave the column
+  empty (observed: execution 2006 — `Send Owner Alert (Telegram)` ran, column stayed blank). **Consequence for
+  METHOD, not just product: the column is valid POSITIVE evidence (written ⇒ alert delivered) but NOT valid negative
+  evidence (empty ⇏ no alert).** Product impact is low — a `date_mismatch` turn does not stick the conversation, so
+  the stamp's purpose (explaining a stuck conversation) does not apply to this class. See the 2026-08-17 rule in
+  ARCH-DEC, evidence (5).
 - ☐ **Restore `Find Conversation Row.limit = 1` on the LIVE workflow (declared deviation, pre-existing).** The
   committed export had it, live does not — proven on the pre-change backup and live. Re-sanitising made the export
   match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable

@@ -20,9 +20,12 @@ PASS=0; FAIL=0; N=0
 # Override for a looser/tighter limit:  PACE=2 bash tests/run-regression.sh
 PACE="${PACE:-4}"
 
-# CP5b: widget Turnstile is enabled — the payload carries a dummy token. The live n8n `Verify Turnstile`
-# secret is the CF always-pass TEST secret (1x000…AA) during testing, so any token verifies. Swap the n8n
-# secret to the real Turnstile secret before prod (a bot sending NO token then gets a 403 turnstile_failed).
+# Turnstile: the payload carries a dummy token. ⚠ CORRECTED 2026-09-08 — the previous version of this note
+# said the live secret is Cloudflare's always-pass TEST secret and should be swapped "before prod". That has
+# been FALSE since 2026-09-06: the real widget was provisioned and the real secret is live (ARCH-DEC 2026-09-06).
+# Consequence: this harness gets `403 turnstile_failed` against the production gate and passes ONLY while
+# `channels.widget.turnstile.enabled` is flipped false in the live `Load Config` for a drill window. So "the
+# suite passes" means "the suite passes with the gate down". A real-token path is open in ROADMAP.
 fire() { # session text msgid  -> echoes reply body (then paces to respect the rate-limit)
   curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
     -d "{\"channel\":\"widget\",\"sessionId\":\"$1\",\"text\":\"$2\",\"messageId\":\"$3\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}"
@@ -52,7 +55,12 @@ WK="$(date -u -d 'tomorrow' +%Y-%m-%d)"
 #                                              interested" reliably classifies capture_lead (verified live in the
 #                                              sub-step-2 window; the old "package call-back" message was ambiguous
 #                                              and drifted to handoff, and the old "team" needle passed on both).
-#  18 handoff      "team member"       STRONG — gibberish -> unknown/low-conf -> handoff -> t.handoff (reschedule is a real action since CP4)
+#  18 handoff      "team member"       STRONG — an EXPLICIT handoff request -> intent=handoff -> t.handoff.
+#                                              CORRECTED 2026-09-07: the input used to be gibberish ("asdfgh qwerty zzz ???").
+#                                              Since 9e9768a the FIRST uncertain turn gets a clarifying question, so that input no
+#                                              longer hands off and this assertion failed. The suite DOC was corrected in that commit;
+#                                              this runnable was not — and because the harness was dead (Turnstile), nothing forced the
+#                                              contradiction into the open. 18b/18c below now cover the clarify tier itself.
 #  13 abort        "booking stands"    STRONG — cancelAborted only
 #   3 idempotent   "duplicate_ignored" STRONG — distinct short-circuit JSON
 #  20 invalid      HTTP 400            STRONG — status code, not a string
@@ -78,9 +86,16 @@ echo "== lead =="
 L="reg-lead-$RUN"
 assert "17 lead"         "$(fire "$L" "Do you do hair coloring? I'm interested" "$L-1")" "got your details"   # exit-specific: leadCaptured only; message reliably classifies capture_lead (verified live)
 
-echo "== handoff (unknown/low-conf -> handoff) =="
+echo "== handoff (explicit request -> intent-handoff) =="
 H="reg-ho-$RUN"
-assert "18 handoff"      "$(fire "$H" "asdfgh qwerty zzz ???" "$H-1")" "team member"
+assert "18 handoff"      "$(fire "$H" "I want to talk to a human please" "$H-1")" "team member"
+
+echo "== clarify tier: 1st uncertain ASKS, 2nd hands off (9e9768a) =="
+# The behaviour the old scenario 18 silently contradicted. Needle "what would you like" is exit-specific:
+# only messageTemplates.askIntent contains it. The 2nd needle proves the counter still escalates.
+CL="reg-clar-$RUN"
+assert "18b uncertain #1 -> clarify" "$(fire "$CL" "asdfgh qwerty zzz ???" "$CL-1")" "what would you like"
+assert "18c uncertain #2 -> handoff" "$(fire "$CL" "qwerty zzz ???" "$CL-2")" "team member"
 
 echo "== Abort: FAQ intervenes mid cancel-confirm =="
 # NOTE isolation: this scenario books a slot and then ABORTS the cancel (booking stands), so it must
@@ -113,7 +128,7 @@ assert "21 cancel no-booking" "$(fire "$NB" "cancel my appointment" "$NB-1")" "a
 
 echo "== handoff lock (2nd message on a handed-off session) =="
 HL="reg-lock-$RUN"
-fire "$HL" "asdfgh qwerty zzz ???" "$HL-1" >/dev/null   # unknown/low-conf -> stage=handoff (reschedule is a real action since CP4)
+fire "$HL" "I want to talk to a human please" "$HL-1" >/dev/null   # explicit request -> stage=handoff (gibberish only clarifies now — see 18)
 assert "22 handoff lock" "$(fire "$HL" "actually what are your hours?" "$HL-2")" "already helping"
 
 # --- Reschedule (CP4) — the curl-only self-cleaning subset. The failure paths (target-invalid,

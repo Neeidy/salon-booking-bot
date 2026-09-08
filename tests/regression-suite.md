@@ -48,10 +48,12 @@
 | 16 | **FAQ** | — | `what are your prices?` | config price line ("Our prices: Haircut €25 …") | Route Intent(faq)→Answer FAQ→Save State | any LLM-authored answer · Delete |
 | 17 | **lead** | — | `can someone call me back about a package?` | `leadCaptured` ("Thanks! We've got your details…") | Route Intent(lead)→Capture Lead→Build Lead State→Save State | booking nodes |
 | 18 | **handoff (intent-handoff)** | — | an explicit handoff request or a jailbreak (invalid intent JSON takes the same exit) | `handoff` ("I'm passing you to a team member…"); Airtable `stage=handoff` | Invalid or Handoff Gate(true)→Mark Handoff→Save State | *(**corrected 2026-09-07:** "a low-confidence msg" no longer belongs here — since the clarify tier a below-threshold turn hands off only inside a confirmation window or as the SECOND consecutive uncertain turn; see D8 and D3)* | booking/cancel mutations |
+| 18b | **clarify tier — 1st uncertain** | — | `asdfgh qwerty zzz ???` | `askIntent` ("…what would you like?"); NO `stage` write, so no lock | Uncertain Turn?(true)→Repeat Uncertain?(false)→Build Clarify State→Save State | Mark Handoff |
+| 18c | **clarify tier — 2nd uncertain** | continues 18b | `qwerty zzz ???` | `handoff` ("I'm passing you to a team member…"); `stage=handoff` | Repeat Uncertain?(true)→Mark Handoff→Save State | Build Clarify State |
 | 19 | **guard-trip** ⚙(config) | set `bot.killSwitch:true` (or exceed `maxTurnsPerConversation`) | any message | `handoff` (200), **0 LLM cost** | Check Bot Guards(false)→Handoff Reply | Build LLM Request · Extract Intent (no paid call) |
 | 20 | **invalid payload → 400** | — | POST a body with **no `messageId`** (or empty text / bad senderId / disabled channel) | HTTP **400** (`Send Reject Response`) | Validate Payload(false)→Send Reject Response | Normalize Inbound · any downstream |
 | 21 | **cancel, no booking** | — (fresh session, never booked) | `cancel my appointment` | `cancelNoBooking` ("You don't have an active booking to cancel.") | Route Intent(cancel)→Find Booking(0)→Cancel Lookup('none')→Cancel Route→Build No-Booking Reply | Delete Booking Event · a confirm prompt |
-| 22 | **handoff lock** | — | `reschedule to next week` (→handoff) → then any 2nd message | 2nd → `{locked:true, "A team member is already helping…"}` (`Handoff Lock Reply`) | Merge State→Check Handoff Lock(true)→Handoff Lock Reply | Check Bot Guards · Build LLM Request (bot stays silent, 0 cost) |
+| 22 | **handoff lock** | — | `I want to talk to a human please` (→handoff) → then any 2nd message *(**corrected 2026-09-07:** the old input `reschedule to next week` relied on a gibberish/low-confidence handoff that the clarify tier removed — it now only clarifies, so no lock ever formed and this scenario failed against a correct engine)* | 2nd → `{locked:true, "A team member is already helping…"}` (`Handoff Lock Reply`) | Merge State→Check Handoff Lock(true)→Handoff Lock Reply | Check Bot Guards · Build LLM Request (bot stays silent, 0 cost) |
 | 23 | **cancel within cutoff** ⚙ | inject booked row with `start_utc` **< 2h** from now | `cancel my appointment` | `cancelCutoff` ("too close to its time to cancel here…") | Cancel Lookup('cutoff')→Cancel Route→Build Cancel-Cutoff Reply | a confirm prompt · Delete |
 
 ### Reschedule (CP4 sub-step 3 — insert-new + verify/race + commit; book-new-first). "R:" prefixes the reschedule execute nodes.
@@ -273,7 +275,7 @@ injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + 
 2nd event; orphan events are cleaned by re-pointing the row and bot-cancelling again).
 
 **BASELINE = healthy.** Re-run `run-regression.sh` at the start of a phase and after every step;
-any drop from 18/18, or any MUST-NOT-RUN node appearing, is a regression.
+any drop from **28/28** (the current curl-only count: 25 `assert` + 1 `refute` + 2 inline checks), or any MUST-NOT-RUN node appearing, is a regression. *(Was 18/18 when this rule was written, then 20/20. This number is OPERATIVE, not a historical record — left stale it would let 10 assertions vanish without tripping the rule. Update it whenever a scenario is added.)*
 
 ### ⚙ Turnstile gate — TWO-WAY probe (added 2026-09-04 after the gate was found open)
 
@@ -435,3 +437,49 @@ session — closing/opening a tab is unreliable (browser session restore).
 by the gate — `curl` + dummy token → `403 turnstile_failed`, and a real headless Chromium (both the headless shell
 and full Chromium with the automation flag hidden) → *"We couldn't verify this browser."* The drills therefore
 cannot be automated through the widget today; that is the gate working as designed, not a harness defect.
+
+### Date resolution — arithmetic taken away from the LLM (added 2026-09-07, CRT #12)
+
+`Resolve Date` resolves `slots.dateExpr` (the customer's own wording) with Luxon in `business.timezone`;
+`slots.date` from the LLM is only a cross-check. **E8 is the gate the whole fix hangs on — run it FIRST:** if
+`dateExpr` ever comes back as a resolved date instead of raw wording, the arithmetic has silently returned to the
+LLM and every row below is meaningless.
+
+**E16 is E8's second half, and it exists because of the 2026-09-08 ruling.** Since the code's date now WINS a
+disagreement, a CLIPPED expression is the one way this fix can manufacture the bug it prevents: if the LLM returned
+`"friday"` for "friday next week", the resolver would confidently overwrite a CORRECT date. E8 measures that the
+wording is not NORMALISED; E16 measures that it is not TRUNCATED. Both must be green before trusting any row below.
+
+**Mismatch rate is a measured quantity, not a vibe.** The owner ping on `date_mismatch` is justified only while
+mismatches are rare; at **≥20% of date-carrying turns** it becomes alarm noise that would deafen every other alert
+class, and the ping must be replaced by a `date_resolution` log record. Measured 2026-09-08 over executions
+2022–2099: **1 mismatch / 30 date-carrying turns = 3.3%** → ping stays. Re-measure whenever the prompt or the model
+changes; a single event in 30 samples cannot rule out a true rate above the threshold.
+
+| # | Input | Expected | Evidence |
+|---|---|---|---|
+| **E8** | any booking message with a relative day | `slots.dateExpr` carries the RAW wording (`"friday"`), never a date | execution → `Validate Intent` output. **Measured 2026-09-07 (exec 1998): `dateExpr:"friday"`, `date:"2026-09-11"`** |
+| E1 | `haircut on friday at 11:00` | that week's Friday | Airtable `slot_date=2026-09-11` ✔ |
+| E2 | `haircut tomorrow at 11:00` | today+1 | `slot_date=2026-09-08` ✔ |
+| E3 | `haircut next tuesday at 11:00` | **refused** — date dropped, `askDateTime` re-ask, owner alert | `slot_date` EMPTY · exec 2006 (the gate was named `Date Mismatch?` then; renamed `Date Alert?` 2026-09-08): `Resolve Date`+`Date Mismatch?`+`Send Owner Alert (Telegram)` ran, **`Book Appointment` and `Write Appointment` did NOT** ✔ |
+| E7 | `haircut in two weeks at 11:00` | unresolved → LLM's date kept, flow unchanged | `slot_date=2026-09-21` ✔ (documented gap, not a fix) |
+| E9–E12 | weekday-is-today (time ahead / passed) · weekday-was-yesterday · `this` vs `next` · DST changeover · month-end | per the rule table |
+| **E15** | `can I come wednesday at 14:00` where the LLM answers with a **different** day | **the CODE's date wins**, booking proceeds, owner alerted `date_mismatch` | exec 2044: `expr="wednesday"` `llm=2026-09-10` (a **Thursday**) `code=2026-09-09` → `slot_date=2026-09-09` · `Send Owner Alert (Telegram)` ran ✔ |
+| **E16a** | `friday next week at 11:00` | `dateExpr` carries the **WHOLE** expression → unresolvable → LLM's date kept | exec 2022: `expr="friday next week"`, `code=None`, `outcome=unresolved_llm_date_kept` ✔ |
+| **E16b** | `the friday after next at 11:00` | same | exec 2023: `expr="the friday after next"` ✔ |
+| E13 | a stored date, then a turn whose date is DROPPED | the stored date must NOT be resurrected | exec 2053: `merged date = null` after `ambiguous_next` ✔ |
+| E14 | book, then `reschedule to friday at 15:00` | the reschedule path uses the RESOLVED date, not the LLM's | exec 2039: `code=2026-09-11` → reply *"to Friday 11 Sep 15:00"* ✔ |
+| **E17a** | `haircut on 2026-09-11 at 14:00, it's for a wedding` | the backstop must NOT fire — an absolute date with no day NAMED | exec 2160: `unresolved_llm_date_kept`, `dropped=false`, no alert, booking proceeds ✔ |
+| **E17b** | `my friend recommended you, haircut on 2026-09-11 at 14:00` | same | exec 2161 ✔ |
+| **E17c** | `haircut on 2026-09-11 at 14:00 (that is a friday right?)` | the backstop MUST fire — `dateExpr` missing while the text names a day | exec 2162: `expr_missing_but_day_named`, `dropped=true`, `date_expr_missing`, `Send Owner Alert (Telegram)` ran ✔ |
+
+**Why E17 exists:** the backstop day-name regex was anchored only at the START (`/\b(mon|tues?|wed|thur?s?|fri|sat|sun|…)/`),
+so it PREFIX-matched a salon's most ordinary vocabulary — `wedding`→`wed`, `friend`→`fri`, `money`/`month`→`mon`, plus
+`sunny`, `sunset`, `satisfied`, `thus`. Each one DROPPED a perfectly good absolute date and pinged the owner with a
+model-fault class. Found by `flow-reviewer` on 2026-09-08 by RUNNING the node, not reading it; fixed with full-word
+alternatives anchored at both ends. E17a/b are the false-positive direction, E17c the true-positive direction — a fix
+that only stops the false alarm, without proving the guard still fires, would be indistinguishable from deleting it. Unit evidence for the whole rule table lives in the committed **`tests/unit/resolve-date.test.cjs` (40/40)**, which executes the node code read from the COMMITTED export (parity-guarded to equal live) with `now` handed over in UTC and pinned — so the rules are asserted, not today's calendar. It supersedes an earlier ad-hoc 16/16 run that was never committable evidence, and it is mutation-tested: 7 mutations that once passed it unnoticed are now killed. |
+
+**Method note:** `conversations.last_alert_class` is valid POSITIVE evidence only. A delivered Telegram alert can
+leave it empty on a conversation's first turn (the alert branch runs before `Save State` creates the row). To prove
+an alert did NOT fire, read the execution's node list — not this column.

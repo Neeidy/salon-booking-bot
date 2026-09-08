@@ -102,7 +102,10 @@ flowchart TD
   BLR --> EI[Extract Intent<br/>HTTP → Anthropic · structured output]
   EI -.->|timeout/5xx/quota| LLMU[/LLM Unavailable Reply<br/>503 llm_unavailable/]
   EI --> VI[Validate Intent<br/>stop_reason gate · ajv from committed schema]
-  VI --> GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
+  VI --> RD[Resolve Date<br/>dateExpr resolved in shop tz · LLM date = cross-check only]
+  RD --> DM{Date Alert?}
+  DM -.->|alert| OA[/Build Owner Alert<br/>date_mismatch · date_ambiguous · date_expr_missing/]
+  DM --> GATE{Invalid or Handoff Gate<br/>invalid OR intent=handoff}
   GATE -->|handoff — FIRST turn| MH[Mark Handoff<br/>stage=handoff · computed_reply=t.handoff]
   GATE -->|not a handoff| CPU{Confirm Pending & Uncertain?<br/>stage=*_confirming AND unknown/low-conf}
   CPU -->|yes — abstain, alert owner| MH
@@ -118,6 +121,21 @@ flowchart TD
   AC -->|abort| BCA[Build Cancel-Aborted State<br/>booking stands]
   UT -->|certain| RI[→ Lane 3: Route Intent]
 ```
+
+**Date resolution — arithmetic is CODE's job (2026-09-07).** The LLM returns `slots.dateExpr`, the customer's own
+wording verbatim (`"friday"`, `"tomorrow"`); **`Resolve Date`** turns it into a date with Luxon in
+`business.timezone`, and the LLM's own `slots.date` survives only as a cross-check. A bare or `this <weekday>`
+resolves to the NEXT OCCURRENCE — today counts only while the asked time is still ahead of now. **`next <weekday>`
+is refused on purpose:** its two common readings differ by a week, and guessing writes an irreversible booking.
+**Disagreement → the CODE'S date wins** (ruling 2026-09-08): where the deterministic path resolved the day it is
+the better answer, and dropping it punished the customer for the model's arithmetic error. **Two cases are still DROPPED** — a REFUSED `next <weekday>`, and a missing `dateExpr` while the raw text names a day →
+`Slot Gate` re-asks and **no booking is written** (proven from execution 2006, where `Book Appointment` never ran).
+An UNRESOLVED expression is neither dropped nor alerted: the LLM's date passes unchecked — that is the deliberate gap.
+`Date Alert?` pings the owner on those two plus a mismatch, class split by meaning: `date_mismatch` (code corrected the
+LLM) · `date_ambiguous` · `date_expr_missing`. ⚠ The code's date winning is only safe while the LLM does not CLIP a
+multi-word expression; the anchored regex does NOT protect against that (it only governs whole strings). See ARCH-DEC. Expressions outside the
+relative set (`in two weeks`, `the 15th`, `11 September`, non-English wording) are NOT resolved and the LLM's date
+is used unchecked — an enumerated, deliberate gap; `09/11` is separately a LOCALE ambiguity, not a parsing gap.
 
 **Deterministic-before-AI:** guards run with **zero** LLM cost. The LLM ONLY classifies intent + slots; every
 downstream action is deterministic IF/Switch/Code. **Three handoff classes are already distinct here:**
