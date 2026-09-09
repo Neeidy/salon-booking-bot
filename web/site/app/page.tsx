@@ -11,7 +11,7 @@ import { SiteFooter } from '../components/site/SiteFooter';
 import { MockRibbon } from '../components/site/MockRibbon';
 import { SitePanel } from '../components/site/SitePanel';
 import { LiveChatPanel } from '../components/site/LiveChatPanel';
-import { readEndpointConfig } from '../lib/chatClient';
+import { readEndpointConfig } from '../lib/endpoint';
 import { SiteChrome } from '../components/site/SiteChrome';
 import { SiteMotion } from '../components/site/SiteMotion';
 import { config } from '../lib/config';

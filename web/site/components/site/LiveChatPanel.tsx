@@ -7,7 +7,7 @@
  * greeting), and `role="log" aria-live="polite"` on the thread — unlike the hero, this one IS a live log
  * and its updates SHOULD be announced.
  *
- * Reply text comes from lib/chatClient: the engine's own text wins whenever it sends any; config
+ * Reply text comes from @salon/shared/chat: the engine's own text wins whenever it sends any; config
  * templates fill only the two branches where it deliberately sends none.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -15,7 +15,7 @@ import type { ClientConfig } from '@salon/shared/config';
 import {
   sendMessage, getSessionId, newMessageId, FRONTEND_TEXT,
   type ChatReply, type EndpointConfig,
-} from '../../lib/chatClient';
+} from '@salon/shared/chat';
 import { TurnstileWidget, type TurnstileState } from './TurnstileWidget';
 
 interface Bubble { from: 'bot' | 'user' | 'system'; text: string; stamp: string }

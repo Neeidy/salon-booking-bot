@@ -1,5 +1,16 @@
 /**
- * Widget transport — the browser's side of POST <NEXT_PUBLIC_WEBHOOK_URL>.
+ * Widget transport — the browser's side of POST <webhook URL>.
+ *
+ * WHY IT LIVES IN @salon/shared: two different front ends speak to the same engine — the Next.js
+ * site (`web/site`) and the embeddable snippet (`web/snippet`, plain TS bundled by esbuild). The
+ * reply-mapping rule below is a CONTRACT with the engine; a second hand-written copy of it is
+ * exactly the drift `contract-integrity.md` forbids, so both consumers import this one.
+ *
+ * CONSTRAINT — this module must stay framework-free and browser-safe. No React, no Next, no
+ * `process.env`, no Node built-ins. `readEndpointConfig()` used to live here and was moved to
+ * `web/site/lib/endpoint.ts` for exactly that reason: it read `process.env.NEXT_PUBLIC_*`, which
+ * is a Next build-time convention and means nothing inside the snippet bundle. Each front end
+ * resolves its own endpoint and passes it in.
  *
  * THE REPLY-TEXT RULE (derived from the committed workflow, not from the plan's summary):
  * the engine's widget body is the VERBATIM original response (a contract locked in CP4b-1, "the widget
@@ -64,13 +75,6 @@ export function getSessionId(): string {
     // Storage blocked → a per-load id. The conversation still works; it just does not survive a reload.
     return 'w-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
-}
-
-export function readEndpointConfig(): EndpointConfig | null {
-  const webhookUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL;
-  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-  if (!webhookUrl || !turnstileSiteKey) return null;   // caller degrades visibly, never silently
-  return { webhookUrl, turnstileSiteKey };
 }
 
 export async function sendMessage(

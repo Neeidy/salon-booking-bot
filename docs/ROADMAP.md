@@ -422,6 +422,16 @@ Each CP waits for its own written approval (plan-gate).
     and can be solved there — is now **MEASURED** (forced-interactive run). What stays unproven for that path is only
     the ENGINE leg, because a dummy sitekey's token is rejected by a production secret. Do not delete the wait.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
+  - ⚙ **NAMED, planned in 6b (2026-09-09) — the 6c lint gate MUST be SUBPATH-AWARE, not package-aware.**
+    `@salon/shared` no longer has one rule: `./config` is server/build-time only (the secret-touching surface the
+    gate exists for), while `./chat` is browser-safe BY DESIGN — it is the widget transport that `web/site` and
+    `web/snippet` both import, and banning it from client components would be a false alarm on every widget build.
+    A rule written against the package name therefore fails in BOTH directions: it either blocks a legitimate
+    `./chat` import or, if relaxed to compensate, stops catching a real `./config` leak. **Write the rule against
+    the subpath specifier** (`@salon/shared/config` banned in client components; `@salon/shared/chat` allowed) and
+    drill it both ways — a client-component import of `./config` must go RED, and one of `./chat` must stay green.
+    Recorded now so 6c does not discover it: the package description was scoped to subpaths in 6b, and a gate whose
+    text and whose enforcement disagree is this project's signature defect.
   **HARD GATE (security-auditor round 2, 2026-09-03):** the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in
   the acceptance criteria — **must land BEFORE 6c puts any dashboard / Airtable / PII code into `@salon/shared` or into any

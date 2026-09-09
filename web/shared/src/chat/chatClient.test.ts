@@ -6,7 +6,7 @@
  * shows the right text and, crucially, never REPLACES engine text with a config fallback.
  * The live drill then proves the engine really returns these shapes.
  *
- * Run: node --test lib/chatClient.test.ts   (from web/site)
+ * Run: node --test src/chat/chatClient.test.ts   (from web/shared), or `npm test -w @salon/shared`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +15,9 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sendMessage, newMessageId, FRONTEND_TEXT, type EndpointConfig } from './chatClient.ts';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+// repo root: web/shared/src/chat -> up FOUR. (It was '../../..' while this file lived in
+// web/site/lib; the move to @salon/shared added a directory level.)
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const cfg = JSON.parse(readFileSync(join(ROOT, 'config/client.config.example.json'), 'utf8'));
 const t = cfg.messageTemplates;
 const endpoint: EndpointConfig = { webhookUrl: 'https://example.invalid/webhook/barber-inbound', turnstileSiteKey: 'x' };
