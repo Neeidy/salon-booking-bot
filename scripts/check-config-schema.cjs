@@ -69,7 +69,11 @@ const schema = JSON.parse(fs.readFileSync(SCHEMA, 'utf8'));
 const validate = ajv.compile(schema);
 
 const targets = [
-  ['config/client.config.example.json (the client template)', JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'))],
+  // The label is DERIVED from EXAMPLE, never hardcoded: this guard is invoked more than once (check-all
+  // runs it for every committed example config), and a fixed label would name the wrong file in the
+  // failure message — reporting a defect in example.json when example-b.json is the broken one. That is
+  // the gap between what a check MEASURES and what its sentence SAYS, in miniature.
+  [`${path.relative(ROOT, EXAMPLE)} (the client template)`, JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'))],
   ["Load Config node literal (what the bot actually runs)", liveConfig(WORKFLOW)],
 ];
 
