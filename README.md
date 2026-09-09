@@ -74,7 +74,7 @@ quote a wrong price** — the answer path contains no model.
 | **Multi-turn booking collect** | "I want a haircut" → "what day and time?" → merged into a complete request |
 | **Deterministic FAQ** | Price / hours / services / address answered from config, never from the model |
 | **Lead capture** | Non-booking interest written to Airtable with channel + message |
-| **Human handoff, 3 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) — never merged |
+| **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Four separate error responses: `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` |
 | **Spend brakes before the LLM** | Kill-switch and max-turns run *before* any paid call — a tripped guard costs nothing |
 
@@ -148,6 +148,21 @@ This repository is **public**, so it is built as if it were.
 - **A finding from this build, recorded honestly:** the LLM webhook was discovered publicly reachable
   with no rate limit or spend cap. It was taken offline immediately and re-publishing is gated behind
   the Phase-5 brakes. Documented in [`docs/ARCHITECTURE-DECISIONS.md`](docs/ARCHITECTURE-DECISIONS.md).
+- **The date guard, and what it does NOT cover (honest limit, 2026-09-09).** The engine — not the model —
+  resolves the booking day: the LLM's date is a disagreement signal, never a value. That closed a real
+  wrong-day booking (the model answered a Saturday for "friday morning" at `confidence=0.92`, reproduced
+  live again during the final drill and overridden). **Four things it still does not do, each with a
+  reproduction in [`docs/ROADMAP.md`](docs/ROADMAP.md):** a week shift the sentence carries but the model's
+  wording does not is NOT detected (the confirmation step showing weekday + full date is the only backstop);
+  a day named in a form outside the recognised vocabulary ("the 20th", "next weekend", non-English) can still
+  let a previously stored date stand; the separator fold covers the dash and slash families, not every
+  Unicode look-alike; and on a confirmation turn a change request that cannot be resolved writes the date the
+  customer was shown. These are demo-grade limits on a template with **zero real customers** — named here
+  rather than left for a reader to discover.
+- **Three safety nodes have never run in production (honest limit).** The extraction-retry path
+  (`Extraction Transient?` → `Repeat Extraction Failure?` → `Build Extraction-Retry State`) has unit and
+  mutation evidence only: its trigger — the model omitting a required schema KEY — cannot be induced on
+  demand against a live model. The live drill proved the surrounding behaviour did not regress, nothing more.
 - **Cancel identity (honest limit):** a customer can only cancel their OWN booking — cancel looks up
   appointments by the channel-authenticated `sender_key`, never a customer-supplied booking id, so IDOR
   is structurally impossible. On the widget, though, `sender_key` derives from a **client-supplied

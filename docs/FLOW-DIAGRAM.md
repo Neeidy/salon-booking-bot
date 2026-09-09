@@ -106,7 +106,7 @@ flowchart TD
   EI --> VI[Validate Intent<br/>stop_reason gate · ajv from committed schema]
   VI --> RD[Resolve Date<br/>dateExpr resolved in shop tz · the LLM date has NO authority]
   RD --> DM{Date Alert?}
-  DM -.->|alert| OA[/Build Owner Alert<br/>date_ambiguous · date_week_ambiguous · date_anchor_past<br/>date_expr_forged · date_unresolved · date_expr_missing/]
+  DM -.->|alert| OA[/Build Owner Alert<br/>date_ambiguous · date_week_ambiguous · date_anchor_past<br/>date_expr_forged · date_unresolved · date_expr_missing<br/>NO ping: llm_date_ignored · day_named_not_extracted/]
   DM --> ETR{Extraction Transient?<br/>schema-only · intent≠handoff · no *_confirming pending}
   ETR -->|yes — OUR contract slip| REF{Repeat Extraction Failure?<br/>previous last_intent=invalid}
   REF -->|yes — 2nd in a row| MH

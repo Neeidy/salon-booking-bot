@@ -57,7 +57,26 @@ def main():
         headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS},
     )
     lw = json.load(urllib.request.urlopen(req, timeout=30))
-    l_count, l_names, l_pairs = summarize(lw['nodes'], lw.get('connections', {}))
+    # WHICH GRAPH IS "LIVE"? The response carries two: `nodes` is the DRAFT that the editor and this API
+    # write, `activeVersion.nodes` is the PUBLISHED graph the production webhook executes. This script
+    # compared the DRAFT while its pass line said "live" — so every parity statement it has ever made was
+    # about the draft, and it said so nowhere (Codex round 4). It now compares the PUBLISHED graph when the
+    # instance exposes one, and NAMES which graph it read either way. When there is no published artefact it
+    # does not quietly fall back and call that a pass: absence of evidence is reported as unavailable, the
+    # same ruling as `check_published_matches_draft()` in check-content-parity.py.
+    av = lw.get('activeVersion') or {}
+    if isinstance(av.get('nodes'), list):
+        graph, l_nodes, l_conns = 'PUBLISHED (activeVersion — what the webhook runs)', av['nodes'], av.get('connections') or lw.get('connections', {})
+    else:
+        # ⚠ ONE RULING, NOT TWO (code-reviewer, round 4). This branch used to fall back to the DRAFT and return
+        # PARITY OK whenever the `activeVersion` KEY was absent, while the comment above claimed it applied
+        # "the same ruling as check_published_matches_draft()" — which exits 2 on that exact input. Two guards
+        # giving opposite verdicts on one response, with a comment asserting they agree. Both now report
+        # UNAVAILABLE: if the published artefact cannot be seen, nothing here can say what production runs.
+        print('PUBLISHED GRAPH UNAVAILABLE — this response exposes no activeVersion node list, so this script')
+        print('cannot say what production runs. Not a pass: "committed == live" is unverified.')
+        sys.exit(2)
+    l_count, l_names, l_pairs = summarize(l_nodes, l_conns)
 
     ok = True
     if c_count != l_count:
@@ -80,6 +99,7 @@ def main():
         ok = False
         print('CONNECTIONS only in LIVE     :', pl)
 
+    print(f'  graph compared: {graph}')
     print(f'PARITY {"OK" if ok else "DRIFT"} — nodes committed {c_count}/live {l_count}; '
           f'names {len(c_names)}; connections committed {len(c_pairs)}/live {len(l_pairs)}')
     sys.exit(0 if ok else 1)

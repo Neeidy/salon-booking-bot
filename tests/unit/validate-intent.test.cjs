@@ -11,9 +11,14 @@
  * and every case below removes the key entirely.
  *
  * WHY IT EXECUTES THE COMMITTED NODE AND THE COMMITTED IF EXPRESSION: `.claude/rules/contract-integrity.md`.
- * The node body comes from n8n/workflow.sanitized.json (proved byte-identical to live by
- * scripts/check-content-parity.py) and the routing decision is evaluated from the `Extraction Transient?`
- * node's own `leftValue` expression text — not a paraphrase of it. A rewritten condition therefore fails here.
+ * The node body comes from n8n/workflow.sanitized.json and the routing decision is evaluated from the
+ * committed IF nodes' own `leftValue` expression text AND their `operator` — not a paraphrase of either.
+ * A rewritten condition or an inverted operator therefore fails here; the combinator is NOT evaluated and
+ * the harness refuses to run if either IF ever grows a second condition.
+ *
+ * ⚠ "byte-identical to live" is CONDITIONAL on `check-content-parity.py` having been run against the live
+ * instance in the same state — it needs credentials this suite does not have. A green run here is a
+ * statement about the COMMITTED artefact (corrected 2026-09-09g).
  *
  * ⚠ Same accepted security note as resolve-date.test.cjs: this runs `jsCode` from the committed export via
  * `new Function`. A PR touching the workflow JSON is a CODE change and must be read as one.
@@ -31,17 +36,63 @@ const src = nodeOf('Validate Intent').parameters.jsCode;
 const validateIntentNode = new Function('$json', '$', src);
 
 // The routing expressions, taken verbatim from the committed IF nodes: "={{ <expr> }}".
+// ⚠ EVALUATES THE WHOLE IF, NOT JUST ITS EXPRESSION (Codex round 4). The first version read `leftValue`
+// alone, so flipping the node's `operator.operation` from "true" to "false" — inverting every routing
+// decision in the flow — left the suite at 33/33. The IF's verdict is expression AND operator AND
+// combinator; a test that reads one third of the configuration is testing a third of the node. The
+// operator is applied here and an unrecognised one is a hard failure rather than a silent default,
+// because "we did not understand the config so we assumed the good case" is how this class of hole starts.
+// PRECISELY what this evaluates, since overclaiming here is the same sin: the EXPRESSION and the OPERATOR.
+// The COMBINATOR is not evaluated — flipping `and`->`or` survives — and it cannot matter while there is
+// exactly one condition, which is why that count is asserted rather than assumed. Add a second condition to
+// either IF and this harness stops with an error instead of quietly testing a node it no longer understands.
 const condOf = (name) => {
-  const raw = nodeOf(name).parameters.conditions.conditions[0].leftValue;
+  const cfgNode = nodeOf(name).parameters.conditions;
+  const conds = cfgNode.conditions;
+  if (conds.length !== 1) { console.error(name + ': expected exactly 1 condition, found ' + conds.length); process.exit(1); }
+  const c = conds[0];
+  const raw = c.leftValue;
   const m = raw.match(/^=\{\{([\s\S]+)\}\}$/);
   if (!m) { console.error(name + ' leftValue is not an ={{ }} expression: ' + raw); process.exit(1); }
-  return new Function('$json', '$', 'return (' + m[1] + ');');
+  const op = (c.operator || {});
+  if (op.type !== 'boolean' || (op.operation !== 'true' && op.operation !== 'false')) {
+    console.error(name + ': unsupported operator ' + JSON.stringify(op) + ' — the harness must be taught it '
+      + 'before it can claim to evaluate this node'); process.exit(1);
+  }
+  const negate = op.operation === 'false';
+  const body = new Function('$json', '$', 'return (' + m[1] + ');');
+  return (json, dollar) => (negate ? !body(json, dollar) : !!body(json, dollar));
 };
 const transientCond = condOf('Extraction Transient?');
 const repeatCond    = condOf('Repeat Extraction Failure?');
 // `prev` is what `Merge State` read from Airtable at the START of this turn — the only thing the escalation
 // ladder keys on. `null` = a clean previous turn.
+// ⚠ IT IS NOT A LITERAL ANY MORE (Codex round 4). Setting it to the string 'invalid' by hand meant the
+// ladder was tested against the harness's OPINION of what turn 1 persists, not against what turn 1 actually
+// writes — so changing `Validate Intent`'s `last_intent: valid ? parsed.intent : 'invalid'` to 'book', which
+// breaks the ladder outright, left the suite at 33/33. `persistedAfter()` closes that loop: it runs the
+// committed node for turn 1 and follows the value through the SAME mapping `Save State` writes
+// (`$json.state.last_intent`) and `Merge State` reads back, so turn 2 sees what turn 1 really left behind.
 let PREV_INTENT = null;
+// ⚠ THE MAPPING IS READ FROM `Save State`, NOT RETYPED HERE (code-reviewer, round 4). The first version
+// wrote `out.state.last_intent` with a comment saying that is what Save State stores — a hand mirror of the
+// column, i.e. the same fixed axis this round claimed to close. Measured: DELETING the `last_intent` column
+// from `Save State` entirely (turn 1 persists nothing, so `Repeat Extraction Failure?` can never fire and the
+// ladder's whole reason for existing is gone) left the suite at 34/34. So the column's own expression is
+// fetched, evaluated against turn 1's output, and a missing column is a hard failure rather than a fallback.
+const persistedAfter = (raw) => {
+  const cols = (nodeOf('Save State').parameters.columns || {}).value || {};
+  const expr = cols.last_intent;
+  if (typeof expr !== 'string') {
+    console.error('Save State has no `last_intent` column mapping — the escalation ladder reads a value '
+      + 'nothing writes. Fix the flow or this harness, but do not let this pass.'); process.exit(1);
+  }
+  const m = expr.match(/^=\{\{([\s\S]+)\}\}$/);
+  if (!m) { console.error('Save State.last_intent is not an ={{ }} expression: ' + expr); process.exit(1); }
+  const out = validateIntentNode(raw, $)[0].json;
+  const written = new Function('$json', 'return (' + m[1] + ');')(out);
+  return (written === undefined || written === '') ? null : written;
+};
 const $merge = (n) => (n === 'Merge State'
   ? { first: () => ({ json: { state: { ...CTX.state, last_intent: PREV_INTENT } } }) }
   : { first: () => ({ json: CTX }) });
@@ -155,11 +206,15 @@ for (const [label, raw] of HARD) {
 // the hard-failure handoff, and that one also writes `stage='handoff'`, so the next turn stops at
 // `Check Handoff Lock` and never reaches here. Shown, not assumed — see the assertion below.
 {
-  const out = run(llm({ intent: 'answer_faq', confidence: 0.92, slots: { faqTopic: 'price' } }));
+  const failingPayload = llm({ intent: 'answer_faq', confidence: 0.92, slots: { faqTopic: 'price' } });
+  const out = run(failingPayload);
   PREV_INTENT = null;
   check('FIRST extraction failure in a row -> retry, no lock',
     routesToRetry(out) === true, { retry: routesToRetry(out) });
-  PREV_INTENT = 'invalid';
+  // turn 2 inherits what turn 1 ACTUALLY persisted — no hand-written control value
+  PREV_INTENT = persistedAfter(failingPayload);
+  check("the ladder's input is what turn 1 really wrote, not a literal in this file",
+    PREV_INTENT === 'invalid', { persisted: PREV_INTENT });
   check('SECOND consecutive extraction failure -> escalates to the handoff gate',
     routesToRetry(out) === false && repeatCond(out, $merge) === true, { retry: routesToRetry(out) });
   PREV_INTENT = 'clarify';

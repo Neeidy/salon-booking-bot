@@ -146,9 +146,15 @@ def check_published_matches_draft(live):
     av = live.get('activeVersion') or {}
     pub = av.get('nodes')
     if not isinstance(pub, list):
-        print('published-vs-draft: SKIPPED — this n8n response carries no activeVersion '
-              '(nothing to compare; the draft IS what runs)')
-        return
+        # ⚠ THIS USED TO PRINT "SKIPPED … the draft IS what runs" AND RETURN SUCCESS. That is certifying the
+        # ABSENCE of evidence as evidence — the pattern this repo has now hit ten times — and it asserted
+        # something it had not checked: that the draft is what runs. If the published artefact cannot be
+        # seen, the honest outcome is UNAVAILABLE, not OK. Exit 2 is this script's existing "could not
+        # measure" code (the same one used when credentials are missing), so a close gate that treats
+        # non-zero as not-green already handles it.
+        print('PUBLISHED GRAPH UNAVAILABLE — this n8n response carries no activeVersion, so nothing here can')
+        print('say what the production webhook actually runs. Not a pass: "committed == live" is unverified.')
+        sys.exit(2)
     d = {n['name']: n for n in live.get('nodes', [])}
     p = {n['name']: n for n in pub}
     bad = []
@@ -205,7 +211,12 @@ def _committed_placeholders(comm):
 
 
 def _selftest_coverage(placeholders, comm):
-    """Prove the set covers every sanitise class the COMMITTED file actually contains — and FAIL if not.
+    """Prove the set covers every sanitise class in `signatures` that the COMMITTED file contains — FAIL if not.
+
+    ⚠ SCOPE, because the first version of this sentence said "every sanitise class the committed file
+    contains" and that is a claim about classes nobody enumerated: what is measured is the SIX shapes listed
+    in `signatures` below. A seventh class — a new id format, a new provider secret — is invisible here until
+    someone adds its signature, and this docstring says so instead of implying otherwise.
 
     A guard that names classes it cannot see is worse than one that names none: it stops the next reviewer
     from looking. Printing the covered list was still not enough (`code-reviewer`, 2026-09-09f): if the
@@ -243,6 +254,47 @@ def _selftest_coverage(placeholders, comm):
     return sorted(covered)
 
 
+# Placeholder SHAPES, matched against serialized node text directly — no token extraction step.
+# ⚠ The first version extracted quoted tokens with `"([^"\\\\]{8,400})"` first. Inside a Code node's `jsCode`
+# every quote is serialized as `\\"`, so that extraction returned ZERO tokens for `Load Config` — the exact
+# node the production incident happened in. The scanner was structurally blind to the place it was written
+# for, and it reported OK. Matching the shape against the text needs no extraction and cannot go blind that
+# way. (Found by running Codex's own reproduction against the fix instead of trusting it, 2026-09-09g.)
+PLACEHOLDER_SHAPES = (
+    # `REPLACE_WITH_` + at least one character: the bare word `REPLACE_WITH` is 12 chars and would clear the
+    # length floor on its own, so a live Code-node COMMENT containing that word would false-FAIL the guard.
+    # A guard that screams at prose gets switched off (ARCH-DEC 2026-09-03) — `security-auditor`, round 4.
+    r'REPLACE_WITH_[A-Z0-9_]+(?:@[A-Za-z0-9.\-]+)?',     # any REPLACE_WITH_… spelling, invented or not
+    r'(?:app|tbl|viw|rec|fld)[A-Za-z0-9]*X{4,}[A-Za-z0-9]*',  # an Airtable-shaped id carrying the sanitiser's X run
+)
+
+
+def _live_placeholder_shaped(live):
+    """Every placeholder-SHAPED value in a LIVE executable node, found by shape and NOT by inventory.
+
+    ⚠ This exists because the previous guard could only recognise placeholders it had already seen in the
+    committed file. Codex round 4 measured the consequence: put `REPLACE_WITH_CALENDAR_ID_V2@…` into live and
+    the guard printed "live-not-sanitised OK" and "content parity OK" and exited 0 — a sanitized push to
+    production, certified green, because the token was one character away from the one in the inventory.
+    Recognition by SHAPE does not depend on an inventory, so a placeholder nobody has written yet is still a
+    placeholder. Kept deliberately narrow: `REPLACE_WITH…` is not a value any real system emits, and a run of
+    four X's inside an id-shaped token is the sanitiser's own signature.
+
+    Sticky notes are excluded — they are prose and legitimately quote placeholder names.
+    """
+    hits = {}
+    for n in live.get('nodes', []):
+        if n.get('type') == 'n8n-nodes-base.stickyNote':
+            continue
+        text = json.dumps({'parameters': n.get('parameters') or {},
+                           'credentials': n.get('credentials') or {}})
+        for pat in PLACEHOLDER_SHAPES:
+            for m in re.finditer(pat, text):
+                if len(m.group(0)) >= 8:
+                    hits.setdefault(m.group(0), set()).add(n['name'])
+    return hits
+
+
 def check_live_not_sanitised(live, comm):
     """LIVE-side: the running workflow must NOT contain the committed PLACEHOLDERS.
 
@@ -259,6 +311,10 @@ def check_live_not_sanitised(live, comm):
     placeholders = _committed_placeholders(comm)
     covered = _selftest_coverage(placeholders, comm)
     blob = json.dumps(live)
+    # SHAPE-based detection runs alongside the inventory, not instead of it: the inventory still catches a
+    # placeholder whose shape we did not anticipate, and the shape catches one whose spelling we have not
+    # seen. Neither alone is sufficient — that is the whole lesson of Codex round 4.
+    shaped = _live_placeholder_shaped(live)
     # EXEMPTIONS — exact tokens, never patterns. A value that is a placeholder in LIVE **by design** is not a
     # broken push, and screaming about it every run is how a guard gets switched off (ARCH-DEC 2026-09-03:
     # "a noisy guard gets switched off, and a switched-off guard is worse than none"). Each entry names WHY,
@@ -278,6 +334,14 @@ def check_live_not_sanitised(live, comm):
         return re.search(r'(?<![A-Za-z0-9_])' + re.escape(ph) + r'(?![A-Za-z0-9_])', blob) is not None
     skipped = sorted(ph for ph in placeholders if ph in EXEMPT and present(ph))
     hits = sorted(ph for ph in placeholders if present(ph) and ph not in EXEMPT)
+    shaped_hits = sorted(v for v in shaped if v not in EXEMPT and v not in hits)
+    if shaped_hits:
+        print('LIVE IS SANITISED — the RUNNING workflow holds placeholder-SHAPED values, so it cannot work:')
+        for v in shaped_hits:
+            print('  - %r in %s' % (v, sorted(shaped[v])))
+        print('These were matched by SHAPE, not by the committed inventory — a spelling the inventory has')
+        print('never seen is still a placeholder. Restore the real values from a pre-change backup.')
+        sys.exit(1)
     if skipped:
         print('live-not-sanitised: %d exempted placeholder(s) ARE present in live by design: %s'
               % (len(skipped), ', '.join(skipped)))
@@ -435,8 +499,10 @@ def main():
     comm_only = json.load(open(COMMITTED, encoding='utf-8'))
     n_checked = check_sanitised(comm_only)
     if not (API and KEY):
-        print('sanitise OK — %d committed nodes carry placeholders for every class sanitize.md names: '
-              'calendar id, telegram chatId, turnstile secret, Airtable ids, credential ids, pinData' % n_checked)
+        print('sanitise OK — %d committed nodes carry placeholders for the classes this script checks: '
+              'calendar id, telegram chatId, turnstile secret, Airtable app/tbl/viw/rec/fld ids, credential '
+              'ids, pinData. Webhook URLs / hostnames are NOT checked here (check-no-host-leak.sh owns them)'
+              % n_checked)
         print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow '
               '(parity half NOT run)')
         sys.exit(2)
@@ -445,8 +511,12 @@ def main():
     live = json.load(urllib.request.urlopen(req, timeout=30))
     comm = json.load(open(COMMITTED, encoding='utf-8'))
 
-    check_published_matches_draft(live)
+    # ORDER MATTERS, and it was wrong (code-reviewer, round 4). `check_published_matches_draft` exits 2 on a
+    # response with no published artefact — which meant the SHAPE guard below, the only thing that catches a
+    # sanitized push, never ran on such an instance. The gate stayed red either way, but the operator lost the
+    # one message they could act on. The sanitise check runs first now; the publish check still decides the exit.
     live_covered = check_live_not_sanitised(live, comm)
+    check_published_matches_draft(live)
     smap = build_smap(live, comm)
 
     STICKY = 'n8n-nodes-base.stickyNote'
@@ -484,7 +554,12 @@ def main():
         sys.exit(1)
     print('live-not-sanitised OK — the running workflow contains none of the committed placeholders; '
           'classes actually covered by this run: ' + ', '.join(live_covered))
-    print(f'content parity OK — {len(lby)} executable nodes match live byte-for-byte '
+    # "byte-for-byte" was never true of this comparison and is corrected here rather than softened: what is
+    # compared is a NORMALIZED projection — sanitize placeholders mapped, resource-locator display cache and
+    # empty `options` dropped, IF/Switch condition meta stripped, Code bodies line-rstripped. Those are the
+    # documented exceptions at the top of this file; calling the result "byte-for-byte" told a reader the
+    # guard was stricter than it is.
+    print(f'content parity OK — {len(lby)} executable nodes match live after the documented normalization '
           '(sanitize placeholders + n8n serialization noise normalized; sticky notes excluded)')
     sys.exit(0)
 

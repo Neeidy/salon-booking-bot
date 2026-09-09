@@ -520,6 +520,133 @@ Each CP waits for its own written approval (plan-gate).
   **Cleanup, proven:** 9 rows created (1 conversation, 1 appointment, 7 processed_messages) and all 9 deleted;
   re-queries return empty; `booked` appointments are the same 4 pre-drill rows. The Google Calendar event was
   removed by the bot's own cancel flow (204), not by hand.
+- ✅ **CODEX ROUND 4 — four code holes closed, three blind tests fixed, and the honesty pass that was the
+  actual blocker (2026-09-09g).** Every item below was REPRODUCED here first, from Codex's own input, before
+  anything was changed; each fix carries the mutant that dies.
+  **A1 — an empty extraction silently inherited the stored date.** Repro (committed nodes, clock
+  2026-09-07 09:00 Vienna): stage `collecting`, stored slot Friday 2026-09-11, customer types
+  *"Saturday at 11"*, model returns `dateExpr:null` AND `date:null` → `Resolve Date` says `no_date` with
+  `date_dropped:false`, `Merge Slots` does `fresh.date ?? stored.date`, and the merged slot comes back
+  **2026-09-11** — the bot offers FRIDAY. No drop, no alert, and the resolver was never wrong: the defect
+  lived in the SEAM between two correct nodes, which is why a resolver-only test could not see it. Fix: when
+  the extraction is empty AND a stored date exists AND the raw message contains a day literal we recognise,
+  ASK instead of inheriting (`day_named_not_extracted` → `date_day_unextracted`). Same presence test as the
+  provenance check — word boundary, separators folded, never semantic. **Codex's own control is a committed
+  row:** *"11am please"* names no day, so the stored date SURVIVES. **Accepted cost, also a committed row:**
+  *"I got a haircut last saturday, can I book 11am please"* re-asks — one turn against a wrong-day booking.
+  **A2 — the word boundary was ASCII, so every typographic separator walked through it.** Measured on the
+  committed node: `sun‑kissed` (U+2011) booked a SUNDAY, `sat–sun opening hours` (U+2013) a Saturday,
+  `mon—fri` (U+2014) a Monday, `mon−fri` (U+2212) a Monday, `sat∕sun` (U+2215) a Saturday — while every ASCII
+  spelling was correctly refused. Fix: fold the dash/slash families and delete the soft hyphen at the two
+  ENTRY points (one fold site, so nothing downstream has to remember it). ⚠ **Every sentence claiming the
+  ASCII boundary closed the vocabulary-collision class is corrected** — it closed the ASCII half only.
+  **A3 — the live-placeholder guard could only see placeholders it had already met.** Repro: put
+  `REPLACE_WITH_CALENDAR_ID_V2@…` into live and the guard printed *"live-not-sanitised OK"* and *"content
+  parity OK"* and exited **0** — a sanitized push to production certified green, because the token was one
+  character from the inventory. Fix: recognise placeholder SHAPES on the live side, independent of the
+  committed inventory. ⚠ **The first attempt at this fix was itself blind** and only Codex's exact repro
+  showed it: it extracted quoted tokens with `"([^"\\]{8,400})"`, and inside a Code node's `jsCode` every
+  quote is serialized `\"`, so the extraction returned **zero tokens for `Load Config`** — the very node the
+  incident happened in. Matching the shape against the serialized text needs no extraction and cannot go
+  blind that way.
+  **A4 — absence of evidence was being certified as success.** Repro: remove `activeVersion` and the guard
+  printed *"published-vs-draft: SKIPPED … the draft IS what runs"* and exited **0**, asserting something it
+  had not checked. Fix: no published artefact → **UNAVAILABLE (exit 2)**, never a pass. And
+  `check-live-parity.py`, which compared the DRAFT while its verdict said "live", now compares the PUBLISHED
+  graph and **names which graph it read** on every run.
+  **B — three mutants Codex found alive, all killed (the fifth, sixth and seventh fixed axes of this phase).**
+  `Reschedule Lookup`'s `rd.slots.date`→`vi.slots.date` — the exact reschedule bypass this project shipped
+  once — survived because the lane test GREPPED for node references instead of running the node; both lane
+  writers are now EXECUTED with the raw and resolved dates set to different values. `Extraction Transient?`'s
+  `operator.operation` true→false, which inverts every routing decision, survived because the harness read
+  only `leftValue`; it now evaluates expression AND operator, refuses to run if either IF grows a second
+  condition, and states plainly that the combinator is not evaluated. `Validate Intent`'s
+  `last_intent: … : 'invalid'`→`'book'` survived because turn 2's state was a literal in the test file; it is
+  now taken from what turn 1 actually persists, through the same `Save State`/`Merge State` mapping.
+  **C — the honesty pass, which was the half that blocked a public push.** Corrected where they stood, not
+  annotated: the schema's own `description` claimed extraction failures "escalate only on a SECOND
+  consecutive one" while at its own use site an explicit handoff intent and a pending cancel/reschedule
+  confirmation both lock on turn ONE (all three exceptions are now written there); the unit headers' flat
+  *"the node that is actually deployed"* is now conditional on parity guards this suite cannot run; the lane
+  comment claiming the dominator check *"would have caught the round-2 reschedule bypass"* is deleted — it
+  could not have, topology and field-reading are different questions; `content parity OK … byte-for-byte`
+  became *"after the documented normalization"*, because the comparison never was byte-for-byte; the
+  coverage self-test no longer says "every sanitise class" but the six shapes it actually lists; and the CP6
+  canvas sticky's **"Only intent-handoff writes `stage='handoff'`"** was FALSE — the search returns **17
+  writers** across both lanes, and the corrected sticky shows the count and what is actually true.
+  **⚠ THE L2 REVIEW REJECTED THIS ROUND'S OWN FIXES — twice, and both times for the same reason the round
+  was called.** The first version of the verification line claimed "14 new mutants … all killed". That was
+  FALSE and is corrected here rather than quietly amended: `code-reviewer` measured four mutants alive.
+  **(i)** Deleting `day_named_not_extracted` from the ALERT map — or renaming the outcome to `no_date` while
+  keeping the drop — left the suite green, because the six new rows asserted only the merged DATE. So the
+  signalling half of A1, the half the defect description names ("no drop, NO ALERT"), had no dying mutant at
+  all. **(ii)** The `storedDate` half of the new condition had no case either. **(iii)** `persistedAfter()`,
+  written in this round explicitly to stop hand-mirroring `Save State`, still hand-mirrored it: deleting the
+  `last_intent` COLUMN from `Save State` — which makes the escalation ladder unreachable — left the suite at
+  34/34. **That is the fifth and sixth fixed axis of this phase, inside the fixes for the fourth.**
+  All are closed: outcome and `date_alert` are asserted per row, the fresh-conversation case exists, and the
+  harness now FETCHES `Save State`'s `last_intent` column expression and evaluates it, failing hard if the
+  column is gone. **A judgment call the review forced, recorded as a decision:** the new class DROPS but no
+  longer PINGS. `code-reviewer` measured the false-positive set before anyone else had — "my hair has sun
+  damage", "do you do sun protection treatments?", "sun kissed balayage" (the SPACED spelling of this repo's
+  own trap word), "I sat in your chair last time", "i want the same as mon cheri did" — and this repo had
+  already silenced `llm_date_ignored` on exactly that reasoning. A re-ask is not an incident; an unmeasured
+  ping on a class this noisy teaches the owner to ignore the channel. The no-ping decision is itself pinned
+  by an assertion. Also closed from the same review: the invisible characters (U+200B/C/D, U+2060, U+FEFF) are
+  folded like the soft hyphen, because the justification already written for U+00AD applied to them word for
+  word; `check-live-parity.py` no longer falls back to the DRAFT while claiming it applies the same ruling as
+  `check_published_matches_draft()` — both report UNAVAILABLE now; the sanitise-shape guard runs BEFORE the
+  publish check so an unpublishable instance still gets the actionable message; and the alert-class list in
+  `Build Owner Alert` and `FLOW-DIAGRAM.md` names both no-ping outcomes.
+  **Verification (after the review, not before it):** `resolve-date` **150/150** · `validate-intent` **34/34**
+  · **21 mutants run this round, 20 killed, 1 equivalent and proven so** (`and`→`or` over a single condition,
+  with the condition count asserted so it cannot silently gain a second) · all guards green · live synced with
+  an explicit allow-list and the incident did not repeat.
+- ☐ **OPEN AFTER CODEX ROUND 4 — recorded with the reproduction, not as "a known defect" (2026-09-09g).**
+  A next owner must be able to re-run each of these without asking anyone.
+  **(1) Codex finding 2's residue — the fix is a presence test, so it is bounded by the day vocabulary.**
+  MEASURED against the committed nodes (stage `collecting`, stored 2026-09-11, `dateExpr:null` + `date:null`,
+  time 11:00) — every one of these still inherits the stored Friday and the bot offers FRIDAY:
+  *"actually the 13th at 11"* · *"can we do next week instead, 11am"* · *"lets do it on the 12th of september
+  at 11"* · *"move it to the weekend, 11am"* · *"in two weeks at 11 please"*. All resolve `no_date`, merged
+  slot 2026-09-11. Widening the vocabulary to close these is the date-PARSING scope this project has
+  repeatedly declined; the confirmation step showing weekday + full date is what stands between this and a
+  wrong booking. **The list above is the measurement, not an illustration** — the first version of this entry
+  named three guesses and missed the ordinal-date form entirely.
+  **(1b) The re-ask side of that fix is wider than its own comment says, also measured:** *"my hair has sun
+  damage, can I come at 11"* · *"do you do sun protection treatments? 11am"* · *"sun kissed balayage at 11
+  please"* (the SPACED spelling — only the hyphenated trap word is protected) · *"I sat in your chair last
+  time, 11am works"* · *"i want the same as mon cheri did, 11am"* · and on a `confirming` turn *"yes that
+  works, see you tomorrow"*. Each costs one extra question and **none of them alerts the owner** (the class
+  deliberately does not ping). Controls that correctly keep the stored date: *"ok 11am. thanks!"* and
+  *"can we make it 2pm instead"*.
+  **(2) Codex finding 3's residue.** The fold covers the dash family (U+2010-2015, U+2212, U+FE58, U+FE63,
+  U+FF0D), the slash family (U+2044, U+2215, U+FF0F) and the soft hyphen. A separator outside that list —
+  a homoglyph letter — is not folded. ⚠ The invisible characters named in the first version of this line
+  (U+200B/C/D, U+2060, U+FEFF) ARE folded now; leaving them out while folding U+00AD was indefensible once
+  `code-reviewer` pointed at the justification already written for the soft hyphen. What remains, measured:
+  `sun<U+2E3A>kissed`, U+FE31, U+301C, U+05BE, U+058A and Cyrillic/Greek homoglyph letters inside the day word.
+  **No claim is made that the class is closed** — the folded set is exactly the code points listed in the node.
+  **(3) Codex A4 — `check-cancel-validation-parity.py` counts regex FRAGMENTS.** Recorded in round 3,
+  untouched here: it asserts the gid regex appears 6× rather than comparing the guards' behaviour, so two
+  nodes could hold different-but-equally-counted expressions. Different subsystem, no wrong booking.
+  **(4) The three new nodes have still NEVER executed in production.** `Extraction Transient?` has only ever
+  taken its FALSE branch; `Repeat Extraction Failure?` and `Build Extraction-Retry State` appear in no
+  execution. Their triggers cannot be induced live (the model will not omit a required KEY on demand; the
+  anchor needs a weekend clock). Unit + mutation evidence only.
+  **(4b) Two REAL Airtable RECORD ids and a provider sandbox number sit in the decision log** — found by
+  `security-auditor` in round 4, pre-existing, NOT introduced by this round and NOT edited by it (a decision
+  log is evidence; rewriting it to look clean is its own dishonesty). `docs/ARCHITECTURE-DECISIONS.md` lines
+  86/106 carry `rec…` ids from test rows, and line 113 carries a `+1` E.164 number that the line itself names as
+  **Zernio's shared sandbox BOT number** — public in the provider's docs, not a customer's. ⚠ The first draft
+  of THIS entry reprinted that number verbatim, taking the repo from one copy to two: recording a leak finding
+  by repeating the value is the wrong way to record it, and the manual value-shaped scan below caught it
+  before the push. The pointer is the record; the value is not. A record id is
+  useless without the base id and a PAT, and neither is in this repo. **Low, recorded, not silently ignored.**
+  Decide at the next sanitize pass whether the log gets placeholders or an explicit "these are test ids" note.
+  **(5) `date_expr_forged` rate still unmeasured**, 20% split threshold declared in advance (above).
+  **(6) E20 · F2 · Codex finding 2 on the confirm turn · `conversations.gcal_event_id` write-only** — all
+  unchanged, each with its own entry above.
 - ☐ **STILL UNDRILLED after the round-3 window — NAMED item.** The five behaviours changed in round 3 still have
   unit and parity evidence but **no live execution evidence of their own triggers**. Running the harness needs `channels.widget.turnstile.enabled`
   flipped false in the live `Load Config` for a drill window (the suite otherwise gets `403 turnstile_failed`), makes

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://salon-booking-bot/schemas/intent.schema.json",
   "title": "intent",
-  "description": "The structured output the LLM must return per message. Validated in n8n against THIS file. A failure is always visible, but the class depends on WHICH failure (see .claude/rules/handoff.md): the model not answering at all (bad stop_reason, unparseable JSON, non-object) hands off and locks; a well-formed answer that violates THIS schema is extraction-transient — owner-alerted, kept off every write path, no stage write, and it escalates to a handoff only on a SECOND consecutive one.",
+  "description": "The structured output the LLM must return per message. Validated in n8n against THIS file. A failure is always visible, but the class depends on WHICH failure (see .claude/rules/handoff.md): the model not answering at all (bad stop_reason, unparseable JSON, non-object) hands off and locks; a well-formed answer that violates THIS schema is USUALLY extraction-transient — owner-alerted, kept off every write path, no stage write — and then escalates on a SECOND consecutive one. THREE exceptions, written here because the sentence was false at its own use site (Codex round 4): (1) if the intent is 'handoff' it locks on turn one like any explicit handoff; (2) if a cancel/reschedule confirmation is pending it locks on turn one, because a pending booking must not hang on a classification we distrust; (3) the three non-schema failures (bad stop_reason, unparseable JSON, non-object) never enter this class at all.",
   "type": "object",
   "required": [
     "intent",

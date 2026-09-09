@@ -4,10 +4,16 @@
  *
  * WHY IT EXECUTES THE COMMITTED NODE INSTEAD OF A COPY: `.claude/rules/contract-integrity.md` — a
  * hand-mirrored copy of the logic would be a second truth that drifts silently. This file extracts the
- * `jsCode` of `Resolve Date` from `n8n/workflow.sanitized.json` (which `scripts/check-live-parity.py` +
- * `check-content-parity.py` prove is byte-identical to live) and runs it with the same globals n8n gives
- * a Code node: `$json`, `$('<node>')` and `DateTime`. So a green run here is a statement about the node
- * that is actually deployed, not about a snippet someone pasted into a test.
+ * `jsCode` of `Resolve Date` from `n8n/workflow.sanitized.json` and runs it with the same globals n8n gives
+ * a Code node: `$json`, `$('<node>')` and `DateTime`. So a green run here is a statement about the COMMITTED
+ * node, not about a snippet someone pasted into a test.
+ *
+ * ⚠ CONDITIONAL, and the condition is not this file's to satisfy (corrected 2026-09-09g): "the node that is
+ * actually deployed" holds only while `check-live-parity.py` + `check-content-parity.py` were run against
+ * the live instance IN THE SAME STATE. Those guards need credentials this suite does not have, so a green
+ * run here proves nothing about production on its own — and for most of this project's history they were
+ * comparing the DRAFT, not the published graph, so even their green did not mean what the sentence said.
+ * Read this file as: the committed artefact behaves like this.
  *
  * WHY `now` IS FIXED: a date test that uses the real clock passes or fails depending on the day it is run.
  * With `now` pinned to Monday 2026-09-07 09:00 Europe/Vienna the rule table is asserted, not the calendar.
@@ -608,6 +614,106 @@ if (bare.date_dropped === false && bare.date_alert === false && bare.date_resolu
   pass++; console.log('  ok     no slots this turn -> flags defined, nothing resolved');
 } else { fail++; console.log('  FAIL   no-slots path: ' + JSON.stringify(bare)); }
 
+// ---- CODEX ROUND-4 REPRODUCTIONS, VERBATIM. Two of them are two-NODE defects: `Resolve Date` alone looks
+// innocent and the damage appears in `Merge Slots`. So this block runs BOTH committed bodies in sequence,
+// exactly as the flow does. Asserting only the resolver would have been the same fixed-axis mistake this
+// round has already made four times — the axis here is "which node you look at".
+{
+  const wfj = JSON.parse(fs.readFileSync(WF, 'utf8'));
+  const msSrc = wfj.nodes.find(n => n.name === 'Merge Slots').parameters.jsCode;
+  const CFG2 = { services: [{ id: 'haircut', name: 'Haircut' }, { id: 'beard', name: 'Beard Trim' }] };
+  const mergeSlots = (rd) => new Function('$json', '$', msSrc)(rd, () => ({ first: () => ({ json: { config: CFG2 } }) }))[0].json;
+  const stored = { slots: { serviceId: 'haircut', date: '2026-09-11', time: null }, stage: 'collecting' };
+
+  // [label, text, expected merged date after BOTH nodes]
+  const PAIR = [
+    // Codex finding 2, his input and his clock. The model extracted NOTHING (dateExpr null AND date null);
+    // the stored Friday then survived and the bot proposed Friday to a customer who said Saturday.
+    ['CODEX-R4-2 "Saturday at 11" with an empty extraction must NOT inherit the stored Friday',
+      'Saturday at 11', null, 'day_named_not_extracted'],
+    // Codex's OWN legitimate control, kept verbatim: no day literal in the text, so the stored date is the
+    // right answer and must survive. This row is what stops the fix from becoming "never inherit".
+    ['CODEX-R4-2 control: "11am please" names no day -> the stored date SURVIVES',
+      '11am please', '2026-09-11', 'no_date'],
+    ['a second day literal form is caught too ("tomorrow")', 'tomorrow at 11', null, 'day_named_not_extracted'],
+    ['and an abbreviation is caught ("sat")', 'sat at 11', null, 'day_named_not_extracted'],
+    // the accepted false positive, asserted so it is a known cost and not a surprise
+    ['ACCEPTED COST: a PAST mention of a day also re-asks',
+      'I got a haircut last saturday, can I book 11am please', null, 'day_named_not_extracted'],
+    // "satisfied" must not read as "sat" — the boundary check still governs
+    ['a day literal hiding inside a word does NOT trigger the re-ask',
+      'I was satisfied last time, 11am please', '2026-09-11', 'no_date'],
+  ];
+  // The OUTCOME is asserted alongside the merged date. Asserting only the date left the whole signalling half
+  // of this fix without a dying mutant: deleting `day_named_not_extracted` from the ALERT map, or renaming the
+  // outcome to 'no_date' while keeping `dropped`, both kept the suite green — and both silently restore the
+  // second half of the defect this row exists for ("no drop, NO ALERT"). code-reviewer, round 4.
+  for (const [label, text, wantDate, wantOutcome] of PAIR) {
+    const rd = run({ text, slots: { dateExpr: null, date: null, time: '11:00' }, state: stored, intent: 'book' });
+    const got = mergeSlots(rd).state.slots.date;
+    // `date_alert === false` is asserted for BOTH shapes on purpose: this class drops without pinging, and
+    // that is a DECISION (the measured false-positive set is wide and the rate is unmeasured). Restoring the
+    // ping means this row goes red first and the person doing it has to argue for it.
+    const ok = got === wantDate && rd.date_resolution.outcome === wantOutcome && rd.date_alert === false;
+    if (ok) { pass++; console.log('  ok     ' + label); }
+    else { fail++; console.log('  FAIL   ' + label + '\n         merged date got ' + JSON.stringify(got)
+                               + ', want ' + JSON.stringify(wantDate)
+                               + '  · outcome got ' + rd.date_resolution.outcome + ', want ' + wantOutcome); }
+  }
+  // The `storedDate` half of the condition had no case either: without a stored date there is nothing to
+  // inherit, so a day literal must NOT manufacture a refusal on a fresh conversation.
+  {
+    const fresh = run({ text: 'Saturday at 11', slots: { dateExpr: null, date: null, time: '11:00' },
+                        state: { slots: { serviceId: null, date: null, time: null }, stage: 'new' }, intent: 'book' });
+    const ok = fresh.date_dropped === false && fresh.date_resolution.outcome === 'no_date';
+    if (ok) { pass++; console.log('  ok     no stored date -> a day literal does not manufacture a refusal'); }
+    else { fail++; console.log('  FAIL   fresh conversation refused: ' + fresh.date_resolution.outcome); }
+  }
+}
+
+// ---- CODEX ROUND-4: the word boundary was ASCII-only, so a Unicode separator walked straight through it.
+// Every row is a real salon string with the ASCII separator swapped for its typographic twin — the kind a
+// phone keyboard or a paste from a website produces without anyone noticing.
+{
+  const SEP = [
+    ['U+2011 non-breaking hyphen', 'sun\u2011kissed balayage at 11', 'sun'],
+    ['U+2013 en dash',             'what are your sat\u2013sun opening hours?', 'sat'],
+    ['U+2014 em dash',             'are you open mon\u2014fri?', 'mon'],
+    ['U+2212 minus sign',          'are you open mon\u2212fri?', 'mon'],
+    ['U+2215 division slash',      'your sat\u2215sun hours?', 'sat'],
+    ['U+FF0D fullwidth hyphen',    'sun\uFF0Dkissed balayage at 11', 'sun'],
+    ['U+00AD soft hyphen',         'sun\u00ADkissed balayage at 11', 'sun'],
+    ['U+200B zero-width space',    'sun\u200Bkissed balayage at 11', 'sun'],
+    ['U+200C zero-width non-joiner','sun\u200Ckissed balayage at 11', 'sun'],
+    ['U+200D zero-width joiner',   'sun\u200Dkissed balayage at 11', 'sun'],
+    ['U+2060 word joiner',         'sun\u2060kissed balayage at 11', 'sun'],
+    ['U+FEFF BOM',                 'sun\uFEFFkissed balayage at 11', 'sun'],
+  ];
+  for (const [label, text, expr] of SEP) {
+    const out = run({ text, slots: { dateExpr: expr, date: null, time: '11:00' } });
+    const ok = out.slots.date === null && out.date_alert_class === 'date_expr_forged';
+    if (ok) { pass++; console.log('  ok     separator: ' + label + ' does not smuggle a day past provenance'); }
+    else { fail++; console.log('  FAIL   separator: ' + label + ' -> booked ' + out.slots.date
+                               + ' (' + out.date_resolution.outcome + ')'); }
+  }
+  // The fold is applied to the EXPRESSION too, and that is not cosmetic: it decides which ALERT the owner
+  // gets. A customer really typing "sat<en dash>sun" whose wording the model copies verbatim is an
+  // UNPARSEABLE expression, not a forged one — telling the owner "forged" would be a false accusation about
+  // their own customer. Without the expression fold this row reports date_expr_forged.
+  {
+    const both = run({ text: 'what are your sat\u2013sun opening hours?',
+                       slots: { dateExpr: 'sat\u2013sun', date: null, time: null } });
+    const ok = both.slots.date === null && both.date_alert_class === 'date_unresolved';
+    if (ok) { pass++; console.log('  ok     separator: a verbatim-copied unicode range is UNRESOLVED, not forged'); }
+    else { fail++; console.log('  FAIL   separator: verbatim unicode range -> ' + both.date_alert_class
+                               + ' (' + both.date_resolution.outcome + '), want date_unresolved'); }
+  }
+  // and the ASCII twins must still behave — the fold must not become a hole of its own
+  const ascii = run({ text: 'sun-kissed balayage at 11', slots: { dateExpr: 'sun', date: null, time: '11:00' } });
+  if (ascii.slots.date === null) { pass++; console.log('  ok     separator: the ASCII twin still refuses'); }
+  else { fail++; console.log('  FAIL   separator: ASCII twin regressed'); }
+}
+
 // ---- THE ANCHOR SAFETY PROPERTY, PROVEN BY EXHAUSTION rather than argued in a comment.
 // The node deliberately does NOT demand that a `this` came from the customer. The reason is a PROPERTY: an
 // anchored resolution is always the unanchored resolution or a REFUSAL — so an anchor the model invented can
@@ -667,8 +773,12 @@ if (bare.date_dropped === false && bare.date_alert === false && bare.date_resolu
 // ---- TWO LANES, CHECKED SEPARATELY — never by generalisation (three times in this phase a drill on the
 // booking lane was read as proof for the reschedule lane, and three times it was wrong; the worst was
 // `Reschedule Lookup` reading `$('Validate Intent')`, UPSTREAM of the guard, so the whole reschedule branch
-// bypassed it). This is the DOMINATOR check that would have caught it: delete `Resolve Date` from the graph
-// and neither date-writer may still be reachable from `Validate Intent`.
+// bypassed it). The DOMINATOR check below deletes `Resolve Date` from the graph and requires that neither
+// date-writer stays reachable from `Validate Intent`.
+// ⚠ It would NOT have caught that bypass, and the claim that it would has been removed (Codex round 4).
+// `Reschedule Lookup` was and is topologically downstream of the guard; the defect was WHICH FIELD it read
+// once it got there. Topology and field-reading are different questions — the executed lane assertions
+// further down are the ones that answer the second.
 {
   const conns = JSON.parse(fs.readFileSync(WF, 'utf8')).connections;
   const reach = (from, skip) => {
@@ -690,15 +800,66 @@ if (bare.date_dropped === false && bare.date_alert === false && bare.date_resolu
     if (ok) { pass++; console.log('  ok     lane: ' + w + ' is downstream of Resolve Date and unreachable without it'); }
     else { fail++; console.log('  FAIL   lane: ' + w + ' downstream=' + fromResolve.has(w) + ' bypassable=' + bypass.has(w)); }
   }
-  // and each lane must actually HONOUR the refusal, not merely sit downstream of it
-  const nodeSrc = (n) => JSON.parse(fs.readFileSync(WF, 'utf8')).nodes.find(x => x.name === n).parameters.jsCode;
-  const ms = nodeSrc('Merge Slots'), rl = nodeSrc('Reschedule Lookup');
-  const msOk = /date_dropped === true/.test(ms) && /dropped \? null/.test(ms);
-  const rlOk = /date_dropped === true\) \? null/.test(rl) && /\$\('Resolve Date'\)/.test(rl);
-  if (msOk) { pass++; console.log('  ok     lane booking: Merge Slots nulls the date when Resolve Date refused'); }
-  else { fail++; console.log('  FAIL   lane booking: Merge Slots does not honour date_dropped'); }
-  if (rlOk) { pass++; console.log('  ok     lane reschedule: Reschedule Lookup reads Resolve Date and honours date_dropped'); }
-  else { fail++; console.log('  FAIL   lane reschedule: Reschedule Lookup does not read Resolve Date / ignores date_dropped'); }
+  // ⚠ AND EACH LANE IS EXECUTED, NOT GREPPED (Codex round 4). This block used to assert that the two node
+  // bodies CONTAIN the strings `date_dropped === true` and `$('Resolve Date')`. Both strings survive the one
+  // mutation that matters — swapping `rd.slots.date` for `vi.slots.date`, i.e. reading the LLM's raw date
+  // instead of the resolved one, which is EXACTLY the reschedule bypass this project shipped once before.
+  // The suite stayed 126/126. So the two writers are now RUN, with the raw and the resolved date set to
+  // DIFFERENT values so that only one of them can produce the asserted answer.
+  //
+  // The old comment here claimed this check "would have caught the round-2 reschedule bypass". It would not
+  // have: a grep for a node reference cannot tell which field of that reference is read. That sentence is
+  // deleted rather than softened.
+  const wf2 = JSON.parse(fs.readFileSync(WF, 'utf8'));
+  const bodyOf = (n) => wf2.nodes.find(x => x.name === n).parameters.jsCode;
+  const RAW = '2026-09-12';        // what the LLM said  (a Saturday)
+  const RES = '2026-09-11';        // what Resolve Date decided (the Friday the customer named)
+  const LCFG = { config: { business: { timezone: TZ }, bot: { cancellationCutoffHours: 2 },
+    services: [{ id: 'haircut', name: 'Haircut' }], messageTemplates: {} } };
+  const vi = { intent: 'reschedule', slots: { serviceId: 'haircut', dateExpr: 'friday', date: RAW, time: '11:00' },
+               state: { stage: 'booked', slots: { serviceId: 'haircut', date: null, time: null } } };
+
+  // --- reschedule lane: run the real node with rd != vi
+  {
+    const rd = { ...vi, slots: { ...vi.slots, date: RES }, date_dropped: false };
+    const rows = [{ json: { id: 'recX', fields: { status: 'booked', service: 'Haircut',
+      start_utc: DateTime.now().plus({ days: 20 }).toISO(), gcal_event_id: 'abcde12345', calendar_id: 'cal-1' } } }];
+    const ctx = (n) => ({ first: () => ({ json: n === 'Load Config' ? LCFG : (n === 'Resolve Date' ? rd : vi) }) });
+    const out = new Function('$json', '$', '$input', bodyOf('Reschedule Lookup'))(
+      rd, ctx, { all: () => rows })[0].json;
+    const got = out.state.slots.date;
+    if (got === RES) { pass++; console.log('  ok     lane reschedule: the RESOLVED date is what reaches the move target (ran the node)'); }
+    else { fail++; console.log('  FAIL   lane reschedule: move target used ' + got + ', want ' + RES
+                               + ' — the lane is reading the LLM date again'); }
+    // and the refusal must still be honoured, executed rather than grepped
+    const rdDrop = { ...rd, date_dropped: true };
+    const ctx2 = (n) => ({ first: () => ({ json: n === 'Load Config' ? LCFG : (n === 'Resolve Date' ? rdDrop : vi) }) });
+    const out2 = new Function('$json', '$', '$input', bodyOf('Reschedule Lookup'))(rdDrop, ctx2, { all: () => rows })[0].json;
+    if (out2._resched_check === false && out2.state.slots.date !== RAW) {
+      pass++; console.log('  ok     lane reschedule: a refused date does not move anything (ran the node)');
+    } else { fail++; console.log('  FAIL   lane reschedule: refusal ignored -> ' + JSON.stringify(out2.state.slots)); }
+  }
+
+  // --- booking lane: same shape, same discipline
+  {
+    const CFG3 = { services: [{ id: 'haircut', name: 'Haircut' }] };
+    const merge = (rd) => new Function('$json', '$', bodyOf('Merge Slots'))(
+      rd, () => ({ first: () => ({ json: { config: CFG3 } }) }))[0].json;
+    const kept = merge({ ...vi, slots: { ...vi.slots, date: RES }, date_dropped: false });
+    if (kept.state.slots.date === RES) { pass++; console.log('  ok     lane booking: the RESOLVED date is what is merged (ran the node)'); }
+    else { fail++; console.log('  FAIL   lane booking: merged ' + kept.state.slots.date + ', want ' + RES); }
+    const dropped = merge({ ...vi, slots: { ...vi.slots, date: RES }, date_dropped: true });
+    if (dropped.state.slots.date === null) { pass++; console.log('  ok     lane booking: a refused date is nulled, never resurrected (ran the node)'); }
+    else { fail++; console.log('  FAIL   lane booking: refusal ignored -> ' + dropped.state.slots.date); }
+    // BOTH dates present and DIFFERENT — the only shape that can tell `fresh ?? stored` from `stored ?? fresh`.
+    // Without it, reversing that precedence survives: the customer moves from Friday to Saturday, the engine
+    // resolves Saturday correctly, and the merge quietly hands the stored Friday to the booking.
+    const NEWD = '2026-09-12';
+    const replaced = merge({ ...vi, slots: { ...vi.slots, date: NEWD }, date_dropped: false,
+      state: { stage: 'collecting', slots: { serviceId: 'haircut', date: RES, time: '11:00' } } });
+    if (replaced.state.slots.date === NEWD) { pass++; console.log('  ok     lane booking: a newly resolved date REPLACES the stored one, it does not lose to it'); }
+    else { fail++; console.log('  FAIL   lane booking: stored date won over the new one -> ' + replaced.state.slots.date); }
+  }
 }
 
 console.log(`\nresolve-date: ${pass}/${pass + fail} pass (node code read from n8n/workflow.sanitized.json, now=${NOW} ${TZ})`);
