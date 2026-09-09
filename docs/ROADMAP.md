@@ -317,7 +317,7 @@ Each CP waits for its own written approval (plan-gate).
     still mutes the visitor forever. The cure is a TTL; see the open items below.
 
 **OPEN ITEMS opened or confirmed by this fix (none of these are done):**
-- ◐ **F1 — calendar arithmetic taken away from the LLM (CRT #12).** *(NOT ✅ — uncommitted and unpushed; `reporting.md`: a live-state file must not show unpushed work as green.)* The LLM now returns `slots.dateExpr` (the
+- ✅ **F1 — calendar arithmetic taken away from the LLM (CRT #12). CLOSED 2026-09-09h.** Committed and pushed across `b35ea1c` → `4a29c2c` (the last is round 5). **Live parity measured on close, with credentials, for the first time in the round-5 session:** `check-content-parity.py` exit 0 — published==draft on 191 nodes, live-not-sanitised across all six placeholder classes, 169 executable nodes matching committed; `check-live-parity.py` exit 0 against the PUBLISHED graph — 191/191 nodes, 274/274 connections; `npm --prefix scripts run check-all` exit 0. The only n8n file the pushed range touched is `n8n/workflow.sanitized.json`, which is exactly what both parity scripts cover, so the range is fully covered. ⚠ **HOW THIS CLOSES — read the label, not the tick.** Codex's last verdict is **revise, not block**, and no R1-class wrong-date booking is reachable by ordinary model behaviour. Round 5's five R3 items were closed with **first-vendor mutation evidence; the second-vendor audit was NOT re-run over them.** That is recorded here as a gap and is **not counted as closed** — the same wording stands in the CRT #12 registry row (`docs/ARCHITECTURE-DECISIONS.md` §7). The open items below (E20 · F2 · Codex finding 2 · the untriggered extraction-retry path · the unmeasured `date_expr_forged` rate) do NOT close with F1; each stays open under its own entry. The LLM now returns `slots.dateExpr` (the
   customer's own wording, verbatim); **`Resolve Date`** resolves it with Luxon in `business.timezone`; `slots.date`
   is only a cross-check. **RULING 2026-09-08: on a disagreement the CODE'S date WINS** (it is the answer the
   deterministic path computed; dropping it punished the customer for the model's error). Dropping is reserved for
@@ -886,10 +886,12 @@ Each CP waits for its own written approval (plan-gate).
   the committed export, so no leak today — but structurally weaker than the Zernio HMAC secret, which lives in a
   credential and never enters the workflow JSON at all. Every raw export and snapshot carries it in clear text;
   `.gitignore` is the only defence. Contradicts the 2026-08-23 decision that stated this very principle.
-- ☐ **Mask the vendor sandbox number in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor F1). It is Zernio's
-  shared sandbox BOT number, not customer PII, and predates this commit — but a public repo need not expose vendor
-  infrastructure. Cosmetic, low priority. **When closing this, do NOT restate the number in the commit or the item
-  itself** — the first draft of this very line repeated it and increased exposure instead of reducing it.
+- ⊘ **Mask the vendor sandbox number in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor F1) — **RULED WON'T-DO 2026-09-09h, by Yigitcan at the round-5 commit gate.** It is Zernio's shared sandbox BOT number, not
+  customer PII, public in the provider's own docs, and it predates this commit. The ruling: **there the name IS the
+  carrier — the record stops being verifiable without it**, which is not true of the two Airtable record ids masked
+  in the same breath (a record id is unusable and uncheckable without the base id and a PAT, so masking it costs the
+  reader nothing). Two different values, two different answers, for one stated reason. **When referring to this item, do NOT restate the number** — the first draft of this very line repeated it and increased exposure instead of
+  reducing it.
 - ☐ **`scripts/secret-scan.sh` — two capability gaps (security-auditor M1+M2), the FOURTH instance of the
   "assumed to work, never proven able to fail" pattern.** (a) Called with no stdin payload it returns `exit 0`
   silently, so "secret-scan ran, clean" can mean "it scanned nothing"; (b) it only diffs `origin/main..HEAD`, so an
@@ -897,10 +899,16 @@ Each CP waits for its own written approval (plan-gate).
   very check) and its OpenAI pattern misses modern `sk-proj-…` keys — both proven with fixtures in an isolated repo.
   Fix direction: add `encryption[_-]?key` to the generic rule, widen to `sk-(proj-)?[A-Za-z0-9_-]{32,}`, make a
   payload-less invocation fail loudly — then prove each one RED before believing it.
-- ☐ **Redact the two Airtable record ids already committed in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor
-  LOW-1 precedent). They are not secrets and are useless without the base id and a PAT (neither is in git), but they
-  point at conversation rows that carry `recent_messages`, and `security-secrets.md` treats PII as a secret. A new one
-  was caught and redacted before this commit; the pre-existing pair predates it.
+- ✅ **Redact the two Airtable record ids already committed in `docs/ARCHITECTURE-DECISIONS.md`** (security-auditor
+  LOW-1 precedent) — **DONE 2026-09-09h, commit `4a29c2c`:** lines 86/106 now carry a literal `rec…`. They are not
+  secrets and are useless without the base id and a PAT (neither is in git), but they point at conversation rows that
+  carry `recent_messages`, and `security-secrets.md` treats PII as a secret.
+  ⚠ **THE REDACTION IS FORWARD-ONLY AND THE VALUES REMAIN PUBLIC.** `security-auditor` traced them to commits
+  `d6db10f` and `43f56c9`, both ancestors of `origin/main` — they have been on GitHub since. This change removes the
+  copy in the working tree; it does not remove the copy in history. **History rewrite was considered and REJECTED**
+  (Yigitcan, 2026-09-09h): a bare record id is unusable without the base id and a PAT, so the cost of rewriting
+  shared history exceeds the exposure it would remove. Anyone reading this must not take the tick to mean the values
+  are gone.
 - ☐ **`.env.example` has no `TURNSTILE_SECRET` entry** although Turnstile is live (security-auditor L3). Pairs with
   the open item about moving that secret out of a node parameter into a credential.
 - ☐ **Widget refresh splits UI from state** — `sessionStorage` (by design) keeps the conversation across a reload, but
