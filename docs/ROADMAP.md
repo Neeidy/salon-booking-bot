@@ -286,34 +286,107 @@ Each CP waits for its own written approval (plan-gate).
   - ☐ 6a-2 slice 2 → remaining: cancel the test booking + clean up, snippet/dashboard untouched against the real endpoint (the embedded panel is a static
     transcription today and is labelled as such — it is not wired to the engine yet).
 - ▶ **6b — embeddable snippet.**
-  - ◐ **GATE — PROVEN FOR INVISIBLE MODE ONLY (Tur 1 spike, 2026-09-09). The gate is NOT closed: Managed
-    mode is UNMEASURED — see the 🔴 item below.** Real browser, real site key,
+  - ✅ **GATE PASSED (Tur 1 spike, 2026-09-09): Turnstile renders VISIBLY inside a Shadow DOM and mints a token
+    in BOTH Invisible and Managed mode — proven by screenshot, not by a DOM reading. The engine leg was inherited from the
+    Invisible run, and the reason is structural, read from the committed workflow: `Verify Turnstile` sends only
+    `secret` and `response` to siteverify and `Turnstile Valid?` reads only `success`, so the engine never
+    receives — and cannot act on — the widget's mode. The INTERACTIVE challenge was MEASURED TOO — with
+    Cloudflare's forced-interactive DUMMY sitekey it draws visibly inside the shadow root and is solvable there;
+    that token is a dummy, so the run proves rendering and interaction, never the engine leg.** Real browser, real site key,
     hostile host page on a SEPARATE origin, widget in an open shadow root with `:host{all:initial}`: the Turnstile
-    WIDGET iframe rendered inside the shadow root (no interactive challenge was drawn — see below), **token 773 chars at +1131ms**, POST → **200**. **Read from the column, not the
+    widget was drawn VISIBLY inside the shadow root (screenshot; **the earlier wording "iframe rendered" was
+    withdrawn on 2026-09-09 — see the instrument defect below**), **token 773 chars at +1131ms**, POST → **200**. **Read from the column, not the
     screen:** `conversations` exactly **1** row (`widget:spike-6b-sp1`, `stage="new"` — no lock, `last_intent="clarify"`,
     `turn_count=1`), `computed_reply` byte-identical to the browser's `reply`; `processed_messages` 1 row; the two
     SP4 probes wrote **0** rows — **and that is an expected consequence, not a reject measurement: neither
-    control issued a POST at all** (SP4a in fact minted a valid token; it was simply never sent). Reject direction re-measured the same day against the live engine: no token /
+    SP4 probe issued a POST at all** (SP4a in fact minted a valid token; it was simply never sent). Reject direction re-measured the same day against the live engine: no token /
     `garbage-token` / realistic-shaped fake → **403** `turnstile_failed`, 0 rows — and the "0 rows" query was itself
     proven able to return rows (positive control). CORS re-measured: preflight 204, origin-reflective ACAO. **No architecture change was needed FOR INVISIBLE MODE** — the light-DOM overlay fallback was not used.
-    ⚠ That fallback existed precisely for the case where a VISIBLE/interactive challenge cannot be drawn inside a
-    shadow root — the case that is still unmeasured. Not using it here does not retire it. Spike artefacts are throwaway
+    ⚠ That fallback existed for the case where a VISIBLE/interactive challenge cannot be drawn inside a shadow
+    root. **That case has now been measured and did not occur** (forced-interactive run below), so the fallback
+    is retired as unnecessary — on evidence, not on absence of use. Spike artefacts are throwaway
     (scratchpad), deliberately not committed. Detail + the two findings below: ARCH-DEC §5 rows `2026-09-09i`/`2026-09-09j`.
     ⚠ **What this proves and what it does not.** The widget's Cloudflare **Widget Mode is INVISIBLE** (read from the
     panel with a screenshot, 2026-09-09). An invisible widget verifies without drawing anything, so SP1 exercised the
-    path where no visitor interaction is ever required. **The interactive challenge was never drawn and never solved**,
-    therefore nothing here says an interactive challenge renders correctly inside a shadow root.
+    path where no visitor interaction is ever required. **SP1 itself never drew an interactive challenge**, so SP1
+    alone says nothing about one; that sub-case was measured separately in the forced-interactive run below.
   - ⚠ **The green does NOT mean "origin binding works."** The Turnstile hostname allow-list runs on CLOUDFLARE's side
     (measured from the panel: 3/10 used — `localhost`, `127.0.0.1`, one Cloudflare quick-tunnel hostname whose value is
     deliberately NOT written here). The ENGINE does not read siteverify's `hostname` field, so a token minted on one
     origin is accepted from another.
-  - 🔴 **GATE, still open — the SAME proof is required in MANAGED mode (Tur 1, not a new round).** The product is a
+  - ✅ **MANAGED MODE MEASURED (2026-09-09, second Turnstile widget, production widget untouched).** MG1:
+    Cloudflare's widget drawn VISIBLY inside the shadow root (screenshot: green tick, "Success!", Cloudflare
+    logo, Privacy · Help), **token 773 chars at +1639ms**. MG4a (`mode=nowait`): token 773 at +1300ms.
+    **The interactive challenge did not trigger in either run** — Managed decides by traffic risk and classified
+    this visitor as low-risk. ⚠ **It was first written up as "cannot be forced" and that was WRONG:** Cloudflare
+    publishes a test sitekey `3x00000000000000000000FF` = "Forces interactive challenge", and that table had
+    already been fetched EARLIER THE SAME DAY in the same session. The claim contradicted a measurement that was
+    in hand. Found by `security-auditor`, not by the build.
+    **MEASURED after the correction (forced-interactive run):** the interactive challenge is **drawn visibly
+    inside the shadow root** (screenshot: unchecked box, "Verify you are human", Cloudflare logo) and is
+    **solvable there** — a real input-level click minted a token. What a dummy sitekey still cannot answer is the
+    ENGINE leg (its token is `XXXX.DUMMY.TOKEN.XXXX`, rejected by a production secret); that leg stays inherited
+    from the Invisible run on the structural argument above. `whenVisible` keeps its precautionary label, but the
+    rendering half of its justification is now evidence, not assumption.
+    **What was NOT measured this run, and could have been:** MG4a did NOT cleanly test the hidden-container
+    condition — at read time the slot was already visible (offsetParent SECTION, 387×92) and the render-moment
+    state was truncated out of the on-screen log, so it is not known what the slot looked like when render()
+    fired. **This run therefore says nothing about hidden-container behaviour in Managed**, and the question
+    from the 2026-09-06 record stays open. The harness now freezes the render-moment state into its own
+    readout line so a re-run would settle it in one minute.
+  - ⚠ **INSTRUMENT DEFECT — every "iframe present" reading in this spike was invalid, and one verdict label was
+    never a measurement at all.** The harness reported `iframe present: false` in every run while the widget was
+    visibly on screen. Cause, MEASURED with a control: Turnstile hosts its widget in a **CLOSED shadow root**, so
+    `querySelector('iframe')` from outside is blind by construction — the container div has 0 children and no
+    accessible `shadowRoot`, yet lays out at 356×71 while an identically-placed empty div lays out at 356×0.
+    Worse: the green verdict band read "iframe rendered" as a **hardcoded string** that never consulted the
+    iframe check at all. The harness now reports the container's measured box and the response input, and states
+    on screen that iframe presence is unmeasurable from outside a closed shadow root. **The screenshot, not the
+    readout, is what carries the visible-render claim** — which is precisely why screenshots were demanded.
+  - ✅ **TUR 1 CLOSED — leftover live test data cleared (2026-09-09).** Four `status=booked` rows had survived
+    earlier drills, one of them dated in the FUTURE and carrying a `calendar_id` (an Airtable fact; what was on
+    the calendar itself is an operator observation, below).
+    · **One cancelled through the bot's OWN cancel flow**, which doubled as a live cancel drill. Verified from the
+    column, not the screen: `conversations.stage=cancelled`, `last_intent=confirm`, `turn_count=4`,
+    `computed_reply="Done — your Haircut on Friday 11 Sep 15:30 is cancelled."`
+    · **Three deleted from Airtable** (deleted, not marked cancelled) after being shown to be test artefacts: no
+    `customer_name` and no phone on any of them, and their `sender_key`s are drill identifiers — `cp2-book-3`
+    (CP2 booking drill), `cx8-401` (Codex #8 round), `reg-ra-…` (a regression run, carrying `reminded:true` from
+    the CP5 reminder drill). Proven by an empty `status='booked'` query afterwards.
+    · **Calendar side of the two other deleted rows:** both carried a `calendar_id`, and the operator deleted
+    their events (20 Aug 14:00 and 26 Aug 11:30, Europe/Vienna) — same provenance caveat as below.
+    · **Spike residue deleted** (`conversations` + `processed_messages` for the spike session), empty query shown.
+    · ⚠ **The calendar deletions were verified BY THE OPERATOR, visually — not by API.** The Google Calendar
+    connector available here cannot see that service-account calendar, so no independent check exists. That is
+    also how the previously STRUCTURAL-ONLY claim "the bot's cancel really deletes the calendar event" closed:
+    the 11 Sep 15:30 slot was observed empty. Source of truth for that line is an operator observation.
+  - ⚙ **NAMED OPEN ITEM — one acceptance criterion of the Managed gate was NOT met and is not silently dropped.**
+    The criterion was "re-run the hidden-container control (SP4a) in Managed". MG4a did not do it: at read time
+    the slot was already visible and the render-moment state was truncated out of the on-screen log, so the run
+    says nothing about hidden-container behaviour in Managed — the mode in which the 2026-09-06 claim may still
+    be true. The gate is ticked on its own question (does Turnstile work inside a Shadow DOM: yes, in all three
+    modes exercised, plus a forced-interactive DUMMY sitekey) with this gap written inside the tick. The harness now freezes the render-moment state into
+    its own readout line, so a re-run settles it in one minute. **Not counted as closed.**
+  - 🔍 **FINDING — the 17 Aug row: the most likely reading is that its calendar event was never created.**
+    That row had **no `calendar_id`** (Airtable fact) and the operator found **no event** at 17 Aug 18:00 in a
+    visual scan three weeks back (operator observation, not an API check). The most likely reading is that the
+    event was never created: the row has exactly the shape `Cancel Lookup`'s `structOk` rejects (`calendar_id`
+    empty → `needs_human`), which is also why the bot could not clean it up itself. ⚠ **A second explanation fits
+    the same two facts and is NOT excluded:** the insert succeeded and the mirror write of `calendar_id` failed —
+    a class this repo already names and alerts on (`mirror_failed`, `cancel_mirror_failed`) — after which the
+    event could have been removed later or simply missed in a three-week-back visual scan. The two cases cannot
+    be told apart from what we have. Recorded so the next reader neither hunts for a missing event nor treats
+    "never created" as established.
+  - 〰 *(superseded 2026-09-09 — three of the four acceptance criteria below were met by the measurements above;
+    the fourth (SP4a re-run in Managed) was NOT, and is carried as the NAMED OPEN ITEM directly above. Kept for
+    the record of what was required.)* **The SAME proof was required in MANAGED mode (Tur 1, not a new round).** The product is a
     TEMPLATE: the widget mode is the client's setting, and Cloudflare's docs label Managed as the **recommended**
     mode (developers.cloudflare.com/turnstile/concepts/widget/ — "Managed (recommended)"; it is NOT documented as a
     hard default, and the word "default" was removed here on 2026-09-09 as unsourced). A Managed widget shows
     an **interactive** challenge to a high-risk visitor, and that challenge must be drawn VISIBLY inside the shadow
-    root or the visitor is stuck. SP1 proved only the Invisible path. Risk is low (SP1 did create an iframe inside the
-    shadow root) **but low risk is not a measurement.** Method: **the production widget is NOT touched** — a SECOND
+    root or the visitor is stuck. SP1 proved only the Invisible path. Risk was judged low (that judgement rested on
+    "SP1 created an iframe inside the shadow root" — a reading later shown to be **unobservable**, see the
+    instrument defect above) **but low risk is not a measurement.** Method: **the production widget is NOT touched** — a SECOND
     Turnstile widget is created in Managed mode with `localhost` in its hostname list, and SP1 is re-run with its site
     key. **Acceptance:** the challenge renders VISIBLY inside the shadow root · a token is minted · the engine returns
     200 · **AND the hidden-container control (SP4a) is re-run in Managed** — because Managed is the mode in which the
@@ -327,7 +400,7 @@ Each CP waits for its own written approval (plan-gate).
   - 🔴 **GATE ON PUBLIC DEPLOY (new, 2026-09-09) — the bot-protection claim is weaker than assumed, and must be closed
     BEFORE the public release, not deferred to Phase 7.** Two measurements point at one surface: **(a)** the engine
     ignores siteverify's `hostname`, and the site key is necessarily PUBLIC in the snippet → anyone who puts that key on
-    their own page can mint a valid token and POST to the webhook; **(b)** a token can be minted with **no visible iframe
+    their own page can mint a valid token and POST to the webhook; **(b)** a token can be minted with **nothing drawn on screen
     and no user interaction** (SP4a: hidden 0×0 container still produced a 773-char token) — **and the widget is
     configured INVISIBLE, so this is the norm on every turn, not an edge case. The weakest possible configuration is
     exactly the one in production: Invisible + an engine that ignores `hostname` + a token minted without interaction** → "a human ticked a box"
@@ -345,8 +418,9 @@ Each CP waits for its own written approval (plan-gate).
     SECOND `render()` on the same container — that 6a actually failed that way remains a **HYPOTHESIS**, the original
     conditions were never re-run. **`whenVisible` STAYS — but on a PRECAUTIONARY argument, not on evidence,
     and the comment now says exactly that.** The mode is the CLIENT's choice and Cloudflare documents Managed as
-    *recommended*; the argument that an interactive challenge must be VISIBLE to be solvable is **UNMEASURED** (it is
-    the 🔴 gate above). Do not delete the wait as dead code, and do not cite its justification as proven.
+    *recommended*. The rendering half of that argument — an interactive challenge draws visibly inside a shadow root
+    and can be solved there — is now **MEASURED** (forced-interactive run). What stays unproven for that path is only
+    the ENGINE leg, because a dummy sitekey's token is rejected by a production secret. Do not delete the wait.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
   **HARD GATE (security-auditor round 2, 2026-09-03):** the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in

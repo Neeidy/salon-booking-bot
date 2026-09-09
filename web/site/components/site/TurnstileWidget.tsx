@@ -67,9 +67,11 @@ export function TurnstileWidget({
    * hold. It is replaced, not annotated (governance-sync §6).
    *
    * WHAT WAS MEASURED (real site key, real browser, 2026-09-09): with this widget in **Invisible** mode,
-   * a single render() into a `display:none`, 0x0 container DID mint a token (773 chars, +1157ms) and
-   * created no iframe. In Invisible mode that is DEFINED behaviour, not a defect — an invisible widget
-   * verifies without drawing anything.
+   * a single render() into a `display:none`, 0x0 container DID mint a token (773 chars, +1157ms). In Invisible
+   * mode that is DEFINED behaviour, not a defect — an invisible widget verifies without drawing anything.
+   * (An earlier version of this note also said "created no iframe". Withdrawn: Turnstile hosts its widget in a
+   * CLOSED shadow root, so iframe presence cannot be observed from outside at all — the harness that reported it
+   * was blind by construction.)
    *
    * WHAT WAS *NOT* MEASURED — and why the old line may still hold in its own context: the 2026-09-06
    * observation dates from a day on which this widget was in **Managed** mode AND was switched to Invisible
@@ -80,13 +82,15 @@ export function TurnstileWidget({
    * reproduced on demand in the spike and belongs to a SECOND render() on the same container — that this
    * is what actually broke 6a remains a HYPOTHESIS. The original conditions were never re-run.
    *
-   * SO WHY DOES THIS WAIT STAY? Because this is a TEMPLATE and the mode is the CLIENT's choice —
-   * Cloudflare documents Managed as the *recommended* mode — see developers.cloudflare.com/turnstile/concepts/widget/
-   * ("Managed (recommended)"); it is NOT documented as a hard default. The argument is that a Managed widget shows
-   * an interactive challenge to a high-risk visitor, which must be VISIBLE or the visitor cannot solve it.
-   * ⚠ THAT ARGUMENT IS UNMEASURED: proving it is the open 6b gate (ROADMAP §6b, "GATE, still open").
-   * Until that gate closes this wait stands on a PRECAUTIONARY argument, not on evidence — do not delete
-   * it as dead code, and do not cite it as proven.
+   * SO WHY DOES THIS WAIT STAY? Because this is a TEMPLATE and the mode is the CLIENT's choice — Cloudflare
+   * documents Managed as the *recommended* mode (developers.cloudflare.com/turnstile/concepts/widget/,
+   * "Managed (recommended)"; it is NOT documented as a hard default). A Managed widget can show an interactive
+   * challenge to a high-risk visitor, which must be VISIBLE or the visitor cannot solve it.
+   * MEASURED 2026-09-09 with Cloudflare's forced-interactive DUMMY sitekey (3x…FF): the interactive challenge DOES
+   * draw visibly inside a shadow root and IS solvable there (screenshot + a real input-level click minted a token).
+   * So the rendering half of the argument is evidence now, not assumption. ⚠ Still NOT measured: the ENGINE leg for
+   * that path — a dummy sitekey's token is rejected by a production secret — and hidden-container behaviour under
+   * Managed (ROADMAP §6b, "NAMED OPEN ITEM"). Keep this wait; it is what makes an interactive challenge visible.
    */
   function whenVisible(el: HTMLElement): Promise<void> {
     // offsetParent is null exactly when the element (or an ancestor) is display:none — which is the
