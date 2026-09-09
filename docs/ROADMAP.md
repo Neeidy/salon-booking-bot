@@ -285,7 +285,68 @@ Each CP waits for its own written approval (plan-gate).
     round: **$0.014233** month-to-date against the $10 cap.
   - ☐ 6a-2 slice 2 → remaining: cancel the test booking + clean up, snippet/dashboard untouched against the real endpoint (the embedded panel is a static
     transcription today and is labelled as such — it is not wired to the engine yet).
-- ☐ **6b — embeddable snippet.** GATE: Turnstile inside Shadow DOM must be PROVEN before the snippet ships.
+- ▶ **6b — embeddable snippet.**
+  - ◐ **GATE — PROVEN FOR INVISIBLE MODE ONLY (Tur 1 spike, 2026-09-09). The gate is NOT closed: Managed
+    mode is UNMEASURED — see the 🔴 item below.** Real browser, real site key,
+    hostile host page on a SEPARATE origin, widget in an open shadow root with `:host{all:initial}`: the Turnstile
+    WIDGET iframe rendered inside the shadow root (no interactive challenge was drawn — see below), **token 773 chars at +1131ms**, POST → **200**. **Read from the column, not the
+    screen:** `conversations` exactly **1** row (`widget:spike-6b-sp1`, `stage="new"` — no lock, `last_intent="clarify"`,
+    `turn_count=1`), `computed_reply` byte-identical to the browser's `reply`; `processed_messages` 1 row; the two
+    SP4 probes wrote **0** rows — **and that is an expected consequence, not a reject measurement: neither
+    control issued a POST at all** (SP4a in fact minted a valid token; it was simply never sent). Reject direction re-measured the same day against the live engine: no token /
+    `garbage-token` / realistic-shaped fake → **403** `turnstile_failed`, 0 rows — and the "0 rows" query was itself
+    proven able to return rows (positive control). CORS re-measured: preflight 204, origin-reflective ACAO. **No architecture change was needed FOR INVISIBLE MODE** — the light-DOM overlay fallback was not used.
+    ⚠ That fallback existed precisely for the case where a VISIBLE/interactive challenge cannot be drawn inside a
+    shadow root — the case that is still unmeasured. Not using it here does not retire it. Spike artefacts are throwaway
+    (scratchpad), deliberately not committed. Detail + the two findings below: ARCH-DEC §5 rows `2026-09-09i`/`2026-09-09j`.
+    ⚠ **What this proves and what it does not.** The widget's Cloudflare **Widget Mode is INVISIBLE** (read from the
+    panel with a screenshot, 2026-09-09). An invisible widget verifies without drawing anything, so SP1 exercised the
+    path where no visitor interaction is ever required. **The interactive challenge was never drawn and never solved**,
+    therefore nothing here says an interactive challenge renders correctly inside a shadow root.
+  - ⚠ **The green does NOT mean "origin binding works."** The Turnstile hostname allow-list runs on CLOUDFLARE's side
+    (measured from the panel: 3/10 used — `localhost`, `127.0.0.1`, one Cloudflare quick-tunnel hostname whose value is
+    deliberately NOT written here). The ENGINE does not read siteverify's `hostname` field, so a token minted on one
+    origin is accepted from another.
+  - 🔴 **GATE, still open — the SAME proof is required in MANAGED mode (Tur 1, not a new round).** The product is a
+    TEMPLATE: the widget mode is the client's setting, and Cloudflare's docs label Managed as the **recommended**
+    mode (developers.cloudflare.com/turnstile/concepts/widget/ — "Managed (recommended)"; it is NOT documented as a
+    hard default, and the word "default" was removed here on 2026-09-09 as unsourced). A Managed widget shows
+    an **interactive** challenge to a high-risk visitor, and that challenge must be drawn VISIBLY inside the shadow
+    root or the visitor is stuck. SP1 proved only the Invisible path. Risk is low (SP1 did create an iframe inside the
+    shadow root) **but low risk is not a measurement.** Method: **the production widget is NOT touched** — a SECOND
+    Turnstile widget is created in Managed mode with `localhost` in its hostname list, and SP1 is re-run with its site
+    key. **Acceptance:** the challenge renders VISIBLY inside the shadow root · a token is minted · the engine returns
+    200 · **AND the hidden-container control (SP4a) is re-run in Managed** — because Managed is the mode in which the
+    original 2026-09-06 claim ("hidden container → no token") may actually be TRUE: this repo's own log says the
+    widget was Managed that day and was switched to Invisible the same day. Until all of that is measured the 6b
+    gate stays open.
+  - ⚖ **COMPLIANCE — using Invisible mode obliges us to reference Cloudflare's Turnstile Privacy Addendum in our own
+    privacy policy** (stated in the Cloudflare panel). This is a contractual condition of the mode we are running, and
+    the product is sold in the EU. It must appear (a) in the demo site's privacy text before public deploy and (b) in
+    the INSTALL DOCUMENT handed to a client, since each client publishes their own policy. Not optional, not cosmetic.
+  - 🔴 **GATE ON PUBLIC DEPLOY (new, 2026-09-09) — the bot-protection claim is weaker than assumed, and must be closed
+    BEFORE the public release, not deferred to Phase 7.** Two measurements point at one surface: **(a)** the engine
+    ignores siteverify's `hostname`, and the site key is necessarily PUBLIC in the snippet → anyone who puts that key on
+    their own page can mint a valid token and POST to the webhook; **(b)** a token can be minted with **no visible iframe
+    and no user interaction** (SP4a: hidden 0×0 container still produced a 773-char token) — **and the widget is
+    configured INVISIBLE, so this is the norm on every turn, not an edge case. The weakest possible configuration is
+    exactly the one in production: Invisible + an engine that ignores `hostname` + a token minted without interaction** → "a human ticked a box"
+    cannot be assumed. What is left holding the perimeter is edge rate-limit + spend cap + kill-switch — and the
+    rate-limit's BLOCK direction has still never been demonstrated (separate public-deploy gate, security-auditor A4).
+    Production posture: in Model 1 each client gets their OWN site key and their OWN hostname allow-list; the demo
+    working with a broad allow-list is not evidence that the product is correct.
+  - ✅ **6a's recorded causality CORRECTED in `web/site/components/site/TurnstileWidget.tsx` (2026-09-09).** The old
+    comment claimed — as a GENERAL rule — that a hidden container produces no token. Measured false **for Invisible
+    mode** (SP4a): there, minting a token from a hidden container is DEFINED behaviour, not a defect. Replaced, not
+    annotated (`governance-sync` §6). ⚠ **The refutation is mode-scoped and does NOT reach Managed:** ARCH-DEC's own
+    2026-09-06 row records that the widget was in **Managed** mode on 2026-09-06 and was switched to Invisible that
+    same day — **on which side of that switch the observation falls is NOT recorded anywhere.** So for Managed the old
+    sentence may still hold; it is untested in both directions, and re-running SP4a in Managed is what would settle it. The recorded symptom ("already been rendered in this container") was reproduced on demand and belongs to a
+    SECOND `render()` on the same container — that 6a actually failed that way remains a **HYPOTHESIS**, the original
+    conditions were never re-run. **`whenVisible` STAYS — but on a PRECAUTIONARY argument, not on evidence,
+    and the comment now says exactly that.** The mode is the CLIENT's choice and Cloudflare documents Managed as
+    *recommended*; the argument that an interactive challenge must be VISIBLE to be solvable is **UNMEASURED** (it is
+    the 🔴 gate above). Do not delete the wait as dead code, and do not cite its justification as proven.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
   **HARD GATE (security-auditor round 2, 2026-09-03):** the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in

@@ -61,10 +61,32 @@ export function TurnstileWidget({
 
   /**
    * Wait until the slot is actually VISIBLE before rendering.
-   * MEASURED (2026-09-06): the panel starts `display:none`, so on mount the slot is 0x0. Turnstile
-   * accepted the render call, marked the container as used ("already been rendered in this container")
-   * and produced NO iframe and NO token — a silent dead widget. Rendering into a hidden container is
-   * the defect; waiting for a real box is the fix.
+   *
+   * ⚠ NARROWED 2026-09-09 (Phase 6b spike). The justification recorded here on 2026-09-06 was written as
+   * a GENERAL rule — "rendering into a hidden container is the defect" — and the general form does not
+   * hold. It is replaced, not annotated (governance-sync §6).
+   *
+   * WHAT WAS MEASURED (real site key, real browser, 2026-09-09): with this widget in **Invisible** mode,
+   * a single render() into a `display:none`, 0x0 container DID mint a token (773 chars, +1157ms) and
+   * created no iframe. In Invisible mode that is DEFINED behaviour, not a defect — an invisible widget
+   * verifies without drawing anything.
+   *
+   * WHAT WAS *NOT* MEASURED — and why the old line may still hold in its own context: the 2026-09-06
+   * observation dates from a day on which this widget was in **Managed** mode AND was switched to Invisible
+   * (ARCH-DEC §5, 2026-09-06). WHICH SIDE OF THAT SWITCH the observation falls on is recorded nowhere, so
+   * assume neither. A Managed widget can escalate to an interactive challenge, which a 0x0 container cannot
+   * display — so the old claim is refuted only as a GENERAL rule; for Managed it is untested in BOTH
+   * directions. The symptom it recorded ("already been rendered in this container") was
+   * reproduced on demand in the spike and belongs to a SECOND render() on the same container — that this
+   * is what actually broke 6a remains a HYPOTHESIS. The original conditions were never re-run.
+   *
+   * SO WHY DOES THIS WAIT STAY? Because this is a TEMPLATE and the mode is the CLIENT's choice —
+   * Cloudflare documents Managed as the *recommended* mode — see developers.cloudflare.com/turnstile/concepts/widget/
+   * ("Managed (recommended)"); it is NOT documented as a hard default. The argument is that a Managed widget shows
+   * an interactive challenge to a high-risk visitor, which must be VISIBLE or the visitor cannot solve it.
+   * ⚠ THAT ARGUMENT IS UNMEASURED: proving it is the open 6b gate (ROADMAP §6b, "GATE, still open").
+   * Until that gate closes this wait stands on a PRECAUTIONARY argument, not on evidence — do not delete
+   * it as dead code, and do not cite it as proven.
    */
   function whenVisible(el: HTMLElement): Promise<void> {
     // offsetParent is null exactly when the element (or an ancestor) is display:none — which is the
