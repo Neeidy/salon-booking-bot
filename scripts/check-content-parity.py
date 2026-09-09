@@ -60,7 +60,23 @@ def _turnstile_secret(node):
     return None
 
 
-def _is_placeholder(v):
+# TWO PREDICATES, BECAUSE THE TWO SIDES WANT OPPOSITE BIASES — and collapsing them into one
+# case-insensitive function was a trade this round nearly shipped as a pure win (`security-auditor`, LOW-2).
+#
+#   * On the COMMITTED side, "this is a placeholder" is an EXCUSE: `check_sanitised()` skips the value. A
+#     broad definition there means MORE real values excused, and the failure mode is a secret in a public
+#     repo. Measured on the collapsed version: `appK7xxxxB9nRt4Ls` and `rec9Zxxxx4TmXw2Kd` — real-format ids
+#     that merely CONTAIN a lowercase `xxxx` — were classified as placeholders and would have been waved
+#     through. So this side stays NARROW and case-sensitive: the sanitiser writes the shouted forms, and a
+#     value that does not look exactly like one gets checked rather than excused.
+#   * On the LIVE side, "this is a placeholder" is a DEFECT report. A narrow definition there means a
+#     sanitized push passes, which is the incident this guard exists for. So that side is BROAD and
+#     case-insensitive (see `PLACEHOLDER_SHAPES`), and its false positives cost a re-run, not a leak.
+#
+# Codex round 4 finding 2 is closed by the LIVE side being broad — `REPLACE_WITH_calendar_id_v2@…` is caught
+# by the shape scan regardless of what this narrow predicate says.
+def _is_known_placeholder(v):
+    """NARROW, case-sensitive. Used only where a value is EXCUSED from the real-value check."""
     return isinstance(v, str) and (v.startswith('REPLACE_WITH') or 'XXXX' in v)
 
 
@@ -77,7 +93,7 @@ def _walk_ids(obj, out):
             # ids are included because `sanitize.md` step 2 covers pinned data and Airtable ids generally.
             if isinstance(v, str):
                 for m in re.finditer(r'(app|tbl|viw|rec|fld)[A-Za-z0-9]{14}', v):
-                    if not _is_placeholder(m.group(0)):
+                    if not _is_known_placeholder(m.group(0)):
                         out.append(('airtable id', m.group(0)))
                 for m in re.finditer(r'[0-9a-f]{16,}@group\.calendar\.google\.com', v):
                     out.append(('google calendar id', m.group(0)))
@@ -104,21 +120,21 @@ def check_sanitised(comm):
         ids = []
         _walk_ids(n, ids)
         for kind, val in ids:
-            if not _is_placeholder(val):
+            if not _is_known_placeholder(val):
                 bad.append('%s %r (%s)' % (kind, val[:6] + '…', n['name']))
         # pinData is named in sanitize.md step 2 and had NO automated check at all: pinned test data is the
         # most likely carrier of real customer PII in an export refreshed from live.
         if n.get('pinData') or (isinstance(comm.get('pinData'), dict) and n['name'] in comm['pinData']):
             bad.append('pinData present (%s) — pinned data must be stripped before commit' % n['name'])
         v = _cal_id(n)
-        if isinstance(v, str) and v and not _is_placeholder(v):
+        if isinstance(v, str) and v and not _is_known_placeholder(v):
             bad.append('googleCalendarId (%s)' % n['name'])
         if n.get('type') == 'n8n-nodes-base.telegram':
             ch = (n.get('parameters') or {}).get('chatId')
-            if isinstance(ch, str) and ch and not _is_placeholder(ch):
+            if isinstance(ch, str) and ch and not _is_known_placeholder(ch):
                 bad.append('telegram chatId (%s)' % n['name'])
         ts = _turnstile_secret(n)
-        if isinstance(ts, str) and ts and not _is_placeholder(ts):
+        if isinstance(ts, str) and ts and not _is_known_placeholder(ts):
             bad.append('turnstile secret (%s)' % n['name'])
     if bad:
         print('SANITISE FAILURE — the committed export carries REAL values (not placeholders):')
@@ -200,12 +216,12 @@ def _committed_placeholders(comm):
     for pat in (r'REPLACE_WITH[A-Z0-9_]*(?:@group\.calendar\.google\.com)?',
                 r'(?:app|tbl|viw|rec|fld)[A-Za-z0-9]{14}'):
         for m in re.finditer(pat, blob):
-            if _is_placeholder(m.group(0)) and len(m.group(0)) >= 8:
+            if _is_known_placeholder(m.group(0)) and len(m.group(0)) >= 8:
                 found.add(m.group(0))
     for n in comm['nodes']:
         for v in (_cal_id(n), _turnstile_secret(n),
                   (n.get('parameters') or {}).get('chatId') if n.get('type') == 'n8n-nodes-base.telegram' else None):
-            if isinstance(v, str) and _is_placeholder(v) and len(v) >= 8:
+            if isinstance(v, str) and _is_known_placeholder(v) and len(v) >= 8:
                 found.add(v)
     return found
 
@@ -260,11 +276,20 @@ def _selftest_coverage(placeholders, comm):
 # node the production incident happened in. The scanner was structurally blind to the place it was written
 # for, and it reported OK. Matching the shape against the text needs no extraction and cannot go blind that
 # way. (Found by running Codex's own reproduction against the fix instead of trusting it, 2026-09-09g.)
+# ⚠ MATCHED CASE-INSENSITIVELY (`re.I` at every use site), so these read as SHAPES rather than as spellings.
+# The first version was `[A-Z0-9_]+` and let `REPLACE_WITH_calendar_id_v2@…` through while catching the
+# shouted twin, and the comment then said "any REPLACE_WITH_… spelling" — which was simply not what the
+# pattern did (Codex round 4, finding 2). This is the BROAD side of the split described above
+# `_is_known_placeholder`: here a false positive costs a re-run, so breadth is the safe direction.
+# KNOWN COST, latent and measured: with `re.I` an ordinary identifier or comment carrying four x's —
+# `approxxxximate`, `recurrenceXxxxId` — matches and fails the guard. Across all three committed workflows
+# the case-insensitive match count equals the case-sensitive one (11 / 7 / 5), so nothing trips today; it is
+# recorded because the next person to add such an identifier deserves to know why the guard shouted.
 PLACEHOLDER_SHAPES = (
     # `REPLACE_WITH_` + at least one character: the bare word `REPLACE_WITH` is 12 chars and would clear the
     # length floor on its own, so a live Code-node COMMENT containing that word would false-FAIL the guard.
     # A guard that screams at prose gets switched off (ARCH-DEC 2026-09-03) — `security-auditor`, round 4.
-    r'REPLACE_WITH_[A-Z0-9_]+(?:@[A-Za-z0-9.\-]+)?',     # any REPLACE_WITH_… spelling, invented or not
+    r'REPLACE_WITH_[A-Z0-9_]+(?:@[A-Za-z0-9.\-]+)?',     # in ANY case — see the note above
     r'(?:app|tbl|viw|rec|fld)[A-Za-z0-9]*X{4,}[A-Za-z0-9]*',  # an Airtable-shaped id carrying the sanitiser's X run
 )
 
@@ -289,7 +314,7 @@ def _live_placeholder_shaped(live):
         text = json.dumps({'parameters': n.get('parameters') or {},
                            'credentials': n.get('credentials') or {}})
         for pat in PLACEHOLDER_SHAPES:
-            for m in re.finditer(pat, text):
+            for m in re.finditer(pat, text, re.I):
                 if len(m.group(0)) >= 8:
                     hits.setdefault(m.group(0), set()).add(n['name'])
     return hits
@@ -325,6 +350,10 @@ def check_live_not_sanitised(live, comm):
     # ⚠ This token lives in `n8n/workflow.reminders.sanitized.json`, NOT in the main export — a reviewer who
     # greps only `workflow.sanitized.json` will conclude the set is dead code (one did, 2026-09-09f). Run the
     # guard against the reminders workflow and the skip line below prints.
+    # ⚠ EXACT-TOKEN while the shapes above are now matched case-insensitively, so `replace_with_zernio_
+    # account_id` in live would NOT be exempted and would fail the guard. That asymmetry is deliberate and it
+    # points the safe way: an exemption should be hard to claim, a defect easy to report. Recorded because the
+    # two are no longer under the same case rule (code-reviewer, round 5).
     EXEMPT = {'REPLACE_WITH_ZERNIO_ACCOUNT_ID'}
     # Containment is checked on a token boundary, not as a bare substring: `..._ID` must not report itself
     # "present" because live happens to hold `..._ID_V2`. That superstring would fire on its own (it is a

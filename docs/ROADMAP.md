@@ -530,7 +530,9 @@ Each CP waits for its own written approval (plan-gate).
   **2026-09-11** — the bot offers FRIDAY. No drop, no alert, and the resolver was never wrong: the defect
   lived in the SEAM between two correct nodes, which is why a resolver-only test could not see it. Fix: when
   the extraction is empty AND a stored date exists AND the raw message contains a day literal we recognise,
-  ASK instead of inheriting (`day_named_not_extracted` → `date_day_unextracted`). Same presence test as the
+  ASK instead of inheriting (`day_named_not_extracted`; ⚠ **SUPERSEDED within this same round** — the
+  `→ date_day_unextracted` alert mapping shown here was REMOVED before commit, see the review paragraph
+  below: the class drops but does NOT ping). Same presence test as the
   provenance check — word boundary, separators folded, never semantic. **Codex's own control is a committed
   row:** *"11am please"* names no day, so the stored date SURVIVES. **Accepted cost, also a committed row:**
   *"I got a haircut last saturday, can I book 11am please"* re-asks — one turn against a wrong-day booking.
@@ -554,7 +556,10 @@ Each CP waits for its own written approval (plan-gate).
   had not checked. Fix: no published artefact → **UNAVAILABLE (exit 2)**, never a pass. And
   `check-live-parity.py`, which compared the DRAFT while its verdict said "live", now compares the PUBLISHED
   graph and **names which graph it read** on every run.
-  **B — three mutants Codex found alive, all killed (the fifth, sixth and seventh fixed axes of this phase).**
+  **B — three mutants Codex found alive. ⚠ THIS LINE FIRST CLAIMED ALL THREE WERE KILLED AND THAT WAS FALSE;
+  the retraction is recorded in the round-5 entry below, where the surviving one is actually killed.** Two
+  were killed here (the fifth and sixth fixed axes of this phase); for the third, an EASIER mutant was killed
+  and the original left alive — which is not the same thing and should never have been written as if it were.
   `Reschedule Lookup`'s `rd.slots.date`→`vi.slots.date` — the exact reschedule bypass this project shipped
   once — survived because the lane test GREPPED for node references instead of running the node; both lane
   writers are now EXECUTED with the raw and resolved dates set to different values. `Extraction Transient?`'s
@@ -602,6 +607,75 @@ Each CP waits for its own written approval (plan-gate).
   · **21 mutants run this round, 20 killed, 1 equivalent and proven so** (`and`→`or` over a single condition,
   with the condition count asserted so it cannot silently gain a second) · all guards green · live synced with
   an explicit allow-list and the incident did not repeat.
+- ✅ **CODEX ROUND 5 — five R3 items, no runtime behaviour changed, no n8n touched (2026-09-09h).** Codex
+  moved the block to *revise*: no wrong-date booking is reachable by ordinary model behaviour any more, and
+  the one remaining R1 is an already-accepted extra question. So this round is entirely harness, guard
+  wording and record accuracy. Every item was reproduced here first.
+  **(1) The harness was one node short of the loop — twice — and the "all three killed" claim was FALSE.**
+  `persistedAfter()` ran `Validate Intent` and evaluated `Save State`'s column, but skipped
+  `Build Extraction-Retry State` and `Merge State` in between and invented the readback. Measured: Codex's
+  ORIGINAL mutant (`state: { ...j.state, last_intent: 'book' }` in the retry builder) stayed **34/34 GREEN**,
+  and so did nulling `Merge State`'s `last_intent` readback — both make the escalation ladder unreachable, so
+  a systematic contract failure re-asks to the max-turns guard instead of handing off. **Round 4 had killed a
+  DIFFERENT, easier mutant and written "all three killed"; that sentence is retracted at its own site above.**
+  Fixed by option (a), running the chain end to end — producer → retry builder → `Save State`'s own column
+  expression → an Airtable row shaped like that write → `Merge State` → readback — because the chain is five
+  short steps and retracting would have left the ladder with no test at all. Codex's original mutant now dies
+  UNCHANGED, along with three others (readback nulled, column deleted, producer's `'invalid'` → `'book'`).
+  **(2) Placeholder recognition was case-blind on the live side.** Measured: `REPLACE_WITH_calendar_id_v2@…`
+  in live → **exit 0**; the shouted spelling → exit 1. ⚠ **The first fix collapsed both halves of the script
+  into ONE case-insensitive predicate and this entry called that a pure win. It was a TRADE, and
+  `security-auditor` measured it:** on the committed side "is a placeholder" is an EXCUSE — `check_sanitised()`
+  skips the value — so a broader definition excuses MORE real values. `appK7xxxxB9nRt4Ls` and
+  `rec9Zxxxx4TmXw2Kd`, real-format ids that merely CONTAIN a lowercase `xxxx`, were being classified as
+  placeholders and would have been waved through into a public repo. The two sides want OPPOSITE biases, so
+  they are now two named predicates: `_is_known_placeholder()` stays NARROW and case-sensitive where a value
+  is excused, and `PLACEHOLDER_SHAPES` is BROAD and case-insensitive where a placeholder is a defect report.
+  Both directions re-proven: lowercase and mixed-case placeholders in live still exit 1 (Codex's finding stays
+  closed), and a real id containing `xxxx` in the committed file now fails the sanitise check instead of
+  passing it. Known latent cost of the broad side, recorded: an ordinary identifier carrying four x's
+  (`approxxxximate`, `recurrenceXxxxId`) would false-FAIL — measured across all three committed workflows,
+  case-insensitive match count equals case-sensitive (11 / 7 / 5), so nothing trips today.
+  **(3) Draft edges were being reported as the published graph.** `av.get('connections') or lw.get(...)` meant
+  an EMPTY published connection map silently borrowed the DRAFT's edges and the guard printed "connections
+  live 274" about a graph with none — naming the wrong artefact while sounding precise. An explicitly empty
+  published map is kept (and reports DRIFT, 274 vs 0); a MISSING key is "cannot measure" (exit 2).
+  **(4) The accepted gap's COST was recorded wrong, and that is the finding.** The entry said every listed
+  false positive "costs one extra question". On a `confirming` turn it costs none: the confirm route reads
+  `state.slots` in `Build Event Request` and never passes through `Merge Slots` or the re-ask path. MEASURED
+  by executing that node — `eventId` populated, `startISO 2026-09-11T11:00:00.000+02:00`, `dateStr
+  "Friday 11 Sep"`: it BOOKS the slot the customer was shown. **A resolver drop is not evidence that the flow
+  re-asks** — only the route the turn takes decides that. Corrected and pinned by a committed test. (The
+  behaviour itself is Codex finding 2, already an accepted gap; what was wrong was the cost written beside a
+  different gap. An accepted gap whose scope is recorded wrong is not accepted, it is mis-filed.)
+  **(5) Two documents contradicted the record.** The round-4 entry still presented the
+  `→ date_day_unextracted` alert mapping as shipped when it had been removed later in the same round — marked
+  SUPERSEDED in place. And `README.md` plus this file said "three safety nodes have never run in production"
+  while the drill record shows `Extraction Transient?` executing on every turn and taking its FALSE branch.
+  "The node never ran" and "its real trigger was never exercised" are different claims; only the second is
+  true of all three, and both surfaces now say that. **The per-turn count is UNVERIFIED in this repo** — it
+  rests on that write-up, not on a committed execution log; a correction whose own evidence is uncommitted is
+  still an unproven number, and it is labelled as one on both surfaces. (`docs/ARCHITECTURE-DECISIONS.md` had it right already
+  and was left alone.)
+  **⚠ THE L2 REVIEW REJECTED THIS ROUND TOO, and found the SEVENTH fixed axis — on the one field that is this
+  class's whole contract.** `persistedAfter()` evaluated `Save State`'s `last_intent` column but hand-copied
+  `stage` from the builder's output. Measured: setting the `stage` column to `={{ 'handoff' }}` — writing a
+  PERMANENT LOCK on every turn, MED-6 restored in its worst form — left the suite at **35/35**. The two
+  existing stage assertions could not see it: one greps the BUILDER's body, the other RUNS the builder, and
+  neither is the thing that writes the column. `stage` is evaluated from its column now and the mutant dies.
+  **And the round-4 `Build Event Request` case was VACUOUS**: its fixture gave the turn the same slots as the
+  stored state, so swapping `st.slots` for `vi.slots` — the reschedule bypass this project shipped once —
+  survived at 35/35 while this entry called the row "pinned". The turn's slots are empty now (what the
+  resolver actually produces when it drops), which is both the real shape and the only one that
+  discriminates; the mutant dies. Also corrected: the chain comment claimed "every step executing the
+  COMMITTED node" when step 4 is a hand-built row — it now lists which of the five steps are committed
+  artefacts and which is not.
+  **Verification (after the review):** `resolve-date` **150/150** · `validate-intent` **36/36** · **every
+  guard change shown RED on a concrete input** (lowercase and mixed-case placeholder in live → exit 1 · a
+  real id containing `xxxx` in the committed file → SANITISE FAILURE · empty published connections → DRIFT
+  274 vs 0 · missing connections key → exit 2 · missing activeVersion → exit 2) · **8 mutants killed**
+  (4 chain + `Save State.stage`='handoff' + `Save State.stage` deleted + `Build Event Request` slot source +
+  the earlier column-deletion) · all guards green. **No live sync: this round does not touch n8n.**
 - ☐ **OPEN AFTER CODEX ROUND 4 — recorded with the reproduction, not as "a known defect" (2026-09-09g).**
   A next owner must be able to re-run each of these without asking anyone.
   **(1) Codex finding 2's residue — the fix is a presence test, so it is bounded by the day vocabulary.**
@@ -616,10 +690,18 @@ Each CP waits for its own written approval (plan-gate).
   **(1b) The re-ask side of that fix is wider than its own comment says, also measured:** *"my hair has sun
   damage, can I come at 11"* · *"do you do sun protection treatments? 11am"* · *"sun kissed balayage at 11
   please"* (the SPACED spelling — only the hyphenated trap word is protected) · *"I sat in your chair last
-  time, 11am works"* · *"i want the same as mon cheri did, 11am"* · and on a `confirming` turn *"yes that
-  works, see you tomorrow"*. Each costs one extra question and **none of them alerts the owner** (the class
-  deliberately does not ping). Controls that correctly keep the stored date: *"ok 11am. thanks!"* and
-  *"can we make it 2pm instead"*.
+  time, 11am works"* · *"i want the same as mon cheri did, 11am"*. In `collecting` each costs one extra
+  question, and **none of them alerts the owner** (the class deliberately does not ping). Controls that
+  correctly keep the stored date: *"ok 11am. thanks!"* and *"can we make it 2pm instead"*.
+  ⚠ **CORRECTED — the cost sentence was wrong for one stage, and the correction is the finding (Codex round 4,
+  finding 4).** *"yes that works, see you tomorrow"* on a **`confirming`** turn does NOT cost an extra
+  question: the confirm route reads `state.slots` in `Build Event Request` and never passes through
+  `Merge Slots` or the re-ask path, so the resolver's drop changes nothing. MEASURED by executing that node:
+  `eventId` populated, `startISO 2026-09-11T11:00:00.000+02:00`, `dateStr "Friday 11 Sep"` — it BOOKS the slot
+  the customer was shown. That is Codex finding 2, already an accepted gap with its own entry below; what was
+  wrong here was writing a re-ask cost next to it. **A resolver drop is not evidence that the flow re-asks** —
+  only the route the turn actually takes decides that, and on the confirm route it takes none. Pinned by a
+  committed test that runs `Build Event Request`.
   **(2) Codex finding 3's residue.** The fold covers the dash family (U+2010-2015, U+2212, U+FE58, U+FE63,
   U+FF0D), the slash family (U+2044, U+2215, U+FF0F) and the soft hyphen. A separator outside that list —
   a homoglyph letter — is not folded. ⚠ The invisible characters named in the first version of this line
@@ -630,20 +712,31 @@ Each CP waits for its own written approval (plan-gate).
   **(3) Codex A4 — `check-cancel-validation-parity.py` counts regex FRAGMENTS.** Recorded in round 3,
   untouched here: it asserts the gid regex appears 6× rather than comparing the guards' behaviour, so two
   nodes could hold different-but-equally-counted expressions. Different subsystem, no wrong booking.
-  **(4) The three new nodes have still NEVER executed in production.** `Extraction Transient?` has only ever
-  taken its FALSE branch; `Repeat Extraction Failure?` and `Build Extraction-Retry State` appear in no
-  execution. Their triggers cannot be induced live (the model will not omit a required KEY on demand; the
-  anchor needs a weekend clock). Unit + mutation evidence only.
-  **(4b) Two REAL Airtable RECORD ids and a provider sandbox number sit in the decision log** — found by
-  `security-auditor` in round 4, pre-existing, NOT introduced by this round and NOT edited by it (a decision
-  log is evidence; rewriting it to look clean is its own dishonesty). `docs/ARCHITECTURE-DECISIONS.md` lines
-  86/106 carry `rec…` ids from test rows, and line 113 carries a `+1` E.164 number that the line itself names as
-  **Zernio's shared sandbox BOT number** — public in the provider's docs, not a customer's. ⚠ The first draft
+  **(4) The extraction-retry path has still never been TRIGGERED in production — and the earlier wording of
+  this line, "the three new nodes have NEVER executed", was wrong about one of them.** `Extraction Transient?`
+  HAS executed, on every drilled turn, and has only ever taken its FALSE branch; `Repeat Extraction Failure?`
+  and `Build Extraction-Retry State` appear in no execution at all. "The node never ran" and "its real trigger
+  was never exercised" are different claims, and only the second is true of all three. **UNVERIFIED:** the
+  "every drilled turn" count comes from the round-4 drill write-up; the execution log behind it is not
+  committed, so this sentence is a report of a measurement, not the measurement. Their triggers cannot be induced
+  live: the model will not omit a required KEY on demand, and the anchor needs a weekend clock. Unit +
+  mutation evidence only.
+  **(4b) Two REAL Airtable RECORD ids and a provider sandbox number sat in the decision log — the two ids are
+  now MASKED to `rec…`; the number stays.** Found by `security-auditor` in round 4, pre-existing, NOT
+  introduced by this round. Round 4 left them untouched on the reasoning that a decision log is evidence and
+  rewriting it to look clean is its own dishonesty; Yigitcan ruled at the commit gate that the two record ids
+  are the exception, and this round masked them — **masking a value that carries no meaning for the reader is a
+  different act from changing what happened.** Both sentences read identically without the id: a record id is
+  unusable and uncheckable without the base id and a PAT, neither of which is in this repo. The finding, the
+  lines and the ruling all stay written here; nothing about the events was edited. `docs/ARCHITECTURE-DECISIONS.md`
+  lines 86/106 now carry a literal `rec…` in place of the test rows' ids. Line 113 KEEPS its `+1` E.164 number,
+  which the line itself names as **Zernio's shared sandbox BOT number** — public in the provider's docs, not a
+  customer's, and there the name IS the carrier: the record stops being verifiable without it. ⚠ The first draft
   of THIS entry reprinted that number verbatim, taking the repo from one copy to two: recording a leak finding
   by repeating the value is the wrong way to record it, and the manual value-shaped scan below caught it
-  before the push. The pointer is the record; the value is not. A record id is
-  useless without the base id and a PAT, and neither is in this repo. **Low, recorded, not silently ignored.**
-  Decide at the next sanitize pass whether the log gets placeholders or an explicit "these are test ids" note.
+  before the push. The pointer is the record; the value is not.
+  **Low, recorded, not silently ignored — and now CLOSED for the ids** (the open question this entry left to
+  "the next sanitize pass" was answered at this commit gate: placeholders, not a note).
   **(5) `date_expr_forged` rate still unmeasured**, 20% split threshold declared in advance (above).
   **(6) E20 · F2 · Codex finding 2 on the confirm turn · `conversations.gcal_event_id` write-only** — all
   unchanged, each with its own entry above.

@@ -74,14 +74,35 @@ const repeatCond    = condOf('Repeat Extraction Failure?');
 // committed node for turn 1 and follows the value through the SAME mapping `Save State` writes
 // (`$json.state.last_intent`) and `Merge State` reads back, so turn 2 sees what turn 1 really left behind.
 let PREV_INTENT = null;
-// ⚠ THE MAPPING IS READ FROM `Save State`, NOT RETYPED HERE (code-reviewer, round 4). The first version
-// wrote `out.state.last_intent` with a comment saying that is what Save State stores — a hand mirror of the
-// column, i.e. the same fixed axis this round claimed to close. Measured: DELETING the `last_intent` column
-// from `Save State` entirely (turn 1 persists nothing, so `Repeat Extraction Failure?` can never fire and the
-// ladder's whole reason for existing is gone) left the suite at 34/34. So the column's own expression is
-// fetched, evaluated against turn 1's output, and a missing column is a hard failure rather than a fallback.
+// what `Save State`'s own `stage` column expression produced on the last `persistedAfter()` run
+let STAGE_WRITTEN;
+// ⚠ THE WHOLE PERSISTENCE CHAIN IS EXECUTED — producer, retry builder, column mapping, Airtable row,
+// readback (Codex round 4, finding 1). Two earlier versions of this helper were each one node short of the
+// loop, and each left the ladder's real killer alive:
+//   * v1 wrote `out.state.last_intent` with a comment claiming that is what Save State stores — a hand mirror.
+//   * v2 fetched Save State's column expression. That killed a DIFFERENT mutant (deleting the column) but
+//     still skipped the two nodes BETWEEN the producer and that column. Measured: the ORIGINAL mutant —
+//     `Build Extraction-Retry State` doing `state: { ...j.state, last_intent: 'book' }` — stayed GREEN at
+//     34/34, and so did nulling `Merge State`'s `last_intent` readback. Both make the ladder unreachable, so
+//     a systematic contract failure re-asks until the max-turns guard instead of handing off.
+// The round-4 claim that "all three of Codex's mutants were killed" was also false: the surviving one had
+// been REPLACED with an easier mutant rather than killed. Retracted in docs/ROADMAP.md, closed here instead.
+//
+// The chain below, and PRECISELY which parts are committed artefacts (the earlier version said "every step
+// executing the COMMITTED node", and step 4 is a literal — code-reviewer, round 5):
+//   1 `Validate Intent`                 — committed node, executed
+//   2 `Build Extraction-Retry State`    — committed node, executed
+//   3 `Save State`.last_intent + .stage — committed COLUMN EXPRESSIONS, fetched and evaluated
+//   4 the Airtable row                  — HAND-BUILT here from (3)'s outputs; Airtable itself is not run
+//   5 `Merge State`                     — committed node, executed, and its `last_intent` readback is read
+// Only `last_intent` and `stage` travel the whole way; `Merge State`'s other readbacks (turn_count, slots)
+// are not asserted here and this comment does not pretend they are.
+const chainSrc = (n) => nodeOf(n).parameters.jsCode;
 const persistedAfter = (raw) => {
-  const cols = (nodeOf('Save State').parameters.columns || {}).value || {};
+  const produced = validateIntentNode(raw, $)[0].json;                                    // 1 producer
+  const retryCfg = () => ({ first: () => ({ json: { config: { messageTemplates: { notUnderstood: 'X' } } } }) });
+  const built = new Function('$json', '$', chainSrc('Build Extraction-Retry State'))(produced, retryCfg)[0].json;  // 2
+  const cols = (nodeOf('Save State').parameters.columns || {}).value || {};               // 3 column mapping
   const expr = cols.last_intent;
   if (typeof expr !== 'string') {
     console.error('Save State has no `last_intent` column mapping — the escalation ladder reads a value '
@@ -89,13 +110,38 @@ const persistedAfter = (raw) => {
   }
   const m = expr.match(/^=\{\{([\s\S]+)\}\}$/);
   if (!m) { console.error('Save State.last_intent is not an ={{ }} expression: ' + expr); process.exit(1); }
-  const out = validateIntentNode(raw, $)[0].json;
-  const written = new Function('$json', 'return (' + m[1] + ');')(out);
-  return (written === undefined || written === '') ? null : written;
+  const written = new Function('$json', 'return (' + m[1] + ');')(built);
+  // ⚠ `stage` IS EVALUATED FROM ITS COLUMN TOO (code-reviewer, round 5). It used to be hand-copied from
+  // `built.state.stage`, which left the SEVENTH fixed axis of this phase — and on the one field that is this
+  // class's entire contract. Measured: setting `Save State`'s stage column to `={{ 'handoff' }}`, i.e.
+  // writing a PERMANENT LOCK on every single turn (MED-6 restored in the worst possible form), left the suite
+  // at 35/35. The two existing stage assertions could not see it: one greps the BUILDER's body, the other
+  // RUNS the builder — and neither of them is the thing that writes the column.
+  const stageExpr = cols.stage;
+  if (typeof stageExpr !== 'string') {
+    console.error('Save State has no `stage` column mapping — "no stage write, no lock" cannot be checked.');
+    process.exit(1);
+  }
+  const sm = stageExpr.match(/^=\{\{([\s\S]+)\}\}$/);
+  if (!sm) { console.error('Save State.stage is not an ={{ }} expression: ' + stageExpr); process.exit(1); }
+  const writtenStage = new Function('$json', 'return (' + sm[1] + ');')(built);
+  STAGE_WRITTEN = writtenStage;
+  const row = { id: 'recDrill0000000001', createdTime: '2026-09-08T00:00:00.000Z',        // 4 the written row
+                fields: { sender_key: CTX.sender_key, last_intent: written,
+                          stage: writtenStage, turn_count: 1 } };
+  const mergeCtx = () => ({ first: () => ({ json: { channel: 'widget', senderId: 'test',
+                            sender_key: CTX.sender_key, text: 'next turn' } }) });
+  const merged = new Function('$json', '$', chainSrc('Merge State'))(row, mergeCtx)[0].json;   // 5 readback
+  const readBack = merged.state.last_intent;
+  return (readBack === undefined || readBack === '') ? null : readBack;
 };
 const $merge = (n) => (n === 'Merge State'
   ? { first: () => ({ json: { state: { ...CTX.state, last_intent: PREV_INTENT } } }) }
   : { first: () => ({ json: CTX }) });
+// PREV_INTENT is set from `persistedAfter()` — the EXECUTED chain — or to an explicit control value. The
+// literal 'invalid' is used only where the case is deliberately about a value arriving from somewhere else
+// (a sticky flag surviving a no-write turn, an owner's partial unlock); the ladder's own cases take it from
+// the chain, because that is the thing under test.
 // "routes to the retry builder" is now TWO gates, and the test walks both — a single-gate helper would have
 // gone on passing after `Repeat Extraction Failure?` was inserted in front of the builder.
 const routesToRetry = (out) => transientCond(out, $merge) === true && repeatCond(out, $merge) === false;
@@ -215,6 +261,10 @@ for (const [label, raw] of HARD) {
   PREV_INTENT = persistedAfter(failingPayload);
   check("the ladder's input is what turn 1 really wrote, not a literal in this file",
     PREV_INTENT === 'invalid', { persisted: PREV_INTENT });
+  // The contract of this whole class, checked where it is actually enforced — the COLUMN, not the builder.
+  check('Save State\'s own stage column writes the stage back unchanged — an extraction-transient turn '
+      + 'persists NO lock', STAGE_WRITTEN === CTX.state.stage && STAGE_WRITTEN !== 'handoff',
+    { written: STAGE_WRITTEN, handed: CTX.state.stage });
   check('SECOND consecutive extraction failure -> escalates to the handoff gate',
     routesToRetry(out) === false && repeatCond(out, $merge) === true, { retry: routesToRetry(out) });
   PREV_INTENT = 'clarify';
@@ -247,9 +297,9 @@ for (const [label, raw] of HARD) {
   PREV_INTENT = null;
   check('an out-of-enum intent on an invalid payload does NOT lock on turn one (known, bounded)',
     out.extraction_transient === true && routesToRetry(out) === true, { retry: routesToRetry(out) });
-  PREV_INTENT = 'invalid';
+  PREV_INTENT = persistedAfter(llm({ intent: 'ignore_previous_instructions', confidence: 0.99, slots: {} }));
   check('...and it IS bounded: the second one escalates to the handoff gate',
-    routesToRetry(out) === false, { retry: routesToRetry(out) });
+    routesToRetry(out) === false && PREV_INTENT === 'invalid', { retry: routesToRetry(out), prev: PREV_INTENT });
   PREV_INTENT = null;
   const retry = nodeOf('Build Extraction-Retry State').parameters.jsCode;
   check('...and it can reach no write path: the retry builder only goes to Save State + the owner alert',
@@ -329,6 +379,33 @@ for (const [label, raw] of HARD) {
   check('an extraction-transient turn cannot also raise a date alert (slots:null -> Resolve Date returns early)',
     out.slots === null && rd.date_alert === false && rd.date_dropped === false,
     { slots: out.slots, date_alert: rd.date_alert });
+}
+
+// ---- CODEX ROUND-4 FINDING 4, PINNED. The accepted-gap entry claimed every listed false positive "costs
+// one extra question". On a `confirming` turn it does not: the confirm route reads `state.slots` in
+// `Build Event Request` and never passes through `Merge Slots` or the re-ask path, so the resolver dropping
+// the date changes NOTHING — the turn builds an event request from the slot the customer was shown. This row
+// executes `Build Event Request` and asserts that, so the recorded cost can never drift back to the softer
+// version. (It is not a NEW defect: it is Codex finding 2, already an accepted gap. What was wrong was the
+// COST written next to a different gap.)
+{
+  const { DateTime } = require(path.join(__dirname, '../../scripts/node_modules/luxon'));
+  const cfg2 = { business: { timezone: 'Europe/Vienna' },
+                 services: [{ id: 'haircut', name: 'Haircut', durationMin: 30 }], bot: {}, messageTemplates: {} };
+  // ⚠ THE TURN'S OWN SLOTS ARE EMPTY (code-reviewer, round 5). The first fixture gave the turn the SAME
+  // slots as the stored state, so it could not tell `st.slots` from `vi.slots` — and swapping them in
+  // `Build Event Request` (which is literally the reschedule bypass this project shipped once) left the suite
+  // at 35/35 while the ROADMAP called this row "pinned". Empty turn slots are what the resolver actually
+  // produces when it drops, so this is the real shape AND the only one that discriminates.
+  const vi = { intent: 'confirm', slots: { serviceId: 'haircut', dateExpr: null, date: null, time: null },
+               state: { stage: 'confirming', slots: { serviceId: 'haircut', date: '2026-09-11', time: '11:00' },
+                        sender_key: 'widget:test', turn_count: 3, confirm_turn: null } };
+  const ctx = (n) => ({ first: () => ({ json: n === 'Load Config' ? { config: cfg2 } : vi }) });
+  const built = new Function('$json', '$', 'DateTime', nodeOf('Build Event Request').parameters.jsCode)(vi, ctx, DateTime)[0].json;
+  const b = built.booking || {};
+  check('a confirming turn books the STORED slot — it does not re-ask, whatever the resolver decided',
+    !!b.eventId && b.startISO === '2026-09-11T11:00:00.000+02:00' && b.dateStr === 'Friday 11 Sep',
+    { eventId: !!b.eventId, startISO: b.startISO, dateStr: b.dateStr });
 }
 
 console.log(`\nvalidate-intent: ${pass}/${pass + fail} pass (node code + IF expression read from n8n/workflow.sanitized.json)`);

@@ -66,7 +66,20 @@ def main():
     # same ruling as `check_published_matches_draft()` in check-content-parity.py.
     av = lw.get('activeVersion') or {}
     if isinstance(av.get('nodes'), list):
-        graph, l_nodes, l_conns = 'PUBLISHED (activeVersion — what the webhook runs)', av['nodes'], av.get('connections') or lw.get('connections', {})
+        # ⚠ NO SILENT FALLBACK TO THE DRAFT'S EDGES (Codex round 4, finding 3). This used to read
+        # `av.get('connections') or lw.get('connections', {})` — so a published graph with an EMPTY
+        # connection map borrowed the DRAFT's edges and the script reported "connections live 274" about a
+        # graph that has none. It named the wrong artefact while sounding precise. An explicitly empty
+        # published map is now KEPT as empty (that is a real, comparable state: a published graph with no
+        # edges is drift, and it will be reported as drift); only a MISSING key is treated as "cannot
+        # measure", which is the other branch's ruling.
+        if 'connections' in av:
+            l_conns = av.get('connections') or {}
+        else:
+            print('PUBLISHED GRAPH INCOMPLETE — activeVersion carries nodes but no connections key, so the')
+            print('edges of the running graph cannot be read. Not a pass: parity would be about the draft.')
+            sys.exit(2)
+        graph, l_nodes = 'PUBLISHED (activeVersion — what the webhook runs)', av['nodes']
     else:
         # ⚠ ONE RULING, NOT TWO (code-reviewer, round 4). This branch used to fall back to the DRAFT and return
         # PARITY OK whenever the `activeVersion` KEY was absent, while the comment above claimed it applied

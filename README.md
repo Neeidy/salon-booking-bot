@@ -159,10 +159,16 @@ This repository is **public**, so it is built as if it were.
   Unicode look-alike; and on a confirmation turn a change request that cannot be resolved writes the date the
   customer was shown. These are demo-grade limits on a template with **zero real customers** — named here
   rather than left for a reader to discover.
-- **Three safety nodes have never run in production (honest limit).** The extraction-retry path
-  (`Extraction Transient?` → `Repeat Extraction Failure?` → `Build Extraction-Retry State`) has unit and
-  mutation evidence only: its trigger — the model omitting a required schema KEY — cannot be induced on
-  demand against a live model. The live drill proved the surrounding behaviour did not regress, nothing more.
+- **The extraction-retry path has never been TRIGGERED in production (honest limit).** Precisely: in the live
+  drill `Extraction Transient?` executed on every turn and took its FALSE branch every time, while
+  `Repeat Extraction Failure?` and `Build Extraction-Retry State` never executed at all. So one node has run
+  and never fired, and two have never run. **That per-turn execution count is itself UNVERIFIED here:** its
+  only basis is the previous round's drill write-up — the execution log is not committed, so a reader cannot
+  re-derive it from this repo. *(An earlier wording said "three safety nodes have never run",
+  which the drill record contradicts — "the node never executed" and "its real trigger was never exercised"
+  are different claims and only the second is true of all three.)* The trigger — the model omitting a required
+  schema KEY — cannot be induced on demand against a live model, so the path has unit and mutation evidence
+  only. The drill proved the surrounding behaviour did not regress, nothing more.
 - **Cancel identity (honest limit):** a customer can only cancel their OWN booking — cancel looks up
   appointments by the channel-authenticated `sender_key`, never a customer-supplied booking id, so IDOR
   is structurally impossible. On the widget, though, `sender_key` derives from a **client-supplied
