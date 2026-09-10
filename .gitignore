@@ -75,6 +75,9 @@ n8n/.snapshots/
 
 # Build-time config bridge output — may contain a REAL client config (Phase 6)
 web/site/config.generated.json
+# Built snippet bundle — bakes in the production webhook URL (host is a redaction target).
+# Regenerate with: npm run build -w @salon/snippet
+web/site/public/barber-widget.js
 
 # Next.js 16 auto-generates these agent-instruction files on dev/build (tool output, not our content).
 web/site/AGENTS.md

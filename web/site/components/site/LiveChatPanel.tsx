@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClientConfig } from '@salon/shared/config';
 import {
-  sendMessage, getSessionId, newMessageId, FRONTEND_TEXT,
+  sendMessage, getSessionId, newMessageId, FRONTEND_TEXT, welcomeLine,
   type ChatReply, type EndpointConfig,
 } from '@salon/shared/chat';
 import { TurnstileWidget, type TurnstileState } from './TurnstileWidget';
@@ -34,7 +34,7 @@ export function LiveChatPanel({ config, endpoint }: { config: ClientConfig; endp
   // filled in after mount, where server and client can no longer disagree.
   const [thread, setThread] = useState<Bubble[]>([{
     from: 'bot',
-    text: `Hi! I'm the ${name} assistant — I can book, change or cancel an appointment, or answer questions. How can I help?`,
+    text: welcomeLine(name),
     stamp: '',
   }]);
   const [draft, setDraft] = useState('');

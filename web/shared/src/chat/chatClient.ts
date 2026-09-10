@@ -29,7 +29,12 @@
  * REPLACED the engine's own wording (e.g. llm_unavailable's reply) with a generic mapping — losing
  * information the bot meant to give.
  */
-import type { ClientConfig } from '@salon/shared/config';
+// The TYPE comes from the GENERATED types module, not from the loader. The loader is server/build-time
+// only (it reads the filesystem and touches `process`), and importing it here — even for a type — pulls
+// it into this browser-safe module's type graph. Found by adding a type-check to the snippet package:
+// tsc followed the import and failed on `process`. A subpath boundary that only the prose respects is
+// not a boundary.
+import type { ClientConfig } from '@salon/shared/config/types';
 
 export type ReplyKind = 'bot' | 'system' | 'silent';
 export interface ChatReply {
@@ -51,6 +56,16 @@ export const FRONTEND_TEXT = {
   timeout: "That took too long to answer. Please try again.",
   unexpected: 'Something went wrong on our side. Please try again in a moment.',
 } as const;
+
+/**
+ * W61 — the FRONTEND welcome (SCREEN-INVENTORY §8 K4 = B). The engine produces no greeting, so this
+ * line has no engine counterpart and writes no state. It lives HERE, not in a component, because both
+ * front ends open with it: two copies would drift into two different first impressions of the same
+ * shop, which is the drift `contract-integrity.md` exists to prevent.
+ */
+export function welcomeLine(businessName: string): string {
+  return `Hi! I'm the ${businessName} assistant — I can book, change or cancel an appointment, or answer questions. How can I help?`;
+}
 
 /** A client-generated conversation id. Session-token strength, NOT verified identity (accepted T1 limit). */
 /**
@@ -79,12 +94,22 @@ export function getSessionId(): string {
 
 export async function sendMessage(
   endpoint: EndpointConfig,
-  cfg: ClientConfig,
+  // Only messageTemplates is read. Narrowed from ClientConfig so the snippet can pass the minimal
+  // subset it bakes in, instead of shipping the whole config to every visitor of every client.
+  cfg: Pick<ClientConfig, 'messageTemplates'>,
   text: string,
   sessionId: string,
   turnstileToken: string,
   messageId: string,
-  timeoutMs = 20000,
+  // DERIVED FROM MEASUREMENT, not chosen. Engine turns observed on 2026-09-09/10: 27.2 s, 30.2 s and
+  // 39.6 s, plus a first-of-session turn that exceeded the old 20 s ceiling and was aborted while the
+  // engine went on to complete it — the client said 'failed' about work that had succeeded. A timeout
+  // BELOW the slowest observed successful turn does not protect anyone; it manufactures false failures.
+  // 39.6 s x1.5 = ~60 s: the sample is small (one machine, one network) and its slowest case was a cold
+  // start, so some headroom is honest; x2 would outlast the patience of a visitor who would rightly
+  // conclude the thing is broken. This must also stay ABOVE the engine's own worst-case path, or the
+  // client always gives up first and every slow-but-fine turn looks like an outage.
+  timeoutMs = 60000,
 ): Promise<ChatReply> {
   const t = cfg.messageTemplates as Record<string, string>;
   const ctrl = new AbortController();

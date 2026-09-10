@@ -421,6 +421,108 @@ Each CP waits for its own written approval (plan-gate).
     *recommended*. The rendering half of that argument — an interactive challenge draws visibly inside a shadow root
     and can be solved there — is now **MEASURED** (forced-interactive run). What stays unproven for that path is only
     the ENGINE leg, because a dummy sitekey's token is rejected by a production secret. Do not delete the wait.
+  - ✅ **CROSS-ORIGIN SUB-RESOURCE INVENTORY — closed as a CLASS, not as the font case (2026-09-09).**
+    The snippet's first real load showed `@font-face` blocked by CORS: a font fetch is CORS-mode on ANY
+    origin, and the snippet is cross-origin by definition, so the locked typography would have silently
+    fallen back on every client site. A same-origin test passes. Fixed with `ACAO: *` on `/fonts/:path*`
+    in `web/site/next.config.mjs`, verified by RENDER evidence (the same string measures 131.95px with
+    Fraunces vs 120.41px on the fallback — different width means the face actually draws).
+    **The class closure is `web/snippet/CROSS-ORIGIN.md`:** every network request the snippet makes, its
+    request MODE, and whether the other end sends the header that mode needs — compiled twice and
+    cross-checked (statically from the source, dynamically from Resource Timing on a foreign origin).
+    Seven rows; today no other CORS-mode request is missing a header. **Anything added later that touches
+    the network gets a row there before it ships**, so this is not discovered in a browser a second time.
+  - ✅ **DECISION — the display font loads on FIRST PANEL OPEN; the design is unchanged (Yigitcan ruling,
+    2026-09-09).** Measured: Fraunces is 205 kB and draws exactly two strings (the shop name in the panel
+    header, the avatar initials) — 13× the entire 16 kB widget bundle, paid for by the CLIENT's site for
+    something their visitor did not ask for. But the widget starts CLOSED, so neither string is visible
+    until someone opens the panel. Deferring it makes a non-engaging visitor's cost ZERO and alters no
+    pixel of the locked typography. Instrument Sans (88 kB) is the whole UI and still loads at mount.
+    **Verified:** before open only the UI face is requested (display style tag count 0); on open both are;
+    re-opening does not re-inject (still one tag each). Accepted cost: one face swap on first open —
+    measured at **6 ms** locally with a **2.12 px** width shift on the shop name. ⚠ That 6 ms is a
+    LOCALHOST number and does not represent a real visitor: over a real network the swap lasts as long as
+    a 205 kB download, which was NOT measured. If it proves visible there, the named mitigation is
+    pre-loading on launcher hover/focus.
+  - ⚙ **NAMED, not done in 6b — subset the display font.** `business.name` is known at BUILD time, so the
+    exact glyph set Fraunces needs is computable and the 205 kB could become a few kB. It is the right
+    long-term answer and it is deliberately deferred: it means a new tool chain and a new failure surface
+    (a wrong subset renders missing glyphs on a client's site, and the failure is silent). Decide it with
+    evidence, not inside a build round.
+  - ✅ **E2E PASSED from the hostile host page (2026-09-10), read from the column, not the screen.** A real
+    booking and its cancellation, cross-origin, in a real browser: `appointments` exactly ONE row created
+    that day with `gcal_event_id` + `calendar_id` set, now `cancelled`; `conversations` `turn_count=5`,
+    `stage=cancelled`, `computed_reply` byte-identical to the screen; `processed_messages` 5 DISTINCT ids,
+    no duplicate. Cleanup ran in the same session through the bot's own cancel flow, as the drill sheet
+    requires — nothing was left behind this time.
+  - 🔴 **FINDING — a client-side timeout abandons the RESPONSE but does not stop the ENGINE.** Free drill:
+    the first message of the session exceeded the widget's 20 s timeout, the visitor saw *"That took too
+    long to answer. Please try again."* and re-sent it. **Measured: the timed-out message reached the engine
+    and was fully processed** — it appears in `recent_messages`, is counted in `turn_count`, and has its own
+    `processed_messages` row. The screen said failure; the server had succeeded.
+    **Harmless where it landed, dangerous one turn later.** It hit an INTENT turn, and a booking is only
+    written on `yes`. Had it hit the `yes` turn, the customer would have been told to try again while the
+    appointment was being written — and a re-sent `yes` carries a NEW `message_id`, so dedupe would not
+    collapse it. **Whether that produces a second booking is NOT known and is not asserted here**; it needs
+    an engine-side drill (deliberately delay the confirm turn past the client timeout, then re-send `yes`,
+    and read `appointments`). Until that runs, this is an open risk, not a closed one.
+    Candidate mitigations, none chosen yet: keep the `messageId` stable across a user-initiated RETRY of the
+    same text so dedupe can do its job; raise the timeout; or have the widget re-read state after a timeout
+    instead of inviting a blind resend.
+  - ✅ **BOTH CLOSED (2026-09-10, Yigitcan ruling: A + B, and the engine-side drill deliberately NOT run).**
+    **B — the timeout value was wrong, not merely tight.** Derived from measurement, not chosen: engine turns
+    observed at 27.2 s, 30.2 s and 39.6 s, against a 20 s ceiling that sat BELOW the slowest successful turn
+    and so manufactured false failures. 39.6 s × 1.5 ≈ **60 s** — the sample is small (one machine, one
+    network) and its slowest case was a cold start, so headroom is honest; ×2 would outlast a visitor's
+    patience. The reasoning is in `@salon/shared/chat`, beside the constant, not only here.
+    **A — retry reuses the SAME `messageId`, which is what the engine's dedupe was built for.** Not a
+    heuristic and not a new mechanism: RETRY is a STATE (the button on that failure's own bubble replays
+    that exact payload), and anything the visitor types is a new message with a new id. Client-side only;
+    the engine is untouched.
+    **Drilled in BOTH directions, headless, with Turnstile and the network stubbed** — this proves the
+    CLIENT contract and deliberately claims nothing about the engine: retry sent the same id
+    (`m-aae04c6b…` twice) with a FRESH token (the old one was single-use and already spent), and a
+    different message got a new id and was NOT swallowed. Three requests, none lost.
+    **Two defects surfaced while drilling it.** (1) The first stub's `reset()` did nothing, so no token
+    ever returned — a defect in MY instrument, not the product, and it is what made the first run
+    unreadable. (2) A real one it exposed: the Try-again button removed its bubble BEFORE calling send,
+    so a click while the fresh token had not yet arrived did nothing AND destroyed the only way back.
+    `send()` now reports whether it started and the bubble survives a retry that could not begin.
+    ⚠ **What is NOT measured, stated as such:** whether a second `yes` would produce a duplicate booking.
+    The **Try-again path** is idempotent now, so that route cannot produce one. ⚠ **Re-TYPING still can:** a
+    visitor who types `yes` again after a timeout gets a NEW `message_id`, exactly as the observed visitor
+    did, and dedupe cannot collapse it. The retry button makes the safe path the obvious one; it does not
+    close the typed one. And the underlying question was never measured — deliberately, because measuring it
+    means slowing the live engine to confirm a hypothesis. **Narrower than first written** (security-auditor, 2026-09-10):
+    the first version said the question 'no longer arises', which closed a door that is still open. That
+    framing came from Cowork and was too wide; Yigitcan corrected it and the correction is recorded here in
+    his name.
+    ❓ **OPEN QUESTION, recorded as a question and not as an answer.** A re-typed `yes` may well be harmless
+    for a reason that has nothing to do with dedupe: by the second `yes` the conversation's `stage` is
+    already `booked`, so the state machine — not `message_id` — could be what refuses the second write.
+    That is PLAUSIBLE and it is UNMEASURED. It is written down as a question because in this session alone,
+    structural claims that sounded right turned out to be wrong seven times, and every one of them was
+    caught by a second reader rather than by the build. Answering it means either reading the confirm path
+    end-to-end and showing the search, or drilling it — not reasoning from the shape of the flow.
+  - ✅ **ERR-1 (timeout presentation) drilled by accident and PASSED.** The timeout rendered as a `system`
+    bubble — dashed border, muted, centred — carrying `FRONTEND_TEXT.timeout` verbatim and NOT dressed in
+    the shop's voice. That is the contract: the transport layer speaks as itself.
+  - ✅ **Install page shipped at `/install` (2026-09-10).** The page a client reads to put the widget on
+    their own site: the one line, what it adds to their page (one element, one stylesheet, one Escape
+    listener — the exact two host-document touches recorded in ARCH-DEC, told in their language), what
+    their visitors see, and the known limits stated plainly (JS disabled · a `transform`/`filter` on
+    `<body>` · a strict CSP · blocked fonts). `noindex, nofollow` — an install document is not a search
+    result. **The embed address is still a VISIBLY MARKED placeholder**, because there is no deployment
+    yet (D-6b-7) and inventing a plausible CDN address on a page whose job is to be copied verbatim would
+    be a fabricated fact. Verified in a browser at 1280 and 390: the embed line needs no horizontal
+    scroll (`scrollWidth === clientWidth`), page overflow 0, the placeholder renders as a placeholder.
+    Local styles by design — `globals.css` is a verbatim transcription of an approved mockup and a new
+    route does not get to edit a locked visual contract.
+  - ◐ **Privacy Addendum obligation — HALF closed.** Cloudflare requires a site using Turnstile to
+    reference the Turnstile Privacy Addendum in its own privacy policy. ✅ The **client-facing** half is
+    done: `/install` states it as a condition of use, not a suggestion, with the link. ☐ The **demo
+    site's own** privacy text still does not carry it, and that stays a gate on public deploy — we run
+    Turnstile on the demo too.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
   - ⚙ **NAMED, planned in 6b (2026-09-09) — the 6c lint gate MUST be SUBPATH-AWARE, not package-aware.**
     `@salon/shared` no longer has one rule: `./config` is server/build-time only (the secret-touching surface the

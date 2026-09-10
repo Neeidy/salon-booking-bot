@@ -1,0 +1,20 @@
+{
+  "name": "@salon/snippet",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The embeddable widget: one <script> tag a client puts on their own site. Plain TS bundled by esbuild into a single IIFE — no React, no framework — because this file is injected into someone else's page and every kilobyte and every global is theirs, not ours. Shares the engine transport with web/site via @salon/shared/chat so the reply-mapping contract has exactly one source.",
+  "scripts": {
+    "prebuild": "node ../site/scripts/build-config.mjs",
+    "build": "node build.mjs",
+    "check": "tsc -p tsconfig.json && node build.mjs --check",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@salon/shared": "*"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "7.0.2"
+  }
+}

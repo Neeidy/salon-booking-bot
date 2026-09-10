@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hofgasse Partners — a customer's own website (simulation)</title>
+<!--
+  HOSTILE HOST PAGE — the test bed for the embeddable snippet.
+  Ported from design/mockups/snippet/host-demo.html, which was designed in the 2026-09-02 design round.
+
+  A fictional company. FOREIGN, not ugly: a clean modern corporate look, deep green, system sans, airy
+  grid — deliberately nothing like our Cream & Ink serif language. A well-made page is the harder and
+  more honest test, because on it the widget must FIT rather than merely stand out.
+
+  All SEVEN sabotages are ACTIVE, and each doubles as a legitimate component of the page so the pressure
+  is invisible rather than staged:
+    H1 *{box-sizing:content-box!important}      foreign box model, global and silent
+    H2 body{system sans; line-height:2; green}  inheritance attack (font, leading, colour)
+    H3 .chip .msg .panel .thread .launcher      CLASS COLLISIONS — every one of these is used natively
+                                                by the page (tag pills · notice banner · cards · hours
+                                                list · header CTA), with values materially different
+                                                from the widget's
+    H4 header{z-index:99999}                    stacking-context ambush
+    H5 button{...!important}                    global button restyle (the page's own button system)
+    H6 img,svg{display:block;width:100%}        media flattening
+    H7 .canary                                  leak canary — any bleed shows here first
+
+  The snippet is loaded CROSS-ORIGIN on purpose: this page is served from one port, the widget and its
+  fonts from another. A client's site is never our origin, so a same-origin test would prove the wrong
+  thing.
+-->
+<style>
+  * { box-sizing: content-box !important; }                                     /* H1 */
+  :root {
+    --hg-ink: #12291f; --hg-green: #14532d; --hg-green-soft: #1f7a45;
+    --hg-mint: #e8f3ec; --hg-bg: #f7faf8; --hg-line: #d7e4db; --hg-white: #fff;
+  }
+  body { margin: 0; background: var(--hg-bg); color: var(--hg-ink);             /* H2 */
+         font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+         line-height: 2; font-size: 16px; -webkit-font-smoothing: antialiased; }
+  a { color: var(--hg-green-soft); text-decoration: none; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  header.site { position: sticky; top: 0; z-index: 99999;                       /* H4 */
+                background: rgba(247,250,248,.92); backdrop-filter: blur(8px);
+                border-bottom: 1px solid var(--hg-line); }
+  .header-row { display: flex; align-items: center; justify-content: space-between;
+                gap: 20px; height: 68px; }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; color: var(--hg-green); }
+  .brand small { display: block; font-weight: 400; font-size: 11px; letter-spacing: .08em;
+                 text-transform: uppercase; color: #5c7266; line-height: 1.4; }
+  nav.main { display: flex; gap: 28px; font-size: 14px; font-weight: 500; }
+  nav.main a { color: #46604f; }
+  /* H3 · .launcher — the page's OWN header CTA (collides with the widget's launcher class) */
+  .launcher { display: inline-flex; align-items: center; background: var(--hg-green);
+              color: #fff; border-radius: 10px; padding: 10px 18px; font-size: 14px;
+              font-weight: 600; position: static; }
+
+  .hero { padding: 72px 0 56px; }
+  .hero h1 { margin: 0 0 14px; font-size: clamp(34px, 5vw, 54px); line-height: 1.12;
+             font-weight: 800; letter-spacing: -.02em; color: var(--hg-green); max-width: 18ch; }
+  .hero p { margin: 0; max-width: 52ch; color: #3d5546; font-size: 17px; }
+  /* H3 · .chip — the page's OWN tag pills */
+  .chip { display: inline-block; background: var(--hg-mint); color: var(--hg-green);
+          border: 1px solid var(--hg-line); border-radius: 8px; padding: 4px 14px;
+          font-size: 14px; font-weight: 600; }
+  .hero .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+
+  .divider svg { display: block; width: 100%; }
+  img, svg { display: block; width: 100%; }                                     /* H6 */
+
+  section.block { padding: 40px 0; }
+  h2 { margin: 0 0 22px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; color: var(--hg-green); }
+  /* H3 · .panel — the page's OWN cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .panel { background: var(--hg-white); border: 1px solid var(--hg-line); border-radius: 14px;
+           padding: 22px 24px; box-shadow: 0 8px 24px -18px rgba(18,41,31,.35);
+           width: auto; height: auto; overflow: visible; }
+  .panel h3 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+  .panel .meta { font-size: 13px; color: #5c7266; }
+  .panel .price { margin-top: 10px; font-size: 22px; font-weight: 800; color: var(--hg-green); }
+
+  /* H3 · .msg — the page's OWN notice banner */
+  .msg { background: var(--hg-mint); border: 1px solid var(--hg-line); border-radius: 12px;
+         padding: 14px 18px; font-size: 14px; color: #2c4636; text-decoration: none; }
+
+  /* H3 · .thread — the page's OWN hours list */
+  .thread { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0 32px; direction: ltr; border-top: 1px solid var(--hg-line); }
+  .thread .row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 2px;
+                 border-bottom: 1px solid var(--hg-line); font-size: 15px; }
+
+  .contact { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between;
+             background: var(--hg-green); color: #eaf5ee; border-radius: 16px; padding: 28px 30px; }
+  .contact p { margin: 0; font-size: 15px; max-width: 56ch; }
+  button { background: #fff !important; color: var(--hg-green) !important;       /* H5 */
+           border: 0 !important; border-radius: 10px !important; padding: 12px 22px !important;
+           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important;
+           cursor: pointer; }
+
+  /* H7 · leak canary — an integration footnote; the dashed border is kept on purpose */
+  .canary { border: 1px dashed #9db8a8; border-radius: 12px; background: var(--hg-white);
+            padding: 16px 20px; margin: 34px 0 90px; font-size: 13px; color: #55705f; }
+  .canary code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: var(--hg-green); }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap header-row">
+    <div class="brand">Hofgasse Partners<small>Fictional · test bed</small></div>
+    <nav class="main"><a href="#">Work</a><a href="#">Studio</a><a href="#">Hours</a><a href="#">Contact</a></nav>
+    <span class="launcher">Get in touch</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1>This page is not ours.</h1>
+    <p>It stands in for a customer's own website. Its CSS is deliberately hostile to anything injected
+       into it — a foreign box model, an inherited font and line-height, a header that outranks almost
+       everything, a global <code>button</code> override, and five class names it shares with the widget.</p>
+    <div class="chips"><span class="chip">content-box</span><span class="chip">line-height 2</span><span class="chip">z-index 99999</span></div>
+  </section>
+
+  <div class="divider"><svg viewBox="0 0 1200 12" preserveAspectRatio="none" aria-hidden="true"><rect width="1200" height="1" y="6" fill="#d7e4db"/></svg></div>
+
+  <section class="block">
+    <h2>Services</h2>
+    <div class="cards">
+      <div class="panel"><h3>Consulting</h3><div class="meta">45 min</div><div class="price">€120</div></div>
+      <div class="panel"><h3>Workshop</h3><div class="meta">half day</div><div class="price">€480</div></div>
+      <div class="panel"><h3>Retainer</h3><div class="meta">monthly</div><div class="price">€1,900</div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Opening hours</h2>
+    <div class="thread">
+      <div class="row"><b>Mon – Thu</b><span>09:00 – 18:00</span></div>
+      <div class="row"><b>Friday</b><span>09:00 – 15:00</span></div>
+      <div class="row"><b>Weekend</b><span>closed</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <a class="msg" href="#">Notice: the studio is closed for the first week of August.</a>
+  </section>
+
+  <section class="block">
+    <div class="contact">
+      <p><strong>Prefer to talk?</strong> Our own form still works exactly as it did before the widget was added.</p>
+      <button type="button">Contact the studio</button>
+    </div>
+  </section>
+
+  <div class="canary">
+    <b>Leak canary.</b> If any widget style escapes the shadow boundary, this box is where it shows first.
+    Its dashed border, its <code>13px</code> size and its muted green must stay exactly as they are.
+  </div>
+</main>
+
+<!-- CROSS-ORIGIN BY DESIGN: this page is served from one port, the widget from another. -->
+<script src="http://localhost:3001/barber-widget.js" defer></script>
+</body>
+</html>

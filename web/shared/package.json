@@ -6,7 +6,8 @@
   "description": "Code shared across the web front ends. TWO SUBPATHS WITH DIFFERENT RULES: './config' is SERVER/BUILD-TIME ONLY and must never reach a browser bundle (it carries a window tripwire and is the target of the 6c client-import lint gate); './chat' is BROWSER-SAFE BY DESIGN \u2014 the widget transport imported by both web/site and web/snippet, framework-free, no process.env, no Node built-ins. The old blanket 'server-only' wording was corrected in Phase 6b when './chat' was added: a package-wide claim that is false for one subpath is worse than none.",
   "exports": {
     "./config": "./src/config/loadConfig.ts",
-    "./chat": "./src/chat/chatClient.ts"
+    "./chat": "./src/chat/chatClient.ts",
+    "./config/types": "./src/config/client.config.types.ts"
   },
   "scripts": {
     "test": "node --test src/config/loadConfig.test.ts src/chat/chatClient.test.ts",
