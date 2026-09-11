@@ -16,6 +16,22 @@ OPEN ITEMS: <loose ends>
 NEXT: <the single next step>
 ```
 
+## ONE VERDICT per message, and it is the LAST thing in it
+**A message contains exactly ONE `## VERDICT` block, and nothing is written below it — not one line.**
+If the message covers several sub-units (an audit, then a fix round, then another audit, then a commit),
+the single VERDICT at the end covers all of them. Interim summaries are allowed and belong ABOVE it.
+
+**Why:** the block's entire value is that it is SCANNABLE — a reviewer jumps to the bottom and reads
+status in a fixed shape without re-deriving it from prose. The moment prose appears underneath, the
+reader has to hunt for the block, and a block you have to hunt for is not a fixed shape any more; it is
+just another paragraph. Two VERDICTs in one message are worse still: the reader cannot tell which one is
+the message's actual status.
+
+Trigger (2026-09-11, Phase 6b): the rule said "every step/phase report ends with the VERDICT block" and
+did NOT say "it is the last thing in the message". Rounds grew to cover several sub-units, a VERDICT got
+printed at the end of each one, and the narrative continued below them. Nothing in the old wording
+forbade it — which is why the wording, not the habit, is what changed here.
+
 **Hard rules:**
 - **"ready for review" = pushed.** Never call work "ready / awaiting approval" until it is committed AND
   pushed to its branch — Cowork verifies from git only and cannot see your working tree.

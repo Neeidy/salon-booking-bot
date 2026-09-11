@@ -41,8 +41,12 @@
   secrets AND customer PII** (pinned/test data: real phone numbers, names) before any commit.
 - **Critical-Review Targets (§9):** each must be **audited by a second tool (Codex)** before a phase is "done".
 - **Failures must be VISIBLE** (error branch / notify). Silent failure is forbidden.
-- **Definition of Done / phase:** built · tested (happy + edge) · cleaned · sanitized · README/case-study ·
-  (Loom if relevant) · pushed.
+- **Definition of Done / phase:** defined in **[.claude/rules/testing.md](.claude/rules/testing.md)**, which
+  is canonical. ⚠ *This line used to RESTATE the list, and on 2026-09-11 the restatement was measured to have
+  drifted in BOTH directions: it carried "(Loom if relevant)", which neither of the other two surfaces had,
+  and it lacked the resume-point-memory gate, which both of them had gained. `governance-sync.md` §1 says a
+  second copy always drifts, so the copy is gone and this names the rule instead. The Loom item was NOT
+  dropped in the process — it was carried into `testing.md`.*
 
 ## 2. Division of labor
 

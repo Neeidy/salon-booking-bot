@@ -3,7 +3,7 @@
 **A config-driven salon booking chatbot — one message in, a booked appointment or a captured lead out.**
 
 ![status](https://img.shields.io/badge/status-learning%20%2F%20demo%20build-orange)
-![phase](https://img.shields.io/badge/phase-2%20of%208%20(core%20bot)-blue)
+![phase](https://img.shields.io/badge/phase-6b%20done%20%E2%80%94%20embeddable%20widget-blue)
 ![engine](https://img.shields.io/badge/engine-n8n%20self--hosted-EA4B71)
 ![llm](https://img.shields.io/badge/LLM-Claude%20Haiku%204.5-8A63D2)
 ![license](https://img.shields.io/badge/license-MIT-green)

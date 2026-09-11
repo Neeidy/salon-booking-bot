@@ -331,6 +331,7 @@
   - ## The capability FACT: this machine HAS a browser, and it is Claude's to drive
 
 ### `.claude/rules/reporting.md`
+  - ## ONE VERDICT per message, and it is the LAST thing in it
   - ## Live-state sync is part of closing a phase (no drift)
   - ## A claim ABOUT a guard is written AFTER the mutation test, never beside the code
   - ## A STRUCTURAL claim needs evidence too, not just a behavioural one

@@ -41,7 +41,8 @@ L1 **Claude Code** (self-check) · L2 **repo agents** (`code-reviewer` · `qa-te
 - n8n: only `workflow.sanitized.json` is ever committed. Failures must be **VISIBLE** (error branch), never silent.
 
 ## Definition of Done (per phase)
-built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)** · README / case-study · pushed.
+built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)** · README / case-study · pushed ·
+**resume-point memory written AND read back** (a phase does not close without it — [.claude/rules/testing.md](.claude/rules/testing.md)).
 
 ## Rules & commands
 Modular rules in [.claude/rules/](.claude/rules/); slash commands in [.claude/commands/](.claude/commands/).

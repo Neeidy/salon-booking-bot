@@ -1215,6 +1215,8 @@ Each CP waits for its own written approval (plan-gate).
 
 ### 6b DEFINITION OF DONE — KALEM KALEM (testing.md)
 
+> ⚠ **Bu tablo 7 madde sayıyor; `testing.md` bugün 8 sayıyor.** 8.'si — *resume-point memory yazıldı VE geri okunarak doğrulandı* — `de4bada` ile eklendi, yani **6b kapanırken böyle bir madde yoktu**. Tablo bilerek GERİYE DÖNÜK DÜZELTİLMEMİŞTİR: kapanmış bir fazın kaydına sonradan madde eklemek, o fazın o maddeyi geçtiğini ima eder ve kaydı sahteleştirir (`masking-is-not-rewriting-history` ile aynı mantık). Fark burada, tarihiyle duruyor.
+
 | Madde | Durum | Dayanak |
 |---|---|---|
 | **built** | ✅ | snippet derleniyor; `check-all` exit 0; 32/32 test; content parity 169 node; live parity 191/191 · 274/274 |
