@@ -577,7 +577,138 @@ Each CP waits for its own written approval (plan-gate).
     site's own** privacy text still does not carry it, and that stays a gate on public deploy — we run
     Turnstile on the demo too.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
-  - ⚙ **NAMED, planned in 6b (2026-09-09) — the 6c lint gate MUST be SUBPATH-AWARE, not package-aware.**
+  - ◐ **CP 6c-0 — the precondition gate. Plan APPROVED 2026-09-11 · NOT CLOSED (see the open items below)** (full `/plan-flow` in chat, K-1…K-8
+    ruled, plus Yigitcan's additions E1-E4). **`scripts/check-client-imports.cjs`** is the build-time
+    server/client boundary the HARD GATE demanded: a **transitive import-graph walk** (not an ESLint rule —
+    `web/` has zero eslint configs and `no-restricted-imports` is per-file, while the hazard named here is
+    precisely the transitive one). Rules are written against the SUBPATH and enforced by resolved FILE PATH.
+    `--selftest` proves fail-ability — **47/47, RED in 36 cases (29 leak shapes + 7 coverage failures),
+    GREEN in 11** — with both the number and the noun derived from the cases that executed. It runs inside
+    `check-all` immediately BEFORE the gate; the bare invocation runs the gate alone.
+    - **FIVE rounds, and rounds 2, 3, 4 and 5 each found that THE FIX had opened or left a hole. That, not any
+      individual rule, is this CP's lesson.** Round 5 was authorised over budget by an explicit ruling —
+      *the stop rule exists to end a spiral, not to force shipping a known leak* — with the condition that
+      it was the last, and it was. Round 1: `code-reviewer` (19 mutants → 6 correctness + 6
+      clarity, one rule with **no fail-proof at all**) and `security-auditor` (8 constructed bypasses,
+      **6 passed GREEN**). Round 2 fixed those. Round 3's re-review found **seven NEW silent false negatives
+      created by those fixes**. Round 4's audit of the rule text demolished a security claim written in the
+      same round.
+    - ⚙ **RULING (Yigitcan, 2026-09-12) — the hand-rolled lexer was the DEFECT GENERATOR, so it was deleted.**
+      Three rounds produced three batches of holes, all one class: a module specifier blanked with the string
+      that held it · a regex literal containing a backtick eating the file to EOF · a DIVISION misread as a
+      regex deleting the rest of its line · a missing semicolon merging two statements so the real import was
+      discarded by the bound that detected the merge · a BOM costing a module its first import · a default
+      import bound to the name `type` called erasure (esbuild emits it) · a default binding beside an inline
+      type stopping the walk · `import()` inside a template literal invisible · **JSX prose firing the gate on
+      correct code**. Every one is a LEXING problem, and lexing JS/TS is a solved problem nobody should
+      re-solve by hand in a governance script. **`ts.createSourceFile()` answers all ten with no heuristics**
+      — measured before the rewrite; the JSX case simply does not appear in the AST and a computed specifier
+      arrives DISTINGUISHED rather than missed. The 38 selftest cases were the rewrite's safety net: **37
+      passed unchanged and exactly one changed — for the better** (`import()` in a template literal is now
+      RESOLVED instead of merely announced as a blind spot).
+      ⚠ **Declared deviation (`governance-sync.md` §5): `scripts/` pins `typescript@5.9.3`, a SECOND
+      TypeScript version, used only as a parser.** The ruling assumed TypeScript was already usable from the
+      dependency graph; it is in the graph, but `web/` pins **7.0.2**, the Go port — its npm package is a
+      wrapper (`lib/` holds only `tsc.js`, `getExePath.js`, `version.cjs`), the classic compiler API is
+      absent, and the AST it does expose sits behind an **`unstable/`** export. A governance gate must not
+      depend on an API its vendor labels unstable.
+      - ☐ **NAMED DEBT: this repo now carries TWO TypeScript versions** — `web/` 7.0.2 (typechecking the
+        apps) and `scripts/` 5.9.3 (parsing, pinned exact). It is contained by the workspace boundary:
+        `scripts/` is a separate package, the 5.9.3 copy never typechecks anything, and neither version
+        can silently become the other. It is still a debt, not a free lunch: two parsers can disagree
+        about what a file means, and the day `web/` moves to a TypeScript whose public API returns, this
+        pin should go. Recorded so it is a decision with an owner rather than a fact nobody remembers.
+    - ⚠ **OPEN, and more important than the gate — CRT #10b is LIVE and was found a checkpoint early.**
+      `web/site/app/page.tsx` passes the whole config object as a PROP to a client component, and Next
+      serialises client-component props into the RSC payload. Measured in the built `index.html`:
+      `googleCalendarId`, `channels.whatsapp.accountId`, `bot.killSwitch`, `bot.llmCostCapUsd` are in the
+      page source. **No live leak today** (the committed config is the `demoMode` mock, every value a
+      `REPLACE_WITH_…` placeholder) — but this is a **resold template**, and a client who fills that file in
+      publishes their own calendar and channel ids. **An import graph shows REACHABILITY, never DATA FLOW**,
+      so this gate cannot see it and its header says so instead of implying otherwise. Fix (pass a field
+      list, not the config object) belongs with the dashboard's masking boundary. → **6c-1**
+    - ☐ **The walk stops at genuinely third-party packages** (a workspace package symlinked into
+      node_modules IS followed). The count is printed every run so the boundary is visible. → named limit
+    - ⚠ **PROCESS:** during round 1 the tree was NOT stable — a reviewer's probe file `web/site/__probe_b.ts`
+      existed mid-audit and is **not gitignored**, so `git add -A` would have committed it. Drill fixtures
+      belong in the scratchpad; that is now in the brief given to every sub-agent.
+    - ✅ **`.env.example`: RULING — do not touch the deny glob** (Yigitcan, 2026-09-12). E4 measured the
+      precedence rather than assuming it: adding `Read(**/.env.example)` to the user `allow` did **not**
+      override the deny. Narrowing the deny means enumerating exceptions and the next `.env.staging` would be
+      born unprotected. The route to a committed file is `git show HEAD:<path>`, now written as a rule in
+      `.claude/rules/security-secrets.md` **with its bound** — and that rule's own first draft claimed an
+      uncommitted `.env` is "unreadable by every route", which measurement demolished (the matcher is
+      path-shaped; a differently-shaped path is not refused). The section now states the limit **without
+      recording a working bypass**, and carries the instruction it was missing: do not deliberately route
+      around a deny rule; if a legitimate read is blocked, report and stop.
+    - ✅ **`git stash -a` joined the gated list** (`irreversible-actions.md`): it reads as a save and is a
+      REMOVAL — here it takes `CLAUDE.local.md` (sole copy of the production host) and `web/site/.env.local`
+      out of the working tree. Same blast radius as `git clean -fdx`, none of its warning signs.
+    - Commit: `3542af4` (build.mjs freshness + rules + fresh-clone order). **The gate itself is NOT
+      committed** — `scripts/check-client-imports.cjs` is untracked, so this checkpoint is ◐, not ✅.
+      ⚠ *It was briefly written here as ✅ beside a literal `<hash-…>` placeholder. `reporting.md` forbids
+      exactly that: a real hash or no tick.*
+    - ✅ **R1 CLOSED (round 5) — the green-on-leak. `try { readFileSync } catch { continue; }` dropped a
+      whole subtree in silence.** The module RESOLVED, so the edge was real; only the READ failed, and the
+      gate printed OK. **Reproduced by hand before it was touched, on the REAL tree, both directions:**
+      the same chain readable → `exit 1` with the full chain printed; the mid-chain module at `chmod 000`
+      → **`exit 0`, "OK — no server-only module is reachable"**. Now both read sites record a blind spot
+      and fail. Fix verified in three states (unreadable → blind-spot report · readable → `banned-module`
+      · chain removed → exit 0). ⚠ *Producing the defect first was Yigitcan's condition, and it earned
+      its keep: the FIRST version of the pinned fixture put the unreadable module INSIDE the scanned
+      directory, where the root scan also opens every file — so it went RED through the wrong guard and
+      survived a mutant that disabled the walk guard entirely (44/44). Caught by this round's own mutation
+      run. Both halves now have their own case and their own dying mutant.*
+    - ☐ **A BUNDLE BYTE COUNT CONSTRAINS THE PRODUCTION HOST'S LENGTH — stop recording them
+      (BULGU-1, pre-push audit 2026-09-12).** `build.mjs` bakes the webhook URL into the bundle via
+      `define`, so the size tracks the URL length 1:1 (measured: +15 chars → +15 bytes). With the
+      scheme and path known, a recorded absolute size is an arithmetic constraint on the host — the
+      same reasoning that removed a `127` from `security-secrets.md` last round. ⚠ **Two such figures
+      are ALREADY public** in `a3e950e` (`build.mjs`), and masking is forward-only, so this cannot be
+      undone and is not being pretended away. What changes is forward: absolute bundle sizes are not
+      written into docs or comments again; a delta or a rebuild comparison says the same thing and
+      leaks nothing.
+    - ☐ **BULGU-3 → 6c-1 (pre-push audit, 2026-09-12). A SYMLINK defeats rule class A, exit 0.**
+      `resolveFileish` follows the link to prove the target exists but returns the LINK's path, while
+      `BANNED_FILES` is keyed by the real path: one inode, two strings, `Map.has()` misses. Measured
+      three ways (file symlink · directory symlink · hardlink), all reaching
+      `web/site/config.generated.json` from a client root with the gate printing OK. **It falsifies the
+      file's own central sentence** ("banned by resolved FILE PATH… a hand-written relative route is the
+      same offence") — that sentence now carries the hole beside it rather than being quietly wrong.
+      Latent, not live: zero tracked symlinks in this repo (`git ls-files -s`, mode 120000 → 0).
+      Fix is two lines (`fs.realpathSync` on both sides). ⚠ **NOT fixed because the round budget was
+      already spent and extended once by explicit ruling; it is the first item of 6c-1, not a
+      closed one.** *(`loadConfig.ts` via symlink does go red — but through `node-builtin`, by accident,
+      because that file imports `node:fs`. The payload JSON has no imports and nothing catches it.)*
+    - ☐ **BULGU-4 → 6c-1: a tsconfig `paths` alias in a WALKED-but-unscanned package is invisible.**
+      The alias detector reads only tsconfigs under `SCAN_ROOTS`; `web/shared` is walked and HOSTS the
+      banned module, and an alias declared there dropped the import into the third-party count with the
+      gate green. Latent (no `web/shared/tsconfig.json` today). The same alias in `web/site` correctly
+      fails.
+    - ☐ **R2 → 6c-1 (deferred by the round budget, NOT closed): `isClientEntry` reads only
+      `statements[0]`; Next walks the whole directive prologue.**
+      `'use strict'; 'use client';` is a client module to Next and not to this gate. No such file in the
+      tree today (grepped). Evidence is Next's JS-side parser, not the Rust RSC transform — stated as the
+      limit it is.
+    - ✅ **R3/R4/R5 CLOSED (round 5) — three advertised import forms had NO fail-proof.** Mutants deleting
+      the `export … from`, `import x = require()` and `new URL()` branches all left the suite green. Five
+      cases added (`export {x} from` · `export * from` · `export type {x} from` as the GREEN side ·
+      `import x = require()` · `new Worker(new URL(…))`), and **each is now killed by exactly its own
+      mutant** — 6 of 7 mutants die on the intended case, and the seventh is a named scope boundary, not
+      a gap: the suite exercises `analyse()`, so `main()`'s reporting/exit paths are covered by real-tree
+      drills instead. That boundary is printed by the suite itself rather than left to be discovered.
+    - ✅ **`sf.parseDiagnostics` `?? []` CLOSED (round 5).** It is an INTERNAL TypeScript field (absent
+      from the public `typescript.d.ts`), and defaulting it to `[]` meant a future upgrade that drops it
+      would make every unparseable file read as CLEAN — a silent blinding. It throws now, naming the
+      pinned version and what to do. Proven: removing the field crashes loudly instead of passing.
+    - ☐ **→ 6c-1 (deferred, NOT closed): eight selftest cases no longer discriminate anything.** K3 · K4 · K5 · #1 · #2 · #4 · division ·
+      multi-line were LEXER bugs; under the parser they all descend to the same single code path, and no
+      mutant kills them individually. They are useful as anti-revert sentinels and are **not** fail-proofs
+      any more — recorded so nobody counts them as coverage. (K3's own justification comment is stale for
+      the same reason: the default-binding rule is proven only by K2.)
+  - ✅ **CLOSED by CP 6c-0 — NAMED in 6b (2026-09-09): the 6c lint gate MUST be SUBPATH-AWARE.**
+    *Drilled both ways on the REAL tree: a client-component value import of `./config` exits 1 with the chain
+    printed; `./chat` stays green — which is what `LiveChatPanel` already does.*
     `@salon/shared` no longer has one rule: `./config` is server/build-time only (the secret-touching surface the
     gate exists for), while `./chat` is browser-safe BY DESIGN — it is the widget transport that `web/site` and
     `web/snippet` both import, and banning it from client components would be a false alarm on every widget build.
@@ -587,7 +718,7 @@ Each CP waits for its own written approval (plan-gate).
     drill it both ways — a client-component import of `./config` must go RED, and one of `./chat` must stay green.
     Recorded now so 6c does not discover it: the package description was scoped to subpaths in 6b, and a gate whose
     text and whose enforcement disagree is this project's signature defect.
-  **HARD GATE (security-auditor round 2, 2026-09-03):** the BUILD-TIME server/client boundary — a lint rule forbidding
+  **HARD GATE (security-auditor round 2, 2026-09-03) — ✅ SATISFIED by CP 6c-0, before any dashboard code exists:** the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in
   the acceptance criteria — **must land BEFORE 6c puts any dashboard / Airtable / PII code into `@salon/shared` or into any
   surface a client component imports.** Not a nice-to-have. Reason the 6a-1 `window` tripwire cannot cover it: it is a
@@ -1268,7 +1399,9 @@ Each CP waits for its own written approval (plan-gate).
   byte-diff yapmakla olur. Aynı sınır `config.generated.json` için zaten yazılıydı; artık bundle için de
   `build.mjs`'te adıyla duruyordu. **Kapatıldı:** `buildOptions()` tek yapılandırma hâline getirildi, `--check`
   geçici dizine yeniden derleyip **byte-diff** yapıyor. Üç yönde kanıtlandı: taze=OK · kaynak değişti,
-  bundle üretilmedi = `18278 B` vs `18326 B`, ilk fark byte 18272, exit 1 · bundle kurcalandı = exit 1.
+  bundle üretilmedi = 48 baytlık boyut farkı + ilk farklı byte, exit 1 · bundle kurcalandı = exit 1.
+  *(Mutlak boyut bilerek yazılmadı — bundle'a gömülü webhook URL'i yüzünden boyut host uzunluğunu 1:1
+  takip ediyor; bkz. BULGU-1.)*
   `config.generated.json`'ın aynı sınırı için bkz. hemen aşağıdaki ☐ madde.
 - ☐ **`config.generated.json`'ın TAZELİĞİ hâlâ ölçülmüyor.** Bundle'ınki kapandı, bunun ki kapanmadı: elle
   yazılmış ya da bayat bir `config.generated.json` tüm kapılardan geçer. ⚠ Bu satır kendi ☐'sini
@@ -1282,8 +1415,8 @@ Each CP waits for its own written approval (plan-gate).
   `scripts/node_modules`'den çözülüyor, repo kökünde `node_modules` yok — `security-auditor` yakaladı);
   düzeltilmiş ikinci sıra `no NEXT_PUBLIC_WEBHOOK_URL` ile öldü (değerler gitignore'lu
   `web/site/.env.local`'de) — **bunu hiçbir denetçi bulmadı, klonu koşarak build buldu.** Üçüncü sıra
-  çalışıyor; tazelik kapısı klonda da byte-identical doğruladı (18293 B — yerelden farklı, çünkü sahte
-  endpoint farklı uzunlukta, yani bundle gerçekten config'e göre pişiyor). ⚠ **Sonunda yine de `exit 2` var
+  çalışıyor; tazelik kapısı klonda da byte-identical doğruladı (boyut yerelden farklı çıktı, çünkü sahte
+  endpoint farklı uzunlukta — yani bundle gerçekten config'e göre pişiyor). ⚠ **Sonunda yine de `exit 2` var
   ve bu DOĞRU:** `check-no-host-leak.sh`, `CLAUDE.local.md` olmadan `NOT CONFIGURED` der — *"bu guard
   koşmadı"* demektir, *"temiz"* değil. Üçü de README'deki tabloda yazılı.
   ⚠ **Bilerek OTOMATİZE EDİLMEDİ:** build'i check'e zincirlemek, hemen önce derleyen bir tazelik
@@ -1312,7 +1445,7 @@ Each CP waits for its own written approval (plan-gate).
 | 1 | **Site paneli `reply.locked`'ı okumuyor** — kilit cümlesi sitede her mesajda yığılıyor (ölçüm: `grep -nE '\.locked'` → LiveChatPanel 0, snippet 1) | 6a'nın onaylı ekranlarına dokunur; 6c zaten site+dashboard yüzeyini açıyor |
 | 2 | **`.retry-note` token gelince bayatlıyor** | aynı frontend dosyası, aynı turda ucuz |
 | 3 | **`SCREEN-INVENTORY` §2.10.1'in kararlaştırdığı metinler ↔ koddaki `FRONTEND_TEXT` farklı** (W57/W58/W60) | hangi tarafın kazanacağı Yigitcan'ın kararı; 6c metin turu |
-| 4 | **6c lint kapısı SUBPATH-aware olmalı** (6b'de adlandırıldı) | 6c'nin kendi ön şartı |
+| 4 | ✅ **KAPANDI (CP 6c-0)** — 6c lint kapısı SUBPATH-aware olmalı | 6c'nin ön şartıydı; dashboard'ın tek satırı yazılmadan kapandı |
 
 **→ Faz 7'ye ait (motor / şema değişikliği gerektiriyor):**
 | # | Madde | Neden Faz 7 |

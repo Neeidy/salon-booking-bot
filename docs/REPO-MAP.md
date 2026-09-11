@@ -350,7 +350,7 @@
 ### `.claude/rules/security-secrets.md`
   - ## What the deny glob actually does — MEASURED, not assumed
   - ### ⚠ The deny layer is ANTI-ACCIDENT. It is NOT a boundary against a determined reader.
-  - ### The bound on `git show` — three conditions, all of them
+  - ### Reading a file out of git history — the bound
 
 ### `.claude/rules/spend-safety.md`
   - _(no `##` headings — flat file)_
@@ -742,6 +742,7 @@
   - ## Browser-visible build inputs (slice 2 — the live widget)
   - ## Commands
   - ### Fresh-clone order: BUILD, then CHECK (not the other way round)
+  - ### The build-time server/client boundary
   - ## Source of truth for what gets built
 
 ### `web/site/public/fonts/PROVENANCE.md`

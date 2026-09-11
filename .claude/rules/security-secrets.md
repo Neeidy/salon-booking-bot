@@ -37,7 +37,7 @@ the next `.env.staging` would be born unprotected. The risk of missing one real 
 of not being able to open one example file.
 
 **The correct route to a committed file is `git show HEAD:<path>`**. The deny rule protects a FILESYSTEM PATH, where a
-real `.env` with real values may sit; git holds only what was already committed.
+real `.env` with real values may sit. What git holds is what was PUT there — usually only what was committed, but `git stash -a` puts an uncommitted, ignored file in with one command, so "not in git" is a statement about today, not a property of the file.
 
 ### ⚠ The deny layer is ANTI-ACCIDENT. It is NOT a boundary against a determined reader.
 
@@ -55,7 +55,8 @@ any rule on a non-`git push` invocation — the Bash refusals come from the harn
 STRING, which is why a differently-shaped path walks past them.
 
 **Therefore: the file is the boundary, not this layer.** Secrets live in `.env` / n8n Credentials, mode
-**0600** (verified), and **never enter git**. Treat the deny glob as a guard against a careless `cat`, never
+**0600** (verified), and are **kept out of git** — a discipline, not a property of the files, per the
+`git stash -a` note below. Treat the deny glob as a guard against a careless `cat`, never
 as proof that a secret cannot be read.
 
 > **The instruction this section exists to give, and the only one:** **do not deliberately route around a

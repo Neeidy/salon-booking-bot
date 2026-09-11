@@ -119,6 +119,40 @@ rebuild is one — so "it never builds" is wrong. And the artefacts are **gitign
 untracked is the point, so "tracked build artefacts" inverts it. What it never does is **write the build
 artefacts**, which is why it cannot manufacture the outputs it is checking for.)*
 
+### The build-time server/client boundary
+
+```bash
+npm --prefix scripts run check-client-imports            # gate the tree
+npm --prefix scripts run check-client-imports:selftest   # prove it can still go red
+```
+
+`@salon/shared` exports three subpaths, **two of which have opposite rules**, so the gate is written against the SUBPATH and
+never the package name: `./config` is server/build-time only and may not be reachable from browser code;
+`./chat` is browser-safe by design and is imported by both `site` and `snippet`. A package-name rule would
+fail in both directions — blocking every legitimate widget build, or, relaxed to compensate, missing a real
+`./config` leak. Rules are enforced by resolved FILE PATH, so a hand-written relative route to the same
+module is the same offence.
+
+It walks the import graph **transitively** from every `'use client'` file plus the snippet entry (browser
+code with no directive — it had zero coverage until that was measured), reports the full chain, and FAILS
+rather than skipping whenever it cannot follow something: a computed specifier, an unresolvable relative
+import, an unreadable file, an unparseable file, or a `web/*` app nobody added to the scan list. A
+`tsconfig` path alias fails it only for a tsconfig under the scanned apps — **two known holes (a symlink
+around a banned file, and an alias declared in a walked-but-unscanned package) are open and recorded in
+`docs/ROADMAP.md`, not fixed.**
+
+**It uses the TypeScript parser, not pattern matching — and that was the expensive lesson.** Three earlier
+versions hand-rolled a scanner; three audit rounds each found a fresh batch of holes of ONE class — a regex
+literal eating the file, a division misread as a regex, a missing semicolon merging statements, a BOM, a
+default import bound to the name `type`, JSX prose firing on correct code. Those were LEXING problems and
+the parser removes the class entirely. ⚠ *Corrected 2026-09-12: this sentence first said "every one" of the
+audit findings was a lexing problem, and that is false. The same rounds also found resolution and coverage
+defects — a bare Node builtin filed as third-party, a workspace package behind a symlink, a payload JSON
+that was never banned, an unscanned app, a computed specifier, a JSONC trailing comma disabling a detector.
+That code is still hand-written and can still break. The parser closed one class, not all of them.* `scripts/` therefore pins `typescript@5.9.3` **as a parser only** — `web/` pins `7.0.2`, the Go
+port, whose npm package does not expose the classic compiler API and whose AST sits behind an `unstable/`
+export. Two versions, two jobs.
+
 > **Honest scope of `client.config.types.ts` today** — *corrected 2026-09-11; the previous wording
 > ("nothing compiles it yet — there is no `tsconfig.json`") described the tree before 6a-2 and had been
 > false ever since.* `web/site` has a `tsconfig.json` and its `check` script is `tsc --noEmit`, so the
