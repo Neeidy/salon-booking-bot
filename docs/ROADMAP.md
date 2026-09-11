@@ -577,7 +577,9 @@ Each CP waits for its own written approval (plan-gate).
     site's own** privacy text still does not carry it, and that stays a gate on public deploy — we run
     Turnstile on the demo too.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
-  - ◐ **CP 6c-0 — the precondition gate. Plan APPROVED 2026-09-11 · NOT CLOSED (see the open items below)** (full `/plan-flow` in chat, K-1…K-8
+  - ✅ **CP 6c-0 — the precondition gate. Plan APPROVED 2026-09-11 · CLOSED 2026-09-12 (`e9c2cac`, pushed)
+    — ⚠ closed WITH a known latent bypass in its own gate (BULGU-3, symlink): that gap is recorded as an
+    open item below and is NOT counted as closed** (full `/plan-flow` in chat, K-1…K-8
     ruled, plus Yigitcan's additions E1-E4). **`scripts/check-client-imports.cjs`** is the build-time
     server/client boundary the HARD GATE demanded: a **transitive import-graph walk** (not an ESLint rule —
     `web/` has zero eslint configs and `no-restricted-imports` is per-file, while the hazard named here is
@@ -644,10 +646,11 @@ Each CP waits for its own written approval (plan-gate).
     - ✅ **`git stash -a` joined the gated list** (`irreversible-actions.md`): it reads as a save and is a
       REMOVAL — here it takes `CLAUDE.local.md` (sole copy of the production host) and `web/site/.env.local`
       out of the working tree. Same blast radius as `git clean -fdx`, none of its warning signs.
-    - Commit: `3542af4` (build.mjs freshness + rules + fresh-clone order). **The gate itself is NOT
-      committed** — `scripts/check-client-imports.cjs` is untracked, so this checkpoint is ◐, not ✅.
-      ⚠ *It was briefly written here as ✅ beside a literal `<hash-…>` placeholder. `reporting.md` forbids
-      exactly that: a real hash or no tick.*
+    - Commits, both pushed and verified on GitHub: **`3542af4`** (build.mjs freshness + the deny-glob rule
+      + the fresh-clone order) and **`e9c2cac`** (the gate itself, `scripts/check-client-imports.cjs`,
+      + the `typescript@5.9.3` pin). ⚠ *An earlier draft of this line carried a ✅ beside a literal
+      `<hash-…>` placeholder while the file was still untracked. `reporting.md` forbids exactly that —
+      a real hash or no tick — and it was corrected before either push.*
     - ✅ **R1 CLOSED (round 5) — the green-on-leak. `try { readFileSync } catch { continue; }` dropped a
       whole subtree in silence.** The module RESOLVED, so the edge was real; only the READ failed, and the
       gate printed OK. **Reproduced by hand before it was touched, on the REAL tree, both directions:**
@@ -718,7 +721,10 @@ Each CP waits for its own written approval (plan-gate).
     drill it both ways — a client-component import of `./config` must go RED, and one of `./chat` must stay green.
     Recorded now so 6c does not discover it: the package description was scoped to subpaths in 6b, and a gate whose
     text and whose enforcement disagree is this project's signature defect.
-  **HARD GATE (security-auditor round 2, 2026-09-03) — ✅ SATISFIED by CP 6c-0, before any dashboard code exists:** the BUILD-TIME server/client boundary — a lint rule forbidding
+  **HARD GATE (security-auditor round 2, 2026-09-03) — ✅ SATISFIED by CP 6c-0 (`e9c2cac`), before any
+  dashboard code exists. ⚠ With one gap recorded INSIDE this tick: a symlink around a banned file still
+  passes (BULGU-3). It is latent — this repo has zero tracked symlinks — and it is the first item of 6c-1;
+  eksiklik olarak kaydedilmiştir, kapatılmış sayılmamaktadır.** The gate is: the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in
   the acceptance criteria — **must land BEFORE 6c puts any dashboard / Airtable / PII code into `@salon/shared` or into any
   surface a client component imports.** Not a nice-to-have. Reason the 6a-1 `window` tripwire cannot cover it: it is a

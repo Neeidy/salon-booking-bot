@@ -138,6 +138,7 @@
 ### scripts
 
 - `scripts/check-cancel-validation-parity.py`
+- `scripts/check-client-imports.cjs`
 - `scripts/check-computed-reply-coverage.py`
 - `scripts/check-config-schema.cjs`
 - `scripts/check-content-parity.py`
