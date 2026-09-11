@@ -71,8 +71,11 @@ export default function InstallPage() {
               and the widget&apos;s cannot leak out.</li>
           <li>Adds <strong>up to two stylesheets</strong> to <code>&lt;head&gt;</code>, declaring one font face
               each — the second only if a visitor actually opens the panel. Web fonts cannot be declared inside
-              an isolated component, so these cannot live with the rest. Both are named so they can never
-              replace a font your own site uses.</li>
+              an isolated component, so these cannot live with the rest. Both families are namespaced
+              (<code>BarberWidget Fraunces</code>, <code>BarberWidget Sans</code>), so they cannot collide with
+              the families a site normally declares &mdash; an un-namespaced <code>Fraunces</code> would have
+              replaced yours. <em>The honest limit:</em> a page that declares a family under our exact
+              namespaced name would still collide. Unlikely, not impossible.</li>
           <li>Loads <strong>one script from Cloudflare</strong> (<code>challenges.cloudflare.com</code>), which
               is the bot check described below. It is the only third-party code involved.</li>
           <li>Stores <strong>one key in <code>sessionStorage</code></strong> &mdash; the conversation id, so the
@@ -84,8 +87,18 @@ export default function InstallPage() {
               script defines), used to avoid loading the bot check twice.</li>
           <li>Listens for the <kbd>Esc</kbd> key while the panel is open, so a visitor can close it. The key
               still reaches your page exactly as it did before.</li>
-          <li>That is the whole list. No cookies of ours, no analytics, and it never reads your page&apos;s
-              content.</li>
+          <li>Listens once for <strong><code>DOMContentLoaded</code></strong>, and <em>only</em> if the tag was
+              placed where <code>&lt;body&gt;</code> does not exist yet (in <code>&lt;head&gt;</code> without
+              <code>defer</code>). With the recommended line this listener is never added.</li>
+          <li><strong>Hides your fallback element</strong>, if you added one &mdash; see below. Nothing else on
+              your page is touched, and if you did not add it this does nothing.</li>
+          <li>That is the whole list. No cookies of ours, no analytics.
+              <strong>What it reads:</strong> to place itself it looks at its own <code>&lt;script&gt;</code>
+              tag (to learn which origin to load fonts from), at its own container id, at its own injected
+              stylesheets, and at the fallback element id above. It does <strong>not</strong> read your
+              content &mdash; no text, no forms, no input values, no cookies, no storage of yours.
+              &ldquo;Does not read your content&rdquo; is the accurate claim; &ldquo;does not read your
+              page&rdquo; would not be, and used to be what this line said.</li>
         </ul>
 
         <h2>Privacy — one thing you must add</h2>
@@ -106,8 +119,22 @@ export default function InstallPage() {
           <li><strong>A <code>transform</code> or <code>filter</code> on your <code>&lt;body&gt;</code></strong>{' '}
               changes how fixed positioning works in every browser, which moves the launcher. This affects every
               floating widget, not only this one. If your theme does that, tell us and we will place it differently.</li>
-          <li><strong>A strict Content-Security-Policy</strong> on your site will block the script until you allow
-              our origin and <code>challenges.cloudflare.com</code>.</li>
+          <li><strong>Content-Security-Policy &mdash; per directive, not just &ldquo;allow our origin&rdquo;.</strong>
+              If your site sends a CSP, every row below has to permit the widget or it fails, and some rows fail
+              silently:
+            <table>
+              <thead><tr><th>Directive</th><th>Needs</th><th>If missing</th></tr></thead>
+              <tbody>
+                <tr><td><code>script-src</code></td><td>our origin + <code>https://challenges.cloudflare.com</code></td><td>nothing loads at all &mdash; this is the case the fallback below is for</td></tr>
+                <tr><td><code>style-src</code></td><td><code>&apos;unsafe-inline&apos;</code></td><td>the widget renders unstyled. Its stylesheet is injected inline, inside the component. <strong>There is no nonce support</strong>, so <code>style-src &apos;none&apos;</code> or a nonce-only policy is incompatible today &mdash; a known limit, not a setting</td></tr>
+                <tr><td><code>font-src</code></td><td>our origin</td><td>text falls back to a system serif/sans; the widget still works</td></tr>
+                <tr><td><code>connect-src</code></td><td>our booking endpoint + <code>https://challenges.cloudflare.com</code></td><td>messages cannot be sent; the visitor sees a transport error</td></tr>
+                <tr><td><code>frame-src</code></td><td><code>https://challenges.cloudflare.com</code></td><td>the bot check cannot draw, so the composer never unlocks</td></tr>
+              </tbody>
+            </table>
+            <strong>Trusted Types are not supported.</strong> A page enforcing
+            <code>require-trusted-types-for &apos;script&apos;</code> will break the widget: it assigns markup
+            through <code>innerHTML</code> inside its own component. Named here rather than discovered.</li>
           <li><strong>Your own CSS can still move or hide the container.</strong> The isolation protects what is
               INSIDE the widget; a rule of yours that targets the container element itself still applies to it,
               by design of the web platform. That is a way to reposition it deliberately — and a thing to check
@@ -115,6 +142,21 @@ export default function InstallPage() {
           <li><strong>Fonts are served from our origin.</strong> If that is blocked, the widget renders in system
               fonts and keeps working — a blocked font never takes the chat down.</li>
         </ul>
+
+        <h2>Add a fallback &mdash; five lines, and worth them</h2>
+        <p>
+          If the script never loads &mdash; an ad blocker, a network hiccup, a CSP rule &mdash; nothing of ours
+          runs, so nothing of ours can tell anybody. A visitor just finds no way to reach you. Give the page a
+          plain-HTML way through and the widget will hide it the moment it is really on screen:
+        </p>
+        <pre><code>{`<div id="barber-widget-fallback">
+  <a href="tel:+43 1 000 0000">Call us</a> · <a href="/contact">Contact</a>
+</div>
+<script src="https://<our-origin>/barber-widget.js" defer></script>`}</code></pre>
+        <p>
+          The id is the whole contract. It needs no JavaScript, so it survives exactly the failures the widget
+          cannot report, and it costs a visitor nothing when everything works.
+        </p>
 
         <h2>What your visitors see</h2>
         <p>

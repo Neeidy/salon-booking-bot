@@ -6,13 +6,20 @@
  * ISOLATION CONTRACT (architecture recorded in ARCH-DEC §5, 2026-09-02; proven in the 6b spike):
  *   · Shadow DOM (open) + `:host{all:initial}` — the boundary blocks the host's selectors, `all:initial`
  *     cuts the inherited properties selectors cannot reach.
- *   · The only element added to the host DOM is the shadow host itself. Everything else the widget puts on
- *     the page is enumerated in ARCH-DEC §5 (2026-09-10) and told to clients on /install — it is NOT one
- *     item: two <style> elements (one font face each, the second deferred to first open, because
- *     @font-face cannot live inside a shadow root), Cloudflare's Turnstile <script>, a document-level
- *     Escape listener while the panel is open, one window global guarding a double script load, and one
- *     sessionStorage key. An earlier version of this comment said "ONE documented exception" and was
- *     wrong — a list is only honest when it is complete (security-auditor, 2026-09-10).
+ *   · WHAT THIS PUTS ON THE HOST PAGE — the complete list, kept in step with ARCH-DEC §5 and /install.
+ *     Two <style> elements (one font face each, the second deferred to first open, because @font-face
+ *     cannot live inside a shadow root) · Cloudflare's Turnstile <script> · a document-level Escape
+ *     listener while the panel is open · one window global guarding a double script load · one
+ *     sessionStorage key · a ONE-SHOT `DOMContentLoaded` listener, added only when the tag sits where
+ *     document.body does not exist yet · and, if the client opted in, the `#barber-widget-fallback`
+ *     element is hidden on mount. The list has been wrong twice: it once said "ONE documented
+ *     exception" (security-auditor, 2026-09-10) and it later omitted the DOMContentLoaded listener and
+ *     the fallback (Codex CRT #13, finding 3). A list is only honest when it is complete.
+ *   · WHAT THIS READS FROM THE HOST PAGE, because "it never reads your page" was also wrong: its own
+ *     <script> tag (via `document.currentScript`, falling back to a `script[src*="barber-widget"]`
+ *     query) to learn its own origin, its own container id, its own injected <style> markers, and the
+ *     fallback id above. It does NOT read the page's CONTENT — no text, no forms, no input values, no
+ *     cookies, no storage of the host's. That narrower sentence is the true one.
  *   · Known limit, inherited by every overlay widget including iframe-based ones: a `transform` or
  *     `filter` on the host's <body> turns position:fixed into position:absolute-in-body.
  *
@@ -35,6 +42,17 @@ declare const __WEBHOOK_URL__: string;
 declare const __TURNSTILE_SITE_KEY__: string;
 
 const HOST_ID = 'barber-widget-root';
+/**
+ * An element the CLIENT puts on their own page, which this widget hides once it has actually mounted.
+ *
+ * It closes the commonest member of the silent-death class: if the script never loads — an ad blocker,
+ * a network failure, a CSP that forbids our origin — nothing runs, so nothing can report it, and the
+ * visitor simply sees no way to reach the shop. A widget that fails invisibly takes the bookings down
+ * invisibly. The fallback is the client's own contact route (a phone link, an address, a contact page),
+ * it is plain HTML that needs no JavaScript, and it disappears the moment the real thing is on screen.
+ * Opt-in by construction: if the client did not add the element, this is a no-op.
+ */
+const FALLBACK_ID = 'barber-widget-fallback';
 
 (function main() {
   // Capture our own <script> FIRST: `document.currentScript` is only meaningful while this file is
@@ -103,6 +121,11 @@ function boot(selfSrc: string | null) {
   const slot = root.querySelector<HTMLElement>('[data-slot]')!;
   const input = root.querySelector<HTMLInputElement>('[data-input]')!;
   const sendBtn = root.querySelector<HTMLButtonElement>('[data-send]')!;
+
+  // The widget is genuinely on screen now (the lookups above would have thrown otherwise), so the
+  // client's no-JS fallback has done its job and can step aside. NAMED HOST-DOCUMENT TOUCH — it is in
+  // the inventory: conditional, opt-in, and it only ever hides an element the client chose to add.
+  document.getElementById(FALLBACK_ID)?.setAttribute('hidden', '');
 
   const sessionId = getSessionId();
   let sending = false;

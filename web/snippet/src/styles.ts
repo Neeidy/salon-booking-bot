@@ -17,12 +17,24 @@ import { FONT_DISPLAY, FONT_UI } from './fonts';
 
 export const STYLES = `
 :host{all:initial}
+/* RTL. \`all:initial\` already resets \`direction\` on the host, but it is restated here because that
+   reset is a side effect of a blanket rule: a future edit to that one line would silently take the
+   widget's writing direction with it. \`unicode-bidi:isolate\` is the part \`all:initial\` does NOT give.
+   The LAYOUT is LTR, but the TEXT inside a bubble may be Arabic or Hebrew — a customer's name, their own
+   message echoed back by the engine. Without isolation an RTL run reorders the neutral characters beside
+   it and the timestamp jumps to the wrong end of its own bubble. Repeated on .msg because that is where
+   engine and customer text actually lands (Codex CRT #13, finding 6). */
+:host{direction:ltr;unicode-bidi:isolate}
 :host{--cream:#F1EEE6;--ink:#16150F;--oxide:#B4472E;--oxide-soft:#D98B66;--muted:#5C594E;--stamp:#C9C4B4;
 --frame:rgba(22,21,15,.35);--edge:rgba(22,21,15,.25);--ease:cubic-bezier(.22,.61,.36,1);
 --font-display:${FONT_DISPLAY};--font-ui:${FONT_UI}}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
-/* z-index: the classic overlay ceiling, so an ambitious host header cannot cover the launcher. */
+/* z-index 2147483000 — high enough to clear the stacking values sites actually use (9999, 99999, and the
+   999999 a cookie banner reaches for), and deliberately BELOW the true ceiling so a host that genuinely
+   needs to sit on top still can. ⚠ The old comment said "an ambitious host header CANNOT cover the
+   launcher" and that is false: 2147483647 covers it, and so does any positioned ancestor that creates a
+   stacking context above us (Codex CRT #13, finding 10). What is true is that ordinary host values do not. */
 .launcher{position:fixed;right:26px;bottom:24px;z-index:2147483000;display:inline-flex;align-items:center;gap:10px;
 background:var(--ink);color:var(--cream);border:none;cursor:pointer;border-radius:999px;
 font-family:var(--font-ui);font-size:14.5px;font-weight:600;padding:14px 24px;
@@ -45,6 +57,7 @@ font-family:var(--font-ui);font-size:16px;line-height:1.6;color:var(--ink);-webk
 .panel-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--frame)}
 .panel-avatar{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--cream);display:flex;
 align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600;font-size:14px;flex-shrink:0}
+.msg{unicode-bidi:isolate}
 .panel-id{line-height:1.35;flex:1;min-width:0}
 .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
 .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}

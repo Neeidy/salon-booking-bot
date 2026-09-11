@@ -116,7 +116,30 @@ const baked = {
 };
 
 if (CHECK_ONLY) {
-  console.log(`snippet check: OK — business="${baked.business.name}", demoMode=${baked.demoMode}, path="${parsed.pathname}"`);
+  // ⚠ The check used to validate the INPUTS and then report OK, which made it possible for the gate to
+  // pass while the product did not exist: `public/barber-widget.js` is a gitignored build artefact, so a
+  // tree that had never run the build reported a healthy snippet and shipped a 404 (Codex CRT #13,
+  // finding 4). A check that cannot see the absence of its own output is not checking the thing anyone
+  // cares about. It now requires the bundle, and a plausible one.
+  if (!existsSync(OUTFILE)) {
+    fail('the bundle web/site/public/barber-widget.js does not exist.\n'
+      + '  --check validates the config and the endpoint, but the deployable artefact is the BUNDLE, and a\n'
+      + '  gate that reports OK without it lets a site ship whose one-line embed 404s.\n'
+      + '  Run `npm run build -w @salon/snippet --prefix web` (the site\'s prebuild does this too).');
+  }
+  // ⚠ KNOWN LIMIT, named so it is not rediscovered: this asks "does a plausible bundle EXIST", never
+  // "is it the build of the CURRENT source". Measured during the CRT #13 pre-push audit: the file on
+  // disk was 17840 B while the committed source produced 18278 B, and this check still said OK. The same
+  // limitation is already stated above for config.generated.json — there is no provenance stamp and no
+  // freshness check on either. Closing it means building to a temp dir and byte-diffing; that is a named
+  // open item, not something this gate does today.
+  const size = statSync(OUTFILE).size;
+  if (size < 4096) {
+    fail(`the bundle exists but is only ${size} B — too small to be a real build.\n`
+      + '  A truncated or placeholder file passes an existence check and fails a visitor.');
+  }
+  console.log(`snippet check: OK — business="${baked.business.name}", demoMode=${baked.demoMode}, `
+    + `path="${parsed.pathname}", bundle=${size} B`);
   process.exit(0);
 }
 

@@ -1219,11 +1219,63 @@ Each CP waits for its own written approval (plan-gate).
 |---|---|---|
 | **built** | ✅ | snippet derleniyor; `check-all` exit 0; 32/32 test; content parity 169 node; live parity 191/191 · 274/274 |
 | **tested** (happy + key edge) | ✅ **`7d2c118` bundle'ında** | Headless: ISO-9…12 · HEAD-1/2 · STUCK-1…6 (5 eksen + pozitif kontrol) · EDGE-502 · RETRY-0 · ISO-12. **E2E-1/2/3 + temizlik güncel bundle'da, sütundan doğrulandı.** Tik'in ait olduğu artefakt yazılıdır |
-| **Critical-Review (#13)** | ☐ | Kayıt satırı ARCH-DEC §7'de; Codex turu **E2E'den SONRA**, denetim aralığı kapanış hash'ine kadar |
+| **Critical-Review (#13)** | ✅ **BOŞLUK TİK'İN İÇİNDE** | **#13 denetlendi ✅ — R1 sınıfı açık bulgu (açık Shadow DOM bir güvenlik sınırı DEĞİLDİR; widget host sayfadaki her script'e görünür, tek çözüm cross-origin iframe ve o onaylı NOT-build listesinde) KABUL EDİLMİŞ, KAYITLI ve mimari gerekçesi yazılı — onarılmadı.** Yalan iddia yarısı (bulgu 2,3,4,6,8,10) düzeltildi ve iki yönde drill edildi; bulgu 1,5,7,9 adlandırılmış madde. **İkinci Codex turu YOK.** |
 | **cleaned** | ✅ | Ölçüldü: yorum-satırı kod 0 · TODO/FIXME 0 · 5 export'un 5'i kullanılıyor · `FRONTEND_TEXT`'in 8 anahtarının 8'i referanslı (ölü anahtar yok) |
-| **sanitized** | ✅ | `security-auditor` dört ayrı ağaçta PASS; host-leak guard negatif kontrolle kırmızıya döndürüldü; `drill.invalid` dört yüzeyde sıfır; bundle'ın gerçek build olduğu taze build'le byte-byte diff'le kanıtlandı. **`/sanitize` koşulmadı ve gerekmedi** — `n8n/` bu fazın hiçbir turunda değişmedi |
+| **sanitized** | ✅ | `security-auditor` dört ayrı ağaçta PASS; host-leak guard negatif kontrolle kırmızıya döndürüldü; `drill.invalid` dört yüzeyde sıfır; bundle'ın gerçek build olduğu, o turda taze build'le byte-byte diff'le kanıtlandı ⚠ *(o kanıt O ANA aittir: `--check` bundle'ın TAZELİĞİNİ görmez — CRT #13 push kapısında ölçüldü ki diskteki dosya 17.840 B iken commit'teki kaynak 18.278 B üretiyordu ve kapı yine OK dedi; sınır artık `build.mjs`'te adıyla yazılı)*. **`/sanitize` koşulmadı ve gerekmedi** — `n8n/` bu fazın hiçbir turunda değişmedi |
 | **README / case-study** | ✅ | README §"Case study — the embeddable widget (Phase 6b)": beş host-dokunuşunun tam listesi + **bilerek yapılmayanlar tablosu** (honesty-demos) |
 | **pushed** | ✅ | `8eccdb8` → `32cfd4c` → `4fc04cb` → `97564b9` → `7d2c118`, hepsi GitHub'da doğrulandı; kapanış commit'i bu satırın altında |
+
+- ✅ **CRT #13 — Codex denetimi, TEK ve DAR tur (2026-09-11).** En değerli iki bulgu doküman değil ÜRÜNDÜ:
+  **(4) snippet dağıtımda hiç derlenmiyordu** — `public/barber-widget.js` gitignored bir build artefaktı ve
+  site build'i onu üretmiyordu, yani taze bir deployment tek-satır gömmesi 404 veren bir site sevk ediyordu;
+  üstelik `--check` bundle hiç yokken bile exit 0 veriyordu. Template'in TEK vaadi "config + build → çalışan
+  kurulum" ve vaat tutmuyordu. İkisi de iki yönde drill edildi (eski prebuild → bundle YOK · yeni → var ·
+  `--check` bundle silinince 1, geri gelince 0, 100 B'ye kırpılınca 1). **(2b) sessiz ölümün en yaygın hâli**
+  — script hiç yüklenmezse ziyaretçi hiçbir şey görmüyordu → opt-in `#barber-widget-fallback`, mount'ta
+  gizleniyor, yüklenmezse kalıyor (iki yönde ölçüldü). Ayrıca: CSP direktif matrisi + Trusted Types
+  DESTEKLENMİYOR beyanı · RTL (`direction:ltr` + `unicode-bidi:isolate`, LTR/RTL fixture) · font guard artık
+  KÜME EŞİTLİĞİ zorluyor (kayıtsız `.woff2` ile kırmızıya döndürüldü) · host-touch envanteri dört yüzeyde
+  tamamlandı ve "sayfanı hiç okumaz" iddiası daraltıldı · dört bayat/aşırı cümle geri çekildi.
+- ⊘ **Bulgu 1 — açık Shadow DOM bir güvenlik sınırı DEĞİLDİR. KABUL EDİLDİ, düzeltilmeyecek.**
+  Shadow DOM stil kapsüllemesidir; widget içeriği host sayfadaki **her** script'e görünür — müşterinin kendi
+  analytics'i dahil. Evrensel ve belgeli tarayıcı davranışı. Host script'lerinden izolasyon gerektiren bir
+  tehdit modeli için **tek** çözüm cross-origin iframe mimarisidir ve v1'de **gerekçeli olarak
+  yapılmamıştır** (NOT-build listesi: viewport kontrolü, pointer-events, postMessage köprüsü; ayrıca 6b
+  spike'ı Turnstile'ın shadow root içinde çizilip çözülebildiğini kanıtlayarak son gerekçesini de emekliye
+  ayırdı). **Tehdit modeli bunu gerektiren bir müşteri bu widget'ı gömmemelidir** — README case-study'sinde,
+  `/install`'da ve ARCH-DEC'te yazılı. Ürünün sınırı, gizlenecek bir şey değil.
+- ☐ **Bulgu 5 — drill'ler bir REGRESYON HARNESS'İ DEĞİL; iddia geri çekildi.** Her satır, adı yazılı bir
+  bundle üzerinde alınmış **tek seferlik manuel ölçümdür**; hiçbiri bir değişiklikte yeniden koşmuyor, yani
+  bir sonraki düzenleme herhangi birini bozabilir ve bütün kapılar yeşil kalır. Çalıştırılabilir tarayıcı
+  harness'i → **6c / Faz 7**.
+- ☐ **Bulgu 7 — çift-ekleme guard'ının kenar vakaları**: guard tek bir eleman id'sine bakıyor; host sayfanın
+  o id'yi zaten kullanması ya da yarıda kalan bir mount sınanmadı → **6c**.
+- ⊘ **Bulgu 9 — Cloudflare Turnstile script'i SRI'sız ve sürümsüz: AÇIK TEDARİK ZİNCİRİ İSTİSNASI.**
+  Cloudflare pinlenebilir, integrity-hash'li bir dağıtım yayımlamıyor, dolayısıyla bu çözülmemiş bir madde
+  değil, **kabul edilmiş bir istisnadır**. Tek üçüncü-taraf script ve varlık sebebi üçüncü-taraf olmak.
+- ⊘ **Trusted Types ve `style-src 'none'` / nonce-only CSP uyumsuzluğu — BİLİNEN SINIR.** Widget stil
+  sayfasını inline enjekte ediyor ve kendi bileşeni içinde `innerHTML` kullanıyor. `/install`'da direktif
+  matrisiyle birlikte yazılı; düzeltilmeyecek.
+- ☐ **Font guard yukarı-akış blob karşılaştırması** — bugünkü guard "diskteki baytlar KAYDETTİĞİMİZ
+  baytlar mı" sorusunu cevaplıyor ve kayıtsız dosyayı yakalıyor; ama font ile checksum'ın BİRLİKTE
+  değiştirilmesi hâlâ geçiyor. Yazarın deposundaki blob'la karşılaştırma → adlandırılmış madde.
+
+- ☐ **`--check` bundle'ın TAZELİĞİNİ göremiyor** (`security-auditor` F3, 2026-09-11). Kapı "makul bir bundle
+  VAR MI" sorusunu cevaplıyor, "bu, GÜNCEL kaynağın ürettiği bundle mı" sorusunu değil — denetim anında
+  ölçüldü: diskte 17.840 B, commit'teki kaynaktan 18.278 B, kapı yine OK. Kapatması geçici dizine build alıp
+  byte-diff yapmakla olur. Aynı sınır `config.generated.json` için zaten yazılıydı; artık bundle için de
+  `build.mjs`'te adıyla duruyor. → **6c**
+- ☐ **`check-all` artık derlenmiş bir bundle olmadan KIRMIZI** (F4). Kapının bütün amacı bu, ama taze bir
+  clone'da sıra "önce build, sonra check" olmak zorunda — CI/onboarding sırası yazılı olmalı. → **6c**
+- ☐ **`styles.ts`'teki `--ink`/`--oxide` değerleri `config.branding` ile birebir aynı ama koddan hardcoded**
+  (F7). Bundle'a CSS'ten giriyor, config'ten değil → `contract-integrity.md` anlamında ikinci bir doğruluk
+  kaynağı. Bugün sürüklenmiş değil, ama sürüklenirse sessiz sürüklenir. → **Faz 7**
+- ☐ **`esc()` tek tırnağı escape etmiyor** (F6). Bugün güvenli — tüm attribute'lar çift tırnaklı ve değerler
+  build-time — ama tek tırnaklı bir attribute eklenirse sessizce kırılır. → **6c**
+- ⊘ **Font guard'ın yukarı-akış blob karşılaştırması** — bugünkü guard artık `public/` altındaki her
+  `.woff2/.woff/.ttf/.otf`'u küme eşitliğiyle yakalıyor (dört sessiz geçiş yolu kapatıldı ve dördü de
+  kırmızıya döndürülerek kanıtlandı), ama font ile checksum'ın BİRLİKTE değiştirilmesi hâlâ geçiyor. Yazarın
+  deposundaki blob'la karşılaştırma → adlandırılmış madde, kapsam dışı.
 
 ### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
 

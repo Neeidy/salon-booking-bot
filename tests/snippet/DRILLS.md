@@ -1,8 +1,18 @@
 # Snippet drills — the run sheet
 
-Every drill states what MUST run and what MUST NOT, and every result is read from the Airtable column,
-never from the screen. The screen is evidence of RENDERING; the column is evidence of BEHAVIOUR, and this
-project has been burned by confusing the two.
+Every drill states what MUST run and what MUST NOT. **Where a drill has an engine-side consequence, the
+result is read from the Airtable column or the execution, never from the screen** — the screen is evidence
+of RENDERING, the column is evidence of BEHAVIOUR, and this project has been burned by confusing the two.
+
+⚠ **Two corrections to this header, both from Codex CRT #13.** (1) It used to say *every* result is read
+from Airtable. That is false and could not be otherwise: the isolation, layout, listener, RTL and
+fallback drills have no engine side at all — they ARE screen and DOM measurements, and reading them from a
+column would be impossible. The rule is about the drills that touch the engine. (2) **These drills are not
+a regression harness and must not be cited as one.** Every row below is a ONE-OFF MANUAL MEASUREMENT taken
+on a named bundle; nothing here re-runs on a change, and a future edit can break any of them with every
+gate still green. An executable browser harness is a named open item (6c / Phase 7), and until it exists
+"this is drilled" means "it was true once, on that build" — which is exactly why each row now carries the
+artefact it was measured on.
 
 **Setup, both servers, two ORIGINS on purpose** (a client's site is never our origin):
 
@@ -29,7 +39,7 @@ A fresh TAB is a fresh conversation: the session id lives in `sessionStorage`.
 | **ISO-11** | Mobile, 390 px | narrow the window / device toolbar to 390 | panel becomes a bottom sheet; **zero horizontal overflow on the HOST page** | — | the host page scrolling sideways |
 | **A11Y** | Keyboard only | Tab to the launcher, Enter, Tab through the panel, **Esc** | Esc closes; focus returns to the launcher; the composer is reachable by Tab | — | focus trapped or lost to the page behind |
 | **ERR-1** | Engine unreachable | stop the network / block the webhook host, then send | a **visible** message — the transport speaking, not the shop's voice | frontend error path | a silent failure or a dead composer |
-| **ERR-2** | Turnstile blocked | block `challenges.cloudflare.com`, reload | composer stays disabled with *"Verification didn't load — reload the page"* | — | a composer that accepts text it cannot send |
+| **ERR-2** | Turnstile blocked | block `challenges.cloudflare.com`, reload | composer stays disabled with *"Couldn't verify this browser — reload to try again"* | — | a composer that accepts text it cannot send |
 
 ## Who runs what — the dividing question is whether a REAL TURNSTILE TOKEN is needed
 
@@ -52,7 +62,7 @@ turns for nothing (`.claude/rules/remote-operator.md`).
 | The host page still receives Escape | **PASS** — its own handler fired exactly once with `defaultPrevented === false`; we never swallow the event. ⚠ The first version of this probe measured NOTHING (the key was pressed after the listener had been removed) and returned 0; re-run correctly |
 | Display font deferred to first open | **PASS** — before open only the UI face is requested; on open both; re-opening does not re-inject. Swap measured at 6 ms / 2.12 px locally (**localhost, not a real network**) |
 | **ERR-1** engine unreachable | **PASS — drilled by accident during the E2E run (2026-09-10), and the result is recorded HERE as well as in ROADMAP §6b.** The timeout rendered as a `system` bubble (dashed, muted, centred) carrying `FRONTEND_TEXT.timeout` verbatim, NOT dressed in the shop's voice — the transport speaking as itself |
-| **ERR-2** Turnstile blocked | **PASS — first measured 2026-09-11 by `qa-tester` (L2), not by the build.** `challenges.cloudflare.com` blocked at the browser (CDP request-block), then the panel opened: composer disabled, send disabled, placeholder exactly *"Verification didn't load — reload the page"*; typing + Send + Enter produced **zero** new bubbles and **zero** webhook POSTs. Reproduced on BOTH the current tree and a bundle built from `8eccdb8`. ⚠ Until that date this drill had **no result line anywhere** — nine PASSes were listed and two drills silently vanished from the sheet; the gap was in the RECORD, not in the behaviour |
+| **ERR-2** Turnstile blocked | **PASS — first measured 2026-09-11 by `qa-tester` (L2), not by the build.** `challenges.cloudflare.com` blocked at the browser (CDP request-block), then the panel opened: composer disabled, send disabled, placeholder exactly *"Verification didn't load — reload the page"* — ⚠ **that was the shipped wording on the day this was measured; the text changed on 2026-09-11** to *"Couldn't verify this browser — reload to try again"* because the old one was false for a challenge that LOADED and then refused (measured with Cloudflare's always-block test key). The drill's behaviour is unchanged; its quoted string was stale (Codex CRT #13, finding 10); typing + Send + Enter produced **zero** new bubbles and **zero** webhook POSTs. Reproduced on BOTH the current tree and a bundle built from `8eccdb8`. ⚠ Until that date this drill had **no result line anywhere** — nine PASSes were listed and two drills silently vanished from the sheet; the gap was in the RECORD, not in the behaviour |
 | **HEAD-1** script in `<head>` with no `defer` | **FIXED 2026-09-11 — drilled RED then GREEN.** Before: no widget at all and an `Uncaught TypeError: Cannot read properties of null (reading 'appendChild')`, which on a client's site surfaces as a cross-origin *"Script error."* with no cause. `document.body` does not exist yet there. After: `widgetPresent:true`, one host div, one launcher, **0 exceptions**. `/install` gives the right line; where someone pastes it is the one thing a one-line product cannot control |
 | **HEAD-2** TWO `<head>` tags, no `defer` (regression) | **PASS** — the double-insert guard had to MOVE for HEAD-1 (both tags now wait for `DOMContentLoaded`, so a check made before the wait would let two through). Measured on the new bundle: **1** `#barber-widget-root`, **1** launcher, 0 exceptions. On the old bundle: two exceptions, no widget |
 | **STUCK-1** the verify wait has no way out | **CLOSED 2026-09-11 (second attempt).** A 20 s watchdog, armed only once Turnstile has actually been asked for a token. Positive control first, because a watchdog that cannot fire makes every silence below meaningless: panel open, token never arrives → at +21 s one `system` bubble and `placeholder:"Still verifying — reload the page"` |
@@ -64,6 +74,14 @@ turns for nothing (`.claude/rules/remote-operator.md`).
 | **RETRY-0** `Try again` clicked with no token | **FIXED 2026-09-11.** Before: the click changed NOTHING measurable (bubbles 5→5, `.retry` 1→1, POSTs 1→1, placeholder unchanged) — a control that reads as dead. After: one line inside the bubble, *"Not ready to send yet — see the box below."* |
 | **EDGE-502** an edge failure the engine never saw | **FIXED 2026-09-11.** Before: `msg bot` — *"I'm passing you to a team member — we'll get back to you shortly."* in the SHOP's voice, and **nothing in the console**. Nobody is passed to anyone: `Build Owner Alert` lives inside the workflow, which never ran. After: `msg system` + `[widget] unmapped engine response: 502`. 429 gets its own decided screen (W59) |
 | **ISO-12** isolation after the mount path changed | **PASS** — before/after open, old bundle vs new: 1 host div, 1→2 marker `<style>` (display face on first open), 1 `sessionStorage` key, no cookie, no `localStorage`, `body.children` unchanged. Moving the mount behind `DOMContentLoaded` did not add a single host-document touch |
+
+| **FALLBACK-1** the script loads | **PASS 2026-09-11.** Host page carries `#barber-widget-fallback`; after mount `hidden` is set and the element's height is 0, widget present |
+| **FALLBACK-2** the script 404s (ad blocker / CSP / network) | **PASS — the direction that matters.** Same page, `src` pointed at a missing file: no widget, and the fallback is **still visible** (`hidden:false`, height > 0). This is the commonest silent death in the class and the visitor now keeps a way to reach the shop |
+| **RTL-1** host page is `dir="rtl"` | **PASS** — `body` computes `direction:rtl` while the widget host computes `direction:ltr` / `unicode-bidi:isolate`; the panel is still anchored 26 px from the right edge |
+| **RTL-2** an RTL message inside a bubble | **PASS** — an Arabic reply rendered with `.msg` at `unicode-bidi:isolate`, `direction:ltr`; the stamp stays inside its own bubble instead of being dragged to the wrong end by the RTL run |
+| **BUILD-1** a deployment that runs only the site build | **FIXED 2026-09-11, drilled both ways.** With the OLD `prebuild` the bundle was **absent** after a full site build — the one-line embed would 404, and `public/barber-widget.js` is gitignored so the repo does not carry it either. With the new `prebuild` (which calls the snippet build) the bundle is produced. The negative control is the old script restored and re-run |
+| **BUILD-2** `--check` with no bundle | **FIXED 2026-09-11.** Previously exit 0 — the gate validated the INPUTS and reported OK while the product did not exist. Now: bundle removed → **exit 1**; bundle restored → exit 0; bundle truncated to 100 B → **exit 1** |
+| **FONT-1** an unrecorded `.woff2` in the shipped directory | **FIXED 2026-09-11.** The guard walked the RECORD, so it could only find fonts it already knew. Measured: a rogue `.woff2` dropped into `web/site/public/fonts` → **exit 1, named in the output**; removed → exit 0. ⚠ **The first version of this guard claimed more than it measured** and four silent passes were produced against it the same hour — a `.woff2` in a SUBDIRECTORY, a `.ttf` beside the recorded files, an UPPERCASE `.WOFF2`, and a `.woff2` in `public/` but outside `fonts/`. All four ship. The search now covers the whole `public/` tree, case-insensitively, for `.woff2/.woff/.ttf/.otf`, and all four go RED (re-measured). ⚠ Still NOT covered: a coordinated change to both a font and its recorded checksum — comparing against the upstream blob is a named open item |
 
 
 **Axes SWEPT for the watchdog (2026-09-11):** (a) `sending` · (b) panel never opened · (c) opened-then-closed,

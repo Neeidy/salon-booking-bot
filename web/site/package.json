@@ -2,11 +2,11 @@
   "name": "@salon/site",
   "private": true,
   "version": "0.0.0",
-  "description": "Public barber demo site (L1-L9) + chat widget + embeddable snippet. Deploys to Vercel. Contains NO dashboard code and NO Airtable access — that separation is the point (Phase 6 decision D-1).",
+  "description": "Public barber demo site (L1-L9) + chat widget + embeddable snippet. Deploys to Vercel. Contains NO dashboard code and NO Airtable access — that separation is the point (Phase 6 decision D-1). NOTE: `prebuild` builds the SNIPPET too. public/barber-widget.js is a gitignored build artefact, so a deployment that ran only `next build` shipped a site whose one-line embed 404s — the template's single promise, broken by a missing build step (Codex CRT #13, finding 4).",
   "scripts": {
     "predev": "node scripts/build-config.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/build-config.mjs",
+    "prebuild": "node scripts/build-config.mjs && npm run build -w @salon/snippet --prefix ..",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

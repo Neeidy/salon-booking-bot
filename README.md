@@ -77,7 +77,7 @@ quote a wrong price** — the answer path contains no model.
 | **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Four separate error responses: `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` |
 | **Spend brakes before the LLM** | Kill-switch and max-turns run *before* any paid call — a tripped guard costs nothing |
-| **Embeddable widget, one script tag** | A ~16 kB IIFE that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
+| **Embeddable widget, one script tag** | A single self-contained IIFE (well under 20 kB; `npm run build -w @salon/snippet --prefix web` prints the current size — no byte count is pinned in prose here, because one went stale inside a single round) that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
 
 ## Designed, locked, not built yet 🔜
 
@@ -138,7 +138,26 @@ client's own Fraunces in their own headings) · Cloudflare's Turnstile script, t
 dependency and the one whose entire purpose is to be third-party · one `document` keydown listener,
 attached only while the panel is open, acting on one key, never calling `preventDefault` — the host page's
 own Escape handler still fires exactly once · one `window` global guarding a double script load · one
-`sessionStorage` key. Nothing else, and that was measured, not asserted.
+`sessionStorage` key · a one-shot `DOMContentLoaded` listener, added *only* when the tag sits where
+`document.body` does not exist yet · and, if the client opted in, the `#barber-widget-fallback` element is
+hidden on mount. ⚠ **This list has been wrong twice** — it once claimed a single exception, and it later
+omitted the last two items (Codex, CRT #13). A list is only honest when it is complete, and the way it
+goes wrong is by being written once and not re-derived.
+
+**And what it READS, because "it never reads your page" was an overclaim too.** It reads its own `<script>`
+tag to learn which origin to load fonts from, its own container id, its own injected `<style>` markers, and
+the fallback id above. It does **not** read the page's content — no text, no forms, no input values, no
+cookies, no storage of the host's. The narrow sentence is the true one.
+
+**The isolation limit, stated rather than implied: Shadow DOM is style encapsulation, not a security
+boundary.** The root is open, which is normal and documented browser behaviour — and it means the widget's
+content is reachable by *every* script already running on the host page, the client's own analytics
+included. Nothing a widget can do from inside the page changes that; the only real answer is a
+cross-origin iframe, and that architecture was considered and **deliberately not built in v1** (it is on
+the NOT-build list: it costs viewport control, pointer-events and a `postMessage` bridge, and the 6b spike
+removed its last justification by proving Turnstile renders and solves inside the shadow root). A client
+whose threat model requires isolation from scripts on their own page should not embed this widget — they
+need the iframe build. Written here rather than in a footnote, because it is a property of the product.
 
 **Three things the first real load taught us, all of them about honesty rather than code.**
 An edge failure the engine never saw was answering in the shop's voice — *"I'm passing you to a team
@@ -158,6 +177,10 @@ control had swept only the axis its author happened to think of.
 | The visible transcript is lost when a visitor moves to another page in the same tab. The conversation itself continues — the session id survives — so the engine may be waiting on a confirmation the visitor can no longer see | open, Phase 7 |
 | `messageTemplates` has **no required keys** in the committed schema, so a config can pass every gate while missing a message the widget must supply. The snippet's build now fails by name for the two it reads; the schema gap itself is still open | open, Phase 7 |
 | An idempotent replay returns no text, so after a client timeout the engine's real answer (*"You're booked: …"*) is unrecoverable. The visitor now gets an honest interim message — **the silence was fixed, the information was not** | open, Phase 7 |
+| **The drills are one-off manual measurements, not a regression harness.** Each is recorded against the bundle it was taken on; nothing re-runs on a change. An executable browser harness is not written | open, 6c / Phase 7 |
+| Cloudflare's Turnstile script is loaded **without SRI and without a version pin** — Cloudflare does not publish a pinned, integrity-hashed distribution for it, so this is an **accepted supply-chain exception**, not an unsolved task. It is the one third-party script, and its whole purpose is to be third-party | accepted, named |
+| `style-src 'none'` / nonce-only CSP and **Trusted Types** are incompatible — the widget injects its stylesheet inline and assigns markup via `innerHTML` inside its own component | known limit, documented on `/install` |
+| The double-insert guard keys on one element id; a host page that already uses that id, or a mount that fails part-way, is untested | open, 6c |
 
 **Where a human is still required.** Anything needing a real Turnstile token — a live conversation, a real
 booking and its cleanup. Everything else (DOM, CSS, layout, events, isolation, responsive, request
