@@ -46,6 +46,7 @@
 - `.claude/rules/governance-sync.md`
 - `.claude/rules/handoff.md`
 - `.claude/rules/honesty-demos.md`
+- `.claude/rules/irreversible-actions.md`
 - `.claude/rules/n8n-conventions.md`
 - `.claude/rules/plan-gate.md`
 - `.claude/rules/prompt-injection.md`
@@ -106,6 +107,7 @@
 - `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
 - `docs/DATA-MODEL.md`
 - `docs/FLOW-DIAGRAM.md`
+- `docs/OPERATIONAL-INCIDENTS.md`
 - `docs/PHASE-6-BACKLOG.md`
 - `docs/REPO-MAP.md`
 - `docs/ROADMAP.md`
@@ -313,6 +315,12 @@
 ### `.claude/rules/honesty-demos.md`
   - _(no `##` headings — flat file)_
 
+### `.claude/rules/irreversible-actions.md`
+  - ## Why the prompt was removed rather than kept
+  - ## The rule
+  - ## Why this list and not a longer one
+  - ## Related
+
 ### `.claude/rules/n8n-conventions.md`
   - _(no `##` headings — flat file)_
 
@@ -453,6 +461,12 @@
   - ## Owner-alert lane — every failure/handoff reaches a human (CP5a)
   - ## The invariants this diagram encodes (why the shapes are what they are)
 
+### `docs/OPERATIONAL-INCIDENTS.md`
+  - ## OPS-1 · 2026-09-09 · A resync step sanitized the LIVE workflow — production broke, and the parity guard stayed GREEN
+  - ## OPS-2 · 2026-09-11 · `pkill -f` matched its own shell and killed it mid-script; a server survived 2h37m
+  - ## OPS-3 · 2026-09-11 · `git clone --local` failed silently, so a subagent's negative control ran in the REAL repo
+  - ## OPS-4 · 2026-09-11 · The auditor could not read the body of the guard it was judging
+
 ### `docs/PHASE-6-BACKLOG.md`
   - ## 1. Empty / loading / error states — *dashboard, widget*
   - ## 2. Dashboard interactions (no design yet) — *dashboard*
@@ -518,6 +532,7 @@
   - ### `.claude/rules/governance-sync.md`
   - ### `.claude/rules/handoff.md`
   - ### `.claude/rules/honesty-demos.md`
+  - ### `.claude/rules/irreversible-actions.md`
   - ### `.claude/rules/n8n-conventions.md`
   - ### `.claude/rules/plan-gate.md`
   - ### `.claude/rules/prompt-injection.md`
@@ -535,6 +550,7 @@
   - ### `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
   - ### `docs/DATA-MODEL.md`
   - ### `docs/FLOW-DIAGRAM.md`
+  - ### `docs/OPERATIONAL-INCIDENTS.md`
   - ### `docs/PHASE-6-BACKLOG.md`
   - ### `docs/REPO-MAP.md`
 
@@ -711,6 +727,7 @@
 ### `tests/snippet/DRILLS.md`
   - ## Who runs what — the dividing question is whether a REAL TURNSTILE TOKEN is needed
   - ### Run headless by Claude — RESULTS (2026-09-10)
+  - ### Drilling `scripts/secret-scan.sh` — the false green that catches everyone
   - ### Needs Yigitcan's browser — RESULT (2026-09-11, re-run on the CURRENT bundle)
   - ### Needs Yigitcan's browser — the ONLY one
   - ## The rule this sheet exists to enforce

@@ -84,6 +84,25 @@ turns for nothing (`.claude/rules/remote-operator.md`).
 | **FONT-1** an unrecorded `.woff2` in the shipped directory | **FIXED 2026-09-11.** The guard walked the RECORD, so it could only find fonts it already knew. Measured: a rogue `.woff2` dropped into `web/site/public/fonts` → **exit 1, named in the output**; removed → exit 0. ⚠ **The first version of this guard claimed more than it measured** and four silent passes were produced against it the same hour — a `.woff2` in a SUBDIRECTORY, a `.ttf` beside the recorded files, an UPPERCASE `.WOFF2`, and a `.woff2` in `public/` but outside `fonts/`. All four ship. The search now covers the whole `public/` tree, case-insensitively, for `.woff2/.woff/.ttf/.otf`, and all four go RED (re-measured). ⚠ Still NOT covered: a coordinated change to both a font and its recorded checksum — comparing against the upstream blob is a named open item |
 
 
+### Drilling `scripts/secret-scan.sh` — the false green that catches everyone
+
+**The guard is a PreToolUse hook, not a scanner you can pipe to.** It reads hook JSON from stdin and exits 0
+at `[[ "$tool" == "Bash" && "$cmd" == *"git push"* ]] || exit 0`. So ANY invocation that is not a `git push`
+Bash call runs **none** of its rules and returns 0 — including piping a diff into it, which looks exactly
+like a passing scan.
+
+Measured twice, by two different auditors on 2026-09-11, and BOTH were briefly fooled by it: one ran it with
+no payload and got a green that measured nothing; the other planted a full-shaped fake key and STILL got
+green, for the same reason. It only goes red when driven properly:
+
+    echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' | ~/.claude/hooks/secret-scan.sh
+    # clean tree → exit 0 · planted sk-ant-shaped key in an isolated repo → exit 2
+
+⚠ Its scope is `origin/main..HEAD`, i.e. COMMITTED work. An uncommitted change gets zero coverage from it,
+and the rule set contains **no PII or phone-number rule at all** — PII is caught by manual scanning every
+round, never by this guard. Treat a bare `exit 0` from it as no evidence unless the payload was real.
+
+
 **Axes SWEPT for the watchdog (2026-09-11):** (a) `sending` · (b) panel never opened · (c) opened-then-closed,
 both directions · (d) one-shot re-arm · (e) `blocked`. Plus the positive control, run FIRST.
 

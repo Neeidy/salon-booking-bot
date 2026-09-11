@@ -45,6 +45,14 @@ built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)**
 **resume-point memory written AND read back** (a phase does not close without it — [.claude/rules/testing.md](.claude/rules/testing.md)).
 
 ## Rules & commands
+**This repo assumes permission prompts may be OFF for the operator** (set per-machine in gitignored local
+settings — deliberately NOT committed: a bypass in the committed settings would apply to every clone of what
+is a resellable template). The control that does NOT depend on that setting is
+[.claude/rules/irreversible-actions.md](.claude/rules/irreversible-actions.md): before a named list of
+irreversible operations, ask in chat **in Turkish, about the EFFECT**, and wait for written approval.
+Operational accidents are logged in [docs/OPERATIONAL-INCIDENTS.md](docs/OPERATIONAL-INCIDENTS.md) —
+product defects stay in ARCHITECTURE-DECISIONS.
+
 Modular rules in [.claude/rules/](.claude/rules/); slash commands in [.claude/commands/](.claude/commands/).
 Start any phase with `/plan-flow`; before any commit run `/sanitize` and the `security-auditor` agent.
 **Commit/PR authorship — Yigitcan ONLY:** no Claude / Anthropic signature in any commit or PR — no
