@@ -43,13 +43,16 @@
  *   A. Named modules (BANNED_FILES) — banned by resolved FILE PATH, not by import spelling, so
  *      `@salon/shared/config` and a hand-written `../../shared/src/config/loadConfig.ts` are the
  *      same offence. A specifier-based rule would miss the second.
- *      ⚠ **KNOWN HOLE, measured 2026-09-12 and NOT fixed — see docs/ROADMAP.md (BULGU-3 → 6c-1).**
- *      A SYMLINK defeats this. `resolveFileish` follows the link to decide the target exists but
- *      returns the LINK's path, while BANNED_FILES is keyed by the real path — one inode, two
- *      strings, `Map.has()` misses. So the sentence above is true for a relative path and FALSE for
- *      a symlink or hardlink. No tracked symlink exists in this repo today (`git ls-files -s`, mode
- *      120000 → zero), which is why this is latent rather than live. The fix is `fs.realpathSync` on
- *      both sides of the comparison.
+ *      A SYMLINK and a HARDLINK both defeated this until 2026-09-12: `resolveFileish` follows a link
+ *      to prove the target exists but returns the LINK's path, while BANNED_FILES was keyed by the
+ *      real one — one file, two strings. Identity is now the canonical path AND `(device, inode)`;
+ *      `realpath` alone is NOT enough, because a hardlink has its own genuine path and no link to
+ *      resolve. See `fileIds()`. ⚠ *This paragraph described the hole as open for one round after the
+ *      code had closed it, and it is the first block a reviewer reads — a security file contradicting
+ *      itself is worse than one that says nothing.*
+ *      **Still true, and deliberately so:** a genuine COPY of a banned file is NOT caught. That is
+ *      content duplication, a different rule from path aliasing, and banning by content would be a
+ *      far noisier gate.
  *   B. Any Node builtin reachable from a client root, in EITHER spelling (`node:fs` and plain `fs`;
  *      the first cut tested only the prefix, so the commoner form passed as third-party). Bans the
  *      CLASS, so the next server-only module is caught before anyone adds it to a list.
@@ -318,6 +321,31 @@ function extractImports(rawSrc, fileName = 'f.tsx') {
 // Resolution
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Identity of a file, for the banned-module comparison. Two things defeat a plain string compare, and
+ * both were MEASURED before this was written (security-auditor BULGU-3, reproduced by hand 2026-09-12:
+ * importing `config.generated.json` directly exits 1, importing it through a symlink exits 0 with
+ * "OK — no server-only module is reachable"):
+ *   - a SYMLINK (file or directory) — `resolveFileish` follows the link to prove the target exists but
+ *     returns the LINK's path, while BANNED_FILES is keyed by the real one: one file, two strings;
+ *   - a HARDLINK — which `realpath` does NOT resolve, because a hardlink has its own genuine path.
+ * So identity is the canonical path AND the (device, inode) pair. A file that cannot be stat'ed (a
+ * gitignored artefact missing from a fresh clone) falls back to its resolved path, which is exactly the
+ * behaviour the non-symlink case always had.
+ *
+ * ⚠ HALF OF THIS HAS NO FAIL-PROOF, measured rather than assumed (security-auditor, 2026-09-12):
+ * deleting the `realpath` key leaves the suite at 50/50, and so does dropping `dev` from the inode key.
+ * They are not redundant — `realpath` carries the case where the file is absent and only a path exists,
+ * and `dev` is what stops two files on different mounts sharing an inode NUMBER — but no case currently
+ * distinguishes them. Recorded here rather than implied by a green run.
+ */
+function fileIds(p) {
+  const ids = [];
+  try { ids.push('path:' + fs.realpathSync(p)); } catch { ids.push('path:' + p); }
+  try { const st = fs.statSync(p); ids.push(`ino:${st.dev}:${st.ino}`); } catch { /* absent: path only */ }
+  return ids;
+}
+
 function tryFile(p) {
   try { return fs.statSync(p).isFile() ? p : null; } catch { return null; }
 }
@@ -456,9 +484,15 @@ function rel(p, repoRoot) { return path.relative(repoRoot, p).split(path.sep).jo
 function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk = {}, bannedSpecs = {},
                  notAnApp = NOT_AN_APP) {
   const wsMap = buildWorkspaceMap(repoRoot);
-  const bannedAbs = new Map(
-    Object.entries(bannedFiles).map(([r, why]) => [path.resolve(repoRoot, r), why]),
-  );
+  // Keyed by EVERY identity a banned file has, so any route to it is the same offence.
+  const bannedAbs = new Map();
+  for (const [r, why] of Object.entries(bannedFiles)) {
+    for (const id of fileIds(path.resolve(repoRoot, r))) bannedAbs.set(id, why);
+  }
+  const bannedHit = (file) => {
+    for (const id of fileIds(file)) if (bannedAbs.has(id)) return bannedAbs.get(id);
+    return undefined;
+  };
 
   const unreadable = [];         // R1: files that RESOLVED but could not be opened (declared up here
                                  // because the ROOT SCAN below is the first thing that can fill it)
@@ -581,12 +615,29 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
         if (r.workspace) {
           // F4: a bare specifier can be a WORKSPACE package (npm symlinks it into node_modules), and
           // calling that "third-party" hid the whole chain behind it. Resolved and walked.
+          // ⚠ B3 (security-auditor, 2026-09-12): this branch used to `continue` BEFORE the banned
+          // check thirty lines below, so a workspace package whose entry resolves to a banned file was
+          // walked straight past — measured exit 0 while the same file by relative path exited 1. The
+          // identity map was complete; a branch simply never read it. "Any route is the same offence"
+          // is a STRUCTURAL claim, and it was written without running the search that disproves it.
+          const wsWhy = bannedHit(r.file);
+          if (wsWhy !== undefined) {
+            violations.push({
+              rule: 'banned-module',
+              chain: [...chain, r.file].map((c) => rel(c, repoRoot)),
+              spec: imp.spec,
+              at: `${rel(file, repoRoot)}:${imp.line}`,
+              why: wsWhy,
+            });
+            continue;
+          }
           stack.push([r.file, [...chain, r.file]]);
           continue;
         }
         if (r.external) { externals.add(imp.spec); continue; }
 
-        if (imp.kind === 'inline-type' && bannedAbs.has(r.file)) {
+        const bannedWhy = bannedHit(r.file);
+        if (imp.kind === 'inline-type' && bannedWhy !== undefined) {
           violations.push({
             rule: 'inline-type',
             chain: [...chain, r.file].map((c) => rel(c, repoRoot)),
@@ -604,13 +655,13 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
         // was then assumed fully erased when it pointed anywhere else — so a module reached that way
         // was never traversed. Same unknown, opposite conclusions. It is walked now.
 
-        if (bannedAbs.has(r.file)) {
+        if (bannedWhy !== undefined) {
           violations.push({
             rule: 'banned-module',
             chain: [...chain, r.file].map((c) => rel(c, repoRoot)),
             spec: imp.spec,
             at: `${rel(file, repoRoot)}:${imp.line}`,
-            why: bannedAbs.get(r.file),
+            why: bannedWhy,
           });
           continue;
         }
@@ -650,7 +701,8 @@ function selftest() {
   // web/shared are containers here, not apps. Declaring them keeps the F7 rule meaningful instead of
   // firing on every case (which would make it noise rather than a signal).
   const CONTAINERS = { 'web/site': 'selftest container', 'web/shared': 'selftest library',
-                       'web/ui': 'selftest workspace library' };
+                       'web/ui': 'selftest workspace library',
+                       'web/wspkg': 'selftest workspace library' };
   const run = (dir, extra = {}, noClientOk = {}, extraBanned = {}, notAnApp = CONTAINERS) =>
     analyse(tmp, [dir], { ...BANNED, ...extraBanned }, extra, noClientOk, SPECS, notAnApp);
 
@@ -781,6 +833,41 @@ function selftest() {
   w('web/site/wk/Wk.tsx', "'use client';\nexport const W2 = () => new Worker(new URL('./leak.ts', import.meta.url));\n");
   check('R5 `new Worker(new URL(...))` — a bundler DOES pull that module in',
     true, 'web/site/wk', 'banned-module');
+
+  // B3: a WORKSPACE package whose entry resolves to a banned file. The workspace branch used to walk
+  // on without ever asking whether the target was banned — measured exit 0 (security-auditor).
+  fs.mkdirSync(path.join(tmp, 'web/wspkg'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'web/wspkg/package.json'),
+    JSON.stringify({ name: 'cfg-kit', main: './entry.json' }));
+  fs.writeFileSync(path.join(tmp, 'web/wspkg/entry.json'), '{"a":1}');
+  fs.mkdirSync(path.join(tmp, 'web/node_modules'), { recursive: true });
+  fs.symlinkSync(path.join(tmp, 'web/wspkg'), path.join(tmp, 'web/node_modules/cfg-kit'), 'dir');
+  w('web/site/ws3/Use3.tsx', "'use client';\nimport cfg from 'cfg-kit';\nexport const B3 = cfg;\n");
+  check('B3 a WORKSPACE package whose entry IS the banned file', true, 'web/site/ws3', 'banned-module',
+    {}, {}, { 'web/wspkg/entry.json': 'selftest payload' });
+
+  // BULGU-3: a banned file reached through a SYMLINK or a HARDLINK. Reproduced by hand on the real
+  // tree first — the same file imported directly exited 1, imported through a symlink exited 0 saying
+  // "no server-only module is reachable" — which falsified this file's own central sentence about
+  // banning by resolved path. Identity is now the canonical path AND (device, inode).
+  w('web/site/sym/Comp.tsx', "'use client';\nimport cfg from './link.json';\nexport const S3 = cfg;\n");
+  fs.writeFileSync(path.join(tmp, 'web/site/payload.json'), '{"a":1}');
+  fs.symlinkSync(path.join(tmp, 'web/site/payload.json'), path.join(tmp, 'web/site/sym/link.json'));
+  check('BULGU-3 a banned file reached through a SYMLINK', true, 'web/site/sym', 'banned-module',
+    {}, {}, { 'web/site/payload.json': 'selftest payload' });
+
+  w('web/site/hard/Comp.tsx', "'use client';\nimport cfg from './hard.json';\nexport const S4 = cfg;\n");
+  try { fs.linkSync(path.join(tmp, 'web/site/payload.json'), path.join(tmp, 'web/site/hard/hard.json')); }
+  catch { fs.writeFileSync(path.join(tmp, 'web/site/hard/hard.json'), '{"a":1}'); }
+  check('BULGU-3b ...and through a HARDLINK, which realpath does NOT resolve',
+    true, 'web/site/hard', 'banned-module', {}, {}, { 'web/site/payload.json': 'selftest payload' });
+
+  // The GREEN side: a genuine COPY is a different file and must NOT fire. Without this the fix could
+  // be "ban anything with the same content", which is a different and much noisier rule.
+  w('web/site/copy/Comp.tsx', "'use client';\nimport cfg from './copy.json';\nexport const S5 = cfg;\n");
+  fs.writeFileSync(path.join(tmp, 'web/site/copy/copy.json'), '{"a":1}');
+  check('BULGU-3c a genuine COPY is a different file — must NOT fire', false, 'web/site/copy',
+    null, {}, {}, { 'web/site/payload.json': 'selftest payload' });
 
   // R1: the one hole that made this gate print OK over a real leak. Reproduced on the real tree with
   // chmod 000 before it was fixed; pinned here so it cannot come back.

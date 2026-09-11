@@ -578,8 +578,8 @@ Each CP waits for its own written approval (plan-gate).
     Turnstile on the demo too.
 - ☐ **6c — dashboard, read-only + handoff queue.** Own server behind Cloudflare Access; own API layer; one bulk read per page.
   - ✅ **CP 6c-0 — the precondition gate. Plan APPROVED 2026-09-11 · CLOSED 2026-09-12 (`e9c2cac`, pushed)
-    — ⚠ closed WITH a known latent bypass in its own gate (BULGU-3, symlink): that gap is recorded as an
-    open item below and is NOT counted as closed** (full `/plan-flow` in chat, K-1…K-8
+    — the symlink bypass it closed over (BULGU-3) was itself CLOSED in 6c-1, together with a second route
+    the fix did not cover** (full `/plan-flow` in chat, K-1…K-8
     ruled, plus Yigitcan's additions E1-E4). **`scripts/check-client-imports.cjs`** is the build-time
     server/client boundary the HARD GATE demanded: a **transitive import-graph walk** (not an ESLint rule —
     `web/` has zero eslint configs and `no-restricted-imports` is per-file, while the hazard named here is
@@ -686,31 +686,29 @@ Each CP waits for its own written approval (plan-gate).
         must exist and be measured BLOCKING before the dashboard listens on 3210 (D-5 ordering hazard).
       - Anything that genuinely cannot be measured is written **"operator statement, not API-verified"** —
         never "Yigitcan verified it".
-    - ☐ **BULGU-3 → 6c-1 (pre-push audit, 2026-09-12). A SYMLINK defeats rule class A, exit 0.**
-      `resolveFileish` follows the link to prove the target exists but returns the LINK's path, while
-      `BANNED_FILES` is keyed by the real path: one inode, two strings, `Map.has()` misses. Measured
-      three ways (file symlink · directory symlink · hardlink), all reaching
-      `web/site/config.generated.json` from a client root with the gate printing OK. **It falsifies the
-      file's own central sentence** ("banned by resolved FILE PATH… a hand-written relative route is the
-      same offence") — that sentence now carries the hole beside it rather than being quietly wrong.
-      Latent, not live: zero tracked symlinks in this repo (`git ls-files -s`, mode 120000 → 0).
-      Fix is two lines (`fs.realpathSync` on both sides). ⚠ **NOT fixed because the round budget was
-      already spent and extended once by explicit ruling; it is the first item of 6c-1, not a
-      closed one.** *(`loadConfig.ts` via symlink does go red — but through `node-builtin`, by accident,
-      because that file imports `node:fs`. The payload JSON has no imports and nothing catches it.)*
-    - ☐ **`check-no-host-leak.sh` recognises only `NAME_HOST=` declarations** — `my-dash_HOST=`,
-      `N8N.HOST=`, `export X_HOST=` and `ORIGIN_IP=` are dropped SILENTLY (measured). The declared-vs-parsed
-      counter guards the FORMAT of a matching line, not the naming of one that never matches. Mitigated by
-      writing the accepted form into `CLAUDE.local.md` itself — the file the guard parses is now labelled as
-      configuration — and by printing the target COUNT on every run. → named limit
-    - ☐ **It does not understand markdown:** a `*_HOST=` line inside a fenced code block in
-      `CLAUDE.local.md` becomes a live target, and a stray prose line beginning `host =` locks the guard at
-      exit 2. No fences in that file today. → named limit
-    - ☐ **`check-no-host-leak.sh` mislabels a TRACKED file as "a new/untracked file".** `git grep
-      --untracked` searches tracked AND untracked, so the third scan re-reports tracked hits under the
-      wrong heading (seen live when the guard caught a real host in a tracked rule file, 2026-09-12).
-      Pre-existing, cosmetic — but it is a security guard's output, and a wrong label there sends someone
-      looking in the wrong place. → named item
+    - ✅ **BULGU-3 CLOSED (6c-1, `<hash-b3>`). A SYMLINK — and a HARDLINK — defeated rule class A.**
+      **Reproduced by hand first, on the real tree:** `config.generated.json` imported directly → exit 1;
+      the same file through a symlink → **exit 0, "OK — no server-only module is reachable"**. It
+      falsified this file's own central sentence about banning by resolved path. Identity is now the
+      canonical path **AND** the `(device, inode)` pair — `realpath` alone is not enough, because a
+      hardlink has its own genuine path and is not a link to resolve. Drilled on the real tree in three
+      routes (file symlink · hardlink · a directory symlink traversing to the real file): all exit 1,
+      baseline exit 0. Pinned as three selftest cases including the GREEN side — a genuine COPY is a
+      different file and must NOT fire — and a mutant that drops back to a plain path comparison kills
+      exactly the two link cases. **A SECOND route the first fix did not cover was then found by the
+      pre-push audit and closed in the same round (B3):** the `workspace` branch walked a bare-specifier
+      workspace package onward WITHOUT ever asking whether its entry was banned — measured exit 0 while
+      the same file by relative path exited 1. The identity map was complete; a branch simply never read
+      it. *"Any route to it is the same offence" is a STRUCTURAL claim and it was written without running
+      the search that disproves it — `reporting.md` says to run that search first, and it was not.*
+      ⚠ *Half the new identity has no fail-proof: dropping the `realpath` key, or dropping `dev` from the
+      inode key, leaves the suite fully green. Neither is redundant, but no case distinguishes them —
+      written into the tick rather than implied by a green run.*
+      ⚠ *Named limit, not a defect: a COPY of the payload is not caught.
+      That is content duplication, a different rule from path aliasing, and banning by content would be
+      a far noisier gate.* ⚠ *My first directory-symlink drill was mis-built — it copied the file, so
+      exit 0 was the correct answer and I nearly recorded it as a miss. Re-built to traverse to the real
+      file.*
     - ☐ **BULGU-4 → 6c-1: a tsconfig `paths` alias in a WALKED-but-unscanned package is invisible.**
       The alias detector reads only tsconfigs under `SCAN_ROOTS`; `web/shared` is walked and HOSTS the
       banned module, and an alias declared there dropped the import into the third-party count with the
@@ -749,10 +747,10 @@ Each CP waits for its own written approval (plan-gate).
     drill it both ways — a client-component import of `./config` must go RED, and one of `./chat` must stay green.
     Recorded now so 6c does not discover it: the package description was scoped to subpaths in 6b, and a gate whose
     text and whose enforcement disagree is this project's signature defect.
-  **HARD GATE (security-auditor round 2, 2026-09-03) — ✅ SATISFIED by CP 6c-0 (`e9c2cac`), before any
-  dashboard code exists. ⚠ With one gap recorded INSIDE this tick: a symlink around a banned file still
-  passes (BULGU-3). It is latent — this repo has zero tracked symlinks — and it is the first item of 6c-1;
-  eksiklik olarak kaydedilmiştir, kapatılmış sayılmamaktadır.** The gate is: the BUILD-TIME server/client boundary — a lint rule forbidding
+  **HARD GATE (security-auditor round 2, 2026-09-03) — ✅ SATISFIED by CP 6c-0 (`e9c2cac`); the symlink
+  bypass recorded inside that tick (BULGU-3) was closed in 6c-1, along with a workspace-package route the
+  first fix missed. ⚠ Gap still inside the tick: a genuine COPY of a banned file is not caught — that is
+  content duplication, a deliberately different rule.** The gate is: the BUILD-TIME server/client boundary — a lint rule forbidding
   `@salon/shared/config` (and any secret-touching module) from client components, plus the compiled-bundle scan already in
   the acceptance criteria — **must land BEFORE 6c puts any dashboard / Airtable / PII code into `@salon/shared` or into any
   surface a client component imports.** Not a nice-to-have. Reason the 6a-1 `window` tripwire cannot cover it: it is a
