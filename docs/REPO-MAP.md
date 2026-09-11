@@ -335,6 +335,8 @@
 
 ### `.claude/rules/remote-operator.md`
   - ## The rule
+  - ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
+  - ### Pre-flight before handing over ANY tunnel command
   - ## Why
   - ## Related: do not send him a drill you can run yourself
   - ## The capability FACT: this machine HAS a browser, and it is Claude's to drive
@@ -346,6 +348,7 @@
   - ## A claim ABOUT a guard is written AFTER the mutation test, never beside the code
   - ## A STRUCTURAL claim needs evidence too, not just a behavioural one
   - ## Evidence before abandoning a planned approach
+  - ## "The operator did it" is not a measurement — and the measuring is YOURS
   - ## A claim about your OWN CAPABILITY is a claim like any other
 
 ### `.claude/rules/security-secrets.md`

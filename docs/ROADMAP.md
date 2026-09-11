@@ -671,6 +671,21 @@ Each CP waits for its own written approval (plan-gate).
       undone and is not being pretended away. What changes is forward: absolute bundle sizes are not
       written into docs or comments again; a delta or a rebuild comparison says the same thing and
       leaks nothing.
+    - ⚙ **6c-1 ACCEPTANCE — the two UI steps are Yigitcan's, EVERY measurement is Claude's.**
+      Neither has an API (Airtable PATs are not API-creatable; the tunnel is token-managed, so ingress and
+      Access are dashboard-only). **His "done" is a statement, not evidence** — `.claude/rules/reporting.md`,
+      "The operator did it is not a measurement". The moment he reports finished:
+      - **K-2 (read-only PAT), measured from BEHAVIOUR, never from the scope panel:** a read returns 200
+        with data **and** a write attempt returns **403**. The write probe must be harmless — a real table,
+        an inert/reversible field, never a row that matters. 403 proves nothing was written; **a 200 is a
+        STOP**, because the scope is wrong and CRT #10's "the PAT is READ-ONLY" line would be a lie.
+      - **K-6 (Cloudflare Access), BOTH or it is not done:** (1) a session-less `curl` to the dashboard
+        hostname returns 302/403 with **no data in the body** — shown, not asserted; (2) a REAL POST to the
+        webhook returns 200 and the bot still answers, which is the proof that the `/webhook/*` exemption
+        survived and is the only step here that can stop production. Order check: the Access application
+        must exist and be measured BLOCKING before the dashboard listens on 3210 (D-5 ordering hazard).
+      - Anything that genuinely cannot be measured is written **"operator statement, not API-verified"** —
+        never "Yigitcan verified it".
     - ☐ **BULGU-3 → 6c-1 (pre-push audit, 2026-09-12). A SYMLINK defeats rule class A, exit 0.**
       `resolveFileish` follows the link to prove the target exists but returns the LINK's path, while
       `BANNED_FILES` is keyed by the real path: one inode, two strings, `Map.has()` misses. Measured
@@ -683,6 +698,19 @@ Each CP waits for its own written approval (plan-gate).
       already spent and extended once by explicit ruling; it is the first item of 6c-1, not a
       closed one.** *(`loadConfig.ts` via symlink does go red — but through `node-builtin`, by accident,
       because that file imports `node:fs`. The payload JSON has no imports and nothing catches it.)*
+    - ☐ **`check-no-host-leak.sh` recognises only `NAME_HOST=` declarations** — `my-dash_HOST=`,
+      `N8N.HOST=`, `export X_HOST=` and `ORIGIN_IP=` are dropped SILENTLY (measured). The declared-vs-parsed
+      counter guards the FORMAT of a matching line, not the naming of one that never matches. Mitigated by
+      writing the accepted form into `CLAUDE.local.md` itself — the file the guard parses is now labelled as
+      configuration — and by printing the target COUNT on every run. → named limit
+    - ☐ **It does not understand markdown:** a `*_HOST=` line inside a fenced code block in
+      `CLAUDE.local.md` becomes a live target, and a stray prose line beginning `host =` locks the guard at
+      exit 2. No fences in that file today. → named limit
+    - ☐ **`check-no-host-leak.sh` mislabels a TRACKED file as "a new/untracked file".** `git grep
+      --untracked` searches tracked AND untracked, so the third scan re-reports tracked hits under the
+      wrong heading (seen live when the guard caught a real host in a tracked rule file, 2026-09-12).
+      Pre-existing, cosmetic — but it is a security guard's output, and a wrong label there sends someone
+      looking in the wrong place. → named item
     - ☐ **BULGU-4 → 6c-1: a tsconfig `paths` alias in a WALKED-but-unscanned package is invisible.**
       The alias detector reads only tsconfigs under `SCAN_ROOTS`; `web/shared` is walked and HOSTS the
       banned module, and an alias declared there dropped the import into the third-party count with the

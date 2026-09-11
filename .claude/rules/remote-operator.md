@@ -41,6 +41,53 @@ http://localhost:<PORT>/...
   beside, because the condition genuinely changed (`governance-sync.md` §6) — and it is now past tense for the
   opposite reason it was present tense before: the measurement moved, so the sentence moved with it.*
 
+## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
+
+```
+ssh yigit@<the n8n hostname>        ✗ cannot work   — proxied
+ssh yigit@<the dashboard hostname>  ✗ cannot work   — proxied
+ssh yigit@<SSH_ORIGIN_HOST>         ✓ the machine itself
+```
+
+*(The wrong examples are written as placeholders on purpose. The first draft of this block spelled the
+real proxied hostname out — and `check-no-host-leak.sh`, extended ten minutes earlier in the same round,
+went RED on it: the production host, in a TRACKED file, in a PUBLIC repo, inside the rule about hosts.
+The guard caught the hand that had just widened it. A counter-example does not need the real value to
+teach the shape.)*
+
+**The reason, which is the whole point of this section:** those **hostnames** are **Cloudflare-proxied**.
+Their DNS resolves to Cloudflare's edge, and the edge proxies **HTTP(S) only** — SSH is not HTTP and does
+not traverse it. *(Measured on this machine: the n8n hostname resolves to two addresses inside Cloudflare's published
+IPv4 ranges, never to the origin. ⚠ **The APEX is a different case and an earlier draft of this very
+paragraph got it wrong** — it said the apex was proxied; `dig` says the apex has a single A record that is
+NOT in Cloudflare's ranges, i.e. the zone is hosted at Cloudflare but the apex is DNS-only while the
+sub-domains are proxied. Corrected in place, because this section's own thesis is that the REASON is the
+part that survives — a wrong reason is re-derived wrongly forever. Practical consequence that does NOT
+change: ssh goes to the origin, never to a proxied name. Consequence that DOES: do not assume the apex
+sits behind Cloudflare's WAF or rate-limiting. The "HTTP(S) only" half is Cloudflare product behaviour and
+was **not measured here** — consistent with everything that was, but proving it would mean opening a
+connection to their edge.)* Those names are addresses of the **HTTP surface**, not of the **machine**. SSH always goes to
+the **origin**, whose value lives in `CLAUDE.local.md` as `SSH_ORIGIN_HOST` (gitignored; it is a redaction
+target and `scripts/check-no-host-leak.sh` scans for it like any other).
+
+**Why the reason is written and not just the rule:** this was got wrong **three times in one session**,
+each time by re-deriving it from "the host we always use". A rule without its reason is re-derived on the
+next contact, and re-derived the same wrong way. The reason is the only part that survives.
+
+### Pre-flight before handing over ANY tunnel command
+Do not compose the host from memory or from the n8n URL. Read it:
+
+```bash
+sed -n 's/^SSH_ORIGIN_HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' CLAUDE.local.md
+```
+
+(That is the SAME parse `scripts/check-no-host-leak.sh` uses — deliberately, so the value the guard
+protects and the value handed to Yigitcan can never be two different readings of one line.)
+
+If that returns nothing, say so and stop — do not substitute the proxied hostname "for now". The tunnel
+command a proxied name produces is not a slow path or a partial answer; it simply cannot connect, and it
+costs Yigitcan a turn discovering that.
+
 ## Why
 Without the tunnel the address resolves on HIS machine — to nothing, or worse, to a different app of his,
 which looks like a broken build rather than a missing tunnel. It cost five round trips in one session

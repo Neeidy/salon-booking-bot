@@ -120,6 +120,27 @@ output, not a conclusion. "X doesn't work here" without a shown check is not acc
 untested assumption into a permanent design decision.
 
 
+## "The operator did it" is not a measurement — and the measuring is YOURS
+
+Some steps can only be done in a UI: creating an Airtable PAT, adding a Cloudflare Access application,
+publishing an n8n workflow. Yigitcan does those. **His saying "done" is a statement, not evidence**, and
+the difference matters most exactly where these steps live — they configure the controls that other claims
+rest on.
+
+**The division is: he clicks, YOU measure.** The moment he reports a UI step finished, run the check that
+would fail if it had not been done, or had been done differently than described. Measure the BEHAVIOUR,
+never the panel: a token's scopes are proven by *a read returning 200 and a write returning 403*, not by
+what the scope list displays. A gate is proven by *a request without credentials being refused*, not by a
+screenshot of the policy.
+
+**Choose a harmless probe.** A write test must target something real but reversible or inert — never a
+row that matters, never a real recipient. A 403 means nothing was written; a 200 means the control is
+wrong, and that is a STOP, not a note.
+
+**When something genuinely cannot be measured, label it:** write **"operator statement, not API-verified"**
+— never "Yigitcan verified it". The second sentence launders a statement into evidence, and a reader has
+no way to tell which kind it was.
+
 ## A claim about your OWN CAPABILITY is a claim like any other
 "I have no browser", "I can't reach that", "that isn't runnable here" — these are asserted more casually
 than any guard comment, because the subject feels like self-knowledge rather than a measurement. It is not.
