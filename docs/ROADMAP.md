@@ -1315,7 +1315,7 @@ Each CP waits for its own written approval (plan-gate).
 **→ Sahibi ZATEN kapanmış turlarda olan, taşınmayan:** CRT #7 (control-plane lockdown, CP5b HARD-ORDER) ·
 `secret-scan.sh`'ın binary-blob ve stdin-boş kör noktaları (guard borcu, faz değil).
 
-**→ ✅ KAPANDI 2026-09-11 (oturum kapanışı, `a387ba5`) — YAPILANDIRMA BORCU, kaza DEĞİL.**
+**→ ✅ KAPANDI 2026-09-11 (oturum kapanışı, `8b13c4f`) — YAPILANDIRMA BORCU, kaza DEĞİL.**
 Bu üç madde `docs/OPERATIONAL-INCIDENTS.md`'ye GİRMEZ: hiçbiri yanlış bir el hareketi değil, hiçbiri bir
 sistemin yanlış davranması değil — üçü de *kurulduğu günden beri yanlış yapılandırılmış* olan şeylerdi.
 ⚠ Dürüstlük notu: bu üç satır yukarıdaki tablolarda **açık madde olarak hiç listelenmemişti** (resume-point
