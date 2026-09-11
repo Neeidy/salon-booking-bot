@@ -72,14 +72,67 @@ cd ../web  && npm ci     # ajv for the loader
 npm test -w @salon/shared                            # config contract tests (must reject bad configs)
 node ../scripts/generate-config-types.cjs --check    # types-vs-schema drift guard
 ```
+
 Both installs are required: `scripts/` owns the generator, `web/` owns the loader. Use `npm ci`, not
 `npm install` — the generated file is formatted by a transitive prettier, so an unpinned install can
 report a fake drift.
 
-> **Honest scope of `client.config.types.ts` today:** it is generated from the schema and drift-guarded,
-> but **nothing compiles it yet** — there is no `tsconfig.json` and `node --test` strips types rather
-> than checking them. It is documentation with a guard until the Next.js apps (6a-2 / 6c) actually
-> typecheck against it. Runtime safety comes from `loadConfig`'s ajv validation, not from the type.
+### Fresh-clone order: BUILD, then CHECK (not the other way round)
+
+`config.generated.json` and `public/barber-widget.js` are **gitignored build artefacts**, and the first
+command is not optional — `check-all` resolves `ajv` only from `scripts/node_modules` (there is no
+`node_modules` at the repo root), so skipping it fails with `MODULE_NOT_FOUND`. A tree that has never been
+built fails the verification gate *by design* — that is the CRT #13 lesson, where a
+deployment shipped a site whose one-line embed 404'd because only `next build` had run.
+
+```bash
+npm --prefix scripts ci                          # 1. ajv + the generator live HERE
+npm --prefix web ci                              # 2. ci, not install — see the note above
+export NEXT_PUBLIC_WEBHOOK_URL=…                 # 3. or put them in web/site/.env.local
+export NEXT_PUBLIC_TURNSTILE_SITE_KEY=…          #    (gitignored, so a clone has neither)
+npm --prefix web run build -w @salon/snippet     # 4. produces config.generated.json + the bundle
+npm --prefix scripts run check-all               # 5. never WRITES the build artefacts
+```
+
+⚠ **This sequence was RUN in a real `git clone`, and the first two drafts of it did not work.** That is
+the point of writing it down, and the reason to distrust any build order nobody has executed:
+
+| Draft | What a fresh clone actually did |
+|---|---|
+| steps 4-5 only | step 5 died with `MODULE_NOT_FOUND` — `check-all` resolves `ajv` only from `scripts/node_modules`, and there is no `node_modules` at the repo root |
+| + steps 1-2 | step 4 died with `✗ SNIPPET BUILD STOPPED — no NEXT_PUBLIC_WEBHOOK_URL`; those values live in gitignored `web/site/.env.local`, which a clone does not have |
+| + step 3 | build OK, and `build.mjs --check` confirmed the bundle byte-identical to a rebuild **in the clone** |
+
+**Step 5 still exits `2` in a fresh clone, and that is CORRECT, not a failure of the build:**
+`check-no-host-leak.sh` prints `NOT CONFIGURED` because it reads the production host from `CLAUDE.local.md`
+or `$N8N_HOST`, and `CLAUDE.local.md` is gitignored by design. **Exit 2 means "this guard did not run",
+never "this guard passed"** — read it as a missing configuration, not as a clean scan.
+(Same distinction already recorded for the parity scripts: an exit 2 is an unset environment, not a verdict.)
+
+**Why the two are deliberately NOT chained into one script.** `build.mjs --check` no longer merely asks
+"does a plausible bundle exist" — it rebuilds into a temp directory with the same options and
+**byte-compares**. A gate that rebuilds immediately before comparing can never fail, so chaining would
+convert a real freshness check into a test that cannot go red. The order is written here instead.
+
+*(Precise wording, because two obvious phrasings are false. `check-all` does **run a build** — that temp
+rebuild is one — so "it never builds" is wrong. And the artefacts are **gitignored, not tracked**; staying
+untracked is the point, so "tracked build artefacts" inverts it. What it never does is **write the build
+artefacts**, which is why it cannot manufacture the outputs it is checking for.)*
+
+> **Honest scope of `client.config.types.ts` today** — *corrected 2026-09-11; the previous wording
+> ("nothing compiles it yet — there is no `tsconfig.json`") described the tree before 6a-2 and had been
+> false ever since.* `web/site` has a `tsconfig.json` and its `check` script is `tsc --noEmit`, so the
+> generated type IS compiled and IS enforced. **Measured, both directions:** a clean tree exits 0; a
+> wrong type on a known key (`const x: number = config.business.name`) exits 1 with `TS2322`.
+> **The real remaining limit, which the old sentence hid rather than stated:** the generated type has a
+> root index signature (`[k: string]: …`), so reading a key that is NOT in the schema does **not** fail
+> the typecheck — it resolves to the union of the declared value types. ⚠ *Cause corrected 2026-09-12:
+> this first said the signature comes from `additionalProperties`. Measured: the schema root is
+> `additionalProperties: false`; the signature comes from `patternProperties: ["^\\$comment"]`, and the
+> generated file says so in its own comment. The conclusion was right and the reason was invented —
+> inside a paragraph already labelled as a correction.* And `site/lib/config.ts` casts through `unknown`, so the JSON's real shape is never checked
+> against the type. Runtime safety therefore still comes from ajv validating the config against the
+> committed schema at build time, not from the type.
 
 ## Source of truth for what gets built
 `docs/SCREEN-INVENTORY.md` (98 screens/states) is the brief; `design/mockups/` holds the 9 delivered

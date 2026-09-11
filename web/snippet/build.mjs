@@ -24,8 +24,9 @@
  * too, and would go red if it ever sat in the tree un-ignored — and (b) this script never prints the URL,
  * only its pathname. The Turnstile site key is public by design but is still not echoed.
  */
-import { existsSync, readFileSync, mkdirSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, statSync, mkdtempSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 
@@ -115,6 +116,55 @@ const baked = {
   demoMode: config.demoMode === true,
 };
 
+/**
+ * esbuild's log is silenced, so warnings are printed from the RESULT — on every path, always.
+ * Defensive about the shape: this is called from BOTH build paths, and on the real build path a throw
+ * here would print the bare Node stack trace this file exists to avoid (security-auditor F10).
+ */
+function reportWarnings(result) {
+  const warnings = result?.warnings;
+  if (!Array.isArray(warnings)) return;
+  for (const w of warnings) {
+    console.warn(`⚠ snippet warning: ${w.text}`
+      + (w.location ? `  (${w.location.file}:${w.location.line})` : ''));
+  }
+}
+
+/**
+ * The ONE build configuration. The freshness check rebuilds with exactly this, so "the bundle on disk
+ * equals the bundle this source produces" is a real comparison and not two configurations that happen
+ * to agree today (.claude/rules/contract-integrity.md).
+ */
+function buildOptions(outfile) {
+  return {
+    entryPoints: [join(HERE, 'src/index.ts')],
+    bundle: true,
+    minify: true,
+    format: 'iife',         // one self-contained function; no module loader is added to the host page.
+                            // NOT "no globals": the widget deliberately sets `__barberTurnstileLoading`
+                            // to guard a double script load, and that is listed on /install and in ARCH-DEC.
+    target: ['es2019'],     // wide enough for the browsers a barbershop's customers actually use
+    outfile,
+    legalComments: 'none',
+    // ONE VOICE, on BOTH paths. esbuild's own log is silenced and everything is reported from the
+    // RESULT instead, because a log level is a DISPLAY setting: a warning that exists only at one
+    // display setting is a warning nobody is guaranteed to see.
+    //
+    // Two rounds of getting this wrong, both recorded rather than tidied away. First `--check` printed
+    // a raw esbuild stack trace while every other failure here printed "✗ SNIPPET BUILD STOPPED"
+    // (code-reviewer #19). Then a blanket `logLevel:'silent'` fixed that and muted esbuild WARNINGS on
+    // the REAL build, which has no try/catch of its own — measured by `security-auditor` with an
+    // `impossible-typeof` warning: default printed it, silent printed nothing, both exited 0
+    // (BULGU-3, 2026-09-12). `CLAUDE.md`: failures must be VISIBLE, never silent.
+    logLevel: 'silent',
+    define: {
+      __BAKED_CONFIG__: JSON.stringify(baked),
+      __WEBHOOK_URL__: JSON.stringify(webhookUrl),
+      __TURNSTILE_SITE_KEY__: JSON.stringify(siteKey),
+    },
+  };
+}
+
 if (CHECK_ONLY) {
   // ⚠ The check used to validate the INPUTS and then report OK, which made it possible for the gate to
   // pass while the product did not exist: `public/barber-widget.js` is a gitignored build artefact, so a
@@ -127,40 +177,73 @@ if (CHECK_ONLY) {
       + '  gate that reports OK without it lets a site ship whose one-line embed 404s.\n'
       + '  Run `npm run build -w @salon/snippet --prefix web` (the site\'s prebuild does this too).');
   }
-  // ⚠ KNOWN LIMIT, named so it is not rediscovered: this asks "does a plausible bundle EXIST", never
-  // "is it the build of the CURRENT source". Measured during the CRT #13 pre-push audit: the file on
-  // disk was 17840 B while the committed source produced 18278 B, and this check still said OK. The same
-  // limitation is already stated above for config.generated.json — there is no provenance stamp and no
-  // freshness check on either. Closing it means building to a temp dir and byte-diffing; that is a named
-  // open item, not something this gate does today.
   const size = statSync(OUTFILE).size;
   if (size < 4096) {
     fail(`the bundle exists but is only ${size} B — too small to be a real build.\n`
       + '  A truncated or placeholder file passes an existence check and fails a visitor.');
   }
+
+  // FRESHNESS. Existence is not enough: the gate used to ask "is there a plausible bundle" and never
+  // "is this the build of the CURRENT source". Measured in the CRT #13 pre-push audit — 17840 B on
+  // disk against 18278 B from the committed source, gate GREEN. A stale bundle is worse than a missing
+  // one, because the missing one 404s loudly while the stale one serves yesterday's product.
+  // So: rebuild into a temp dir with the SAME options and compare bytes.
+  const tmp = mkdtempSync(join(tmpdir(), 'snippet-freshness-'));
+  const probe = join(tmp, 'barber-widget.js');
+  let fresh;
+  try {
+    reportWarnings(await esbuild.build(buildOptions(probe)));
+    fresh = readFileSync(probe);
+  } catch (e) {
+    // One failure shape for the whole file. Without this, a broken SOURCE made --check exit on a raw
+    // esbuild stack trace while every other failure here printed "✗ SNIPPET BUILD STOPPED"
+    // (code-reviewer S6). ⚠ `fail()` calls process.exit, so `finally` NEVER RUNS on this path — the
+    // first cut therefore stranded a temp directory on every ordinary build failure, not just on a
+    // SIGKILL as this round's own notes claimed (code-reviewer #15, 2026-09-12). Clean up FIRST.
+    // The message carries esbuild's own first error text rather than `e.message`, which is only
+    // "Build failed with 1 error:" and says nothing (#19).
+    rmSync(tmp, { recursive: true, force: true });
+    const detail = e?.errors?.[0]?.text ?? (e?.message ? String(e.message).split('\n')[0] : String(e));
+    const where = e?.errors?.[0]?.location;
+    fail('the freshness rebuild itself failed, so the bundle could not be compared.\n'
+      + `  ${detail}${where ? `  (${where.file}:${where.line})` : ''}\n`
+      + '  The source does not currently build. Fix that first; nothing can be said about the bundle\n'
+      + '  on disk until it does.');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  const onDisk = readFileSync(OUTFILE);
+  if (!onDisk.equals(fresh)) {
+    let at = 0;
+    while (at < Math.min(onDisk.length, fresh.length) && onDisk[at] === fresh[at]) at++;
+    fail('the bundle on disk is NOT what the current source and config produce.\n'
+      + `  on disk: ${onDisk.length} B   ·   rebuilt from source: ${fresh.length} B   ·   first difference at byte ${at}\n`
+      + '  A stale bundle is worse than a missing one: the missing one 404s loudly, this one serves the\n'
+      + '  previous build to every visitor while every gate stays green.\n'
+      + '  Run `npm run build -w @salon/snippet --prefix web`.\n'
+      + '  (If the source is unchanged, the ENDPOINT config differs from the one this bundle was baked\n'
+      + '  with — which is the same defect wearing different clothes.)');
+  }
+
   console.log(`snippet check: OK — business="${baked.business.name}", demoMode=${baked.demoMode}, `
-    + `path="${parsed.pathname}", bundle=${size} B`);
+    + `path="${parsed.pathname}", bundle=${size} B, freshness=byte-identical to a rebuild`);
   process.exit(0);
 }
 
 /* ── 4. bundle ─────────────────────────────────────────────────────────────────────────────────── */
 mkdirSync(dirname(OUTFILE), { recursive: true });
-await esbuild.build({
-  entryPoints: [join(HERE, 'src/index.ts')],
-  bundle: true,
-  minify: true,
-  format: 'iife',           // one self-contained function; no module loader is added to the host page.
-                            // NOT "no globals": the widget deliberately sets `__barberTurnstileLoading`
-                            // to guard a double script load, and that is listed on /install and in ARCH-DEC.
-  target: ['es2019'],       // wide enough for the browsers a barbershop's customers actually use
-  outfile: OUTFILE,
-  legalComments: 'none',
-  define: {
-    __BAKED_CONFIG__: JSON.stringify(baked),
-    __WEBHOOK_URL__: JSON.stringify(webhookUrl),
-    __TURNSTILE_SITE_KEY__: JSON.stringify(siteKey),
-  },
-});
+let result;
+try {
+  result = await esbuild.build(buildOptions(OUTFILE));
+  reportWarnings(result);   // INSIDE the try: see reportWarnings' own note (F10)
+} catch (e) {
+  // The real build path had no catch at all, so with esbuild silenced its only failure display would
+  // have been a raw Node stack trace — the exact shape the --check catch was added to remove.
+  const detail = e?.errors?.[0]?.text ?? (e?.message ? String(e.message).split('\n')[0] : String(e));
+  const where = e?.errors?.[0]?.location;
+  fail('the bundle did not build.\n'
+    + `  ${detail}${where ? `  (${where.file}:${where.line})` : ''}`);
+}
 
 const bytes = statSync(OUTFILE).size;
 console.log(`snippet: → web/site/public/barber-widget.js  (${(bytes / 1024).toFixed(1)} kB, business="${baked.business.name}", demoMode=${baked.demoMode}, path="${parsed.pathname}")`);

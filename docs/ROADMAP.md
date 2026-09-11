@@ -1262,13 +1262,34 @@ Each CP waits for its own written approval (plan-gate).
   baytlar mı" sorusunu cevaplıyor ve kayıtsız dosyayı yakalıyor; ama font ile checksum'ın BİRLİKTE
   değiştirilmesi hâlâ geçiyor. Yazarın deposundaki blob'la karşılaştırma → adlandırılmış madde.
 
-- ☐ **`--check` bundle'ın TAZELİĞİNİ göremiyor** (`security-auditor` F3, 2026-09-11). Kapı "makul bir bundle
+- ✅ **KAPANDI (CP 6c-0) — `--check` bundle'ın TAZELİĞİNİ göremiyordu** (`security-auditor` F3, 2026-09-11). Kapı "makul bir bundle
   VAR MI" sorusunu cevaplıyor, "bu, GÜNCEL kaynağın ürettiği bundle mı" sorusunu değil — denetim anında
   ölçüldü: diskte 17.840 B, commit'teki kaynaktan 18.278 B, kapı yine OK. Kapatması geçici dizine build alıp
   byte-diff yapmakla olur. Aynı sınır `config.generated.json` için zaten yazılıydı; artık bundle için de
-  `build.mjs`'te adıyla duruyor. → **6c**
-- ☐ **`check-all` artık derlenmiş bir bundle olmadan KIRMIZI** (F4). Kapının bütün amacı bu, ama taze bir
-  clone'da sıra "önce build, sonra check" olmak zorunda — CI/onboarding sırası yazılı olmalı. → **6c**
+  `build.mjs`'te adıyla duruyordu. **Kapatıldı:** `buildOptions()` tek yapılandırma hâline getirildi, `--check`
+  geçici dizine yeniden derleyip **byte-diff** yapıyor. Üç yönde kanıtlandı: taze=OK · kaynak değişti,
+  bundle üretilmedi = `18278 B` vs `18326 B`, ilk fark byte 18272, exit 1 · bundle kurcalandı = exit 1.
+  `config.generated.json`'ın aynı sınırı için bkz. hemen aşağıdaki ☐ madde.
+- ☐ **`config.generated.json`'ın TAZELİĞİ hâlâ ölçülmüyor.** Bundle'ınki kapandı, bunun ki kapanmadı: elle
+  yazılmış ya da bayat bir `config.generated.json` tüm kapılardan geçer. ⚠ Bu satır kendi ☐'sini
+  `security-auditor` (BULGU-7, 2026-09-12) ısrar ettiği için aldı — önceden ✅ işaretli bir kutunun İÇİNDE
+  düzyazı olarak duruyordu, yani `grep "☐"` ile açık madde tarayan hiç kimse onu bulamazdı. **Bir ✅'in
+  içinde yaşayan açık madde, açık madde değildir.** → **Faz 7**
+- ✅ **KAPANDI (CP 6c-0 · 1. parça) — `check-all` derlenmiş bir bundle olmadan KIRMIZI** (F4). Kapının bütün
+  amacı bu; taze clone sırası `web/README.md`'ye **yazıldı — ve GERÇEK bir `git clone`'da KOŞULDU.**
+  Bu, 6b'nin en pahalı dersinin ("taze bir deployment bunu gerçekten üretiyor mu?") bu faza taşınmış hâliydi
+  ve **cevap iki kez HAYIR çıktı**: ilk sıra `MODULE_NOT_FOUND` ile öldü (`ajv` yalnız
+  `scripts/node_modules`'den çözülüyor, repo kökünde `node_modules` yok — `security-auditor` yakaladı);
+  düzeltilmiş ikinci sıra `no NEXT_PUBLIC_WEBHOOK_URL` ile öldü (değerler gitignore'lu
+  `web/site/.env.local`'de) — **bunu hiçbir denetçi bulmadı, klonu koşarak build buldu.** Üçüncü sıra
+  çalışıyor; tazelik kapısı klonda da byte-identical doğruladı (18293 B — yerelden farklı, çünkü sahte
+  endpoint farklı uzunlukta, yani bundle gerçekten config'e göre pişiyor). ⚠ **Sonunda yine de `exit 2` var
+  ve bu DOĞRU:** `check-no-host-leak.sh`, `CLAUDE.local.md` olmadan `NOT CONFIGURED` der — *"bu guard
+  koşmadı"* demektir, *"temiz"* değil. Üçü de README'deki tabloda yazılı.
+  ⚠ **Bilerek OTOMATİZE EDİLMEDİ:** build'i check'e zincirlemek, hemen önce derleyen bir tazelik
+  karşılaştırması demektir — yani F3'te az önce kanıtlanan fail-ability'yi yok eder. Kapının yaptığı iş
+  "asla build KOŞMAZ" değil (geçici yeniden derleme bir build'dir); **build artefaktlarını asla YAZMAZ** (onlar zaten gitignore'lu; izlenmiyor olmaları kasıtlı),
+  ve kontrol ettiği çıktıyı bu yüzden kendisi üretemez.
 - ☐ **`styles.ts`'teki `--ink`/`--oxide` değerleri `config.branding` ile birebir aynı ama koddan hardcoded**
   (F7). Bundle'a CSS'ten giriyor, config'ten değil → `contract-integrity.md` anlamında ikinci bir doğruluk
   kaynağı. Bugün sürüklenmiş değil, ama sürüklenirse sessiz sürüklenir. → **Faz 7**

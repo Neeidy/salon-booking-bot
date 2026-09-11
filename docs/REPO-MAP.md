@@ -340,6 +340,7 @@
 
 ### `.claude/rules/reporting.md`
   - ## ONE VERDICT per message, and it is the LAST thing in it
+  - ### A relayed SUB-AGENT verdict is evidence, not the turn's verdict
   - ## Live-state sync is part of closing a phase (no drift)
   - ## A claim ABOUT a guard is written AFTER the mutation test, never beside the code
   - ## A STRUCTURAL claim needs evidence too, not just a behavioural one
@@ -347,7 +348,9 @@
   - ## A claim about your OWN CAPABILITY is a claim like any other
 
 ### `.claude/rules/security-secrets.md`
-  - _(no `##` headings — flat file)_
+  - ## What the deny glob actually does — MEASURED, not assumed
+  - ### ⚠ The deny layer is ANTI-ACCIDENT. It is NOT a boundary against a determined reader.
+  - ### The bound on `git show` — three conditions, all of them
 
 ### `.claude/rules/spend-safety.md`
   - _(no `##` headings — flat file)_
@@ -738,6 +741,7 @@
   - ## Config-driven
   - ## Browser-visible build inputs (slice 2 — the live widget)
   - ## Commands
+  - ### Fresh-clone order: BUILD, then CHECK (not the other way round)
   - ## Source of truth for what gets built
 
 ### `web/site/public/fonts/PROVENANCE.md`

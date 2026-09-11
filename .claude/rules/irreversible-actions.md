@@ -34,6 +34,11 @@ Geri alınabilir mi:<evet/hayır + nasıl>
   production host** that `check-no-host-leak.sh` reads — plus `web/site/.env.local`,
   `.claude/settings.local.json`, and **51 files under `n8n/.snapshots/`**. OPS-1 was recovered from exactly
   such a backup. One command removes both the secret and the way back.
+- **`git stash -a` / `git stash --include-untracked`, and `git stash drop` on such a stash.** It reads as a
+  save, and it is a REMOVAL: `-a` takes ignored and untracked files OUT of the working tree, which here
+  means `CLAUDE.local.md` (the sole copy of the production host) and `web/site/.env.local`; a later `drop`
+  destroys the only remaining copy. Same blast radius as `git clean -fdx`, with none of its warning signs
+  (added 2026-09-12 after `security-auditor` measured the removal — the list named `clean -fdx` but not this).
 - `git add -f` (force-adding an ignored file — the gitignore is a secret/PII boundary here)
 - `rm -rf`, and any deletion that cannot be undone
 - **WRITING to the live n8n workflow** — adding or editing a node, publishing, touching `activeVersion` —

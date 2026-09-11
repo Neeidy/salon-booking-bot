@@ -1,7 +1,7 @@
 {
   "name": "salon-booking-bot-scripts",
   "private": true,
-  "description": "Build-time tooling (NOT runtime): compile the ajv-standalone intent validator from the committed schema, generate the web config TYPES from the committed schema, and drift-check both against what is committed.",
+  "description": "Build-time tooling (NOT runtime): compile the ajv-standalone intent validator from the committed schema, generate the web config TYPES from the committed schema, drift-check both against what is committed. ORDER MATTERS IN A FRESH CLONE: `check-all` never WRITES the build artefacts, so it cannot manufacture the outputs it is checking for. (It does RUN a build \u2014 the snippet freshness check rebuilds into a temp dir \u2014 and the earlier wording here said \"it never builds\", which web/README.md in the same change called false.) web/site/config.generated.json and web/site/public/barber-widget.js are gitignored build artefacts, so a tree that has never been built fails this gate by design. Run the build first: `npm --prefix scripts ci && npm --prefix web ci && npm --prefix web run build -w @salon/snippet` then `npm --prefix scripts run check-all`. It is deliberately NOT chained into one script: the snippet's --check now byte-compares the bundle against a rebuild, and a gate that rebuilds immediately before comparing can never fail.",
   "scripts": {
     "compile-validator": "node compile-intent-validator.cjs",
     "check-validator": "node compile-intent-validator.cjs --check",
