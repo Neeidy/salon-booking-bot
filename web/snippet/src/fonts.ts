@@ -3,9 +3,13 @@
  *
  * WHY A HOLE AT ALL: `@font-face` is ignored inside a shadow root. The rules must sit in the host
  * DOCUMENT for the faces to resolve, so this module writes a <style> element into `document.head`.
- * That is the widget touching the page it promised not to touch. It is one element, it is idempotent,
- * and it declares nothing but two font families — but "the widget cannot leak out" is only true with
- * this exception written down (ARCH-DEC §5, 2026-09-09).
+ * That is the widget touching the page it promised not to touch. It is TWO <style> elements — one per
+ * face, because the display face is deferred to first panel open (see the split at the bottom of this
+ * comment) — each idempotent, and together they declare nothing but two font families. ⚠ The line here
+ * used to say "it is one element", contradicting the "TWO INJECTIONS, NOT ONE" paragraph in this same
+ * file; measured on the host page, `document.head` carries `data-barber-widget-font-ui` AND
+ * `data-barber-widget-font-display` (code-reviewer, 2026-09-11). "The widget cannot leak out" is only
+ * true with this exception written down, and only honest when the count is right (ARCH-DEC §5).
  *
  * WHY THE NAMES ARE NAMESPACED: a document-level `@font-face{font-family:'Fraunces'}` would REDEFINE
  * that family for the whole host page. If the client's own site already uses Fraunces — plausible, it
@@ -25,9 +29,18 @@
  *
  * TWO INJECTIONS, NOT ONE — and the split is about whose bandwidth pays.
  *   · Instrument Sans (88 kB) is the UI: every bubble, the composer, the launcher. Injected at mount.
- *   · Fraunces (205 kB) draws exactly TWO strings — the shop name in the panel header and the avatar
- *     initials. That is 13× the whole widget bundle (16 kB) for two strings, paid for by the CLIENT's
- *     site, for something their visitor did not ask for. But the widget starts CLOSED: until someone
+ *   · Fraunces draws exactly TWO strings — the shop name in the panel header and the avatar initials.
+ *     The face is **205,500 B** (`web/site/public/fonts/fraunces-variable.woff2`, checksum-pinned in
+ *     PROVENANCE.md) — an order of magnitude more bytes than the ENTIRE widget bundle, for two strings,
+ *     paid for by the CLIENT's site, for something their visitor did not ask for.
+ *     ⚠ Two corrections live here. The text once said "13x the whole widget bundle (16 kB)" and NEITHER
+ *     number had been measured. The replacement then pinned an exact bundle size — and went stale within
+ *     the same round, because the bundle is a gitignored build artefact that changes on every edit; a
+ *     reviewer rebuilt it and got a different figure (code-reviewer, 2026-09-11). So no bundle byte count
+ *     is pinned in this file any more. Only the font size is, because that file IS committed and its
+ *     checksum is guarded. To compare for yourself:
+ *         npm run build -w @salon/snippet --prefix web   # prints the current size
+ *         stat -c '%s' web/site/public/fonts/fraunces-variable.woff2 But the widget starts CLOSED: until someone
  *     opens the panel, nobody can see either string. So Fraunces is injected on FIRST PANEL OPEN.
  *     A visitor who never engages pays ZERO, and the locked typography is not altered in any way.
  *   Accepted cost: one face swap on that first open, fallback → Fraunces. Measured, see ROADMAP §6b.

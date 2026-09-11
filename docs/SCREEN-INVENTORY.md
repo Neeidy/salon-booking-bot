@@ -288,6 +288,24 @@ Motorda metni olmayan yedi durumun her biri karara bağlandı. **Design bu metin
 | **W59** rate-limit (edge) | **frontend sabit metni** | *"Too many messages just now — please wait a moment and try again."* | İstek n8n'e **hiç ulaşmıyor** (Cloudflare); motorun bundan haberi yok. |
 | **W60** offline / erişilemez | **frontend sabit metni** | *"We can't reach the salon right now. Please try again in a moment."* | Ağ hatası; sistemde karşılığı yok. |
 
+#### 2.10.1a — UYGULAMA DURUMU ve iki YENİ frontend durumu (2026-09-11, `code-reviewer` Tur 3 yeniden koşusu)
+
+Bu alt bölüm, yukarıdaki KARARLARIN kodda ne kadarının gerçekleştiğini kaydeder — çünkü karar ile
+uygulama arasındaki boşluk bu projenin tekrar eden kusur sınıfı.
+
+| Durum | Karar | Kodda | 2026-09-11'de ne değişti |
+|---|---|---|---|
+| **W59** rate-limit | §2.10.1'de metni YAZILMIŞ | **yoktu** | ✅ uygulandı — `FRONTEND_TEXT.rateLimited`, 429 kendi dalına alındı. Öncesinde 429 catch-all'a düşüp *"Something went wrong on our side"* diyordu: rate-limit yemiş ziyaretçiyi **yenilemeye** yönlendiriyordu, oysa tek işe yarar eylem BEKLEMEK. Test: `chatClient.test.ts` → `429 is the edge rate-limit (W59)…` |
+| **W60** sınıfı — motorun sözleşmesinde OLMAYAN her cevap (502 · 500 · 504 · gövdesiz 2xx) | frontend sabit metni | **dükkânın sesiyle konuşuyordu** | ✅ düzeltildi — `kind:'system'` + `console.error`. Ölçüm (CDP, 502 + HTML gövde): ÖNCE `msg bot` *"I'm passing you to a team member…"*, konsolda hiçbir şey; SONRA `msg system` *"Something went wrong on our side…"* + `[widget] unmapped engine response: 502`. Motora hiç ulaşmamış bir istek için **kimsenin haberi olmayan bir insan sözü** veriliyordu; `handoff.md` "Infrastructure failure ≠ conversational handoff" ihlali. |
+| **W66 — doğrulama takıldı** | *(yoktu)* | *(hâlâ YOK)* | ❌ **KURULDU, GERİ ALINDI, AÇIK.** 20 sn'lik watchdog eklendi ve aynı turda çıkarıldı: zamanlayıcı `setGate('pending')` ile MOUNT anında kuruluyordu, Turnstile ise ancak İLK AÇILIŞTA mount oluyor → paneli 20 sn açmayan ziyaretçide **yanlış alarm** (ölçüm: `turnstileRendered:0` iken *"Still checking this browser…"*), ve tek atışlık bayrak orada yandığı için GERÇEK takılma sessiz kalıyordu. **Bu satır kapanmış sayılmamaktadır** — composer hâlâ Turnstile callback'i hiç gelmezse süresiz "Verifying…"de kalabilir. Bilinen düzeltme + gerekçe: ROADMAP §6b. |
+| **W67 ⭐ YENİ — başlayamayan retry** | *(yoktu)* | *(yoktu)* | ✅ eklendi — `Try again`, token henüz yokken hiçbir iz bırakmadan hiçbir şey yapıyordu (ölçüm: balon 5→5, POST 1→1, placeholder değişmedi). Artık balonun içine tek satır giriyor: *"Not ready to send yet — see the box below."* Sebebi ADLANDIRMIYOR, çünkü `canSend()` üç ayrı nedenle reddedebilir ve hangisi olduğunu zaten alttaki composer söylüyor. |
+
+⚠ **KAPATILMAYAN, adıyla:** §2.10.1'in W57/W58/W60 için yazdığı **birebir metinler** ile koddaki
+`FRONTEND_TEXT` sözcükleri AYNI DEĞİL (ör. karar *"We couldn't verify your browser. Please refresh the
+page…"*, kod *"We couldn't verify this browser. Please reload the page…"*). Bu drift bu turda
+**düzeltilmedi** — onaylı metinleri tek taraflı yeniden yazmak bu turun işi değil. Açık madde olarak
+ROADMAP §6b'de duruyor; kapanmış sayılmamaktadır.
+
 **Neden W57-W60 için config anahtarı eklenmedi:** tüketicisi (frontend) henüz yokken config anahtarı
 eklemek, K5'te sildiğimiz ölü-anahtar tuzağının aynısıdır. Bunlar taşıyıcı/güvenlik katmanı
 mesajları — marka sesi taşımıyorlar. Çok dilli hâle gelirlerse config'e Phase 7'de, tüketicileriyle

@@ -94,9 +94,24 @@ if (parsed.pathname !== EXPECTED_PATH) {
 }
 
 /* ── 3. the baked payload ──────────────────────────────────────────────────────────────────────── */
+// Only the keys the transport actually reads. ⚠ Until 2026-09-11 this baked `config.messageTemplates`
+// WHOLE — all 29 keys, `cancelDone` and every other engine-owned line included — into a bundle served to
+// strangers on a client's site, while the comment at the top of this file said the bundle carries "only
+// what the widget actually renders" (code-reviewer measured both). Narrowing the payload to the gate's
+// own list is the fix that makes the sentence true AND makes gate and payload one truth instead of two.
+// The disproving search, shown, because this is a claim about shape. ⚠ The first version printed here
+// was `grep -rn 't\.[a-zA-Z]*' chatClient.ts`, which returns 21 lines — most of them prose — so it did
+// NOT measure the sentence it was quoted for (code-reviewer, 2026-09-11; the same class of error this
+// round had just corrected elsewhere). The search below excludes comment lines and is the one actually
+// run:
+//   $ grep -nE '^\s*[^*/].*\bt\.[a-zA-Z]+' web/shared/src/chat/chatClient.ts | grep -oE '\bt\.[a-zA-Z]+' | sort -u
+//     t.handoff
+//     t.notUnderstood
+//   $ grep -rn 'messageTemplates' web/snippet/src web/shared/src → no other consumer reads a key
+// `welcomeLine()` is a hardcoded string in the transport, not a template, so nothing else is lost.
 const baked = {
   business: { name: config.business.name },
-  messageTemplates: config.messageTemplates,
+  messageTemplates: Object.fromEntries(NEEDED_TEMPLATES.map((k) => [k, config.messageTemplates[k]])),
   demoMode: config.demoMode === true,
 };
 

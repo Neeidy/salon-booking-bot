@@ -93,12 +93,101 @@ test('handoff lock 200 — engine text again, not a fallback', async () => {
   });
 });
 
-test('unknown failure with no text — promises a human, never silence', async () => {
-  await withResponse(500, { ok: false, error: 'something_new' }, async () => {
+/**
+ * ⚠ THIS TEST USED TO ASSERT THE OPPOSITE, and it was the defect written down as a guarantee.
+ * It required a 500 to answer in the SHOP's voice with `messageTemplates.handoff` — "I'm passing you to
+ * a team member". Nobody is passed to anyone: a 5xx from the edge never reached the engine, so
+ * `Build Owner Alert` (which lives INSIDE the workflow) never ran and no human was told. That is the
+ * `handoff.md` rule "Infrastructure failure ≠ conversational handoff" broken on the frontend after the
+ * engine side had already paid to close it (CP5a D-d). `code-reviewer` measured it on 502 / 429 / 500 /
+ * empty-reply, all four identical. The config fallback now stays ONLY on the engine's own 400 and 503
+ * branches, which are real conversational moments where the owner IS pinged.
+ */
+test('unknown NON-OK status — the transport speaks, and never promises a human nobody told', async () => {
+  for (const status of [500, 502, 504]) {
+    await withResponse(status, { ok: false, error: 'something_new' }, async () => {
+      const r = await send();
+      assert.equal(r.kind, 'system', `${status} must not wear the shop's voice`);
+      assert.equal(r.text, FRONTEND_TEXT.unexpected);
+      assert.equal(r.origin, 'frontend');
+      assert.notEqual(r.text, t.handoff, `${status} must not promise a human`);
+    });
+  }
+});
+
+/**
+ * W59 had a DECIDED text in SCREEN-INVENTORY §2.10.1 and no implementation — a 429 fell into the
+ * catch-all and advised a reload, which is the one thing that does not help a rate-limited visitor.
+ */
+test('429 is the edge rate-limit (W59) and says WAIT, not "try again in a moment"', async () => {
+  await withResponse(429, { ok: false, error: 'rate_limited' }, async () => {
     const r = await send();
-    assert.equal(r.text, t.handoff);
-    assert.equal(r.origin, 'config');
+    assert.equal(r.kind, 'system');
+    assert.equal(r.text, FRONTEND_TEXT.rateLimited);
+    assert.notEqual(r.text, FRONTEND_TEXT.unexpected);
   });
+});
+
+test('a 2xx the contract does not describe still answers — silence is never the outcome', async () => {
+  await withResponse(200, { ok: true, something: 'unmapped' }, async () => {
+    const r = await send();
+    assert.equal(r.kind, 'system');
+    assert.equal(r.text, FRONTEND_TEXT.unexpected);
+    assert.ok(r.text.length > 0);
+  });
+});
+
+/**
+ * K2 = C (show the lock line once, then accept quietly) is driven ENTIRELY by this flag, and nothing
+ * asserted it — `grep -n locked chatClient.test.ts` matched only a body literal (code-reviewer #11).
+ * A structural signal with no test is one refactor away from silently becoming `undefined`, and the
+ * failure mode is invisible: the lock line simply repeats on every message.
+ */
+test('locked is carried through as a STRUCTURAL flag, not inferred from the words', async () => {
+  await withResponse(200, { ok: true, handoff: true, locked: true, reply: t.handoffLocked }, async () => {
+    const r = await send();
+    assert.equal(r.locked, true);
+  });
+  // and it is absent — not merely falsy by accident — on an ordinary reply
+  await withResponse(200, { channel: 'widget', reply: t.bookingConfirmed }, async () => {
+    const r = await send();
+    assert.equal(r.locked, false);
+  });
+});
+
+/**
+ * `messageTemplates` has NO required keys in the committed schema, so a config can pass every gate and
+ * still be missing the two the widget must supply. Before `fill()` that rendered `undefined` — an empty
+ * bubble, the exact opposite of the contract. `build.mjs` fails the snippet build for it; this is the
+ * runtime net for every other consumer, and it had no test.
+ */
+test('a missing template never renders undefined — fill() substitutes an honest sentence', async () => {
+  const bare = { messageTemplates: {} } as typeof cfg;
+  await withResponse(400, { ok: false, error: 'invalid_payload', handoff: true }, async () => {
+    const r = await sendMessage(endpoint, bare, 'hi', 's-1', 'tok', 'm-1');
+    assert.equal(r.text, FRONTEND_TEXT.noText);
+    assert.notEqual(r.text, 'undefined');
+  });
+});
+
+/**
+ * The timeout branch had no test: the existing network test throws a generic Error, which takes the
+ * `offline` path. Only an AbortError reaches `timeout`, and that is the branch the 60 s ceiling exists
+ * for — the one measured turn where the client gave up on work the engine went on to finish.
+ */
+test('an aborted request reads as a TIMEOUT, not as being offline', async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    const e = new Error('The operation was aborted.');
+    e.name = 'AbortError';
+    throw e;
+  }) as typeof fetch;
+  try {
+    const r = await send();
+    assert.equal(r.text, FRONTEND_TEXT.timeout);
+    assert.notEqual(r.text, FRONTEND_TEXT.offline);
+    assert.equal(r.status, 0);
+  } finally { globalThis.fetch = real; }
 });
 
 test('network failure — a frontend transport message, and it does NOT pretend to be the bot', async () => {

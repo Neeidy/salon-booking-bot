@@ -471,6 +471,43 @@ Each CP waits for its own written approval (plan-gate).
     ⚠ **The zero was proven fail-able before it was believed:** the same `FIND()` formula pointed at a substring
     that DOES exist (`ee5d737b`) returned its row. The zeros therefore measure absence, not a broken filter —
     the negative-control discipline this repo requires of every guard, applied to a cleanup query.
+  - ✅ **`code-reviewer` SON KOŞU + düzeltme turu (2026-09-11) — snippet'i ilk kez gören gözle, 13 bulgu.**
+    Ajan her şeyi gerçek Chromium'da (CDP, iki origin, düşmanca host sayfası, Cloudflare'in üç TEST key'i)
+    sürdü ve **temiz çıkanları da tek tek saydı** — motor sözleşme tablosunun sekiz satırı, çift-gönderim
+    yarışı (1 POST), listener hijyeni (0/1/1/0), XSS, `maxlength` ↔ motorun `lte 1000` sınırı, izolasyon
+    envanteri. **4 ÜRÜN kusuru düzeltildi, hepsi iki yönde drill edildi (önce KIRMIZI, sonra YEŞİL):**
+    (1) **Motora hiç ulaşmamış bir 502/429/500, dükkânın sesiyle konuşup kimsenin haberi olmayan bir insan
+    sözü veriyordu.** `Build Owner Alert` workflow'un İÇİNDE, yani edge'de ölen bir istek için kimse
+    uyarılmaz — `handoff.md`'nin "altyapı arızası ≠ konuşma devri" kuralının frontend'de yeniden açılması.
+    Artık taşıyıcının sesi + `console.error`. **429 kendi ekranını aldı (W59): kararı §2.10.1'de YAZILIYDI,
+    kodda YOKTU** — rate-limit yemiş ziyaretçi "yenileyin" diye yönlendiriliyordu, oysa tek işe yarar eylem
+    beklemek. (2) ❌ **"Verifying…" bekleyişinin çıkışsızlığı — watchdog KURULDU ve AYNI TURDA GERİ ALINDI; madde AÇIK.**
+    Yapısal arama doğruydu (`ready`'yi üreten TEK yer Turnstile'ın token callback'i, `pending`'in kendi
+    timeout'u yok), ama eklediğim 20 sn'lik zamanlayıcı `setGate('pending')` ile MOUNT anında kuruluyordu,
+    oysa Turnstile ancak İLK PANEL AÇILIŞINDA mount ediliyor. Ölçüm (T+22 sn, panel hiç açılmamış):
+    `turnstileRendered: 0` iken ekranda *"Still checking this browser…"* — widget tek satır doğrulama kodu
+    çalıştırmamışken "kontrol ediyorum" diyordu; panel açılınca token anında geliyor ama **yalan alarm
+    transcript'te kalıyor**, üstelik tek atışlık bayrak orada yandığı için **gerçek** takılma sessiz
+    kalıyordu. Yani düzeltme, olmayan bir çıkışsızlığı ilan edip olanı susturuyordu — kendi cümlesinin
+    tersi. `code-reviewer` buldu; ben bağımsız olarak yeniden ürettim. **Geri alındı** (çıkarma, yeni kod
+    değil). Bilinen düzeltme tek koşul — `state === 'pending' && !sending && mounted`, `let mounted`
+    bildirimi TDZ için yukarı taşınarak — artı kapalı-panel negatif kontrolü; **uygulanmadı, çünkü bu
+    düzeltmenin düzeltmesinin ÜÇÜNCÜ turu olurdu ve eşik ilan edilmişti.** Açık madde aşağıda. (3) `<head>`'e
+    `defer`siz yapıştırılan etikette `document.body` henüz yok → **uncaught TypeError, widget hiç doğmuyor**,
+    müşterinin sitesinde sebepsiz bir "Script error.". (4) Token yokken `Try again` **hiçbir iz bırakmadan**
+    hiçbir şey yapmıyordu. **9 KAYIT kusuru düzeltildi**, hepsi aynı sınıf — cümle koddan/motordan fazlasını
+    iddia ediyordu: retry'ın idempotency sözü (`Record Processed` turun SONUNDA yazılıyor, yani uçuştaki bir
+    tur dedupe'un dışında — sınır `Build Event Request`'in deterministik event id'si) · "guaranteed 403"
+    (`Turnstile Gate` bir config bayrağına bağlı) · `fonts.ts`'in kendi içinde "one element" derken iki
+    `<style>` enjekte etmesi (ARCH-DEC 2026-09-10 satırı da aynı çelişkiyi taşıyordu, ikisi de düzeltildi) ·
+    "13× / 16 kB" ölçülmemiş sayısı → font **205.500 B** (commit'li ve checksum'lı); ⚠ yerine yazılan bundle sayısı AYNI TUR İÇİNDE bayatladı — bundle gitignored bir build artefaktı, her düzenlemede değişiyor, hakem yeniden kurup farklı sayı buldu; artık hiçbir yerde sabit bundle byte sayısı yazmıyoruz, yeniden üretme komutu yazıyoruz · `/install`'ın "konuşma sayfa
+    değişiminde sağ kalır" cümlesi (**state sağ kalıyor, EKRAN kalmıyor**) · "yalnız widget'ın render ettiği
+    şey bake edilir" derken **29 şablonun tamamı** müşterinin sitesinde yayınlanıyordu → payload gate'in
+    listesine daraltıldı — **payload 29 anahtar → 2** (ölçüldü: bundle içinde `messageTemplates:{handoff:…,notUnderstood:…}`), bundle da buna bağlı olarak küçüldü (sayı için yukarıdaki bayatlama notu). **Test boşluğu kapatıldı:** `locked` bayrağı (K2=C'yi
+    süren yapısal sinyal), `fill()` ve AbortError→timeout dallarının hiçbir testi yoktu; 27 → **32 test**.
+    ⚠ **Bir testin kendisi kusuru KİLİTLİYORDU** — `'unknown failure … promises a human, never silence'`
+    tam da kuralın yasakladığı davranışı garanti diye yazmıştı; düzeltildi ve neden değiştiği testin
+    başında duruyor.
   - 🔴 **FINDING — a client-side timeout abandons the RESPONSE but does not stop the ENGINE.** Free drill:
     the first message of the session exceeded the widget's 20 s timeout, the visitor saw *"That took too
     long to answer. Please try again."* and re-sent it. **Measured: the timed-out message reached the engine
@@ -1141,6 +1178,40 @@ Each CP waits for its own written approval (plan-gate).
   committed export had it, live does not — proven on the pre-change backup and live. Re-sanitising made the export
   match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable
   search may return more than one row and `Record Alert Class` runs per item.
+- 🔴 **Composer'ın Turnstile bekleyişinin HÂLÂ çıkışı yok — watchdog kuruldu, yanlış alarm ürettiği ölçüldü,
+  GERİ ALINDI (2026-09-11).** Kusurun kendisi gerçek ve yapısal olarak kanıtlı: `ready`'yi üretebilen tek olay
+  Cloudflare'in token callback'i, `pending`'in kendi timeout'u yok → callback hiç gelmezse composer süresiz
+  "Verifying…"de ölü kalır (`DRILLS.md` STUCK-1, ölçüldü). **Bilinen düzeltme, hakem tarafından da yazıldı:**
+  arming'i `state === 'pending' && !sending && **mounted**` yap ve `let mounted` bildirimini `setGate`'ten
+  ÖNCEYE taşı (naif hâli TDZ `ReferenceError` verir — hakem bunu ayrıca uyardı). Sonra **kapalı-panel negatif
+  kontrolü** (`DRILLS.md` STUCK-3) önce KIRMIZI sonra YEŞİL koşulmalı; token gerektirmiyor, Claude koşabilir.
+  **Neden bu turda yapılmadı:** düzeltmenin düzeltmesinin ÜÇÜNCÜ turu olurdu ve eşik ölçümden ÖNCE ilan
+  edilmişti. Eşiği sonucu görünce esnetmek, eşiği hiç koymamaktır.
+- 🟡 **`.retry-note` token geldikten sonra ekranda BAYAT kalıyor** (`code-reviewer` P2, 2026-09-11; ölçüldü:
+  not *"Not ready to send yet — see the box below."* dururken `placeholder:"Type a message…"`, `disabled:false`).
+  Hasar küçük — not zaten aşağıdaki kutuya işaret ediyor ve o kutu doğruyu söylüyor — ama ekranda yanlış bir
+  cümle duruyor. Düzeltme: `setGate('ready')` içinde notları temizle, ya da notu balona değil canlı
+  placeholder'a bağla. Aynı eşik gerekçesiyle bu turda yapılmadı.
+- ☐ **Site paneli `reply.locked`'ı OKUMUYOR — paylaşılan sözleşmenin iki tüketicisinden yalnız biri uyguluyor**
+  (`code-reviewer` #12, 2026-09-11; `web/site/components/site/LiveChatPanel.tsx`). Snippet K2=C'yi uyguluyor
+  (kilit cümlesi bir kez), site paneli her mesajda aynı `handoffLocked` balonunu üst üste yığıyor. `65b`'nin
+  transport'u `@salon/shared/chat`'e taşımasının GEREKÇESİ "tek sözleşme, iki front end" idi; bir tüketicinin
+  sözleşmenin bir alanını görmezden gelmesi tam da o gerekçeyi boşa çıkarır. **Bu turda kasıtlı olarak
+  yapılmadı:** 6a'nın onaylı ekranlarına dokunur ve K2=C'nin site için de geçerli olduğu Yigitcan'ın kararıdır,
+  benim değil. **Ölçüm — ve ilk yazdığım arama YANLIŞTI, düzeltilerek kaydediliyor:** `grep -n locked` iki satır döndürür ama ikisi de *b‑locked*'tır (`FRONTEND_TEXT.blocked`), yani o arama cümleyi ölçmüyordu. Ölçen arama: `grep -nE '\.locked|\blocked\b' LiveChatPanel.tsx` → **`.locked` için 0 eşleşme**; aynı arama `web/snippet/src/index.ts`'te 1 döndürüyor. (Gösterilen aramanın iddiayı ölçmemesi bu reponun adlandırılmış kusur sınıfıdır — `reporting.md`, yapısal iddia bölümü.)
+- ☐ **Ziyaretçinin GÖRDÜĞÜ transcript aynı sekmede sayfa değişince kayboluyor; konuşma ise motorda devam ediyor**
+  (`code-reviewer` #3, 2026-09-11). `sessionStorage` yalnız konuşma id'sini taşıyor. Ölçülen ekran: *"shall I
+  book it? (yes / no)"* balonu ekrandayken başka bir sayfaya geçildi → id AYNI, thread yalnız karşılama; motor
+  `confirming`'de bekliyor, widget yeniden selamlıyor. `handoff.md` düz booking `confirming` için freshness
+  check OLMADIĞINI söylüyor, yani bekleyen onay süresiz ve artık görünmez. **Bu turda yalnız YANLIŞ CÜMLE
+  düzeltildi** (`/install` artık "ekran saklanmaz" diyor); transcript'i saklamak bir ÖZELLİK ve 6b'nin
+  kapsamında değil. ⚠ Uçtan uca sonucu — görünmeyen bir onaya gelen "yes" — **gerçek token gerektirir,
+  Yigitcan'ın tarayıcısına kalıyor**; ölçülmedi, varsayılmıyor.
+- ☐ **`SCREEN-INVENTORY` §2.10.1'in KARARLAŞTIRDIĞI birebir metinler ile koddaki `FRONTEND_TEXT` sözcükleri
+  aynı değil** (W57/W58/W60; ör. karar *"…your browser. Please refresh…"*, kod *"…this browser. Please
+  reload…"*). Tasarım yüzeyi ile uygulama arasında sessiz bir drift. **Bu turda düzeltilmedi** — onaylı
+  metinleri tek taraflı yeniden yazmak bu turun işi değildi; hangi tarafın kazanacağı Yigitcan'ın kararı.
+  Kayıt: `docs/SCREEN-INVENTORY.md` §2.10.1a, tik'in içine yazıldı, kapanmış sayılmıyor.
 - ⚠ **Declare `messageTemplates` keys in `schemas/client.config.schema.json` — HÂLÂ AÇIK, ama artık teorik değil: 2026-09-11'de ISIRDI.**
   Today it is still an open `additionalProperties:{type:string}` map, so a client config missing `askIntent` (or any
   template) passes the config guard and only degrades at runtime. `Build Clarify State` carries a defensive literal, which

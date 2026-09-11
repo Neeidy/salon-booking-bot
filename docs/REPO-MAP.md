@@ -571,6 +571,7 @@
   - ### 2.9 — İnsana devir — **ÜÇ SINIF, AYRI EKRAN**
   - ### 2.10 — Hata ve kenar durumları
   - ### 2.10.1 — Metni olmayan çıkışların KARARI (BULGU-6 kapandı, K1 uygulandı)
+  - #### 2.10.1a — UYGULAMA DURUMU ve iki YENİ frontend durumu (2026-09-11, `code-reviewer` Tur 3 yeniden koşusu)
   - ### 2.11 — Guard durumlarının görünmeyen yüzü
   - ### 2.12 — Stage makinesi (9 değer — Design'ın durum grafiği)
   - ## §3 — YÜZEY 3: GÖMÜLEBİLİR SNIPPET

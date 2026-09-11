@@ -37,16 +37,30 @@ declare const __TURNSTILE_SITE_KEY__: string;
 const HOST_ID = 'barber-widget-root';
 
 (function main() {
+  // Capture our own <script> FIRST: `document.currentScript` is only meaningful while this file is
+  // executing synchronously, so it must be read before any possible deferral below.
+  const selfSrc = (document.currentScript as HTMLScriptElement | null)?.src
+    ?? document.querySelector<HTMLScriptElement>('script[src*="barber-widget"]')?.src
+    ?? null;
+
+  // `document.body` does not exist yet when the tag is pasted into <head> without `defer`. /install
+  // gives the correct line, but the one thing a one-line product cannot control is where somebody
+  // pastes it — and the old code threw `Cannot read properties of null (reading 'appendChild')` there.
+  // On a client's own site that surfaces as a cross-origin "Script error." with no widget and no cause
+  // (measured by code-reviewer, 2026-09-11). Waiting is the entire fix.
+  if (document.body) boot(selfSrc);
+  else document.addEventListener('DOMContentLoaded', () => boot(selfSrc), { once: true });
+})();
+
+function boot(selfSrc: string | null) {
+  // The guard lives HERE, not in main(): two tags pasted into <head> would both defer to
+  // DOMContentLoaded and both arrive with the host still absent, so a check made before the wait
+  // would let two widgets through.
   if (document.getElementById(HOST_ID)) return;      // double-insert guard: two script tags, one widget
 
   const cfg = __BAKED_CONFIG__;
   const name = cfg.business.name;
   const endpoint = { webhookUrl: __WEBHOOK_URL__, turnstileSiteKey: __TURNSTILE_SITE_KEY__ };
-
-  // Capture our own <script> before anything else can change document.currentScript.
-  const selfSrc = (document.currentScript as HTMLScriptElement | null)?.src
-    ?? document.querySelector<HTMLScriptElement>('script[src*="barber-widget"]')?.src
-    ?? null;
 
   const host = document.createElement('div');
   host.id = HOST_ID;
@@ -112,7 +126,22 @@ const HOST_ID = 'barber-widget-root';
       // so a click while the composer was still waiting for a fresh Turnstile token silently did nothing
       // AND destroyed the only way back (measured 2026-09-10). A button that can do nothing must at
       // least leave itself on screen.
-      btn.addEventListener('click', () => { if (action.run()) el.remove(); });
+      btn.addEventListener('click', () => {
+        if (action.run()) { el.remove(); return; }
+        // Staying on screen was the earlier fix and it was right — but a click that changes NOTHING
+        // reads as a dead control. Measured 2026-09-11 (code-reviewer): bubbles 5→5, POSTs 1→1,
+        // placeholder unchanged, no typing indicator; the only signal was the greyed-out composer,
+        // which is easy to miss while looking at the button you just pressed. Say why, once. The
+        // sentence points DOWN rather than naming a cause, because `canSend()` refuses for three
+        // different reasons (no token yet, blocked, another send in flight) and the composer below
+        // already states which one.
+        if (!el.querySelector('.retry-note')) {
+          const note = document.createElement('span');
+          note.className = 'retry-note';
+          note.textContent = 'Not ready to send yet — see the box below.';
+          btn.insertAdjacentElement('afterend', note);
+        }
+      });
       el.appendChild(document.createElement('br'));
       el.appendChild(btn);
     }
@@ -139,16 +168,46 @@ const HOST_ID = 'barber-widget-root';
   bubble('bot', welcomeLine(name));
 
   /* ── Turnstile ────────────────────────────────────────────────────────────────────────────────
-     The composer stays disabled until a token exists. That is not politeness: the engine gates every
-     request, so a send without one is a guaranteed 403, and letting a visitor type into a box that
-     cannot deliver is the silent failure this repo forbids. */
+     The composer stays disabled until a token exists. That is not politeness: letting a visitor type
+     into a box that cannot deliver is the silent failure this repo forbids.
+     ⚠ The earlier wording said a send without a token is "a guaranteed 403". It is not guaranteed by
+     the engine — `Turnstile Gate` is conditional on `channel === 'widget'` AND
+     `config.channels.widget.turnstile.enabled === true`, so the 403 depends on a client's config flag.
+     The DECISION is unchanged and correct either way; only the justification was overstated. */
   let ts = { token: () => null as string | null, refresh: () => {} };
+
+  /**
+   * ⚠ A 20 s WATCHDOG ON THIS WAIT WAS BUILT AND THEN REVERTED ON 2026-09-11. The gap it aimed at is
+   * REAL and is still open: the structural search below shows one single producer of `ready`, and
+   * `pending` has no timeout of its own, so a `reset()` whose callback never arrives leaves the
+   * composer dead behind "Verifying…" with nothing on screen.
+   *
+   *     turnstile.ts:110  callback: (t) => { token = t; onChange('ready'); }   ← the ONLY 'ready'
+   *     turnstile.ts:98/112/113/126 'pending'   ·   111/117 'blocked'
+   *     index.ts    setGate('pending') on mount and on every send   ·   'blocked' in the refresh catch
+   *
+   * WHY IT CAME OUT AGAIN: `setGate('pending')` runs at MOUNT, while Turnstile is only mounted on the
+   * FIRST PANEL OPEN — so the timer fired for every visitor who browsed for 20 s before clicking the
+   * launcher. Measured: at T+22 s with the panel never opened, `turnstileRendered: 0` and the thread
+   * already carried *"Still checking this browser…"* — the widget had not executed one line of
+   * verification code. Opening then produced a token instantly while the false alarm stayed in the
+   * transcript, and the one-shot flag had been spent, so a LATER genuine stall printed nothing. The fix
+   * announced a no-exit that did not exist and silenced the one that did.
+   *
+   * The known fix is one condition — arm only once Turnstile has actually been asked for a token
+   * (`state === 'pending' && !sending && mounted`, with `let mounted` moved up here to avoid a TDZ
+   * error) — plus a closed-panel negative control. It was NOT applied: this was the third consecutive
+   * round of correcting a correction, which is the declared stop point. Tracked in ROADMAP §6b.
+   */
   function setGate(state: 'pending' | 'ready' | 'blocked') {
     const ok = state === 'ready';
     input.disabled = !ok;
     sendBtn.disabled = !ok || sending;
     input.placeholder = state === 'blocked'
-      ? "Verification didn't load — reload the page"
+      // The old line said "Verification didn't load". Measured with Cloudflare's always-block test key:
+      // the challenge DID load (the slot took a 388x73 box) and then REFUSED — and for a visitor who
+      // has actually been flagged, "reload the page" fixes nothing. This wording is true either way.
+      ? "Couldn't verify this browser — reload to try again"
       : ok ? 'Type a message…' : 'Verifying…';
   }
   setGate('pending');
@@ -156,11 +215,21 @@ const HOST_ID = 'barber-widget-root';
   /**
    * RETRY IS NOT A NEW MESSAGE — it is the SAME payload sent again, with the SAME `messageId`.
    *
-   * The engine already dedupes on `message_id`; this is what that mechanism is for. Measured on
-   * 2026-09-10: a turn that timed out CLIENT-side had been fully processed by the engine anyway, so the
-   * visitor was told to try again about work that had succeeded. Re-typing produces a NEW id, which
-   * dedupe cannot collapse — on a `yes` turn that is a second write attempt against a booking that
-   * already exists. Reusing the id closes that path without touching the engine.
+   * The engine dedupes on `message_id`; this is what that mechanism is for. Measured on 2026-09-10: a
+   * turn that timed out CLIENT-side had been fully processed by the engine anyway, so the visitor was
+   * told to try again about work that had succeeded. Re-typing produces a NEW id, which dedupe cannot
+   * collapse — on a `yes` turn that is a second write attempt against a booking that already exists.
+   * Reusing the id removes that whole class without touching the engine.
+   *
+   * ⚠ BOUND, because the earlier wording ("closes that path") claimed more than the engine guarantees.
+   * Read from the committed workflow's connection graph, not assumed:
+   *     Check Processed   <- Validate Payload                        (start of the turn)
+   *     Record Processed  <- Save State, Save State (Post-Write)     (end of the turn)
+   * The id is written only once a turn has COMPLETED. So a retry fired while the first turn is still
+   * in flight finds `Check Processed` empty and is processed as a second turn — dedupe does not engage
+   * there. What bounds that remaining case is not this file: `Build Event Request` derives a
+   * deterministic Calendar event id from the booking key, so the second write collides (409) instead of
+   * creating a second appointment. Narrower claim, and the one that is actually measured.
    *
    * The distinction is a STATE, never a guess: `send(retry)` replays a specific failed payload, and it
    * is only ever reached through the button on that failure's own bubble. Anything the visitor types is
@@ -277,4 +346,4 @@ const HOST_ID = 'barber-widget-root';
 
   launcher.addEventListener('click', () => setOpen(!panel.classList.contains('is-open')));
   closeBtn.addEventListener('click', () => setOpen(false));
-})();
+}

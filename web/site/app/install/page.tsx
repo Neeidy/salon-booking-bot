@@ -75,9 +75,11 @@ export default function InstallPage() {
               replace a font your own site uses.</li>
           <li>Loads <strong>one script from Cloudflare</strong> (<code>challenges.cloudflare.com</code>), which
               is the bot check described below. It is the only third-party code involved.</li>
-          <li>Stores <strong>one key in <code>sessionStorage</code></strong> so a conversation survives a page
-              change within the same tab. Not a cookie, not an identifier that follows anyone between sites, and
-              gone when the tab closes.</li>
+          <li>Stores <strong>one key in <code>sessionStorage</code></strong> &mdash; the conversation id, so the
+              assistant still knows who it is talking to after a visitor moves to another page in the same tab.
+              Not a cookie, not an identifier that follows anyone between sites, and gone when the tab closes.
+              <em>The visible transcript is not stored:</em> after a page change the panel opens fresh, even
+              though the conversation itself continues.</li>
           <li>Defines <strong>one global variable</strong> on the page (plus one that Cloudflare&apos;s own
               script defines), used to avoid loading the bot check twice.</li>
           <li>Listens for the <kbd>Esc</kbd> key while the panel is open, so a visitor can close it. The key

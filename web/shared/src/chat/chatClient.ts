@@ -66,6 +66,13 @@ export const FRONTEND_TEXT = {
   /** Last resort if a config template is missing: silence is the one thing that is never acceptable. */
   noText: 'Something went wrong on our side. A team member will follow up.',
   offline: "That didn't reach us — check your connection and try again.",
+  /**
+   * W59 (SCREEN-INVENTORY §2.10.1) — the edge rate-limit. The request never reaches n8n, so the engine
+   * cannot know about it. It had a DECIDED text in the inventory and no implementation: a 429 fell into
+   * the catch-all and told the visitor "something went wrong on our side", which points them at a reload
+   * when the only useful action is to wait.
+   */
+  rateLimited: 'Too many messages just now — please wait a moment and try again.',
   timeout: "That took too long to answer. Please try again.",
   unexpected: 'Something went wrong on our side. Please try again in a moment.',
 } as const;
@@ -210,6 +217,34 @@ export async function sendMessage(
   if (res.status === 403) {
     return { kind: 'system', text: FRONTEND_TEXT.blocked, origin: 'frontend', status: 403, error };
   }
-  // 5. Anything else with no text: promise a human rather than invent a reply. Never leave silence.
-  return { kind: 'bot', text: fill(t.handoff), origin: 'config', status: res.status, error, locked };
+  // 5. Anything else — a shape this contract does not describe. The TRANSPORT says so, in its own voice.
+  //
+  //    ⚠ THIS BRANCH USED TO ANSWER IN THE SHOP'S VOICE with `messageTemplates.handoff`, and that was a
+  //    false promise. `code-reviewer` measured 502, 429, 500 and a `200 {reply:''}` all producing
+  //    "I'm passing you to a team member — we'll get back to you shortly." Nobody is passed to anyone:
+  //    a 5xx from the edge never reached the engine, so `Build Owner Alert` — which lives INSIDE the
+  //    workflow — never ran and no human was told. `handoff.md` states it directly: an infrastructure
+  //    failure must never be presented as a conversational handoff, or nobody ever learns the system is
+  //    broken. The engine side paid to close exactly this debt in CP5a (D-d); the frontend had quietly
+  //    re-opened it.
+  //
+  //    The config fallback therefore stays ONLY on branches 3 — the engine's own 400 and 503 — which are
+  //    genuine conversational moments the owner IS pinged for. Everything else is the machine failing,
+  //    and it says so: `kind:'system'` plus a console line for us, mirroring the throw path above. The
+  //    visitor is still never left in silence; they are simply not lied to.
+  //    ⚠ `kind:'system'` is only VISUALLY distinct in the snippet (`styles.ts` draws `.msg.system`
+  //    dashed/centred/muted). `web/site/components/site/LiveChatPanel.tsx:110` maps `system` onto the
+  //    bot bubble's class and the site has no `.system` rule (`grep -rn '\.system' web/site/app` → 0),
+  //    so there the honesty is carried by the WORDS alone. Named rather than assumed, because a
+  //    property measured on one consumer of a shared module is not a property of the module.
+  //
+  //    Log the PATH, never the URL — same reason as the throw path: the host is a redaction target and
+  //    console lines reach screenshots.
+  let path = '(unparseable endpoint)';
+  try { path = new URL(endpoint.webhookUrl).pathname; } catch { /* keep the placeholder */ }
+  console.error('[widget] unmapped engine response:', res.status, error || '(no error field)', { path });
+  // 429 is the one unmapped status with a decided screen of its own (W59): it is the edge rate-limit,
+  // and "wait" is useful advice where "try again in a moment" after a reload is not.
+  const transportText = res.status === 429 ? FRONTEND_TEXT.rateLimited : FRONTEND_TEXT.unexpected;
+  return { kind: 'system', text: transportText, origin: 'frontend', status: res.status, error, locked };
 }
