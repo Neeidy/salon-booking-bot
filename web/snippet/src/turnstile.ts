@@ -59,18 +59,23 @@ function loadScript(): Promise<void> {
 }
 
 /** Resolves once the element has a real box, or after `timeoutMs` — never deadlocks. */
-function whenVisible(el: HTMLElement, timeoutMs = 10000): Promise<void> {
+function whenVisible(el: HTMLElement, timeoutMs = 10000): Promise<boolean> {
   const visible = () => !!el.offsetParent && el.getBoundingClientRect().width > 0;
-  if (visible()) return Promise.resolve();
+  if (visible()) return Promise.resolve(true);
   return new Promise((resolve) => {
     let done = false;
-    const finish = () => { if (!done) { done = true; clearInterval(iv); ro.disconnect(); clearTimeout(t); resolve(); } };
+    let timedOut = false;
+    const finish = () => { if (!done) { done = true; clearInterval(iv); ro.disconnect(); clearTimeout(t); resolve(!timedOut); } };
     const ro = new ResizeObserver(() => { if (visible()) finish(); });
     ro.observe(el);
     // Backstop: a ResizeObserver can miss a display:none -> flex flip in some engines.
     const iv = setInterval(() => { if (visible()) finish(); }, 200);
-    // Give up rather than hang: a widget that never renders is worse than one that reports trouble.
-    const t = setTimeout(finish, timeoutMs);
+    // Give up rather than hang. ⚠ Resolving on timeout means we render into a container that never
+    // became visible — which is HARMLESS in Invisible mode (measured: a hidden container still mints a
+    // token) and UNMEASURED in Managed, where a challenge drawn into a 0-height box may be unsolvable.
+    // The earlier comment here claimed this path "reports trouble"; it did not report anything, so it
+    // now logs, and the promise says WHICH way it finished instead of hiding the difference.
+    const t = setTimeout(() => { timedOut = true; finish(); }, timeoutMs);
   });
 }
 
@@ -88,27 +93,36 @@ export function mountTurnstile(
 ): TurnstileHandle {
   let token: string | null = null;
   let widgetId: string | null = null;
+  let blocked = false;
 
   onChange('pending');
   loadScript()
     .then(async () => {
-      await whenVisible(slot);
+      const becameVisible = await whenVisible(slot);
+      if (!becameVisible) {
+        // Not fatal — Invisible mode works from a hidden container — but it must not be invisible to US.
+        console.warn('[widget] the Turnstile slot never became visible; rendering anyway. '
+          + 'In Managed mode an interactive challenge here may not be solvable.');
+      }
       if (!window.turnstile) throw new Error('turnstile_unavailable');
       widgetId = window.turnstile.render(slot, {
         sitekey: siteKey,
         callback: (t: string) => { token = t; onChange('ready'); },
-        'error-callback': () => { token = null; onChange('blocked'); },
+        'error-callback': () => { token = null; blocked = true; onChange('blocked'); },
         'expired-callback': () => { token = null; onChange('pending'); window.turnstile?.reset(widgetId ?? undefined); },
         'timeout-callback': () => { token = null; onChange('pending'); window.turnstile?.reset(widgetId ?? undefined); },
         theme: 'light',
       });
     })
-    .catch(() => { token = null; onChange('blocked'); });
+    .catch(() => { token = null; blocked = true; onChange('blocked'); });
 
   return {
     token: () => token,
     refresh: () => {
       token = null;
+      // Do not overwrite a real failure with "Verifying…": if the challenge is blocked, the visitor
+      // needs the honest message to stay on screen rather than an optimistic one that never resolves.
+      if (blocked) return;
       onChange('pending');
       if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
     },

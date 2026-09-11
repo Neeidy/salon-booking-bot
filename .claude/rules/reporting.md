@@ -76,3 +76,18 @@ If the plan specifies an approach (library, node type, API feature) and the buil
 the report MUST include the **evidence** that justified dropping it — the command run and its actual
 output, not a conclusion. "X doesn't work here" without a shown check is not acceptable: it turns an
 untested assumption into a permanent design decision.
+
+
+## A claim about your OWN CAPABILITY is a claim like any other
+"I have no browser", "I can't reach that", "that isn't runnable here" — these are asserted more casually
+than any guard comment, because the subject feels like self-knowledge rather than a measurement. It is not.
+Run the check, then write the sentence.
+
+Trigger (2026-09-11): the build said it had no browser. A subagent then found chromium under
+`~/.cache/ms-playwright` and drove it. Full measurement and the runnable commands live in
+[remote-operator.md](remote-operator.md) → "The capability FACT" — not repeated here, because a second copy
+always drifts (`governance-sync.md` §1).
+
+This kind is worse than a false guard comment, not better: a wrong guard comment misleads the next reviewer
+and is eventually read; a wrong capability claim silently moves work onto Yigitcan's turns, and nobody ever
+sees the cost. Practical form: before "I can't", run the one command that would disprove it.

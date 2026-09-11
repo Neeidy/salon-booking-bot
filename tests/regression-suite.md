@@ -306,17 +306,20 @@ itself the failure.
 
 ### ⚙ T2e — the widget's self-diagnosis probe (NOT YET DRILLED, added 2026-09-06)
 
-When a send throws, `lib/chatClient.ts` fires one follow-up `fetch(..., {mode:'no-cors', body:'{}'})` to tell
+When a send throws, `web/shared/src/chat/chatClient.ts` (moved there by `65d7e6b`; the old `lib/` path no longer exists) fires one follow-up `fetch(..., {mode:'no-cors', body:'{}'})` to tell
 "reached the server" apart from "never left the browser". Reasoning says it lands on the T1 path (no token →
 `Reject Bot Request` 403, brain MUST-NOT-RUN). **That is reasoning, not measurement** — and `mode:'no-cors'`
 forbids setting headers, so the browser sends `content-type: text/plain`, which T1 never exercised.
 
 | # | Setup | Expected | MUST-NOT-RUN |
 |---|---|---|---|
-| T2e | `POST {}` with `content-type: text/plain` and no token | **403** `turnstile_failed`, no `conversations` row | Check Bot Guards, Extract Intent, Save State |
+| T2e | `POST {}` with `content-type: text/plain` and no token | **400** `bad_request`, no `conversations` row | Check Bot Guards, Extract Intent, Save State |
 
-Until this is run, the probe's engine-side behaviour is assumed, not known — which is the thing this repo keeps
-being burned by. It also doubles the edge rate-limit spend on a failing send; see the rate-limit item below.
+✅ **RUN 2026-09-11 by `qa-tester` — and the prediction was WRONG.** Measured: **400 `bad_request`**, not 403. The
+request never reaches the Turnstile gate at all; it dies earlier, at payload normalisation, because a `text/plain`
+body is not parsed as JSON so there is no `sessionId`. Still rejected, so no security gap — but the expectation
+above was reasoning, and reasoning lost. The table now carries the MEASURED value, and this is the fourth time in
+this repo that an unmeasured expectation sat in a test file looking like a fact. It also doubles the edge rate-limit spend on a failing send; see the rate-limit item below.
 
 ### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning
 

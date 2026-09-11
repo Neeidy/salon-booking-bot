@@ -7,12 +7,16 @@
  * (no committed example client on a public target; CLIENT_DEPLOYMENT_ACK for any demoMode:false public
  * build). Re-implementing any of that would create the second truth `contract-integrity.md` forbids, so
  * this script CONSUMES that gate's output instead: `npm run build` runs it via `prebuild`, and this file
- * refuses to continue if `config.generated.json` is absent. The snippet therefore cannot be built along a
- * path where the gate did not run.
+ * refuses to continue if `config.generated.json` is absent.
+ * ⚠ SCOPE, stated honestly: that makes `npm run build` unable to SKIP the gate. It does not make the file
+ * trustworthy in general — there is no provenance stamp on it and no freshness check, so a hand-written or
+ * stale `config.generated.json` would build fine. The earlier wording here said "cannot be built along a
+ * path where the gate did not run", which claimed more than the code checks (code-reviewer, 2026-09-10).
  *
  * WHAT IS BAKED, AND WHY SO LITTLE: the bundle is served to strangers on a client's website. It carries
  * only what the widget actually renders — the shop name, the message templates the engine deliberately
- * does not send, and demoMode. Not the whole config: services, hours, address and site copy are the
+ * does not send, and `demoMode`, which draws a "Demo" tag in the panel header so a widget running on mock
+ * data says so on someone else's site (honesty-demos.md). Not the whole config: services, hours, address and site copy are the
  * SITE's business, and shipping them here would publish more than the widget needs.
  *
  * SECRETS: the webhook URL contains the production n8n host, which is a redaction target in this repo
@@ -45,7 +49,16 @@ if (!existsSync(GENERATED)) {
 }
 const config = JSON.parse(readFileSync(GENERATED, 'utf8'));
 if (!config?.business?.name) fail('config.generated.json has no business.name — it did not come from the config gate.');
-if (!config?.messageTemplates) fail('config.generated.json has no messageTemplates — the widget cannot fill the two branches the engine leaves empty.');
+// The committed schema requires `messageTemplates` to EXIST but defines no keys inside it, so a config
+// with `{}` satisfied both the schema gate and this one — and every fallback then rendered as
+// `undefined`, i.e. an empty bubble. Check the keys this widget actually reads, by name.
+const NEEDED_TEMPLATES = ['handoff', 'notUnderstood'];
+const missing = NEEDED_TEMPLATES.filter((k) => typeof config?.messageTemplates?.[k] !== 'string' || !config.messageTemplates[k]);
+if (missing.length) {
+  fail(`config.generated.json is missing messageTemplates: ${missing.join(', ')}.\n`
+    + '  These are the two branches where the engine deliberately sends NO text and the widget must supply it\n'
+    + '  (400 invalid_payload and 503 state_unavailable). Without them the visitor gets an empty bubble.');
+}
 
 /* ── 2. endpoint + site key ────────────────────────────────────────────────────────────────────── */
 // Read the site's own .env.local when the vars are not already exported, so the local flow is one command.
@@ -98,7 +111,9 @@ await esbuild.build({
   entryPoints: [join(HERE, 'src/index.ts')],
   bundle: true,
   minify: true,
-  format: 'iife',           // one self-contained function: no globals, no module loader on the host page
+  format: 'iife',           // one self-contained function; no module loader is added to the host page.
+                            // NOT "no globals": the widget deliberately sets `__barberTurnstileLoading`
+                            // to guard a double script load, and that is listed on /install and in ARCH-DEC.
   target: ['es2019'],       // wide enough for the browsers a barbershop's customers actually use
   outfile: OUTFILE,
   legalComments: 'none',

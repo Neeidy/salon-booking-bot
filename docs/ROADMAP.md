@@ -264,7 +264,7 @@ Each CP waits for its own written approval (plan-gate).
     (34,320 vs 35,439 bytes) and both configs pass every guard. Hours grouping adapted on its own: Site A "Mon – Fri /
     Saturday / Sunday", Site B "Mon / Tue – Thu / Fri / Saturday / Sunday".
     ⚠ **Site B carries no mock ribbon, no demo footer notice and no `noindex` — by design.** So a deploy target must NEVER point at `client.config.example-b.json` (or any `demoMode:false` config) for a public URL without a deliberate decision: an accidental publish would show a fictional shop with zero "this is a demo" indicators, which is exactly what `honesty-demos.md` forbids. Raised by `security-auditor` as a process risk; **converted into a MACHINE GATE the same day** (Yigitcan ruling — a warning in a document does not stop a deploy): `build-config.mjs` refuses a public build of a committed example client outright, and requires `CLIENT_DEPLOYMENT_ACK="<business name>"` for any other `demoMode:false` public build. 11 scenarios drilled; drilling found and fixed a hole in the gate itself (path-based detection was bypassable via `CLIENT_CONFIG_JSON`, now content-based). **Site B stays local — shown in sales by screen share, never deployed.**
-  - ▶ **6a-2 slice 2 — the widget is LIVE (2026-09-06).** `lib/chatClient.ts` (session id, per-message `messageId`,
+  - ▶ **6a-2 slice 2 — the widget is LIVE (2026-09-06).** `lib/chatClient.ts` (**moved to `web/shared/src/chat/chatClient.ts` by `65d7e6b`, 6b** — the path below is the one that was correct on this date) (session id, per-message `messageId`,
     timeout, self-diagnosing failures) + `TurnstileWidget` + `LiveChatPanel`. **Reply rule derived from the committed
     workflow, not from the plan's summary:** show the ENGINE'S text whenever it sends any; fill from config only for the
     two branches that deliberately send none (400 `invalid_payload` → `notUnderstood`, 503 `state_unavailable` → `handoff`).
@@ -434,7 +434,10 @@ Each CP waits for its own written approval (plan-gate).
     the network gets a row there before it ships**, so this is not discovered in a browser a second time.
   - ✅ **DECISION — the display font loads on FIRST PANEL OPEN; the design is unchanged (Yigitcan ruling,
     2026-09-09).** Measured: Fraunces is 205 kB and draws exactly two strings (the shop name in the panel
-    header, the avatar initials) — 13× the entire 16 kB widget bundle, paid for by the CLIENT's site for
+    header, the avatar initials) — **11.7× the entire widget bundle** (measured 2026-09-11: 205,500 B font vs the
+    17,487 B bundle as it stood at this ruling; 18,437 B today → 11.1×). ⚠ The earlier text said *"13× the entire
+    16 kB bundle"* — both numbers were unmeasured and are corrected here, not left beside the new ones
+    (`qa-tester`, reporting.md: no unproven number in the body). Paid for by the CLIENT's site for
     something their visitor did not ask for. But the widget starts CLOSED, so neither string is visible
     until someone opens the panel. Deferring it makes a non-engaging visitor's cost ZERO and alters no
     pixel of the locked typography. Instrument Sans (88 kB) is the whole UI and still loads at mount.
@@ -452,9 +455,22 @@ Each CP waits for its own written approval (plan-gate).
   - ✅ **E2E PASSED from the hostile host page (2026-09-10), read from the column, not the screen.** A real
     booking and its cancellation, cross-origin, in a real browser: `appointments` exactly ONE row created
     that day with `gcal_event_id` + `calendar_id` set, now `cancelled`; `conversations` `turn_count=5`,
-    `stage=cancelled`, `computed_reply` byte-identical to the screen; `processed_messages` 5 DISTINCT ids,
-    no duplicate. Cleanup ran in the same session through the bot's own cancel flow, as the drill sheet
+    `stage=cancelled`, `computed_reply` byte-identical to the screen; `processed_messages` 5 DISTINCT ids.
+    ⚠ **Corrected 2026-09-11 (`qa-tester`): "5 distinct ids, no duplicate" was written as a health signal and it is the
+    opposite.** Distinct ids are the fingerprint of the 🔴 finding below — the re-sent message carried a NEW id and was
+    processed as its own turn, so **dedupe never engaged in this session**. Nothing about idempotency follows from this run. Cleanup ran in the same session through the bot's own cancel flow, as the drill sheet
     requires — nothing was left behind this time.
+  - ✅ **L2 round residue check — the five REJECTED drills left nothing behind, and that is a MEASUREMENT, not
+    an inference (2026-09-11).** Five of `qa-tester`'s curls were denied at the permission gate. *"A denied
+    request never reached the engine"* is an EXPECTATION, and this session spent seven separate findings on the
+    gap between what a check MEASURES and what its sentence SAYS — so the base was queried instead of reasoned
+    about. `conversations` and `processed_messages`, filtered on the round's `qa-l2-*` sender pattern:
+    **0 rows in each**, nothing to delete. Corroborated two independent ways: the newest row in EITHER table is
+    `2026-09-10T19:27Z`, i.e. **no write of any kind landed on 2026-09-11**; and `appointments` + `leads`
+    filtered `IS_AFTER({created_at}, '2026-09-11T00:00:00.000Z')` are empty as well.
+    ⚠ **The zero was proven fail-able before it was believed:** the same `FIND()` formula pointed at a substring
+    that DOES exist (`ee5d737b`) returned its row. The zeros therefore measure absence, not a broken filter —
+    the negative-control discipline this repo requires of every guard, applied to a cleanup query.
   - 🔴 **FINDING — a client-side timeout abandons the RESPONSE but does not stop the ENGINE.** Free drill:
     the first message of the session exceeded the widget's 20 s timeout, the visitor saw *"That took too
     long to answer. Please try again."* and re-sent it. **Measured: the timed-out message reached the engine
@@ -1125,10 +1141,27 @@ Each CP waits for its own written approval (plan-gate).
   committed export had it, live does not — proven on the pre-change backup and live. Re-sanitising made the export
   match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable
   search may return more than one row and `Record Alert Class` runs per item.
-- ☐ **Declare `messageTemplates` keys in `schemas/client.config.schema.json`.** Today it is an open
-  `additionalProperties:{type:string}` map, so a client config missing `askIntent` (or any template) passes the config
-  guard and only degrades at runtime. `Build Clarify State` now carries a defensive literal, which limits the blast
-  radius but does not close the contract gap.
+- ⚠ **Declare `messageTemplates` keys in `schemas/client.config.schema.json` — HÂLÂ AÇIK, ama artık teorik değil: 2026-09-11'de ISIRDI.**
+  Today it is still an open `additionalProperties:{type:string}` map, so a client config missing `askIntent` (or any
+  template) passes the config guard and only degrades at runtime. `Build Clarify State` carries a defensive literal, which
+  limits the blast radius but does not close the contract gap. **Ölçülen vaka (6b, code-reviewer):** `messageTemplates: {}`
+  hem şema kapısından hem snippet build kapısından GEÇİYORDU; widget'ın her fallback'i `undefined` render ediyor, yani
+  **boş balon** — "asla sessizlik bırakma" sözleşmesinin tam ihlali. **Kısmen azaltıldı, kapatılmadı:** `web/snippet/build.mjs`
+  artık `NEEDED_TEMPLATES = ['handoff','notUnderstood']` anahtarlarını ADIYLA arıyor ve yoksa exit 1 (iki yönde drill edildi:
+  eksik `handoff` → 1, `{}` → 1, tam config → 0). **Bu SNIPPET'in iki anahtarını kapatır; ŞEMAYI kapatmaz** — site ve motor
+  tarafındaki her anahtar (`askIntent`, `faqUnknown`, …) hâlâ sözleşmesiz. **Bu satır bir kaydın işe yaradığının kanıtıdır:**
+  Codex F1 turu bunu ölçüp Faz 7'ye yazmıştı; iki gün sonra tam da yazıldığı biçimde gerçekleşti.
+- ☐ **`Idempotent Replay` saklı cevabı DÖNDÜRSÜN — duplicate'te bilgi kaybını kapatan MOTOR maddesi** (6b'nin NOT-build
+  listesinden devredildi, 2026-09-11). Bugün node `{status:'duplicate_ignored', sender_key}` döndürüyor ve gövdede `reply` YOK;
+  widget bunu sessiz sınıflandırıyor. 6b'de eklenen `Try again` düğmesi tam bu yolu çağırıyor (client timeout → aynı
+  `message_id` yeniden gönderilir), dolayısıyla motorun o mesaj için ürettiği GERÇEK cevap (*"You're booked: …"*) ziyaretçi
+  için KALICI KAYIP. Widget tarafı yalnız SESSİZLİĞİ giderdi (dürüst bir ara mesaj), bilgiyi geri getirmedi — ayrıntı ve
+  gerekçe: ARCH-DEC 2026-09-11 satırı. **Ölçülen uygulama yolu:** (1) `processed_messages`'a bir `computed_reply` sütunu;
+  (2) `Record Processed` onu yazsın — topolojisi zaten uygun, node `Save State` / `Save State (Post-Write)`'ın ARDINDA çalışıyor,
+  yani cevap o anda hesaplanmış durumda; (3) `Idempotent Replay` `Check Processed`'in bulduğu SATIRDAN okusun.
+  ⚠ **`conversations.computed_reply` DEĞİL** — o gönderici başına SON cevaptır, mesaj başına değil; oradan okumak duplicate'e
+  BAŞKA bir mesajın cevabını döndürür. **Bu, widget gövdesinin bit-identical kalma sözleşmesini (CP4b-1) değiştirir** — gövdeye
+  yeni bir alan girer, o yüzden 6b'de yapılmadı; şema + motor + widget birlikte ele alınmalı.
 - ☐ **Turnstile secret lives in a NODE PARAMETER, not an n8n Credential** (security-auditor F2). Correctly sanitised in
   the committed export, so no leak today — but structurally weaker than the Zernio HMAC secret, which lives in a
   credential and never enters the workflow JSON at all. Every raw export and snapshot carries it in clear text;

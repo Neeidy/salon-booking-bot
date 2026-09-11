@@ -41,7 +41,6 @@ const HOST_ID = 'barber-widget-root';
 
   const cfg = __BAKED_CONFIG__;
   const name = cfg.business.name;
-  const t = cfg.messageTemplates;
   const endpoint = { webhookUrl: __WEBHOOK_URL__, turnstileSiteKey: __TURNSTILE_SITE_KEY__ };
 
   // Capture our own <script> before anything else can change document.currentScript.
@@ -68,12 +67,13 @@ const HOST_ID = 'barber-widget-root';
       <strong class="panel-name">${esc(name)}</strong>
       <span class="panel-status"><span class="online-dot"></span>online — instant replies</span>
     </div>
+    ${cfg.demoMode ? '<span class="demo-tag" title="This assistant is running on demo data">Demo</span>' : ''}
     <button class="panel-close" type="button" aria-label="Close chat">×</button>
   </div>
   <div class="thread" role="log" aria-live="polite" data-thread></div>
   <div class="turnstile-slot" data-slot></div>
   <div class="composer">
-    <input class="composer-input" data-input type="text" autocomplete="off"
+    <input class="composer-input" data-input type="text" autocomplete="off" maxlength="1000"
            aria-label="Type a message" placeholder="Verifying…" disabled>
     <button class="composer-send" data-send type="button" aria-label="Send" disabled>↑</button>
   </div>
@@ -97,6 +97,9 @@ const HOST_ID = 'barber-widget-root';
   const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   function bubble(from: 'bot' | 'user' | 'system', text: string, action?: { label: string; run: () => boolean }) {
+    // A blank bubble is worse than an honest sentence: it reads as the bot answering with nothing.
+    // Reachable whenever a `messageTemplates` key is absent — the schema requires none of them.
+    if (!text) text = FRONTEND_TEXT.noText;
     const el = document.createElement('div');
     el.className = `msg ${from}`;
     el.textContent = text;
@@ -166,13 +169,16 @@ const HOST_ID = 'barber-widget-root';
    * The Turnstile token is NOT reused — it is single-use and the timed-out request already spent it.
    * A retry carries the same messageId and a FRESH token; the two are independent.
    */
-  async function send(retry?: { text: string; messageId: string }): Promise<boolean> {
+  /** The single precondition for sending. Both `send()` and the retry button ask THIS, never a copy of it. */
+  function canSend(text: string): boolean {
+    return !!text && !sending && !!ts.token();
+  }
+
+  async function send(retry?: { text: string; messageId: string }): Promise<void> {
     const text = retry ? retry.text : input.value.trim();
     const messageId = retry ? retry.messageId : newMessageId();
     const token = ts.token();
-    // Returns false when the send could not START — no text, one already in flight, or no fresh token
-    // yet. The caller needs that answer: the retry affordance must not be discarded on a no-op.
-    if (!text || sending || !token) return false;
+    if (!canSend(text) || !token) return;
 
     sending = true;
     setGate('pending');
@@ -189,7 +195,10 @@ const HOST_ID = 'barber-widget-root';
     } finally {
       typing(false);
       sending = false;
-      ts.refresh();                 // the token is spent — mint the next one before the next message
+      // The token is spent; mint the next one. Wrapped because this calls into Cloudflare's script, and a
+      // throw here would escape `send()` before anything is drawn — leaving the composer disabled with no
+      // explanation, which is the state the try/catch above exists to make impossible.
+      try { ts.refresh(); } catch { setGate('blocked'); }
     }
 
     // A TRANSPORT failure (status 0: timeout, or the request never left the browser) is the one case
@@ -198,21 +207,30 @@ const HOST_ID = 'barber-widget-root';
     if (reply.status === 0 && reply.origin === 'frontend') {
       bubble('system', reply.text, {
         label: 'Try again',
-        // Synchronous answer: has the retry begun? A fresh token may not have arrived yet, and in that
-        // case the bubble stays so the visitor can press again a moment later.
-        run: () => { const started = !!ts.token() && !sending; if (started) void send({ text, messageId }); return started; },
+        // ONE gate: ask canSend(), the same predicate send() uses. Two copies of a precondition drift, and
+        // a new condition inside send() would leave this removing the bubble for a send that never starts
+        // — the defect fixed earlier today, re-created one level up (code-reviewer, 2026-09-10).
+        run: () => { if (!canSend(text)) return false; void send({ text, messageId }); return true; },
       });
-      return true;
+      return;
     }
-    if (reply.kind === 'silent') return true;                  // W56 duplicate: no second bubble, but the send DID happen
-    // K2 = C — the handoff lock answers every message with the same line. Show it once; after that the
-    // visitor may keep typing (a human will read it) without the same bubble stacking up.
-    if (reply.text === t.handoffLocked) {
-      if (handoffShown) return true;                           // suppressed on screen; the send still happened
+    // A duplicate is deliberately screenless (W56) — EXCEPT after a retry. There the engine is telling us
+    // it already handled this message, and it sends NO reply to tell the visitor anything with: measured
+    // from the committed workflow, `Idempotent Replay` returns `{status, sender_key}` and nothing else, so
+    // the original answer is unrecoverable. Staying silent would leave someone who pressed "Try again"
+    // watching their message vanish — the exact silence this mechanism exists to prevent.
+    if (reply.kind === 'silent') {
+      if (retry) bubble('system', FRONTEND_TEXT.alreadyReceived);
+      return;
+    }
+    // K2 = C — the handoff lock answers every message with the same line, so show it once. Detected by the
+    // engine's STRUCTURAL `locked` flag, never by comparing its words with our baked template: those two
+    // configs live in different places and have drifted before (CP5a).
+    if (reply.locked) {
+      if (handoffShown) return;
       handoffShown = true;
     }
     bubble(reply.kind === 'system' ? 'system' : 'bot', reply.text);
-    return true;
   }
 
   sendBtn.addEventListener('click', () => { void send(); });

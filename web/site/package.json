@@ -8,7 +8,9 @@
     "dev": "next dev",
     "prebuild": "node scripts/build-config.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@salon/shared": "*",

@@ -48,6 +48,8 @@ align-items:center;justify-content:center;font-family:var(--font-display);font-w
 .panel-id{line-height:1.35;flex:1;min-width:0}
 .panel-name{display:block;font-family:var(--font-display);font-weight:600;font-size:16px;letter-spacing:-.01em}
 .panel-status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.demo-tag{flex-shrink:0;font-family:var(--font-ui);font-size:10px;font-weight:700;letter-spacing:.1em;
+text-transform:uppercase;color:var(--oxide);border:1px solid var(--oxide);border-radius:4px;padding:2px 6px}
 .panel-close{width:30px;height:30px;border-radius:50%;font-size:19px;line-height:1;color:var(--muted);flex-shrink:0;
 display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;font-family:var(--font-ui);
 transition:background .15s var(--ease),color .15s var(--ease)}

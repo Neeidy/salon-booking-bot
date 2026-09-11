@@ -39,6 +39,14 @@ import type { ClientConfig } from '@salon/shared/config/types';
 export type ReplyKind = 'bot' | 'system' | 'silent';
 export interface ChatReply {
   kind: ReplyKind;
+  /**
+   * The engine's STRUCTURAL handoff-lock signal (`locked: true` from `Handoff Lock Reply`), not a
+   * reading of the words it sent. A front end that recognises the lock by comparing `text` against its
+   * own baked `messageTemplates.handoffLocked` silently stops recognising it the moment the live
+   * `Load Config` wording drifts from the repo's — and those two configs live in different places by
+   * design. Same lesson as CRT #8's "classify by status code, never by error text".
+   */
+  locked?: boolean;
   /** Text to render. Empty when kind === 'silent'. */
   text: string;
   /** Where the text came from — for the drills and for honest reporting, never shown to a visitor. */
@@ -52,6 +60,11 @@ export interface EndpointConfig { webhookUrl: string; turnstileSiteKey: string }
 /** Fixed frontend strings — the transport/security layer speaking, not the shop (SCREEN-INVENTORY §2.10.1). */
 export const FRONTEND_TEXT = {
   blocked: "We couldn't verify this browser. Please reload the page and try again.",
+  /** After a retry the engine says "already seen" and sends no reply — that answer is unrecoverable. */
+  alreadyReceived: 'That message did reach us — the reply just never made it back to this window. '
+    + 'Send another message and we will pick up from there.',
+  /** Last resort if a config template is missing: silence is the one thing that is never acceptable. */
+  noText: 'Something went wrong on our side. A team member will follow up.',
   offline: "That didn't reach us — check your connection and try again.",
   timeout: "That took too long to answer. Please try again.",
   unexpected: 'Something went wrong on our side. Please try again in a moment.',
@@ -166,26 +179,37 @@ export async function sendMessage(
 
   const error = typeof body.error === 'string' ? body.error : undefined;
 
+  const locked = body.locked === true;
+
   // 1. The engine sent text → show exactly that, whatever the status.
   if (typeof body.reply === 'string' && body.reply.length > 0) {
-    return { kind: 'bot', text: body.reply, origin: 'engine', status: res.status, error };
+    return { kind: 'bot', text: body.reply, origin: 'engine', status: res.status, error, locked };
   }
   // 2. Deliberately screenless: a duplicate delivery must not produce a second bubble (W56).
+  //     ⚠ W56's reasoning — "the customer already received the first reply" — holds for a genuine double
+  //     delivery and is FALSE after a client-side timeout, which is precisely the case where the reply
+  //     never arrived. The engine's `Idempotent Replay` returns no `reply` at all (measured from the
+  //     committed workflow), so that answer is gone and cannot be replayed. The caller must decide:
+  //     silent for a real duplicate, something honest on screen after a retry.
   if (body.status === 'duplicate_ignored') {
-    return { kind: 'silent', text: '', origin: 'engine', status: res.status };
+    return { kind: 'silent', text: '', origin: 'engine', status: res.status, error: 'duplicate_ignored' };
   }
   // 3. The engine sent no text. Fill in from CONFIG — the same templates the WhatsApp side sends for
   //    these two branches, so both channels speak with one voice (UX-ARCHITECTURE §9 K4).
+  // `messageTemplates` has NO required keys in the committed schema, so a config can satisfy every gate
+  // and still be missing these — which used to render `undefined` as an empty bubble, the exact opposite
+  // of "never leave silence". `build.mjs` now fails the build for the snippet; this is the runtime net.
+  const fill = (v: string | undefined) => (typeof v === 'string' && v.length > 0 ? v : FRONTEND_TEXT.noText);
   if (res.status === 400 && error === 'invalid_payload') {
-    return { kind: 'bot', text: t.notUnderstood, origin: 'config', status: 400, error };
+    return { kind: 'bot', text: fill(t.notUnderstood), origin: 'config', status: 400, error, locked };
   }
   if (res.status === 503 && error === 'state_unavailable') {
-    return { kind: 'bot', text: t.handoff, origin: 'config', status: 503, error };
+    return { kind: 'bot', text: fill(t.handoff), origin: 'config', status: 503, error, locked };
   }
   // 4. Perimeter rejections are the security layer speaking, not the shop.
   if (res.status === 403) {
     return { kind: 'system', text: FRONTEND_TEXT.blocked, origin: 'frontend', status: 403, error };
   }
   // 5. Anything else with no text: promise a human rather than invent a reply. Never leave silence.
-  return { kind: 'bot', text: t.handoff, origin: 'config', status: res.status, error };
+  return { kind: 'bot', text: fill(t.handoff), origin: 'config', status: res.status, error, locked };
 }
