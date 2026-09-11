@@ -31,6 +31,14 @@ http://localhost:<PORT>/...
 - If the local port is likely taken (3000 and 3111 are, routinely), propose the alternative port yourself
   and write the URL for that port. Do not make him discover the collision.
 - This applies to every address without exception: dev servers, static drill pages, previews, dashboards.
+- **Drill/dev servers ALWAYS bind to `127.0.0.1`; access is via the SSH tunnel.** `python3 -m http.server
+  <PORT>` defaults to `0.0.0.0` — every interface — so use `--bind 127.0.0.1`. The tunnel above is already
+  the access path, so a public bind buys nothing and is pure exposure. ⚠ **Measured 2026-09-11 and still
+  open as this line is written:** a drill server started 2026-09-09 from `tests/snippet` **is** listening on
+  `0.0.0.0:8788` (pid held by a dead session). It was deliberately NOT killed — the process could belong to a
+  live session and that is Yigitcan's call, not the build's. Present tense because the measurement is present
+  tense: a rule written in the past tense about a condition that still holds is the `reporting.md`
+  measurement-vs-sentence gap, in the very line that forbids it.
 
 ## Why
 Without the tunnel the address resolves on HIS machine — to nothing, or worse, to a different app of his,

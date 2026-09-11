@@ -32,6 +32,19 @@ did NOT say "it is the last thing in the message". Rounds grew to cover several 
 printed at the end of each one, and the narrative continued below them. Nothing in the old wording
 forbade it — which is why the wording, not the habit, is what changed here.
 
+### A relayed SUB-AGENT verdict is evidence, not the turn's verdict
+When a sub-agent report (`security-auditor`, `code-reviewer`, `qa-tester`, `flow-reviewer`, Codex) is
+relayed into a message, **its own `## VERDICT` block is either STRIPPED or explicitly labelled as the
+agent's** — e.g. `### security-auditor'ın verdict'i` — never left standing as a bare `## VERDICT`.
+**The turn's VERDICT is SINGULAR, it belongs to Claude Code, and it is the LAST thing in the message.
+A sub-agent's verdict is EVIDENCE; it is not the turn's verdict.**
+
+Trigger (2026-09-11): a `security-auditor` verdict was relayed verbatim and the build's own commentary
+continued below it. The rule above was not broken — it did not COVER this: the block came from another
+author, so "one VERDICT per message" was never tested against it. A rule that only governs the blocks you
+write yourself leaves the reader facing two identically-shaped blocks and no way to tell which one is the
+message's status — which is the exact failure the section above exists to prevent.
+
 **Hard rules:**
 - **"ready for review" = pushed.** Never call work "ready / awaiting approval" until it is committed AND
   pushed to its branch — Cowork verifies from git only and cannot see your working tree.
