@@ -77,11 +77,12 @@ quote a wrong price** — the answer path contains no model.
 | **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Four separate error responses: `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` |
 | **Spend brakes before the LLM** | Kill-switch and max-turns run *before* any paid call — a tripped guard costs nothing |
+| **Embeddable widget, one script tag** | A ~16 kB IIFE that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
 
 ## Designed, locked, not built yet 🔜
 
-The **full safety suite** (cost cap, endpoint rate-limiting, injection hardening) · the **customer-facing
-frontend** · a **config-only second client**.
+The **full safety suite** (cost cap, endpoint rate-limiting, injection hardening) · the **owner dashboard**
+(read-only + handoff queue, Phase 6c) · a **config-only second client**.
 
 _(Built since this line was first written: booking write + no-double-book, cancel, reschedule and the
 **reminder engine** — Phase 3; WhatsApp **inbound** (HMAC-verified) + **outbound transport** — Phase 4,
@@ -116,6 +117,54 @@ to the calendar first. Two sources of truth mean double bookings.
 
 ---
 
+## Case study — the embeddable widget (Phase 6b)
+
+**The problem.** A booking bot is worth nothing if the shop's own website cannot carry it. The promise is
+one line — `<script src="…/barber-widget.js" defer></script>` — on a site we do not control, whose CSS we
+have never seen, without breaking anything the client already has.
+
+**The approach.** An open Shadow DOM with `:host{all:initial}`: the boundary stops the host's selectors,
+`all:initial` cuts the inherited properties selectors cannot reach. Verified in both directions against a
+test page built to be hostile on purpose — `content-box!important`, an inherited Georgia at line-height
+2.2, colliding `.panel`/`.msg`/`.chip` class names, a `z-index:99999` sticky header, a global
+`button{…!important}`, and a leak canary. The page's own elements are byte-identical before and after the
+widget mounts.
+
+**What it puts on the host page — the complete list, because "it cannot leak out" is only true with the
+exceptions written down.** Two `<style>` elements in `document.head` carrying one `@font-face` each
+(`@font-face` is ignored inside a shadow root, so the rules must live in the document; the families are
+namespaced — `BarberWidget Fraunces` — because an un-namespaced `@font-face` would silently replace a
+client's own Fraunces in their own headings) · Cloudflare's Turnstile script, the single third-party
+dependency and the one whose entire purpose is to be third-party · one `document` keydown listener,
+attached only while the panel is open, acting on one key, never calling `preventDefault` — the host page's
+own Escape handler still fires exactly once · one `window` global guarding a double script load · one
+`sessionStorage` key. Nothing else, and that was measured, not asserted.
+
+**Three things the first real load taught us, all of them about honesty rather than code.**
+An edge failure the engine never saw was answering in the shop's voice — *"I'm passing you to a team
+member"* — when nobody had been told, because the owner-alert lives inside the workflow that never ran;
+the transport now speaks as itself. A client-side timeout abandoned the response but not the engine, so
+the visitor was told to try again about work that had already succeeded. And a 20 s "still verifying"
+watchdog was built, measured, shipped for one round, then **reverted and rebuilt**, because its negative
+control had swept only the axis its author happened to think of.
+
+**What it knowingly does not do — named here rather than left for a reader to find.**
+
+| Gap | Status |
+|---|---|
+| The stuck-verification watchdog is drilled on five axes, but **five more are not swept**: a real Cloudflare site key (the accept direction needs a real human token), a genuinely slow network where Turnstile legitimately needs >20 s, a backgrounded tab where browsers throttle timers, a token arriving at the exact deadline, and two widgets on one page | named in [`tests/snippet/DRILLS.md`](tests/snippet/DRILLS.md) |
+| The `Try again` note stays on screen after the token arrives and the composer is usable again — a true sentence that has become stale | open |
+| The **site** panel does not read the engine's `locked` flag, so on the site the handoff-lock line repeats on every message; the snippet shows it once | open, Phase 6c |
+| The visible transcript is lost when a visitor moves to another page in the same tab. The conversation itself continues — the session id survives — so the engine may be waiting on a confirmation the visitor can no longer see | open, Phase 7 |
+| `messageTemplates` has **no required keys** in the committed schema, so a config can pass every gate while missing a message the widget must supply. The snippet's build now fails by name for the two it reads; the schema gap itself is still open | open, Phase 7 |
+| An idempotent replay returns no text, so after a client timeout the engine's real answer (*"You're booked: …"*) is unrecoverable. The visitor now gets an honest interim message — **the silence was fixed, the information was not** | open, Phase 7 |
+
+**Where a human is still required.** Anything needing a real Turnstile token — a live conversation, a real
+booking and its cleanup. Everything else (DOM, CSS, layout, events, isolation, responsive, request
+blocking) is drilled headless, and the drill sheet says which is which.
+
+---
+
 ## Repo map
 
 | Path | What |
@@ -128,7 +177,7 @@ to the calendar first. Two sources of truth mean double bookings.
 | [`docs/`](docs/) | architecture decisions · data model · live roadmap · repo map |
 | [`design/`](design/) | Phase-1 mockups + flow diagram |
 | [`tests/`](tests/) | golden-set intents · jailbreak / injection cases |
-| [`web/`](web/) | frontend surfaces (Phase 6) |
+| [`web/`](web/) | frontend surfaces — `site/` (Next.js demo), `snippet/` (the embeddable widget), `shared/` (one transport, both front ends) |
 | [`.claude/`](.claude/) | the rules this repo is actually built under |
 
 **Stack** — n8n (self-hosted) · Anthropic Claude Haiku 4.5 · Airtable · Google Calendar ·

@@ -83,6 +83,18 @@ both directions · (d) one-shot re-arm · (e) `blocked`. Plus the positive contr
    watchdog was not re-swept against it.
 
 ### Needs Yigitcan's browser — RESULT (2026-09-10)
+
+> 🔴 **THIS RESULT IS STALE AND MUST NOT BE READ AS CURRENT (noted at the 6b close, 2026-09-11).**
+> It was measured on the bundle as it stood on 2026-09-10. The widget's code has changed in THREE
+> commits since — `32cfd4c`, `4fc04cb`, `97564b9` — and the changes are not cosmetic: the transport's
+> catch-all branch, a new 429 screen, the mount path (`main()`/`boot()` + `DOMContentLoaded`) with the
+> double-insert guard MOVED, and a Turnstile watchdog added, reverted, and re-added. The headless drills
+> below were all re-run against the current bundle; **E2E-1/2/3 were not, because they need a real
+> Turnstile token.** So the booking path is green on an older build and UNMEASURED on the shipped one.
+> Re-running E2E-1 → E2E-2 → E2E-3 on the current bundle is a Yigitcan-browser item and is a Definition-
+> of-Done gap for 6b, not a nice-to-have. `git log --oneline --since=2026-09-10 -- web/snippet/src
+> web/shared/src/chat` is the search that produced this note.
+
 **E2E-1/2/3 PASSED**, verified from the column: one `appointments` row, booked then cancelled, `gcal_event_id` + `calendar_id` set; `conversations` `turn_count=5`, `stage=cancelled`; `processed_messages` **5 distinct ids — and that is NOT a dedupe pass signal.** ⚠ Corrected 2026-09-11 (`qa-tester`): five distinct ids is the fingerprint of the 🔴 finding below — the re-sent message got a NEW id and was processed as a separate turn, i.e. **dedupe never engaged in this session at all**. Nothing about idempotency may be concluded from this run. Cleanup ran in the same session, as this sheet requires.
 ⚠ **The run also exposed something the screen could not show:** the first message timed out client-side (20 s) and the visitor re-sent it — but the engine had processed the abandoned one anyway. See the 🔴 item in ROADMAP §6b; the engine-side drill it calls for is NOT yet written.
 

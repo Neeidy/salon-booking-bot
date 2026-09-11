@@ -376,6 +376,7 @@
   - ## What works today ✅
   - ## Designed, locked, not built yet 🔜
   - ## Engineering decisions worth reading
+  - ## Case study — the embeddable widget (Phase 6b)
   - ## Repo map
   - ## Security
   - ## From demo to real
@@ -546,6 +547,7 @@
   - ## FIX-2 — Design öncesi bulgu kapatma (DONE 2026-08-31)
   - ## TASARIM AŞAMASI — DONE 2026-09-02 (`c491c36` → `46385ed`)
   - ## Phase 6 — checkpoint progress (vitrin frontend)
+  - ### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
   - ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 
 ### `docs/SCREEN-INVENTORY.md`

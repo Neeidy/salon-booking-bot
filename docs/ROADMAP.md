@@ -1179,7 +1179,7 @@ Each CP waits for its own written approval (plan-gate).
   match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable
   search may return more than one row and `Record Alert Class` runs per item.
 - ✅ **Composer'ın Turnstile bekleyişi artık konuşuyor — watchdog v2, İKİNCİ denemede, kendi küçük birimi
-  olarak (2026-09-11).** v1 `4fc04cb`'de geri alınmıştı (zamanlayıcı MOUNT anında kuruluyordu, Turnstile ise
+  olarak (2026-09-11, commit `97564b9`, push'lu).** v1 `4fc04cb`'de geri alınmıştı (zamanlayıcı MOUNT anında kuruluyordu, Turnstile ise
   ilk panel açılışında mount olur → yalan alarm). v2 üç koşul taşıyor: **`mounted`** (Turnstile'dan gerçekten
   token istenmiş olmalı) · **`!sending`** (motorun düşünme süresi Turnstile'a fatura edilmez) · **`ready`'de
   YENİDEN KURULAN tek atış** (v1 tek atışını yalan alarmda yakıyordu). `let mounted` bildirimi `setGate`'in
@@ -1193,6 +1193,51 @@ Each CP waits for its own written approval (plan-gate).
   Ve **taranmayan beş eksen adıyla yazıldı** (gerçek site key'i → Yigitcan'ın tarayıcısı · gerçekten yavaş ağ
   · arka plan sekmesinde timer throttling · eşiğin tam sınırı · aynı sayfada iki widget); bunlar kapanmış
   sayılmamaktadır.
+- 🔴 **DoD BOŞLUĞU — E2E yeşili artık var olmayan bir bundle'a ait (6b kapanışında fark edildi, 2026-09-11).**
+  E2E-1/2/3 (gerçek randevu + kendi iptal akışıyla temizlik) **2026-09-10**'da koşuldu. O tarihten sonra widget
+  kodu **üç commit**te değişti — `32cfd4c` · `4fc04cb` · `97564b9` — ve değişiklikler kozmetik değil: transport'un
+  catch-all dalı, yeni 429 ekranı, mount yolu (`main()`/`boot()` + `DOMContentLoaded`, çift-ekleme guard'ı TAŞINDI),
+  ve bir Turnstile watchdog'u eklendi→geri alındı→yeniden eklendi. **Headless drill'lerin tamamı güncel bundle'da
+  yeniden koşuldu; E2E koşulmadı, çünkü GERÇEK TURNSTILE TOKEN'I gerektiriyor.** Arama: `git log --oneline
+  --since=2026-09-10 -- web/snippet/src web/shared/src/chat`. → **Yigitcan'ın tarayıcısı.** Bu bir DoD maddesidir,
+  tercih değil: "tested" tik'i bu koşu yapılmadan dürüstçe atılamaz.
+
+### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
+
+> **Neden bu blok var:** "açık" demek yetmez. Sahipsiz bir açık madde, unutulmuş bir maddedir. Aşağıdaki
+> her satır bir FAZA aittir ve o fazın planı bu listeyi okumadan yazılamaz. Ayrıntı ve ölçüm, bu bloğun
+> altındaki kendi maddelerinde.
+
+**→ 6c'ye ait (dashboard turu, aynı frontend yüzeyine dokunuyor):**
+| # | Madde | Neden 6c |
+|---|---|---|
+| 1 | **Site paneli `reply.locked`'ı okumuyor** — kilit cümlesi sitede her mesajda yığılıyor (ölçüm: `grep -nE '\.locked'` → LiveChatPanel 0, snippet 1) | 6a'nın onaylı ekranlarına dokunur; 6c zaten site+dashboard yüzeyini açıyor |
+| 2 | **`.retry-note` token gelince bayatlıyor** | aynı frontend dosyası, aynı turda ucuz |
+| 3 | **`SCREEN-INVENTORY` §2.10.1'in kararlaştırdığı metinler ↔ koddaki `FRONTEND_TEXT` farklı** (W57/W58/W60) | hangi tarafın kazanacağı Yigitcan'ın kararı; 6c metin turu |
+| 4 | **6c lint kapısı SUBPATH-aware olmalı** (6b'de adlandırıldı) | 6c'nin kendi ön şartı |
+
+**→ Faz 7'ye ait (motor / şema değişikliği gerektiriyor):**
+| # | Madde | Neden Faz 7 |
+|---|---|---|
+| 5 | **`Idempotent Replay` saklı cevabı döndürsün** — duplicate'te motorun gerçek cevabı kalıcı kayıp; `processed_messages`'a `computed_reply` sütunu + `Record Processed` yazsın | motor + şema + widget gövdesi birlikte değişir (CP4b-1 bit-identical sözleşmesi) |
+| 6 | **`messageTemplates` şemada zorunlu anahtar tanımlasın** — snippet build'i yalnız 2 anahtarı kapatıyor, şemayı kapatmıyor | `schemas/client.config.schema.json` değişikliği |
+| 7 | **Transcript sayfa değişiminde kayboluyor**, konuşma motorda sürüyor → görünmeyen bekleyen onay. ⚠ Uçtan uca sonucu **gerçek token gerektirir → Yigitcan'ın tarayıcısı** | ya widget'a kalıcılık ya motora freshness — ikisi de faz işi |
+| 8 | **Yeniden YAZILAN bir `yes` çift randevu üretir mi?** `stage=booked` engelliyor OLABİLİR — **ölçülmedi, bu bir SORU** | motor davranışı, drill gerektirir |
+| 9 | **Watchdog'un taranmayan 5 ekseni** (gerçek site key'i · yavaş ağ · arka plan sekmesi throttling · eşiğin tam sınırı · iki widget) | biri gerçek token ister; kalanı eşik ayarı |
+| 10 | **Font alt-kümesi** — `business.name` build'de biliniyor, 205.500 B'lik faces küçültülebilir | optimizasyon, ürün kusuru değil |
+
+**→ PUBLIC DEPLOY KAPISINA bağlı (bunlar kapanmadan vitrin herkese açılmaz):**
+| # | Madde | Neden kapı |
+|---|---|---|
+| 11 | **Turnstile'ın bot koruması sanıldığından ZAYIF** — motor siteverify'ın `hostname`'ini okumuyor + widget Invisible + token etkileşimsiz basılabiliyor; üçü aynı yüzeye bakıyor | "bot koruması var" bir GÜVENLİK İDDİASIDIR; ölçülmeden public'e çıkmak obscurity olur |
+| 12 | **Edge rate-limit'in BLOCK yönü hiç gösterilmedi** (`security-auditor` A4) | aynı yüzeyin kalan tek gerçek savunması |
+| 13 | **`leads` için TTL/purge — 6d'ye katlanmış, public release ona GATE'li** | yabancı biri public demo'ya gerçek telefon yazabilir |
+| 14 | **Privacy Addendum atfı** | yayın öncesi hukuki metin |
+| 15 | **Managed modda gizli-container kontrolü (SP4a) temiz koşulmadı** | 6b gate'inin tik içine yazılmış eksiği |
+
+**→ Sahibi ZATEN kapanmış turlarda olan, taşınmayan:** CRT #7 (control-plane lockdown, CP5b HARD-ORDER) ·
+`secret-scan.sh`'ın binary-blob ve stdin-boş kör noktaları (guard borcu, faz değil).
+
 - 🟡 **`.retry-note` token geldikten sonra ekranda BAYAT kalıyor** (`code-reviewer` P2, 2026-09-11; ölçüldü:
   not *"Not ready to send yet — see the box below."* dururken `placeholder:"Type a message…"`, `disabled:false`).
   Hasar küçük — not zaten aşağıdaki kutuya işaret ediyor ve o kutu doğruyu söylüyor — ama ekranda yanlış bir
