@@ -686,7 +686,7 @@ Each CP waits for its own written approval (plan-gate).
         must exist and be measured BLOCKING before the dashboard listens on 3210 (D-5 ordering hazard).
       - Anything that genuinely cannot be measured is written **"operator statement, not API-verified"** —
         never "Yigitcan verified it".
-    - ✅ **BULGU-3 CLOSED (6c-1, `<hash-b3>`). A SYMLINK — and a HARDLINK — defeated rule class A.**
+    - ✅ **BULGU-3 CLOSED (6c-1, `041d418`, pushed). A SYMLINK — and a HARDLINK — defeated rule class A.**
       **Reproduced by hand first, on the real tree:** `config.generated.json` imported directly → exit 1;
       the same file through a symlink → **exit 0, "OK — no server-only module is reachable"**. It
       falsified this file's own central sentence about banning by resolved path. Identity is now the
