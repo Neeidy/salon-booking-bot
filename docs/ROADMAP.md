@@ -1315,6 +1315,19 @@ Each CP waits for its own written approval (plan-gate).
 **→ Sahibi ZATEN kapanmış turlarda olan, taşınmayan:** CRT #7 (control-plane lockdown, CP5b HARD-ORDER) ·
 `secret-scan.sh`'ın binary-blob ve stdin-boş kör noktaları (guard borcu, faz değil).
 
+**→ ✅ KAPANDI 2026-09-11 (oturum kapanışı, `a387ba5`) — YAPILANDIRMA BORCU, kaza DEĞİL.**
+Bu üç madde `docs/OPERATIONAL-INCIDENTS.md`'ye GİRMEZ: hiçbiri yanlış bir el hareketi değil, hiçbiri bir
+sistemin yanlış davranması değil — üçü de *kurulduğu günden beri yanlış yapılandırılmış* olan şeylerdi.
+⚠ Dürüstlük notu: bu üç satır yukarıdaki tablolarda **açık madde olarak hiç listelenmemişti** (resume-point
+memory'de ve kural dosyalarında yaşıyorlardı). Var olmayan bir satıra tik atmak yerine kapanışları buraya
+yazılıyor — `close-with-the-gap-inside-the-tick`: boşluk tik'in İÇİNDE durur.
+
+| # | Neydi | Ne yapıldı | Kanıt |
+|---|---|---|---|
+| K1 | **Ad-şekilli `deny` globu denetçiyi kör ediyordu.** `Read(**/*secret*)` alt-ajanlara `scripts/secret-scan.sh` ve `.claude/rules/security-secrets.md`'yi kapatıyordu — yani `security-auditor` hem YARGILADIĞI guard'ın gövdesini hem kendi görev tanımını okuyamıyordu. Yanlış-pozitif oranı %100: tuttuğu dosyaların hepsi kural/guard, sır taşıyan **sıfır**. | `~/.claude/settings.json`'da glob uzantıya çapalandı (`**/*secret*.json|.yaml|.yml|.env|.txt` + `**/secrets/**`, aynısı `credentials*` için). Repo DEĞİL, Yigitcan'ın kişisel ayarı; yazma onayı bu tur peşinen verildi, öncesinde `settings.json.bak-20260911-225327` yedeği alındı. | Alt-ajanla iki yönlü ölçüldü: `secret-scan.sh` + `security-secrets.md` **AÇILDI**; `zzprobe-secret.txt` **DENIED** / `zzprobe-secret.md` **SUCCEEDED** (daraltmanın uzantı ekseninde çalıştığını gösteren ayırt edici çift); dokunulmayan `zzprobe.pem` **DENIED** = negatif kontrol kusuru üretebiliyor. |
+| K2 | **Gerçek kimlik dosyası korumasızdı.** `~/.n8n-api.env` (n8n API key + Cloudflare Access token'ları) mevcut HİÇBİR deny kalıbına uymuyordu. Üç guard dokümanı kilitliyken gerçek bir sır açıktaydı — **koruma tersine dönmüştü.** | Kapatıldı. ⚠ **Onaylanan satırdan SAPMA, açıkça beyan ediliyor** (`governance-sync.md` §5): onaylanan `Read(**/*.env)` bu dosyayı **korumuyor** — ölçüldü, deny globları repo kökünün DIŞINA ulaşmıyor. İşe yarayan biçim `~/` mutlak yoldur; `Read(~/.n8n-api.env)` eklendi. `Read(**/*.env)` de listede bırakıldı (repo içini koruyor). | Mekanizma varsayılmadı, sonda ile ölçüldü: geçici `Read(~/zzprobe-home.env)` kuralı + zararsız sonda dosyası → alt-ajan **DENIED** aldı; sonra sonda kaldırılıp gerçek hedef yazıldı ve alt-ajan `~/.n8n-api.env` için **DENIED** aldı (içerik basılmadı). |
+| K3 | **`0.0.0.0:8788`** — 2026-09-09'da `tests/snippet`'ten başlatılmış `python3 -m http.server`, ölü bir oturumun pid'i (478780), 2 gündür TÜM arayüzlerde. Servis edilen dizinde sızacak dosya yoktu → veri sızıntısı değil, kimliksiz saldırı yüzeyi. | Süreç öldürüldü. Kural `remote-operator.md`'ye yazıldı: drill/dev sunucuları daima `127.0.0.1`'e bağlanır, erişim SSH tüneliyle. | `ss -ltnp` öncesi LISTEN, sonrası **8788'de dinleyici yok**, `ps` pid'i bulamıyor. Makinede kalan wildcard bind'lar `:22` (ssh, beklenen) ve `:19999` (netdata) — bu turun kapsamı değil, bilgi olarak kayıtta. |
+
 - 🟡 **`.retry-note` token geldikten sonra ekranda BAYAT kalıyor** (`code-reviewer` P2, 2026-09-11; ölçüldü:
   not *"Not ready to send yet — see the box below."* dururken `placeholder:"Type a message…"`, `disabled:false`).
   Hasar küçük — not zaten aşağıdaki kutuya işaret ediyor ve o kutu doğruyu söylüyor — ama ekranda yanlış bir

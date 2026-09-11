@@ -86,6 +86,19 @@ it is the reason nobody re-checks, and it makes the next reviewer's job start fr
 Practical form: the mutation run comes first and the sentence quotes it. If you cannot point at the mutant
 that dies, you do not get to write the claim.
 
+**The reflex is worth more than the rule — measured 2026-09-11.** A bullet was added to
+`remote-operator.md` saying a drill server "**was** listening on `0.0.0.0:8788`". The process was still up at
+that moment, so the correct word was *is*. Nobody had to re-read the rule to catch it: the pre-push
+`security-auditor` ran, measured the port itself, and reported that the sentence and the measurement
+disagreed — **in the very file whose subject is that the two must agree.** Two things follow, and the second
+is the one worth keeping:
+1. The gap does not spare the hand that writes the rule. Knowing the failure class is not immunity from it.
+2. **The catch came from the AUDIT, not from the author's care.** This is the argument for why the L2 agents
+   run before a push even on a docs-only, two-file, twenty-one-line diff that "obviously" cannot break
+   anything — see `agents-are-not-replaceable-by-scripts`. A script would have passed this diff: the words
+   were spelled correctly and carried no secret. Only something that went and LOOKED at the port could see
+   that the sentence was false.
+
 ## A STRUCTURAL claim needs evidence too, not just a behavioural one
 "Every X goes through Y", "this is the single entry point", "both paths pass through here" — these are
 claims about the SHAPE of the system, and they are asserted far more casually than claims about behaviour.

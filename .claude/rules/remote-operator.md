@@ -33,12 +33,13 @@ http://localhost:<PORT>/...
 - This applies to every address without exception: dev servers, static drill pages, previews, dashboards.
 - **Drill/dev servers ALWAYS bind to `127.0.0.1`; access is via the SSH tunnel.** `python3 -m http.server
   <PORT>` defaults to `0.0.0.0` — every interface — so use `--bind 127.0.0.1`. The tunnel above is already
-  the access path, so a public bind buys nothing and is pure exposure. ⚠ **Measured 2026-09-11 and still
-  open as this line is written:** a drill server started 2026-09-09 from `tests/snippet` **is** listening on
-  `0.0.0.0:8788` (pid held by a dead session). It was deliberately NOT killed — the process could belong to a
-  live session and that is Yigitcan's call, not the build's. Present tense because the measurement is present
-  tense: a rule written in the past tense about a condition that still holds is the `reporting.md`
-  measurement-vs-sentence gap, in the very line that forbids it.
+  the access path, so a public bind buys nothing and is pure exposure. **What produced this rule
+  (2026-09-11):** a drill server started 2026-09-09 from `tests/snippet` had been listening on `0.0.0.0:8788`
+  for two days, owned by a dead session's pid. It was measured first and killed only on Yigitcan's word —
+  `ss -ltnp` shows no listener on 8788 since. ⚠ *The first draft of this bullet said "**was** listening" while
+  the process was still up; `security-auditor` caught it. The tense is corrected here rather than annotated
+  beside, because the condition genuinely changed (`governance-sync.md` §6) — and it is now past tense for the
+  opposite reason it was present tense before: the measurement moved, so the sentence moved with it.*
 
 ## Why
 Without the tunnel the address resolves on HIS machine — to nothing, or worse, to a different app of his,
