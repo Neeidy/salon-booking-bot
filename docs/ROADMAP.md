@@ -1225,7 +1225,7 @@ Each CP waits for its own written approval (plan-gate).
 | **README / case-study** | ✅ | README §"Case study — the embeddable widget (Phase 6b)": beş host-dokunuşunun tam listesi + **bilerek yapılmayanlar tablosu** (honesty-demos) |
 | **pushed** | ✅ | `8eccdb8` → `32cfd4c` → `4fc04cb` → `97564b9` → `7d2c118`, hepsi GitHub'da doğrulandı; kapanış commit'i bu satırın altında |
 
-- ✅ **CRT #13 — Codex denetimi, TEK ve DAR tur (2026-09-11).** En değerli iki bulgu doküman değil ÜRÜNDÜ:
+- ✅ **CRT #13 — Codex denetimi, TEK ve DAR tur (2026-09-11, commit `a3e950e`, push'lu).** En değerli iki bulgu doküman değil ÜRÜNDÜ:
   **(4) snippet dağıtımda hiç derlenmiyordu** — `public/barber-widget.js` gitignored bir build artefaktı ve
   site build'i onu üretmiyordu, yani taze bir deployment tek-satır gömmesi 404 veren bir site sevk ediyordu;
   üstelik `--check` bundle hiç yokken bile exit 0 veriyordu. Template'in TEK vaadi "config + build → çalışan
