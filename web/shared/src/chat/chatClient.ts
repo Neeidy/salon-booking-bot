@@ -67,6 +67,12 @@ export const FRONTEND_TEXT = {
   noText: 'Something went wrong on our side. A team member will follow up.',
   offline: "That didn't reach us — check your connection and try again.",
   /**
+   * The composer is gated on a Turnstile token and only Cloudflare's callback can re-open it; the wait
+   * itself has no timeout. This is what the wait says once it has gone on too long — see the watchdog
+   * in `web/snippet/src/index.ts`, which may only say it AFTER Turnstile has actually been asked.
+   */
+  verifyStuck: 'Still checking this browser. If the box below stays greyed out, reload the page.',
+  /**
    * W59 (SCREEN-INVENTORY §2.10.1) — the edge rate-limit. The request never reaches n8n, so the engine
    * cannot know about it. It had a DECIDED text in the inventory and no implementation: a 429 fell into
    * the catch-all and told the visitor "something went wrong on our side", which points them at a reload

@@ -177,28 +177,41 @@ function boot(selfSrc: string | null) {
   let ts = { token: () => null as string | null, refresh: () => {} };
 
   /**
-   * ⚠ A 20 s WATCHDOG ON THIS WAIT WAS BUILT AND THEN REVERTED ON 2026-09-11. The gap it aimed at is
-   * REAL and is still open: the structural search below shows one single producer of `ready`, and
-   * `pending` has no timeout of its own, so a `reset()` whose callback never arrives leaves the
-   * composer dead behind "Verifying…" with nothing on screen.
+   * THE WAIT NEEDS A WAY OUT — and the way out must not speak before there is anything to wait for.
    *
+   * The gap, structurally (the search, shown, because this is a claim about shape):
    *     turnstile.ts:110  callback: (t) => { token = t; onChange('ready'); }   ← the ONLY 'ready'
    *     turnstile.ts:98/112/113/126 'pending'   ·   111/117 'blocked'
-   *     index.ts    setGate('pending') on mount and on every send   ·   'blocked' in the refresh catch
+   *     index.ts    setGate('pending') at mount and on every send   ·   'blocked' in the refresh catch
+   * One producer of `ready`, and `pending` has no timeout of its own, so a `reset()` whose callback
+   * never arrives leaves the composer dead behind "Verifying…" with nothing on screen. That is the
+   * dead composer `tests/snippet/DRILLS.md` lists as a MUST-NOT-RUN.
    *
-   * WHY IT CAME OUT AGAIN: `setGate('pending')` runs at MOUNT, while Turnstile is only mounted on the
-   * FIRST PANEL OPEN — so the timer fired for every visitor who browsed for 20 s before clicking the
-   * launcher. Measured: at T+22 s with the panel never opened, `turnstileRendered: 0` and the thread
-   * already carried *"Still checking this browser…"* — the widget had not executed one line of
-   * verification code. Opening then produced a token instantly while the false alarm stayed in the
-   * transcript, and the one-shot flag had been spent, so a LATER genuine stall printed nothing. The fix
-   * announced a no-exit that did not exist and silenced the one that did.
+   * ⚠ THIS IS THE SECOND ATTEMPT. The first shipped for one round and was reverted: the timer armed
+   * from the `setGate('pending')` at MOUNT, while Turnstile is only mounted on the FIRST PANEL OPEN,
+   * so it fired for every visitor who browsed 20 s before clicking — announcing that it was "still
+   * checking this browser" with `turnstileRendered: 0`, i.e. before running a single line of
+   * verification code. Its negative control HAD been run and HAD passed; it swept only the `sending`
+   * axis, and the defect was on an axis nobody had thought to vary.
    *
-   * The known fix is one condition — arm only once Turnstile has actually been asked for a token
-   * (`state === 'pending' && !sending && mounted`, with `let mounted` moved up here to avoid a TDZ
-   * error) — plus a closed-panel negative control. It was NOT applied: this was the third consecutive
-   * round of correcting a correction, which is the declared stop point. Tracked in ROADMAP §6b.
+   * THREE CONDITIONS, each answering one axis:
+   *   `mounted`   — Turnstile has actually been asked for a token. Without it the timer measures the
+   *                 visitor's browsing speed, not Cloudflare's.
+   *   `!sending`  — an in-flight send also parks the gate at `pending`, but that wait belongs to the
+   *                 ENGINE (up to the 60 s transport timeout) and already shows a typing indicator.
+   *   one-shot, RE-ARMED on `ready` — say it once per stall, not once per page. The first version
+   *                 burned its only shot on the false alarm and then had nothing left for the real one.
+   *
+   * ⚠ Scope, unchanged and honest: this does not REPAIR the wait — only Cloudflare can. It turns a
+   * silent no-exit into a stated one. Two different thresholds; only the second is crossed here.
    */
+  const VERIFY_STUCK_MS = 20000;
+  // Declared HERE, above `setGate`, not next to the panel code: `setGate('pending')` runs immediately
+  // below and reading `mounted` from its temporal dead zone would throw before the widget ever drew.
+  let mounted = false;
+  let gateTimer: ReturnType<typeof setTimeout> | undefined;
+  let stuckShown = false;
+
   function setGate(state: 'pending' | 'ready' | 'blocked') {
     const ok = state === 'ready';
     input.disabled = !ok;
@@ -209,6 +222,15 @@ function boot(selfSrc: string | null) {
       // has actually been flagged, "reload the page" fixes nothing. This wording is true either way.
       ? "Couldn't verify this browser — reload to try again"
       : ok ? 'Type a message…' : 'Verifying…';
+
+    clearTimeout(gateTimer);
+    if (ok) stuckShown = false;          // a stall that ended may happen again, and must be sayable again
+    if (state === 'pending' && !sending && mounted) {
+      gateTimer = setTimeout(() => {
+        input.placeholder = 'Still verifying — reload the page';
+        if (!stuckShown) { stuckShown = true; bubble('system', FRONTEND_TEXT.verifyStuck); }
+      }, VERIFY_STUCK_MS);
+    }
   }
   setGate('pending');
 
@@ -305,7 +327,6 @@ function boot(selfSrc: string | null) {
   sendBtn.addEventListener('click', () => { void send(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void send(); } });
 
-  let mounted = false;
   /**
    * Escape closes the panel from ANYWHERE while it is open.
    *

@@ -471,7 +471,7 @@ Each CP waits for its own written approval (plan-gate).
     ⚠ **The zero was proven fail-able before it was believed:** the same `FIND()` formula pointed at a substring
     that DOES exist (`ee5d737b`) returned its row. The zeros therefore measure absence, not a broken filter —
     the negative-control discipline this repo requires of every guard, applied to a cleanup query.
-  - ✅ **`code-reviewer` SON KOŞU + düzeltme turu (2026-09-11) — snippet'i ilk kez gören gözle, 13 bulgu.**
+  - ✅ **`code-reviewer` SON KOŞU + düzeltme turu (2026-09-11, commit `4fc04cb`, push'lu) — snippet'i ilk kez gören gözle, 13 bulgu.**
     Ajan her şeyi gerçek Chromium'da (CDP, iki origin, düşmanca host sayfası, Cloudflare'in üç TEST key'i)
     sürdü ve **temiz çıkanları da tek tek saydı** — motor sözleşme tablosunun sekiz satırı, çift-gönderim
     yarışı (1 POST), listener hijyeni (0/1/1/0), XSS, `maxlength` ↔ motorun `lte 1000` sınırı, izolasyon
@@ -1178,15 +1178,21 @@ Each CP waits for its own written approval (plan-gate).
   committed export had it, live does not — proven on the pre-change backup and live. Re-sanitising made the export
   match reality, so the diff shows the removal; the drift itself predates this commit. Without the limit an Airtable
   search may return more than one row and `Record Alert Class` runs per item.
-- 🔴 **Composer'ın Turnstile bekleyişinin HÂLÂ çıkışı yok — watchdog kuruldu, yanlış alarm ürettiği ölçüldü,
-  GERİ ALINDI (2026-09-11).** Kusurun kendisi gerçek ve yapısal olarak kanıtlı: `ready`'yi üretebilen tek olay
-  Cloudflare'in token callback'i, `pending`'in kendi timeout'u yok → callback hiç gelmezse composer süresiz
-  "Verifying…"de ölü kalır (`DRILLS.md` STUCK-1, ölçüldü). **Bilinen düzeltme, hakem tarafından da yazıldı:**
-  arming'i `state === 'pending' && !sending && **mounted**` yap ve `let mounted` bildirimini `setGate`'ten
-  ÖNCEYE taşı (naif hâli TDZ `ReferenceError` verir — hakem bunu ayrıca uyardı). Sonra **kapalı-panel negatif
-  kontrolü** (`DRILLS.md` STUCK-3) önce KIRMIZI sonra YEŞİL koşulmalı; token gerektirmiyor, Claude koşabilir.
-  **Neden bu turda yapılmadı:** düzeltmenin düzeltmesinin ÜÇÜNCÜ turu olurdu ve eşik ölçümden ÖNCE ilan
-  edilmişti. Eşiği sonucu görünce esnetmek, eşiği hiç koymamaktır.
+- ✅ **Composer'ın Turnstile bekleyişi artık konuşuyor — watchdog v2, İKİNCİ denemede, kendi küçük birimi
+  olarak (2026-09-11).** v1 `4fc04cb`'de geri alınmıştı (zamanlayıcı MOUNT anında kuruluyordu, Turnstile ise
+  ilk panel açılışında mount olur → yalan alarm). v2 üç koşul taşıyor: **`mounted`** (Turnstile'dan gerçekten
+  token istenmiş olmalı) · **`!sending`** (motorun düşünme süresi Turnstile'a fatura edilmez) · **`ready`'de
+  YENİDEN KURULAN tek atış** (v1 tek atışını yalan alarmda yakıyordu). `let mounted` bildirimi `setGate`'in
+  üstüne taşındı — naif hâli TDZ `ReferenceError` verirdi, hakem bunu önceden uyarmıştı.
+  **Beş eksende negatif kontrol + ÖNCE koşulan pozitif kontrol, 10 iddia, 0 başarısızlık** (DRILLS STUCK-1…6):
+  (a) `sending` · (b) panel hiç açılmadı — v1'in öldüğü eksen, artık `rendered:0` iken sessiz · (c) açıldı-
+  sonra-kapandı **iki yönde ayrı** (token gelmedi → dürüstçe söylüyor; token geldi → susuyor) · (d) tek atışın
+  yeniden kurulması — **v1'in adlandırılmamış ikinci kusuru buradaydı** · (e) `blocked` (kutu zaten dürüst bir
+  cümle taşıyor, üstüne çelişen ikinci cümle binmiyor).
+  ⚠ **Tik'in içindeki boşluk:** bu ekran bekleyişi ONARMAZ, yalnız beyan eder — onarım Cloudflare'in işi.
+  Ve **taranmayan beş eksen adıyla yazıldı** (gerçek site key'i → Yigitcan'ın tarayıcısı · gerçekten yavaş ağ
+  · arka plan sekmesinde timer throttling · eşiğin tam sınırı · aynı sayfada iki widget); bunlar kapanmış
+  sayılmamaktadır.
 - 🟡 **`.retry-note` token geldikten sonra ekranda BAYAT kalıyor** (`code-reviewer` P2, 2026-09-11; ölçüldü:
   not *"Not ready to send yet — see the box below."* dururken `placeholder:"Type a message…"`, `disabled:false`).
   Hasar küçük — not zaten aşağıdaki kutuya işaret ediyor ve o kutu doğruyu söylüyor — ama ekranda yanlış bir
