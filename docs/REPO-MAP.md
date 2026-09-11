@@ -547,6 +547,7 @@
   - ## FIX-2 — Design öncesi bulgu kapatma (DONE 2026-08-31)
   - ## TASARIM AŞAMASI — DONE 2026-09-02 (`c491c36` → `46385ed`)
   - ## Phase 6 — checkpoint progress (vitrin frontend)
+  - ### 6b DEFINITION OF DONE — KALEM KALEM (testing.md)
   - ### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
   - ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 
@@ -709,7 +710,7 @@
 ### `tests/snippet/DRILLS.md`
   - ## Who runs what — the dividing question is whether a REAL TURNSTILE TOKEN is needed
   - ### Run headless by Claude — RESULTS (2026-09-10)
-  - ### Needs Yigitcan's browser — RESULT (2026-09-10)
+  - ### Needs Yigitcan's browser — RESULT (2026-09-11, re-run on the CURRENT bundle)
   - ### Needs Yigitcan's browser — the ONLY one
   - ## The rule this sheet exists to enforce
 

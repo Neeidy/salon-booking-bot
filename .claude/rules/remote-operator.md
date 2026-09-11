@@ -15,7 +15,19 @@ ssh -N -L <PORT>:localhost:<PORT> yigit@<HOST>
 http://localhost:<PORT>/...
 ```
 
-- Fill `<HOST>` from `CLAUDE.local.md`. **Never write the host into the chat** — it is a redaction target.
+- **The host NEVER enters a repo file, nor any text destined for a repo file — but it DOES belong in the
+  runnable command handed to the operator.** Fill `<HOST>` from `CLAUDE.local.md` when the command is for
+  Yigitcan to run; keep it out of every committed artefact, report, screenshot, export **and commit
+  message**. ⚠ The commit message is called out by name because it is the ONE channel
+  `scripts/check-no-host-leak.sh` cannot see — its own KNOWN LIMITS block says so: *"COMMIT MESSAGES are
+  not scanned. Writing the host into a message would reach GitHub with this guard green."* Measured
+  2026-09-11: zero occurrences across all reachable history — that is discipline holding, not a control.
+  ⚠ *Corrected 2026-09-11: the two bullets here previously said "fill `<HOST>` from `CLAUDE.local.md`" AND
+  "never write the host into the chat", which cannot both be obeyed — the rule was unimplementable, and it
+  bit during the 6b E2E hand-off, where a placeholder had to be left and the contradiction reported instead
+  of followed. What the redaction target actually protects is the REPO (public) and anything that reaches
+  it; an ssh command Yigitcan types on his own machine is not that. (`governance-sync.md` §6: a rule that
+  contradicts itself is corrected in place, not annotated beside.)*
 - If the local port is likely taken (3000 and 3111 are, routinely), propose the alternative port yourself
   and write the URL for that port. Do not make him discover the collision.
 - This applies to every address without exception: dev servers, static drill pages, previews, dashboards.

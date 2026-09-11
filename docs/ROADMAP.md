@@ -1193,14 +1193,37 @@ Each CP waits for its own written approval (plan-gate).
   Ve **taranmayan beş eksen adıyla yazıldı** (gerçek site key'i → Yigitcan'ın tarayıcısı · gerçekten yavaş ağ
   · arka plan sekmesinde timer throttling · eşiğin tam sınırı · aynı sayfada iki widget); bunlar kapanmış
   sayılmamaktadır.
-- 🔴 **DoD BOŞLUĞU — E2E yeşili artık var olmayan bir bundle'a ait (6b kapanışında fark edildi, 2026-09-11).**
-  E2E-1/2/3 (gerçek randevu + kendi iptal akışıyla temizlik) **2026-09-10**'da koşuldu. O tarihten sonra widget
-  kodu **üç commit**te değişti — `32cfd4c` · `4fc04cb` · `97564b9` — ve değişiklikler kozmetik değil: transport'un
-  catch-all dalı, yeni 429 ekranı, mount yolu (`main()`/`boot()` + `DOMContentLoaded`, çift-ekleme guard'ı TAŞINDI),
-  ve bir Turnstile watchdog'u eklendi→geri alındı→yeniden eklendi. **Headless drill'lerin tamamı güncel bundle'da
-  yeniden koşuldu; E2E koşulmadı, çünkü GERÇEK TURNSTILE TOKEN'I gerektiriyor.** Arama: `git log --oneline
-  --since=2026-09-10 -- web/snippet/src web/shared/src/chat`. → **Yigitcan'ın tarayıcısı.** Bu bir DoD maddesidir,
-  tercih değil: "tested" tik'i bu koşu yapılmadan dürüstçe atılamaz.
+- ✅ **E2E-1/2/3 GÜNCEL BUNDLE'DA YENİDEN KOŞULDU — ve tik bir TARİHE değil bir ARTEFAKTA bağlandı
+  (2026-09-11, Yigitcan'ın tarayıcısı, tek sekme).** Sürülen bundle, **HEAD `7d2c118`**'in build'iyle
+  **byte-byte özdeş** — iddia değil ölçüm: sunulan dosya kenara kopyalandı, snippet HEAD'den yeniden
+  kuruldu, `cmp` özdeş döndü. `7d2c118` hiç kod değiştirmiyor, yani widget kodu **`97564b9`**.
+  **Sütundan ve execution'dan okundu, ekrandan değil:** `appointments` TEK satır `booked`→`cancelled`
+  (`start_utc 2026-09-12T09:00Z` = Viyana 11:00, `gcal_event_id` + `calendar_id` dolu) · `Verify Slot`
+  takvimi yeniden okudu, **`items` = 1**, `Check Race` `race_lost:false` / `race_other_count:0` ·
+  **`Delete Booking Event` → HTTP 204 No Content**, cevap metninden değil **status kodundan** (exec 2690) ·
+  `cancel_mirror_failed:false` · `conversations.computed_reply` son balonla **BYTE-BİREBİR** (60 bayt,
+  em dash U+2014 doğrulandı) · `turn_count:5`, `stage:cancelled` · `processed_messages` 5 satır.
+  ⚠ **5 ayrı id bir dedupe PASS sinyali DEĞİL** — bu koşuda hiçbir mesaj yeniden gönderilmedi, yani dedupe
+  hiç devreye girmedi (2026-09-10 düzeltmesi aynen geçerli).
+  **BEDAVA F1 DOĞRULAMASI (exec 2687):** `date_resolution` = `expr:"tomorrow"` · `code:"2026-09-12"` ·
+  **`outcome:"resolved_by_code"`** · `date_dropped:false` · `date_alert:false` → **deterministik resolver
+  güncel bundle'da canlı çalışıyor**, tarihi motor üretti, model değil. ⚠ **Bu koşunun KANITLAMADIĞI:**
+  model de aynı tarihi döndürdü (`llm:"2026-09-12"`), yani kodun ÇELİŞEN bir modeli ezdiği yol burada
+  sınanmadı; o yön birim + mutasyon + daha önceki canlı kanıta dayanıyor.
+  **Ölçülen bir yan kanıt:** event id çözülünce `widget:w-…|2026-09-12|11:00|haircut` çıkıyor — `index.ts`'in
+  retry yorumunda "uçuştaki duplicate'i sınırlayan deterministik event id" diye yazdığı şey artık ölçülmüş.
+
+### 6b DEFINITION OF DONE — KALEM KALEM (testing.md)
+
+| Madde | Durum | Dayanak |
+|---|---|---|
+| **built** | ✅ | snippet derleniyor; `check-all` exit 0; 32/32 test; content parity 169 node; live parity 191/191 · 274/274 |
+| **tested** (happy + key edge) | ✅ **`7d2c118` bundle'ında** | Headless: ISO-9…12 · HEAD-1/2 · STUCK-1…6 (5 eksen + pozitif kontrol) · EDGE-502 · RETRY-0 · ISO-12. **E2E-1/2/3 + temizlik güncel bundle'da, sütundan doğrulandı.** Tik'in ait olduğu artefakt yazılıdır |
+| **Critical-Review (#13)** | ☐ | Kayıt satırı ARCH-DEC §7'de; Codex turu **E2E'den SONRA**, denetim aralığı kapanış hash'ine kadar |
+| **cleaned** | ✅ | Ölçüldü: yorum-satırı kod 0 · TODO/FIXME 0 · 5 export'un 5'i kullanılıyor · `FRONTEND_TEXT`'in 8 anahtarının 8'i referanslı (ölü anahtar yok) |
+| **sanitized** | ✅ | `security-auditor` dört ayrı ağaçta PASS; host-leak guard negatif kontrolle kırmızıya döndürüldü; `drill.invalid` dört yüzeyde sıfır; bundle'ın gerçek build olduğu taze build'le byte-byte diff'le kanıtlandı. **`/sanitize` koşulmadı ve gerekmedi** — `n8n/` bu fazın hiçbir turunda değişmedi |
+| **README / case-study** | ✅ | README §"Case study — the embeddable widget (Phase 6b)": beş host-dokunuşunun tam listesi + **bilerek yapılmayanlar tablosu** (honesty-demos) |
+| **pushed** | ✅ | `8eccdb8` → `32cfd4c` → `4fc04cb` → `97564b9` → `7d2c118`, hepsi GitHub'da doğrulandı; kapanış commit'i bu satırın altında |
 
 ### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
 
@@ -1295,8 +1318,14 @@ Each CP waits for its own written approval (plan-gate).
   reader nothing). Two different values, two different answers, for one stated reason. **When referring to this item, do NOT restate the number** — the first draft of this very line repeated it and increased exposure instead of
   reducing it.
 - ☐ **`scripts/secret-scan.sh` — two capability gaps (security-auditor M1+M2), the FOURTH instance of the
-  "assumed to work, never proven able to fail" pattern.** (a) Called with no stdin payload it returns `exit 0`
-  silently, so "secret-scan ran, clean" can mean "it scanned nothing"; (b) it only diffs `origin/main..HEAD`, so an
+  "assumed to work, never proven able to fail" pattern.** (a) It is a **PreToolUse hook**: it reads the hook JSON from stdin and
+  exits 0 at `[[ "$tool" == "Bash" && "$cmd" == *"git push"* ]] || exit 0`, so ANY invocation that is not a
+  `git push` Bash call — including piping a diff into it — runs **none** of the rules and returns 0.
+  *(Sharpened 2026-09-11: the earlier wording "no stdin payload → exit 0" was true but too narrow, and
+  `security-auditor`'s own first positive control went green because of it — a control that measured
+  nothing, self-reported. With a valid hook payload the rules DO run: exit 0 here, exit 2 against planted
+  `sk-ant-`/Telegram fixtures, so the green is real.)* Also unchanged: the rule set contains **no PII or
+  phone-number rule at all**, so PII is caught by manual scanning every round, never by the guard; (b) it only diffs `origin/main..HEAD`, so an
   uncommitted change gets ZERO coverage; (c) its generic rule misses `N8N_ENCRYPTION_KEY` (the named target of this
   very check) and its OpenAI pattern misses modern `sk-proj-…` keys — both proven with fixtures in an isolated repo.
   Fix direction: add `encryption[_-]?key` to the generic rule, widen to `sk-(proj-)?[A-Za-z0-9_-]{32,}`, make a

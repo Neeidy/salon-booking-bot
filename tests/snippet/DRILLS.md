@@ -82,21 +82,36 @@ both directions · (d) one-shot re-arm · (e) `blocked`. Plus the positive contr
 5. **Two widgets on one page.** Prevented upstream by the `HOST_ID` guard (drilled separately, HEAD-2); the
    watchdog was not re-swept against it.
 
-### Needs Yigitcan's browser — RESULT (2026-09-10)
+### Needs Yigitcan's browser — RESULT (2026-09-11, re-run on the CURRENT bundle)
 
-> 🔴 **THIS RESULT IS STALE AND MUST NOT BE READ AS CURRENT (noted at the 6b close, 2026-09-11).**
-> It was measured on the bundle as it stood on 2026-09-10. The widget's code has changed in THREE
-> commits since — `32cfd4c`, `4fc04cb`, `97564b9` — and the changes are not cosmetic: the transport's
-> catch-all branch, a new 429 screen, the mount path (`main()`/`boot()` + `DOMContentLoaded`) with the
-> double-insert guard MOVED, and a Turnstile watchdog added, reverted, and re-added. The headless drills
-> below were all re-run against the current bundle; **E2E-1/2/3 were not, because they need a real
-> Turnstile token.** So the booking path is green on an older build and UNMEASURED on the shipped one.
-> Re-running E2E-1 → E2E-2 → E2E-3 on the current bundle is a Yigitcan-browser item and is a Definition-
-> of-Done gap for 6b, not a nice-to-have. `git log --oneline --since=2026-09-10 -- web/snippet/src
-> web/shared/src/chat` is the search that produced this note.
+**E2E-1/2/3 PASS — and the tick is bound to an artefact, not to a date.** The bundle exercised is
+byte-for-byte the build of **`7d2c118`** (HEAD at the time; `7d2c118` changed no code, so the widget code
+is **`97564b9`**). Proven rather than assumed: the served file was copied aside, the snippet rebuilt from
+HEAD, and `cmp` returned identical. The previous E2E result was dated 2026-09-10 and four commits had
+landed since — it is superseded here, not stacked beside.
 
-**E2E-1/2/3 PASSED**, verified from the column: one `appointments` row, booked then cancelled, `gcal_event_id` + `calendar_id` set; `conversations` `turn_count=5`, `stage=cancelled`; `processed_messages` **5 distinct ids — and that is NOT a dedupe pass signal.** ⚠ Corrected 2026-09-11 (`qa-tester`): five distinct ids is the fingerprint of the 🔴 finding below — the re-sent message got a NEW id and was processed as a separate turn, i.e. **dedupe never engaged in this session at all**. Nothing about idempotency may be concluded from this run. Cleanup ran in the same session, as this sheet requires.
-⚠ **The run also exposed something the screen could not show:** the first message timed out client-side (20 s) and the visitor re-sent it — but the engine had processed the abandoned one anyway. See the 🔴 item in ROADMAP §6b; the engine-side drill it calls for is NOT yet written.
+Read from the column and the execution, never from the screen:
+
+| What | Where it was read | Value |
+|---|---|---|
+| exactly ONE appointment | `appointments` | 1 row, `booked` → **`cancelled`**, `gcal_event_id` + `calendar_id` set, `start_utc 2026-09-12T09:00Z` = 11:00 Vienna |
+| exactly ONE calendar event | `Verify Slot` output, exec **2688** | `items` length **1**; `Check Race` → `race_lost:false`, `race_other_count:0` |
+| the event really went | `Delete Booking Event` **status code**, exec **2690** | **HTTP 204 No Content** — read from `statusCode`, not from the reply text |
+| the mirror write | `Update Appointment Cancelled`, exec 2690 | row `rec…` → `status:"cancelled"`; `cancel_mirror_failed:false` |
+| the words on screen | `conversations.computed_reply` | **BYTE-IDENTICAL** to the last bubble — 60 bytes, em dash confirmed as U+2014 |
+| conversation state | `conversations` | `turn_count:5`, `stage:"cancelled"`, `cancel_target_id` = the appointment row |
+| messages | `processed_messages` | **5 rows, 5 distinct ids.** ⚠ Distinct ids are NOT a dedupe pass signal — nothing was re-sent in this run, so dedupe was never exercised (the 2026-09-10 correction stands) |
+
+**FREE F1 CONFIRMATION — the deterministic resolver is live on this bundle.** Exec **2687**,
+`date_resolution`: `expr:"tomorrow"` · `code:"2026-09-12"` · `outcome:**"resolved_by_code"**` ·
+`date_dropped:false` · `date_alert:false`. The engine, not the model, produced the booking date.
+⚠ **What this run does NOT prove:** the LLM returned the same date (`llm:"2026-09-12"`), so the OVERRIDE
+path — code winning over a disagreeing model — was not exercised here. That direction has unit, mutation
+and earlier live evidence; this drill adds the resolver's presence, not its override.
+
+**Bonus, measured rather than read off the source:** the event id decodes to
+`widget:w-…|2026-09-12|11:00|haircut` — the deterministic booking key the retry comment in
+`web/snippet/src/index.ts` names as the bound on an in-flight duplicate. The claim is now measured.
 
 ### Needs Yigitcan's browser — the ONLY one
 **E2E-1 → E2E-2 → E2E-3** only — a real booking and its cleanup through the bot's own cancel flow.
