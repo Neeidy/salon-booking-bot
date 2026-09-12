@@ -99,6 +99,26 @@ is the one worth keeping:
    were spelled correctly and carried no secret. Only something that went and LOOKED at the port could see
    that the sentence was false.
 
+## An EMPTY result is a claim about the INSTRUMENT until the instrument has been checked
+
+A query that comes back with nothing has told you two things and they are indistinguishable: *there is
+nothing there*, or *you searched for the wrong thing*. Writing down the first without ruling out the
+second is the same mistake as an unproven guard comment, one layer earlier — the measurement itself is
+the unverified part.
+
+**Practical form: before reporting a zero, run the instrument against something you KNOW it should find.**
+If it cannot go non-empty, it has measured nothing.
+
+Trigger (2026-09-12): 215 conversations were classified as "no drill marker" and the number was reported
+as a finding about the DATA. The classifier searched for `zz-|drill|test|probe` and did not include this
+repo's actual drill prefixes — `reg-`, `cp2-`, `cx8-`, `cperr-`, `rh-`, `rem-`. With them, 215 of 215
+classify. **The defect was in the instrument, and the empty result looked exactly like evidence.** It was
+caught only because the next step — reading the unclassified rows one by one — happened to be required
+before an irreversible delete.
+
+This is the same family as the negative-control rule, pointed at reads rather than at guards: a control
+that cannot produce the thing it looks for proves nothing, and neither does a search that cannot match it.
+
 ## A STRUCTURAL claim needs evidence too, not just a behavioural one
 "Every X goes through Y", "this is the single entry point", "both paths pass through here" — these are
 claims about the SHAPE of the system, and they are asserted far more casually than claims about behaviour.

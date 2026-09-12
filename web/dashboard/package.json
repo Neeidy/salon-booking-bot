@@ -1,0 +1,25 @@
+{
+  "name": "@salon/dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Owner dashboard (D1-D20) — appointments, leads, the handoff queue and system health. Deploys to OUR OWN SERVER behind Cloudflare Access, never to Vercel: that separation is the proof that the Airtable PAT and the PII read path do not reach a third party, because the code is not there (Phase 6 decision D-1). READ-ONLY in Phase 6c: the one write action (D11, release the handoff lock) goes through a protected n8n path in 6d, never straight to Airtable.",
+  "scripts": {
+    "dev": "next dev -p ${DASHBOARD_PORT:-3210} -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -p ${DASHBOARD_PORT:-3210} -H 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test lib/mask.test.ts lib/alertState.test.ts",
+    "check": "tsc --noEmit && node --test lib/mask.test.ts lib/alertState.test.ts"
+  },
+  "dependencies": {
+    "@salon/shared": "*",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "typescript": "7.0.2"
+  }
+}

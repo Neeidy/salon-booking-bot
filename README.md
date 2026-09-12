@@ -255,6 +255,15 @@ Everything runs today on mock config and a test endpoint. Going live for a clien
 WhatsApp number, their calendar and their Airtable base — **no code change**, a new config file and new
 credentials.
 
+⚠ **One thing a config file cannot swap, and it belongs here rather than in a footnote: the free Airtable
+plan cannot serve a single real client.** Measured 2026-09-12 — 1,000 API calls per month per workspace,
+shared between the bot and the dashboard, plus a hard 5 requests/second per base that no plan raises. The
+dashboard costs four calls per page load; the bot costs several per conversation. One real shop exhausts
+a month in days. Going live therefore means **a paid Airtable plan or a migration to Postgres/Supabase**,
+and **the migration cost has not been estimated** — it is deferred, not solved
+([ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md), 2026-09-12). The "one swap to real" claim
+holds for the CODE, which is what it was always about; it does not hold for the data plan.
+
 ---
 
 ## Documentation

@@ -335,6 +335,7 @@
 
 ### `.claude/rules/remote-operator.md`
   - ## The rule
+  - ### The rule held for the NEXT bind and did nothing about the ones already up — so there is a sweep now
   - ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
   - ### Pre-flight before handing over ANY tunnel command
   - ## Why
@@ -346,6 +347,7 @@
   - ### A relayed SUB-AGENT verdict is evidence, not the turn's verdict
   - ## Live-state sync is part of closing a phase (no drift)
   - ## A claim ABOUT a guard is written AFTER the mutation test, never beside the code
+  - ## An EMPTY result is a claim about the INSTRUMENT until the instrument has been checked
   - ## A STRUCTURAL claim needs evidence too, not just a behavioural one
   - ## Evidence before abandoning a planned approach
   - ## "The operator did it" is not a measurement — and the measuring is YOURS

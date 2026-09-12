@@ -126,6 +126,9 @@ const WORKSPACE_DIRS = ['web/shared', 'web/site', 'web/snippet', 'web/dashboard'
  * disappears costs the whole subtree's coverage. Opposite policies, opposite failure costs.
  */
 const BANNED_FILES = {
+  'web/dashboard/lib/airtable.ts':
+    'it holds the Airtable PAT, read from process.env. CRT #10\'s first line — "the PAT never reaches '
+    + 'a browser" — is true exactly as long as this file is unreachable from client code',
   // F6 (security-auditor, 2026-09-11): banning only `loadConfig.ts` banned the DOOR and left the
   // PAYLOAD open. `web/site/lib/config.ts` imports this JSON directly and nine components import
   // that — so adding 'use client' to any one of them would put the whole client config (calendar id,
@@ -161,6 +164,59 @@ const EXTRA_CLIENT_ROOTS = {
  * Scan roots allowed to contribute zero client roots, each with the reason. Without this, a directory
  * full of code and no client entry passes VACUOUSLY — the same shape as the snippet gap above.
  * Empty today; an all-server-component app would be added here WITH its reason, never silently.
+ */
+/**
+ * Rule class D — files that RENDER PII and must therefore stay SERVER components. It is not enough
+ * that they avoid importing something banned: the hazard is the opposite direction. A server component
+ * may hold a customer's phone number quite legitimately; the moment that file becomes a client
+ * component, or is imported by one, Next serialises its props into the RSC payload and the value is
+ * in the page source. Each entry must EXIST, so a rename breaks this rather than quietly emptying it.
+ *
+ * ⚠ NAMED RESIDUAL, and it is the honest limit of this whole gate: **this walk sees IMPORTS, not
+ * PROPS.** If a future refactor keeps these files as server components and simply passes the data
+ * DOWN to a client component as a prop, nothing here fires — and that is exactly CRT #10b, which is
+ * already live on `web/site` (`page.tsx` passes the whole config object to `LiveChatPanel`, and the
+ * built `index.html` carries it). Reachability is not data flow. A prop-level check needs a different
+ * tool; this one says so rather than implying coverage it does not have.
+ */
+const PII_SERVER_ONLY = {
+  // LOAD-BEARING entries: these RENDER customer data — the handoff queue shows the customer's own
+  // messages and a masked sender, the leads panel shows a name and a phone. They are value-imported
+  // by app/page.tsx, so if that page (or either panel) ever gains 'use client', this rule fires.
+  'web/dashboard/components/HandoffQueue.tsx':
+    "renders recent_messages — the customer's own words — and the masked sender; a client component "
+    + 'would put both in the RSC payload, i.e. in the page source',
+  'web/dashboard/components/LeadsPanel.tsx':
+    'renders a customer name and phone number; same payload hazard',
+  // Added 2026-09-12 (`code-reviewer` #8 / `security-auditor` L2): this panel renders
+  // `customer_name`, so the list's own criterion — "files that RENDER PII" — already covered it and
+  // the list did not. An entry missing from a rename-gated list is the same defect as a stale one.
+  'web/dashboard/components/AppointmentsPanel.tsx':
+    'renders customer_name (masked) beside each appointment; same payload hazard as its two siblings',
+  'web/dashboard/app/page.tsx':
+    'holds every row in memory and hands slices to the panels; making THIS a client component would '
+    + 'serialise all four tables into the payload at once',
+  'web/dashboard/lib/types.ts':
+    'declares the PII-bearing row shapes (customer_name, phone, sender_key, recent_messages). ⚠ This '
+    + 'entry is WEAK and saying so is the point: a types file is almost always imported with `import '
+    + 'type`, which is erased, so this rule will rarely fire on it — measured, a drill that type-'
+    + 'imported it from a client component stayed GREEN, correctly. The rule is PROVISIONED here, not '
+    + 'yet load-bearing. \u26a0 CORRECTED 2026-09-12: this sentence used to end "...becomes load-bearing '
+    + 'when the D9/D7 panels land and are added to this list", in the future tense, while those panels '
+    + 'were already three lines above it. They landed, app/error.tsx emptied NO_CLIENT_ROOTS_OK, and '
+    + 'rule D is load-bearing NOW. What stays weak is THIS entry, for the type-import reason above. '
+    + 'Kept alongside the four load-bearing entries, which are value-imported and therefore really do '
+    + 'fire.',
+};
+
+/**
+ * Scan roots allowed to contribute zero client roots, each with the reason.
+ *
+ * EMPTY AGAIN as of CP 6c-1, and that is the declared condition being honoured rather than forgotten:
+ * `web/dashboard` was listed here while it was server-only, with a removal condition written into the
+ * entry — "delete this the moment the dashboard gains its first 'use client' component". `app/error.tsx`
+ * is that component, so the entry is gone. An exemption that outlives its reason is how a gate stops
+ * covering the thing it was built for.
  */
 const NO_CLIENT_ROOTS_OK = {};
 
@@ -482,7 +538,7 @@ function rel(p, repoRoot) { return path.relative(repoRoot, p).split(path.sep).jo
  * @returns {{violations: Array, roots: string[], visited: number, unresolved: Array}}
  */
 function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk = {}, bannedSpecs = {},
-                 notAnApp = NOT_AN_APP) {
+                 notAnApp = NOT_AN_APP, piiServerOnly = {}) {
   const wsMap = buildWorkspaceMap(repoRoot);
   // Keyed by EVERY identity a banned file has, so any route to it is the same offence.
   const bannedAbs = new Map();
@@ -494,7 +550,9 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
     return undefined;
   };
 
-  const unreadable = [];         // R1: files that RESOLVED but could not be opened (declared up here
+  const unreadable = [];         // R1: files that RESOLVED but could not be opened
+  const piiLeaks = [];           // rule class D: a PII-rendering file reachable from client code
+  const piiMissing = [];         // ...declared but absent — a rename must break the gate (declared up here
                                  // because the ROOT SCAN below is the first thing that can fill it)
 
   // F7: every web/* directory carrying its own package.json must be scanned or declared.
@@ -543,6 +601,14 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
     }
   }
 
+  const piiIds = new Map();
+  for (const [r, why] of Object.entries(piiServerOnly)) {
+    const abs = path.resolve(repoRoot, r);
+    if (!tryFile(abs)) { piiMissing.push({ file: r, why }); continue; }
+    for (const id of fileIds(abs)) piiIds.set(id, { file: r, why });
+  }
+  const piiHit = (file) => { for (const id of fileIds(file)) if (piiIds.has(id)) return piiIds.get(id); };
+
   const violations = [];
   const unresolved = [];
   const visited = new Set();
@@ -559,6 +625,10 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
       seenInThisRoot.add(file);
       visited.add(file);
 
+      const pii = piiHit(file);
+      if (pii) {
+        piiLeaks.push({ ...pii, chain: chain.map((c) => rel(c, repoRoot)) });
+      }
       if (!CODE_EXT.has(path.extname(file))) continue;
       let src;
       try { src = fs.readFileSync(file, 'utf8'); }
@@ -672,7 +742,7 @@ function analyse(repoRoot, scanRoots, bannedFiles, extraRoots = {}, noClientOk =
   return {
     violations, roots: roots.map((r) => rel(r, repoRoot)), visited: visited.size, unresolved,
     perScanRoot, missingExtra, vacuous, externals: [...externals].sort(), nonliteral,
-    undeclaredApps, unreadable,
+    undeclaredApps, unreadable, piiLeaks, piiMissing,
   };
 }
 
@@ -703,16 +773,16 @@ function selftest() {
   const CONTAINERS = { 'web/site': 'selftest container', 'web/shared': 'selftest library',
                        'web/ui': 'selftest workspace library',
                        'web/wspkg': 'selftest workspace library' };
-  const run = (dir, extra = {}, noClientOk = {}, extraBanned = {}, notAnApp = CONTAINERS) =>
-    analyse(tmp, [dir], { ...BANNED, ...extraBanned }, extra, noClientOk, SPECS, notAnApp);
+  const run = (dir, extra = {}, noClientOk = {}, extraBanned = {}, notAnApp = CONTAINERS, pii = {}) =>
+    analyse(tmp, [dir], { ...BANNED, ...extraBanned }, extra, noClientOk, SPECS, notAnApp, pii);
 
   const cases = [];
   // RED here must mean exactly what RED means in main(): a violation OR an unresolvable import.
   // The first cut counted only `violations`, so the blind-spot rule had no fail-proof at all and a
   // mis-pathed fixture read as GREEN instead of as the miss it was.
   const check = (name, expectRed, dir, ruleWanted, extra = {}, noClientOk = {}, extraBanned = {},
-                 notAnApp) => {
-    const res = run(dir, extra, noClientOk, extraBanned, notAnApp);
+                 notAnApp, pii = {}) => {
+    const res = run(dir, extra, noClientOk, extraBanned, notAnApp, pii);
     const rules = [...new Set(res.violations.map((v) => v.rule))];
     if (res.unresolved.length) rules.push('unresolved');
     if (res.missingExtra.length) rules.push('missing-entry');
@@ -720,6 +790,8 @@ function selftest() {
     if (res.nonliteral.length) rules.push('nonliteral');
     if (res.undeclaredApps.length) rules.push('undeclared-app');
     if (res.unreadable.length) rules.push('unreadable');
+    if (res.piiLeaks.length) rules.push('pii-client-reachable');
+    if (res.piiMissing.length) rules.push('pii-missing');
     const red = rules.length > 0;
     const ruleOk = !expectRed || !ruleWanted || rules.includes(ruleWanted);
     const pass = red === expectRed && ruleOk;
@@ -833,6 +905,23 @@ function selftest() {
   w('web/site/wk/Wk.tsx', "'use client';\nexport const W2 = () => new Worker(new URL('./leak.ts', import.meta.url));\n");
   check('R5 `new Worker(new URL(...))` — a bundler DOES pull that module in',
     true, 'web/site/wk', 'banned-module');
+
+  // Rule class D: a PII-rendering module reachable from a client root. Proven on a VALUE import,
+  // because that is the only shape that can actually carry data at runtime — a type-only import is
+  // erased and must stay green, which the second case pins.
+  w('web/site/pii/rows.ts', "export const rows = [{ phone: '+43000000000' }];\n");
+  w('web/site/pii/Panel.tsx', "'use client';\nimport { rows } from './rows';\nexport const P = rows;\n");
+  check('D a PII-rendering module VALUE-imported by a client component', true, 'web/site/pii',
+    'pii-client-reachable', {}, {}, {}, undefined, { 'web/site/pii/rows.ts': 'selftest PII' });
+
+  w('web/site/piit/Panel.tsx', "'use client';\nimport type { R } from './rows';\nexport const P2 = (r: R) => r;\n");
+  w('web/site/piit/rows.ts', "export interface R { phone: string }\n");
+  check('D2 ...but a TYPE-only import of one is erased and must stay green', false, 'web/site/piit',
+    null, {}, {}, {}, undefined, { 'web/site/piit/rows.ts': 'selftest PII' });
+
+  check('D3 a declared PII file that does not exist must break the gate', true, 'web/site/h',
+    'pii-missing', {}, { 'web/site/h': 'selftest' }, {}, undefined,
+    { 'web/site/gone-away.ts': 'selftest PII' });
 
   // B3: a WORKSPACE package whose entry resolves to a banned file. The workspace branch used to walk
   // on without ever asking whether the target was banned — measured exit 0 (security-auditor).
@@ -1025,8 +1114,9 @@ function main() {
   if (process.argv.includes('--selftest')) return selftest();
 
   const { violations, roots, visited, unresolved, perScanRoot, missingExtra, vacuous, externals,
-          nonliteral, undeclaredApps, unreadable } =
-    analyse(REPO, SCAN_ROOTS, BANNED_FILES, EXTRA_CLIENT_ROOTS, NO_CLIENT_ROOTS_OK, BANNED_SPECIFIERS);
+          nonliteral, undeclaredApps, unreadable, piiLeaks, piiMissing } =
+    analyse(REPO, SCAN_ROOTS, BANNED_FILES, EXTRA_CLIENT_ROOTS, NO_CLIENT_ROOTS_OK, BANNED_SPECIFIERS,
+            NOT_AN_APP, PII_SERVER_ONLY);
 
   // F4 (security-auditor): tsconfig `paths` aliases are not resolved by this walk. None exist today —
   // measured — but if one is added, every import through it becomes invisible. Announce, never guess.
@@ -1040,10 +1130,27 @@ function main() {
       // comments and swallowed the parse error, so a single trailing comma switched this detector OFF
       // in silence (code-reviewer, 2026-09-12). A blind-spot detector that disables itself quietly is
       // worse than not having one, so a tsconfig we cannot read is now a FAILURE, not a shrug.
-      const raw = fs.readFileSync(tc, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '')
-        .replace(/,(\s*[}\]])/g, '$1');
+      // ⚠ The comment stripper runs OUTSIDE string literals only. Measured 2026-09-12 by breaking it:
+      // a `$comment` field containing the ordinary glob `**/*.mts` has `/*` inside it, the block-comment
+      // rule swallowed everything to the next `*/`, and the tsconfig became unparseable — which this
+      // gate correctly reported as CANNOT CHECK, but for a reason that was the gate's own doing. The
+      // same class as the import scanner's first cut: prose inside a string is not code.
+      const src = fs.readFileSync(tc, 'utf8');
+      let raw = '';
+      for (let i = 0, inStr = false; i < src.length; i++) {
+        const c = src[i];
+        if (inStr) {
+          raw += c;
+          if (c === '\\') { raw += src[++i] ?? ''; continue; }
+          if (c === '"') inStr = false;
+          continue;
+        }
+        if (c === '"') { inStr = true; raw += c; continue; }
+        if (c === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i + 2); if (i < 0) break; i++; continue; }
+        if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; raw += '\n'; continue; }
+        raw += c;
+      }
+      raw = raw.replace(/,(\s*[}\]])/g, '$1');
       const parsed = JSON.parse(raw);
       if (Object.keys(parsed.compilerOptions?.paths ?? {}).length) aliasing.push(`${sr}/tsconfig.json`);
       if (parsed.extends) unreadableTsconfig.push(`${sr}/tsconfig.json (extends another config, which this gate does not follow)`);
@@ -1089,6 +1196,24 @@ function main() {
     console.error('one would be invisible to this gate while looking perfectly normal:');
     for (const a of aliasing) console.error(`    ${a}`);
     console.error('  Teach resolveSpec the alias map, or do not use aliases in a gated app.');
+    process.exit(1);
+  }
+
+  if (piiMissing.length) {
+    console.error('\nFAIL: a file declared PII-server-only does not exist. A rename must break this');
+    console.error('rule, never quietly empty it:');
+    for (const m of piiMissing) console.error(`    ${m.file}`);
+    process.exit(1);
+  }
+
+  if (piiLeaks.length) {
+    console.error('\nFAIL: a file that RENDERS PII is reachable from a client component. Next serialises');
+    console.error("a client component's props into the RSC payload, so the value lands in the page source:");
+    for (const l of piiLeaks) {
+      console.error(`    ${l.file}`);
+      console.error(`      chain: ${l.chain.join(' -> ')}`);
+      console.error(`      why:   ${l.why}`);
+    }
     process.exit(1);
   }
 

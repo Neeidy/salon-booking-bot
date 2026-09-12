@@ -8,7 +8,7 @@
     "gen-config-types": "node generate-config-types.cjs",
     "check-config-types": "node generate-config-types.cjs --check",
     "test:resolve-date": "cd .. && node tests/unit/resolve-date.test.cjs",
-    "check-all": "cd .. && node scripts/check-client-imports.cjs --selftest && node scripts/check-client-imports.cjs && node scripts/compile-intent-validator.cjs --check && node scripts/generate-config-types.cjs --check && node scripts/check-config-schema.cjs && CONFIG_EXAMPLE=config/client.config.example-b.json node scripts/check-config-schema.cjs && node tests/unit/resolve-date.test.cjs && python3 scripts/check-outbound-inventory.py && python3 scripts/check-cancel-validation-parity.py && python3 scripts/check-computed-reply-coverage.py && npm --prefix web run check && bash scripts/check-font-provenance.sh && bash scripts/check-no-host-leak.sh",
+    "check-all": "cd .. && node scripts/check-client-imports.cjs --selftest && node scripts/check-client-imports.cjs && node scripts/compile-intent-validator.cjs --check && node scripts/generate-config-types.cjs --check && node scripts/check-config-schema.cjs && CONFIG_EXAMPLE=config/client.config.example-b.json node scripts/check-config-schema.cjs && node tests/unit/resolve-date.test.cjs && python3 scripts/check-outbound-inventory.py && python3 scripts/check-cancel-validation-parity.py && python3 scripts/check-computed-reply-coverage.py && node web/site/scripts/build-config.mjs && npm --prefix web run check && bash scripts/check-font-provenance.sh && bash scripts/check-no-host-leak.sh",
     "check-client-imports": "cd .. && node scripts/check-client-imports.cjs",
     "check-client-imports:selftest": "cd .. && node scripts/check-client-imports.cjs --selftest"
   },

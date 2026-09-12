@@ -41,6 +41,46 @@ http://localhost:<PORT>/...
   beside, because the condition genuinely changed (`governance-sync.md` §6) — and it is now past tense for the
   opposite reason it was present tense before: the measurement moved, so the sentence moved with it.*
 
+### The rule held for the NEXT bind and did nothing about the ones already up — so there is a sweep now
+
+⚠ **This is the THIRD instance, not the first.** `0.0.0.0:8788` (2026-09-09, two days) → `0.0.0.0:8789`
+→ **`*:3001`, a `web/site` dev server from a dead session, listening for 37 hours** (2026-09-10 22:28 →
+2026-09-12 11:5x, killed on Yigitcan's word; `ss` shows no listener on 3001 since). Each was found by
+accident while doing something else. **A rule phrased as "always bind loopback" governs the next bind
+only** — nothing ever looked at what was already listening, so instances accumulated silently under a
+rule that was, on its own terms, being followed.
+
+**The sweep gate: `bash scripts/check-listeners.sh`.** It FAILS (exit 1) on a wildcard-bound listener
+whose process is visible to this user — `ss -ltnpH` hides other users' processes, so "attributable" is
+the precise, portable form of "ours", and all three orphans were exactly that.
+⚠ **This sentence was FALSE for the first hours of the script's life and both L2 auditors measured it
+independently.** The live invocation was `ss -ltnH` — without `-p`, and `ss` then prints no process
+column at all, so the attribution test could never be true and `exit 1` was dead code: the gate
+printed OK for the exact orphans it was written for. Its selftest passed because all three failing
+fixtures had been copied from an `ss -ltnp` run — a shape the live command could not produce. A
+control that cannot produce the defect proves nothing, and that is this repo's own rule, broken in the
+script written to enforce another one. **Re-derived from a real run:** an inert wildcard socket, bound
+for four seconds and serving nothing, made the live path exit **1**, naming the port and the process;
+after it closed, the same command exits **0**. The flag is now asserted by the selftest itself. Every other wildcard bind
+(on this machine: three long-running system daemons) is LISTED and never failed on, per Yigitcan's instruction of
+2026-09-12: *"ÖLDÜRME — listele, ben karar veririm."* Run it at the start of a session and before a push.
+
+⚠ **What the gate does NOT tell you, stated because the — for once — reassuring half of the 3001
+measurement came from outside this machine:** it measures the **bind**, never **reachability**. From
+Yigitcan's own network `curl` to that port returned `000` (timeout), so the page was not in fact being
+served to the internet for those 37 hours — a near-miss, not an exposure. **But the mechanism was never
+identified and must not be asserted:** this machine has no `iptables`/`nft` binary and no `ufw`/
+`firewalld`, and the ruleset is unreadable without root, so "the firewall held" is a story, not a
+measurement. One external vantage point measured an EFFECT. The single cheap control that would turn it
+into a claim is a second probe from that same vantage point at a wildcard port **we did not open** —
+one of the system daemons the sweep lists, whose port the sweep prints locally. If it answers, nothing
+is blocking inbound and the 3001 timeout had another cause entirely.
+⚠ *The port number and the daemon's name used to be written out here and were removed on 2026-09-12
+(`security-auditor` M3): on a PUBLIC repo, naming which services listen on every interface of a host
+whose apex this same file says is NOT behind Cloudflare's proxy is a service inventory for a stranger.
+`check-no-host-leak.sh` cannot catch this — it scans host VALUES, not service FACTS — so it is a
+discipline, like the commit-message case above, and it is written down for the same reason.*
+
 ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
 
 ```

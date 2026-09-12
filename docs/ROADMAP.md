@@ -709,6 +709,358 @@ Each CP waits for its own written approval (plan-gate).
       a far noisier gate.* ⚠ *My first directory-symlink drill was mis-built — it copied the file, so
       exit 0 was the correct answer and I nearly recorded it as a miss. Re-built to traverse to the real
       file.*
+    - ◐ **CP 6c-1 — the dashboard API layer (CRT #10). IN PROGRESS, not committed.**
+      - ✅ **`next build` RUN FOR THE FIRST TIME, and in a FRESH CLONE — the 6b question asked and
+        answered.** The documented order (`scripts ci` → `web ci` → env → snippet build → dashboard
+        build) works from a `git clone`, and the dashboard builds **with fake credentials**: the page is
+        `force-dynamic`, so it never executes at build time and a deployment cannot be blocked by a
+        missing PAT. The route table confirms it — `ƒ /` server-rendered on demand.
+      - ✅ **E1 second half — SSR RUNS ONCE PER PAGE LOAD. Measured, and the first measurement was
+        WRONG.** Idle server: 0 renders, 0 requests. Load 1: **1 render, 4 requests**. Load 2: **2
+        renders, 8 requests**. Exactly one SSR invocation per load and exactly four Airtable calls per
+        invocation — no double render in production mode, so the 5 req/s ceiling is not approached.
+        ⚠ *The first run reported 3 renders for 2 loads and the explanation was MY OWN readiness probe
+        hitting the page before the measured loads. It was re-run with a port check instead of a page
+        request rather than reasoned away.* ⚠ *This is `next start` (production). Dev mode was not
+        measured and may differ; what deploys is what was measured.*
+      - ✅ **EXPLAINED — the fresh-clone `check-all` exit 1 was never a flake, and the "exit 2" that
+        seemed to rule it out was a DIFFERENT failure wearing the same number.** Reproduced on
+        2026-09-12 in a fresh `git clone`, ladder run step by step, logs kept this time:
+
+        | clone state | exit | what actually stopped it |
+        |---|---|---|
+        | no installs | **1** | step 1, `check-client-imports.cjs` → `require('typescript')` MODULE_NOT_FOUND |
+        | `scripts` installed, `web` not | **2** | `npm --prefix web run check` — **npm's own exit 2**, and the host guard never ran |
+        | both installed | **1** | `web/site` `tsc --noEmit` → `TS2307 Cannot find module '../config.generated.json'`, then `web/snippet` → *"config.generated.json is missing"* |
+
+        **The earlier conclusion "exit 2 = the expected NOT CONFIGURED from the host guard" was
+        false.** The chain is `&&`; in those clones it died at `npm` several steps earlier and the
+        host guard was never reached — the guard *does* exit 2 standalone, which is what made the
+        wrong reading look confirmed. Same number, two causes, and the one that mattered was hidden
+        behind the one that did not. This is `reporting.md`'s instrument rule applied to an exit code
+        rather than to an empty result.
+        **Root cause: `check-all` depended on a GENERATED, gitignored file that no step in it
+        produced** — `web/site/config.generated.json`, built by the site's `prebuild`/`predev`. The
+        gate was green only on a machine where somebody had previously run the site build. **Fixed:**
+        `check-all` now runs `node web/site/scripts/build-config.mjs` itself, before `npm --prefix web
+        run check`. Drilled in the fresh clone — that step goes from red to green — and `check-all`
+        still exits 0 locally.
+        ⚠ **`check-all` is a POST-BUILD gate, not a fresh-clone gate, and after the fix it still
+        cannot pass on a bare clone — measured, three remaining reasons, each legitimate:**
+        `NEXT_PUBLIC_WEBHOOK_URL` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (deployment configuration,
+        absent by design), and `web/site/public/barber-widget.js` (the gitignored build artefact whose
+        freshness `build.mjs --check` exists to verify — there is nothing to check before a build).
+        Naming those is the point of the 6b lesson: *does a fresh deployment actually produce this?*
+        Here the honest answer is **no, and it is not supposed to** — which is a different statement
+        from the one this entry used to make, and only measuring told them apart.
+      - ✅ **CLOSED — `*:3001`: a RULE VIOLATION and a near-miss, NOT an exposure.** `web/site`'s dev
+        server listened on ALL interfaces for 37 hours (started 2026-09-10 22:28 from a dead session,
+        killed 2026-09-12 on Yigitcan's word; `ss` shows no listener on 3001 since). It is recorded
+        here as a rule violation rather than in `docs/OPERATIONAL-INCIDENTS.md`, because binding
+        `0.0.0.0` was wrong and nothing was exposed by it.
+        ⚠ **Three drafts of this entry were wrong in three DIFFERENT directions, which is why the
+        measurements are written out rather than summarised.**
+          1. *My first draft understated it:* it said "the content is the public demo" and did not
+             say the served page carries a redaction target.
+          2. *`security-auditor` overstated it:* "2 of 3 redaction targets, plus `calendarId` and the
+             Turnstile `siteKey`". Measured, presence-only, over the 379 files of `web/site/.next`
+             with longest-target-first consumption (the same masking order `check-no-host-leak.sh`
+             uses): **exactly ONE of the three was ever served — the n8n host, in 8 build artefacts
+             including `index.html`.** The apex scored **zero** independent hits; every apparent one
+             was a substring of the n8n host, which is precisely the double-count that longest-first
+             masking exists to prevent. `SSH_ORIGIN_HOST` appears **only in turbopack's on-disk dev
+             cache, never in a served file** — it is there *because* `next dev` prints and caches the
+             network URL when it binds every interface, i.e. the defect writing its own evidence.
+          3. *The auditor also did not know it was unreachable* — it could not, that measurement only
+             exists from outside this machine.
+        **`calendarId` is a PLACEHOLDER, measured, not assumed:** `web/site/config.generated.json`
+        carries `googleCalendarId = REPLACE_WITH_CALENDAR_ID@group.calendar.google.com`, the committed
+        demo mock. The finding's severity drops accordingly. The Turnstile `siteKey` is public by
+        design and is not carried as a finding at all.
+        **Reachability: `curl` from Yigitcan's network returned `000` (timeout)** — operator
+        measurement from an external vantage point, not reproducible from this box and not re-openable
+        now that the listener is closed. ⚠ **The mechanism is UNIDENTIFIED and is deliberately not
+        called "the firewall".** This machine has no `iptables`/`nft` binary and no `ufw`/`firewalld`,
+        and any ruleset is unreadable without root: one vantage point measured an EFFECT, and naming a
+        cause we did not measure would be the exact unproven-mechanism claim `reporting.md` forbids.
+        The open probe that would settle it is in `remote-operator.md`.
+        **What actually changed as a result:** the rule now has a SWEEP, not just a bind instruction —
+        `scripts/check-listeners.sh`.
+        ⚠ **AND THE FIRST VERSION OF IT WAS INERT — found by BOTH L2 auditors, independently, hours
+        after it was written, and the sentence that stood here was built on that blindness.** It ran
+        `ss -ltnH`; without `-p` there is no process column, so the "attributable to this user" test
+        could never be true and `exit 1` was unreachable. The selftest passed 8/8 because every
+        failing fixture — including the "real pre-kill `ss` line" this entry cited as proof — came
+        from an `ss -ltnp` run, a shape the live command cannot emit. **The previous wording, "drilled
+        8/8 on fixtures, green on this machine live, and RED (exit 1) against the real pre-kill `ss`
+        line", was therefore three true statements adding up to a false one**, and the "green live"
+        half was the instrument reporting on itself. Same family as the exit-code entry above and as
+        the 215-row classifier: the measurement, not the data, was the defect.
+        **Re-derived from a real run, live path, no fixture:** an inert socket bound to `0.0.0.0` for
+        four seconds — accepting nothing, serving nothing, so the control could produce the defect
+        without producing an exposure — made the gate exit **1** and name the port and process; after
+        it closed, exit **0**. Selftest is now 10/10 and includes both the `-p`-less shape and an
+        assertion on the live command itself, so this specific regression cannot recur silently.
+        ⚠ **A SECOND route to the same inertness was closed on the auditor's next pass (L5), and it
+        matters more than the first:** `parsed > 0` proves only that the ADDRESS column was understood.
+        If `ss` ever stops attributing — a container, a dropped capability, an output change, or `-p`
+        edited back out — every socket classifies as unattributable, the count of ours is zero, and the
+        gate returns a confident **exit 0**. The selftest cannot see that, because it asserts the FLAG
+        and not the RUNTIME RESULT. The run now refuses to pass when NOTHING was attributable and says
+        **NOT MEASURED (exit 2)** — including in the honest case where a machine simply runs no
+        listener as this user, because the sweep cannot tell that apart from blindness and saying so is
+        the point. Drilled with the exact output shape that caused the original defect: `ss -ltnH` now
+        yields exit 2 where it used to yield a green pass.
+        A full sweep on 2026-09-12 found **zero** wildcard listeners attributable to this user; five
+        unattributable ones remain, all system daemons, listed for Yigitcan and not touched. Their
+        ports and daemon names are deliberately NOT written here — on a public repo a service
+        inventory for a reachable host is worth more to a stranger than it is to us
+        (`security-auditor` M3).
+
+      - ◐ **THE L2 FIX ROUND (2026-09-12) — `code-reviewer` 6 critical + `security-auditor` 8, closed
+        in one pass, and the round is itself re-audited before the commit.** The six that were load-
+        bearing: **K1/S4** one WhatsApp row could take the WHOLE page down (`assertMasked` threw during
+        render, outside `page.tsx`'s try, with no error boundary) → per-row catch + a visible `rejected`
+        counter + `app/error.tsx`; **K2** `maskText` did not mask, it TRUNCATED — a phone the customer
+        typed into the chat rendered in full three lines above the same number masked → `maskFreeText`
+        masks first and truncates second; **S3** `maskName` returned a single token untouched, and
+        `customerName` is a free string in the schema, so "my number is …" passed through → routed
+        through `maskFreeText`, both call sites inside `assertMasked`; **K3** an `asc` sort over a
+        30-day window showed a busy shop its OLDEST hundred rows; **K4** a shop with appointments that
+        are all cancelled was told *"no bookings yet"* → a third state; **K5/K6** `TZ = 'Europe/Vienna'`
+        and `CAP_USD = 10` were literals in a repo that already ships a `Europe/Berlin` example client
+        → `shopConfig()`, fail-closed.
+      - ✅ **The first `'use client'` landed, so rule D became load-bearing — the declared removal
+        condition, honoured.** `app/error.tsx` is required by Next; `NO_CLIENT_ROOTS_OK` is now empty
+        and `check-client-imports.cjs` fails if any panel or `page.tsx` turns client. ⚠ **CRT #10b's
+        residual is NOT closed by it and no gate catches it:** a server component may pass fetched PII
+        to a client child as a PROP, and it lands in the RSC payload — in the page source — with no
+        pixel rendering it. The rule lives in a comment beside the code that would break it.
+      - ⚠ **THREE GUARDS WERE BROKEN BY MY OWN HAND IN THIS ONE ROUND, AND ALL THREE WERE CAUGHT BY
+        THEIR NEGATIVE CONTROLS — recorded in `docs/ARCHITECTURE-DECISIONS.md`**, because what the
+        episode measures is not the guards but the reflex: the hand writing the rule fell into it three
+        times in a single session.
+      - ☐ **OWNED OPEN ITEMS carried out of CP 6c-1** (named, not closed — each one is a claim we
+        cannot currently make):
+        - ⏳ **PIN THE SITE/DASHBOARD SEPARATION IN THE REPO — DUE BEFORE 6c CLOSES.** Raised from a
+          named boundary to a scheduled item by Yigitcan on 2026-09-12, **because this round made the
+          claim WEAKER rather than stronger**: `web/dashboard` is now a member of the `web/` npm
+          workspace, so the separation no longer rests on the dashboard sitting outside the build tree
+          at all. It rests entirely on one root-directory value in a web panel that cannot be audited
+          from a clone (`security-auditor`). **This is not a leak and is not recorded as one** — the PAT
+          lives in `web/dashboard/.env.local`, gitignored, and the auditor confirmed the commit set
+          carries no credential. What is no longer true is the sentence *"the dashboard's code never
+          goes there"*: nothing enforces it, and the surface for accidental inclusion grew. Fix: pin it
+          with `vercel.json` / `.vercelignore` so the separation is a committed fact. What WAS verified
+          this round is only the code direction — `site`, `snippet` and `shared` import nothing from
+          `dashboard`. → **CP 6c-3** The whole dashboard/site
+          separation, which is Phase 6 decision D-1 and the reason the dashboard holds the only PAT,
+          rests on a root-directory value in a web panel that cannot be audited from a clone. It must be
+          pinned in the repo (`vercel.json` / `.vercelignore`) so the separation is a committed fact
+          rather than a setting someone remembers. → **before the public deploy**
+        - **Cloudflare Access's `/_next/*` coverage is not pinned in the repo** (K-6). The `/webhook/*`
+          exemption was drilled both ways (E3); the asset paths were not.
+        - **CRT #10b — the prop path**, above: gate-silent, rule-covered only.
+        - **S6 — `assertMasked` cannot see a full widget `sender_key`**: it has no 5+ digit run and no
+          `@`, so the render-time check passes it. `maskSenderKey` is what actually closes it, and the
+          limit is asserted in `mask.test.ts` so the docstring cannot quietly grow past it.
+        - **A1 — the budget tripwire is PROCESS-scoped, not per-render.** Measured: 2 concurrent
+          renders → 8 requests with the counter silent. It holds only while no `await` sits between the
+          reset and the last read.
+        - **`types.ts` has no drift guard against `DATA-MODEL.md`** — a hand-mirrored shape, which
+          `contract-integrity.md` allows only with a drift-guard test that does not exist yet.
+        - **`web/dashboard` has no `.env.example`** while `lib/airtable.ts` sends a new operator to
+          `web/dashboard/.env.local`. On a resellable template the example file IS the documentation of
+          what a deployment needs; the site has one and the dashboard does not (`security-auditor`,
+          2026-09-12 — a template gap, not a security one). → **6c-2**
+        - **`maskName` and `maskPhone` disagree about the same value class** — measured:
+          `maskName('1234567')` → `12…67` (four of seven digits) while `maskPhone('1234567')` →
+          `•••••••`. So a number typed into `customer_name` is shown more generously than the same
+          number in `leads.phone`, at exactly the ratio `mask.ts`'s own A10 comment rejects. Both
+          thresholds are defensible alone and contradict each other in one file.
+        - **`shopConfig()` throws OUTSIDE `page.tsx`'s try** (it is called inside the panels), so a
+          missing `CLIENT_CONFIG_JSON` reaches the error boundary as an opaque digest instead of the
+          `misconfigured` branch built for exactly that reason.
+        - **Two panels still call `assertMasked` bare** (`LeadsPanel`, `AppointmentsPanel`) while the
+          handoff queue catches per row. `code-reviewer` could not construct an input that throws from
+          `maskName`/`maskPhone`, so this is an inconsistency, not a measured defect — recorded at that
+          strength and no higher.
+        - **The undocumented `Customers` PII table** (above) · **BULGU-4** · **R2**.
+        ⚠ *The three items above are the round-budget stop rule being applied, not a backlog: they were
+        found by the third audit pass, they are named with their measurements, and the fixes they need
+        are behaviour changes rather than corrections. Yigitcan's rule for this phase was to stop at the
+        third fix-of-a-fix round and own the remainder in writing.*
+
+      `web/dashboard/lib/airtable.ts` is the only module that holds the PAT: **four hard-coded reads,
+      no caller-supplied table, filter, field list, sort or record id** — that is what keeps it from
+      being an authenticated Airtable proxy sitting behind Access, which is CRT #10's third line.
+      - ✅ **E1 — the request count is measured at the NETWORK layer, not from the code's own counter.**
+        The counter is wrapped BELOW `readTable` (around `fetch` itself), so a request that skips the
+        module's function is still counted. **Module counter 4 = network counter 4.** A disagreement
+        would have meant the counter is blind, and that disagreement would have been the finding.
+      - ✅ **E2 — a displayed field is fetched, a field that is not displayed is not fetched, and no
+        PII crosses a client-component boundary** (Yigitcan's synthesis, 2026-09-12; the apparent
+        conflict with D9 dissolved — E2 was never "do not fetch PII", it was "do not fetch PII you do
+        not show"). Proven by payload inspection: `computed_reply`, `gcal_event_id`,
+        `cancel_target_id` are **absent from the response**, not masked. `gcal_event_id` is excluded
+        even though D4 lists it, because `security-secrets.md` measured it to be a hex ENCODING of
+        `sender_key|date|time|serviceId` — a full one reverses to a bearer credential.
+      - ⚙ **APPROVED, pending a UI action: an Airtable FORMULA field for the masked sender.** Not
+        fetching beats masking — E2's own logic one level up. `sender_key` is a bearer credential on
+        the widget lane, and Airtable cannot return a prefix, so the full value is in server memory
+        for the life of the request. The formula field removes that.
+      - ✅ **Correction A applied — server-side FILTERS, not truncation.** Fetching 121 rows to show
+        100 is the same request count and the wrong data. Every read now carries a constant filter:
+        appointments from YESTERDAY onwards, ascending (⚠ *this line said "a 30-day window sorted
+        ascending" until 2026-09-12 — that exact combination is the K3 DEFECT recorded further down,
+        which showed a busy shop its oldest hundred rows. `APPOINTMENT_LOOKBACK_DAYS = 1`*), leads to
+        90 days, spend to the current UTC
+        period (2 rows → 1). The handoff queue is deliberately **not** date-filtered — a conversation
+        locked in July is still locked, and hiding it because it is old would tell the owner the queue
+        is shorter than it is; it is sorted newest-first with `truncated` set. **`truncated` stays as
+        the second line:** a filter can still overflow, and a hundred rows out of 340 with no mark is
+        worse than showing none.
+      - ✅ **Rule class D added to the boundary gate: a PII-rendering module may not be reachable from
+        a client component**, and `web/dashboard/lib/airtable.ts` joins the banned list outright (it
+        holds the PAT). Proven both ways, and the honest limit is written INTO the rule: **the walk
+        sees IMPORTS, not PROPS.** A refactor that keeps these as server components and passes the
+        data DOWN to a client component as a prop fires nothing — that is CRT #10b, already live on
+        `web/site`. Today's single entry (`types.ts`) is **weak on purpose and labelled so**: a types
+        file is nearly always `import type`d, which is erased, so the rule is PROVISIONED and becomes
+        load-bearing when the D9/D7 panels are added to the list. ⚠ *Superseded on 2026-09-12: the
+        list now holds FOUR entries — `HandoffQueue.tsx`, `LeadsPanel.tsx`, `AppointmentsPanel.tsx` and
+        `app/page.tsx` alongside the weak `types.ts` — and `app/error.tsx` made `NO_CLIENT_ROOTS_OK`
+        empty, so rule D is load-bearing NOW rather than provisioned. The sentence above is kept for
+        the reasoning it carries and corrected here rather than beside, per `governance-sync.md` §6.*
+      - ✅ **`alertState.ts` — D9's three states, written independently of any ruling** because an
+        empty `last_alert_class` rendered as good news is the dashboard lying to the owner in the
+        safe-looking direction. `Record Alert Class` writes only after a SUCCESSFUL Telegram send, so
+        empty covers both "never raised" and "raised and never delivered". ⚠ ***"Measured: 115 of the
+        215 locked conversations have an empty class — the majority, not a corner case" WAS WRITTEN
+        HERE AND IS RETRACTED.*** All 215 were drill residue of our own making, so the ratio measured
+        our test traffic, not customer behaviour. The same retraction was made in `lib/alertState.ts`
+        on 2026-09-12 and this surface lagged it — which is the drift `reporting.md` forbids across
+        time, caught here by the L2 re-audit rather than by the hand that wrote it. **The
+        justification never needed the number:** the field is written ONLY after a successful Telegram
+        send, so an empty value cannot distinguish "never raised" from "never delivered". That is
+        structural. Unconfirmed rows sort to the TOP of the queue.
+    - ✅ **THE 215 LOCKED CONVERSATIONS ARE DELETED (2026-09-12). Classification recorded BEFORE the
+      delete, because the delete destroys the evidence.** Final distribution, taken in the same breath as
+      the ids: **189 `reg-`** (regression suite) · 3 `cp3c2-` · 2 `rh-` · 1 `cperr-` · 1 `cp6-` · 1 `cp2-`
+      · 18 short drill tags inspected one by one and all obviously ours (`cp4-ca`, `cp1-clos`, `cp1-ava`,
+      `cx8`, `rem-r6b`, `rem-r6`, `nd-`, `veto2`, `si`, `ok`, `cre`). **The decisive check is the one that
+      needs no classification at all: not a single row began `widget:w-`**, and `w-` is the fixed literal
+      the real widget client stamps on every session (`chatClient.ts`). Zero real visitors, by
+      construction rather than by pattern-matching.
+      **Proof after the fact, and it is arithmetic rather than a green message:** `stage='handoff'` → **0**,
+      and the table went 592 → **377**, which is exactly 592 − 215 — so precisely those rows went and
+      nothing else did. **Cost: ~22 API calls** (3 to fetch ids · 3 to inspect the 18 · ~11 to delete ·
+      5 to prove). One request of 50 was REJECTED before deleting anything (`INVALID_RECORDS`, max 25),
+      which is worth recording: the cap is 25 per request, not the 10 assumed.
+    - ⚠ **THE `sender_masked` FORMULA DEFECT CAME FROM COWORK, AND IT WAS WRITTEN WITHOUT MEASUREMENT.**
+      `LEFT({sender_key}, 16) & "…"` had two defects that only running it could show: it returned the
+      **whole key** whenever the key was ≤16 characters and then appended an ellipsis claiming truncation
+      — **91 of 592 rows, 15%, carried their full sender_key in the field whose entire purpose is to not
+      carry it** — and for a `whatsapp:` key it truncated from the **wrong end**, keeping country code,
+      area and prefix (the identifying part) and dropping the tail, the exact opposite of what
+      `maskPhone()` does deliberately. Measurement corrected both; the formula now branches on the channel
+      and uses `MIN(16, LEN-4)` so at least four characters are always removed.
+      ✅ **And the guard did its job:** `assertMasked()` refuses to render any value still carrying a
+      five-digit run, so the WhatsApp case could not have reached a screen even unfixed. A guard catching
+      a defect in the thing it guards is the guard working — it is not a substitute for the fix, and both
+      happened.
+    - ⚠ **"NO DRILL LABEL" WAS MY REGEX'S DEFECT, NOT THE DATA'S.** The first classification reported that
+      none of the 215 carried a drill marker. It searched for `zz-|drill|test|probe` and did not include
+      this repo's ACTUAL drill prefixes (`reg-`, `cp2-`, `cx8-`, `cperr-`, `rh-`, `rem-`…). With them,
+      215 of 215 classify. The distinction matters more than the number: a measurement that comes back
+      empty is a claim about the INSTRUMENT until the instrument has been checked, and this one had not.
+    - ☐ **EMPTY APPOINTMENT ROWS — carried as an open item, NOT an engine defect.** All four were
+      **completely empty, zero fields set**, which no code path can produce: `Write Appointment` is an
+      upsert writing nine fields together. Three share the identical second `2026-08-15T18:21:01`, the day
+      `calendar_id` was added by hand, and a fourth appeared on the day the `sender_masked` field was added
+      — Airtable UI artefacts. **Not criterion 4**, and the GCal-then-Airtable write order is not
+      implicated. The dashboard is already immune, measured rather than assumed: the
+      `IS_AFTER({start_utc}, …)` filter excludes rows with no start time — measured on 2026-09-12
+      against the 30-day filter of the day (122 total − 4 empty = 118 in window, exactly what the read
+      returns). ⚠ *The arithmetic is kept as the measurement it was; the filter has since narrowed to
+      a one-day look-back, so those counts do not describe today's read. What carries forward is the
+      structural half — a row with no `start_utc` cannot satisfy `IS_AFTER` at ANY offset.* Deleted from the UI by Yigitcan; the item stays open because
+      the artefacts will reappear whenever anyone works in that grid.
+    - 🔴→✅ **THE LEAD WITH A REAL-LOOKING NUMBER: (a) forgotten test data. Measured, not inferred.**
+      The question was real — the site has never been publicly deployed, so how did a plausible Austrian
+      number get into `leads`? Five independent pieces of evidence, all pointing one way: the message is
+      the repo's **own** lead-capture drill phrase ("do you do hair coloring"), which appears verbatim in
+      `tests/run-regression.sh:87`, `tests/regression-suite.md:429`, `tests/unit/validate-intent.test.cjs:177`
+      and `prompts/intent-extraction.md:87`; the row was created **on the day the lead-capture feature was
+      committed** (`d093554`, 2026-08-09); its conversation row shares the same second, is single-turn and
+      carries `last_intent=capture_lead`; the WhatsApp channel was **never provisioned**
+      (`REPLACE_WITH_ZERNIO_ACCOUNT_ID`, `whatsappSendDisabled:true`), so a real WhatsApp message could not
+      have arrived — it was a simulated webhook POST, which is exactly how that lane is drilled; and a FULL
+      scan of all 592 conversations and 122 appointments finds only **two** `whatsapp:` rows in the entire
+      base. ⚠ **What this does NOT prove:** that the number typed into a drill does not belong to a real
+      person by coincidence. That is a reason to DELETE it, not to keep it. **Deletion is Yigitcan's action
+      — the dashboard PAT is read-only and a DELETE returns 403, which is the control working.**
+    - ✅ **THE `sender_masked` FORMULA — two defects, both measured over 592 rows, BOTH SINCE FIXED.**
+      ⚠ *This heading read "IS NOT YET CORRECT", in the present tense, for the rest of the day after the
+      formula had been corrected and verified (100-row sample, lengths only, zero rows carrying the full
+      key). Two answers to the same question stood in one file — the tick at the top of this checkpoint
+      and this line — and `code-reviewer` found them on its third pass. The defect description below is
+      KEPT, because it is the reusable part and because the dashboard now carries a guard shaped by it:
+      `maskSenderKey` re-masks every stored value, and that guard's own first version was defeated by
+      defect (1) below, which is why the record matters more than the tick.*
+      (1) `LEFT({sender_key}, 16) & "…"` returns the WHOLE key whenever the key is ≤16 characters, then
+      appends an ellipsis claiming it was truncated: **91 of 592 rows (15%) carry their full sender_key in
+      the field whose entire purpose is to not carry it.** (2) For a `whatsapp:` key it truncates from the
+      WRONG END — `LEFT` keeps country code, area and prefix (the identifying part) and drops the tail,
+      the opposite of what `maskPhone()` does deliberately. Proposed formula, both cases:
+      `IF(LEFT({sender_key},9)="whatsapp:", LEFT({sender_key},12) & "…" & RIGHT({sender_key},2),
+      LEFT({sender_key}, MIN(16, LEN({sender_key}) - 4)) & "…")` — the `MIN(…, LEN-4)` guarantees at least
+      four characters are always removed, so a short key can never come back whole.
+      ✅ Wired anyway, because it is strictly better than fetching the raw key (85% of rows are now properly
+      masked and the full value never leaves Airtable), and `assertMasked()` refuses to render any value
+      that still carries a five-digit run — the guard catching the field's defect, which is what a guard is
+      for and is NOT a substitute for fixing it.
+    - ✅ **THE 215 LOCKED CONVERSATIONS ARE 215/215 DRILL IDENTITIES — and this CORRECTS my own earlier
+      count.** I reported "none obviously drill-labelled"; **the regex was wrong, not the data** — it did
+      not include this repo's actual drill prefixes. With them: **189 `reg-`** (the regression suite), 1
+      `cp2-`, 1 `cx8-`, and the remaining 24 are `cperr-`, `cp3c2-`, `cp6-lock-`, `veto2`, `rh-jail`,
+      `sid-h2` — checkpoint, jailbreak and veto drill names. **Zero real visitors.** 145 single-turn
+      (the `hi`-locks-the-bot signature), 70 multi-turn, 2026-07-21 → 2026-09-08. Cleanup is now supported
+      by evidence and not only by the structural argument; **the deletion itself is Yigitcan's action.**
+    - ✅ **THE EMPTY APPOINTMENT ROWS ARE AN AIRTABLE UI ARTEFACT, NOT A BROKEN WRITE — cause found before
+      any deletion, as instructed.** There are **four**, not three (one appeared TODAY at 09:02, the day
+      the `sender_masked` field was added in the UI), and every one is **completely empty — zero fields
+      set**. No code path can produce that: `Write Appointment` is an upsert that writes nine fields
+      together. Three share the identical second `2026-08-15T18:21:01`, the day `calendar_id` was added by
+      hand. So this is **not** criterion-4 shared-state corruption and the architecture's GCal-then-Airtable
+      order is not implicated. **The dashboard is already immune** and that was measured rather than
+      assumed: the `IS_AFTER({start_utc}, …)` filter excludes rows with no start time — measured
+      2026-09-12 against that day's 30-day filter (122 total − 4 empty = 118 in window, exactly what
+      the read returns). ⚠ *The filter is now a one-day look-back, so the counts are historical; the
+      immunity is not, because a row with no `start_utc` fails `IS_AFTER` at any offset.*
+    - ☐ **Airtable quota cannot be measured from the API** (`/v0/meta/whoami` returns only an id). Whether
+      the grace period is active is a workspace-settings question — **operator statement, not API-verified**,
+      and it is recorded that way. What IS measured: calls currently succeed. ⚠ This session's full-table
+      scans cost tens of calls against a 1,000/month budget; the live drills are not free and should not be
+      repeated casually. Architectural consequence recorded in ARCH-DEC (2026-09-12) and in README's
+      "From demo to real", which had claimed "no code change" without naming the data-plan ceiling.
+    - ⚠ **WHAT THE LIVE BASE ACTUALLY CONTAINS — measured 2026-09-12 while wiring the reads, and none
+      of it was what anyone had assumed.**
+      - **215 conversations are locked at `stage='handoff'`** (2026-07-21 → 2026-09-08), every one on
+        the widget lane. 145 are single-turn, which is the signature of the `hi`-locks-the-bot defect
+        the phase opened with; 70 are multi-turn. **Nothing in the flow clears this lock** — releasing
+        it is D11, which lands in 6d. So the queue's first real render will show a 215-row backlog and
+        the button that fixes it does not exist yet.
+      - **121 appointments: 118 `cancelled`, 3 with NO `status`, NO `channel` and NO `start_utc`, and
+        ZERO `booked`.** The empty rows are a data-integrity signal (a partial write), and an
+        appointment with no start time has no place on any screen — but dropping it silently is the
+        wrong answer, so the panels must surface it.
+      - **42 leads: 41 carry NO phone at all; exactly one has a real-looking number** (likely the test
+        number — Yigitcan to confirm).
+      - **None of this is stranger data, and that is a STRUCTURAL argument rather than a guess:** the
+        site has never been publicly deployed (D-6b-7, and the public release is gated on 6d), so the
+        widget was only ever reachable from our own drills. That is what makes the `leads` TTL and the
+        `Customers` table gates for the FUTURE rather than an active exposure today.
     - ✅ **K-2 (read-only Airtable PAT) — MEASURED, not accepted on statement** (2026-09-12, A3 drill).
       Behaviour, never the scope panel: schema read **200** (6 tables) · records read **200** (data
       returned) · `PATCH` an existing record **403** · `POST` a new record **403** · and a re-read

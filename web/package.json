@@ -5,7 +5,8 @@
   "workspaces": [
     "shared",
     "site",
-    "snippet"
+    "snippet",
+    "dashboard"
   ],
   "engines": {
     "node": ">=22.18",

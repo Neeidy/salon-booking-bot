@@ -1,0 +1,42 @@
+{
+  "$comment": "Mirrors web/site's rules. `dom` was deliberately ABSENT while this app was server-only, so a stray window/document reference would fail the typecheck instead of shipping; it was added in the same change that added app/error.tsx \u2014 Next requires an error boundary to be a client component \u2014 together with removing web/dashboard from NO_CLIENT_ROOTS_OK in scripts/check-client-imports.cjs. \u26a0 Differences from web/site that are NOT deliberate design, listed because the earlier comment claimed only one: target ES2022 vs ES2017, types:[node], allowImportingTsExtensions, and no .mts glob in include.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "types": [
+      "node"
+    ],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/dev/types/**/*.ts"
+  ],
+  "$comment_exclude": "The test files used to sit here. `npm run check` runs `tsc --noEmit`, so excluding them meant the two suites this dashboard's masking guarantees rest on were never typechecked at all (code-reviewer, 2026-09-12). They are in the typecheck now.",
+  "exclude": [
+    "node_modules"
+  ]
+}

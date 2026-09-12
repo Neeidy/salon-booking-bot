@@ -1,0 +1,210 @@
+/* Verbatim transcription of design/mockups/dashboard/index.html — the approved Cream & Ink
+   surface. NOT re-expressed in utility classes and NOT sourced from design/mockups/tokens.css,
+   which carries the wrong palette (BULGU-4). A visual contract that was reviewed and accepted is
+   copied, not reinterpreted. */
+:root{
+    /* Cream & Ink tokens — locked (Tur A). */
+    --cream:#F1EEE6;
+    --ink:#16150F;
+    --oxide:#B4472E;
+    --oxide-soft:#D98B66;
+    --muted:#5C594E;
+    --stamp:#C9C4B4;
+    --hairline:rgba(22,21,15,.14);
+    --rule:rgba(22,21,15,.18);
+    --frame:rgba(22,21,15,.35);
+    --edge:rgba(22,21,15,.25);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    /* paper tints — one source instead of hand-rolled alphas per page (Tur C note) */
+    --paper:rgba(255,253,247,.6);
+    --paper-solid:rgba(255,253,247,.9);
+    /* Bridged to next/font's build-time variables, exactly as web/site does. The mockup named the
+       families directly because it loaded them from Google; this page must not, so the family name
+       stays as the FALLBACK behind our self-hosted face. */
+    --font-display:var(--font-fraunces),'Fraunces',Georgia,serif;
+    --font-ui:var(--font-instrument),'Instrument Sans',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:var(--font-ui);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--oxide);color:var(--cream)}
+  button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+  h1,h2,h3{font-family:var(--font-display)}
+  a{color:var(--ink)}
+  a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--oxide);outline-offset:3px}
+  .dot{color:var(--oxide)} /* Tur A signature full stop */
+  .wrap{max-width:1360px;margin:0 auto;padding:0 clamp(16px,3vw,44px)}
+
+  /* ---------- top bar ---------- */
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(241,238,230,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--hairline)}
+  .topbar-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:66px;padding-top:10px;padding-bottom:10px}
+  .brand{font-family:var(--font-display);font-weight:600;font-size:21px;letter-spacing:-.01em}
+  .topbar-role{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.4);border-radius:999px;padding:4px 12px}
+  .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar-date{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .refresh{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:1px solid rgba(22,21,15,.3);border-radius:999px;padding:7px 14px;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+  .refresh:hover{border-color:var(--ink);transform:translateY(-1px)}
+  .refresh svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round}
+
+  /* data-budget strip — RISK 2 made visible (folio rule, Tur A signature) */
+  .budget{position:relative;display:flex;flex-wrap:wrap;gap:8px 24px;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule);margin-top:18px;padding:12px 0 10px;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .budget::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .budget strong{color:var(--ink);font-variant-numeric:tabular-nums}
+  .budget .hx{color:var(--oxide)}
+
+  /* ---------- shared atoms (ledger idiom, from the approved variant) ---------- */
+  .eyebrow{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--oxide);margin:0 0 10px}
+  .eyebrow::before{content:"";width:26px;height:2px;background:currentColor}
+  .section-note{font-size:13px;color:var(--muted);margin:0 0 14px;max-width:70ch}
+  .section-note code{font-family:inherit;font-weight:600;color:var(--ink)}
+
+  .chip{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.04em;padding:3px 11px;border-radius:999px;border:1px solid rgba(22,21,15,.3);white-space:nowrap}
+  .chip-ink{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+  .chip-oxide{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
+  .chip-line-oxide{border-color:var(--oxide);color:var(--oxide)}
+  .chip-off{border-style:dashed;color:var(--muted)}
+
+  /* ALERT-CLASS BADGES — family styling ALIGNED WITH THE LOCKED WIDGET CLASS CONTRACT:
+     conversation family = solid muted edge (intent-handoff signature) · external-system
+     family = DASHED oxide (infra signature) · budget family = solid oxide-soft (guard
+     signature) · calendar/Airtable MISMATCH family (most urgent) = FILLED oxide ·
+     unreached-customer = heavy oxide outline · ops = solid ink · background jobs = dashed
+     muted. Full 24-badge specimen on states.html. */
+  .badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;letter-spacing:.05em;padding:2px 9px;border-radius:4px;border:1px solid var(--rule);border-left-width:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .badge-conv{border-left-color:var(--muted)}
+  .badge-infra{border-left-style:dashed;border-left-color:var(--oxide)}
+  .badge-guard{border-left-color:var(--oxide-soft)}
+  .badge-mismatch{background:var(--oxide);border-color:var(--oxide);color:var(--cream)}
+  .badge-send{border:1.5px solid var(--oxide);color:var(--oxide);border-left-width:3px}
+  .badge-ops{border-left-color:var(--ink)}
+  .badge-bg{border-left-style:dashed;border-left-color:var(--muted);color:var(--muted)}
+
+  /* the three notify states (RISK 1) */
+  .notify{display:inline-flex;flex-direction:column;gap:2px}
+  .notify small{font-size:10.5px;letter-spacing:.04em;color:var(--muted)}
+  .notify-unverified .badge{border:1.5px dashed var(--oxide);border-left-width:3px;color:var(--oxide);background:none}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{padding:clamp(22px,3vw,40px) 0 clamp(8px,1.2vw,14px)}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(14px,1.6vw,22px)}
+  .kpi{position:relative;border:1.5px solid var(--ink);border-radius:4px;background:var(--paper);box-shadow:5px 5px 0 rgba(22,21,15,.1);padding:18px 20px 16px;transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+  .kpi:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 rgba(22,21,15,.14)}
+  .kpi-label{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .kpi-value{font-family:var(--font-display);font-weight:700;font-size:clamp(30px,3vw,44px);line-height:1.1;margin-top:8px;font-variant-numeric:tabular-nums}
+  .kpi-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .kpi-alert{border-color:var(--oxide);box-shadow:5px 5px 0 rgba(180,71,46,.18)}
+  .kpi-alert:hover{box-shadow:7px 7px 0 rgba(180,71,46,.18)}
+  .kpi-alert .kpi-value{color:var(--oxide)}
+  .mock-tag{position:absolute;top:10px;right:12px;font-size:9.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--oxide);border:1px solid rgba(180,71,46,.45);border-radius:3px;padding:1px 6px}
+  /* D14 spend meter bar */
+  .meter{margin-top:10px;height:8px;border:1px solid var(--edge);border-radius:999px;overflow:hidden;background:var(--paper-solid)}
+  .meter i{display:block;height:100%;background:var(--ink);width:31%}
+
+  /* ---------- board ---------- */
+  .board{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:clamp(20px,2.5vw,36px);align-items:start;padding:clamp(18px,2.2vw,32px) 0 clamp(40px,4vw,64px)}
+
+  .panel{margin-bottom:clamp(26px,2.8vw,40px)}
+  .panel-title{font-weight:600;font-size:clamp(22px,2vw,28px);letter-spacing:-.01em;margin-bottom:6px}
+  .table-scroll{position:relative;overflow-x:auto;border-top:2px solid var(--ink)}
+  .table-scroll::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)} /* folio rule */
+  table{width:100%;border-collapse:collapse;min-width:680px}
+  table.appt{table-layout:fixed}
+  table.appt td,table.appt th{overflow:hidden;text-overflow:ellipsis}
+  th{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px 10px 4px;border-bottom:1px solid var(--rule);white-space:nowrap}
+  td{font-size:14px;padding:12px 14px 12px 4px;border-bottom:1px solid var(--rule);vertical-align:top}
+  tbody tr{transition:background .2s var(--ease)}
+  tbody tr:hover{background:var(--paper)}
+  .cell-time{font-family:var(--font-display);font-weight:600;font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cell-name{font-weight:600;white-space:nowrap}
+  .cell-dim{color:var(--muted);white-space:nowrap}
+  .cell-phone{font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+  .cell-snippet{color:var(--muted);font-style:italic;max-width:30ch}
+  .day-rule td{padding:16px 4px 6px;border-bottom:1px solid var(--rule);font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+  /* D4 · appointment detail — native <details> in the row's last cell: ZERO extra reads,
+     works with JS off, and (unlike a nested table) leaves the cell grid intact. */
+  .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  tr.detail-row > td{padding:0 4px 0 4px;border-bottom:1px solid var(--rule)}
+  tr.detail-row:hover{background:none}
+  details.rowx summary{list-style:none;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  details.rowx summary::-webkit-details-marker{display:none}
+  details.rowx summary::before{content:'▸ ';color:var(--oxide)}
+  details.rowx[open] summary::before{content:'▾ '}
+  details.rowx[open]{background:var(--paper-solid)}
+  details.rowx .detail-grid{text-align:left}
+  details.rowx summary{padding:8px 2px}
+  .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px 22px;padding:10px 4px 14px;font-size:12.5px}
+  .detail-grid dt{font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .detail-grid dd{margin:0;font-variant-numeric:tabular-nums;word-break:break-all}
+  .detail-grid code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px}
+
+  /* REVIEW-ONLY tech strip (reads budget per panel) — removed in production */
+  .tech{border-top:1px dashed var(--rule);margin-top:10px;padding-top:8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .tech b{font-weight:600;color:var(--ink)}
+  .tech .hx{color:var(--oxide);font-weight:600}
+
+  /* ---------- attention column: HANDOFF QUEUE (D9-D11) ---------- */
+  .queue{border:1.5px solid var(--oxide);border-radius:4px;background:var(--paper);box-shadow:6px 6px 0 rgba(180,71,46,.16);padding:20px 20px 16px}
+  .queue-title{font-weight:600;font-size:22px;letter-spacing:-.01em;margin-bottom:4px}
+  .queue-note{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .q-card{border-top:1px solid var(--rule);padding:14px 0 12px}
+  .q-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .sender-key{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .q-meta{font-size:11.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .q-msgs{font-size:13px;font-style:italic;color:var(--ink);border-left:2px solid var(--rule);padding-left:10px;margin:8px 0;display:flex;flex-direction:column;gap:3px}
+  details.q-detail{margin-top:8px}
+  details.q-detail summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  details.q-detail summary::-webkit-details-marker{display:none}
+  details.q-detail summary::before{content:'▸ ';color:var(--oxide)}
+  details.q-detail[open] summary::before{content:'▾ '}
+  .q-detail .detail-grid{padding:8px 0 4px 0}
+  /* D11 — THE single write action; two-step confirm, no accidental clicks */
+  .release{margin-top:10px}
+  .release-btn{font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--cream);transition:transform .15s var(--ease)}
+  .release-btn:hover{transform:translateY(-1px)}
+  .release-btn:active{transform:scale(.97)}
+  .release-confirm{display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+  .release.confirming .release-btn{display:none}
+  .release.confirming .release-confirm{display:flex}
+  .btn-yes{font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px;background:var(--oxide);color:var(--cream)}
+  .btn-no{font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid rgba(22,21,15,.3)}
+  .btn-no:hover{border-color:var(--ink)}
+  .release-note{font-size:11px;color:var(--muted);margin-top:6px}
+
+  /* notify legend (RISK 1) */
+  .legend3{border-top:1px solid var(--rule);margin-top:14px;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted)}
+  .legend3 .row{display:flex;gap:10px;align-items:baseline}
+  .legend3 .row > span:first-child{flex-shrink:0}
+
+  /* D13 switches + D15 flags */
+  .switches{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;border-top:2px solid var(--ink);position:relative;padding-top:14px}
+  .switches::before{content:'';position:absolute;top:3px;left:0;right:0;height:1px;background:var(--rule)}
+  .sw{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid var(--rule);padding:7px 2px;font-size:13px}
+  .sw b{font-weight:600;font-size:12.5px}
+  .sw .on{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .sw .off{color:var(--muted);font-style:italic;font-variant-numeric:tabular-nums}
+  .flags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  .foot{border-top:1px solid var(--hairline);padding:26px 0 110px;font-size:13px;color:var(--muted)}
+  .foot a{font-weight:600}
+
+  .mock-ribbon{position:fixed;top:0;right:0;z-index:95;width:110px;height:110px;overflow:hidden;pointer-events:none}
+  .mock-ribbon span{position:absolute;top:24px;right:-40px;transform:rotate(45deg);background:var(--oxide);color:var(--cream);font-size:10.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;text-align:center;width:160px;padding:6px 0}
+  .grain{position:fixed;inset:0;z-index:70;pointer-events:none;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");background-size:220px 220px}
+
+  /* soft reveal — .js-gated (no-JS shows all) */
+  .js [data-reveal]{opacity:0;transform:translateY(14px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .js [data-reveal].in{opacity:1;transform:none}
+
+  @media (max-width:960px){
+    .board{grid-template-columns:minmax(0,1fr)}
+    .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:480px){
+    .kpi-grid{grid-template-columns:1fr}
+    .topbar-right{margin-left:0;width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .js [data-reveal]{opacity:1 !important;transform:none !important}
+    .kpi:hover,.refresh:hover,.release-btn:hover{transform:none !important}
+  }

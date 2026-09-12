@@ -14,11 +14,25 @@ DIR="web/site/public/fonts"
 PUBLIC="web/site/public"
 REC="$DIR/PROVENANCE.md"
 
+# MIRROR surfaces — any second public/ that serves the same faces. One PROVENANCE record, checked in
+# every place, because a second copy with no guard is how a vetted font becomes an unvetted one.
+#
+# ⚠ There is NO mirror today, and the honest history is why this stays: during CP 6c-1 the fonts were
+# copied into web/dashboard/public/fonts to reproduce the mockup, and THIS GUARD PRINTED OK over the
+# new, unrecorded surface. The extension was written, drilled red four ways, and then the copy turned
+# out to be unnecessary — `web/site` uses `next/font/google`, which self-hosts at build time, so the
+# dashboard needs no font files of its own. The directory was removed; the check was not, because the
+# thing that made it necessary was one `cp` and that `cp` can happen again. It costs one `[ -d ]` per
+# run and it is proven fail-able.
+MIRRORS="web/dashboard/public/fonts"
+MIRROR_PUBLIC="web/dashboard/public"
+
 [ -f "$REC" ] || { echo "font-provenance: CANNOT CHECK — $REC not found"; exit 2; }
 command -v sha256sum >/dev/null 2>&1 || { echo "font-provenance: CANNOT CHECK — sha256sum unavailable"; exit 2; }
 
 fail=0
 checked=0
+mirrored=0
 # Read the `- stored:` / `- sha256:` pairs straight out of the provenance record, so the record IS the
 # expectation — a second hard-coded list here would be the drift contract-integrity.md forbids.
 while read -r file; do
@@ -36,6 +50,26 @@ while read -r file; do
     echo "  actual:   $actual"
     fail=1
   fi
+  # Same file, same record, second deployment. A mirror that EXISTS must match; a tree with no
+  # dashboard is a valid tree, so an absent mirror is not an error. A mirror that is PRESENT and
+  # DIFFERENT is the supply-chain shape this guard is for. ⚠ Written AFTER the fonts were copied and
+  # this guard still printed OK — measured, not imagined: the copy created an unrecorded font surface
+  # and the guard could not see it, which is the exact defect it was extended to close.
+  for m in $MIRRORS; do
+    [ -d "$m" ] || continue
+    if [ ! -f "$m/$file" ]; then
+      echo "font-provenance: MISSING mirror $m/$file — the directory exists, so the face must too"
+      fail=1; continue
+    fi
+    mactual=$(sha256sum "$m/$file" | cut -d' ' -f1)
+    mirrored=$((mirrored + 1))
+    if [ "$mactual" != "$sum" ]; then
+      echo "font-provenance: MIRROR MISMATCH $m/$file"
+      echo "  recorded: $sum"
+      echo "  actual:   $mactual"
+      fail=1
+    fi
+  done
 done < <(grep -oE '^- stored: *.+\.woff2' "$REC" | sed 's/^- stored: *//')
 
 [ "$checked" -gt 0 ] || { echo "font-provenance: CANNOT CHECK — no font entries found in $REC"; exit 2; }
@@ -63,8 +97,50 @@ if [ -n "$unrecorded" ]; then
   fail=1
 fi
 
+# ⚠ This sweep sits BEFORE the fail gate, and it did not on the first cut: it set `fail=1` AFTER
+# `[ "$fail" -eq 0 ] || exit 1` had already run, so the guard printed "UNRECORDED font" and then
+# printed OK and exited 0 in the same breath. Detect-then-discard — the same shape as a bound that
+# drops the very thing it detected. Caught by its own negative control, not by reading it.
+# The mirror gets the same EQUALITY sweep: an unrecorded face dropped into the dashboard's public/
+# ships from the dashboard exactly as it would from the site.
+for mp in $MIRROR_PUBLIC; do
+  [ -d "$mp" ] || continue
+  while IFS= read -r rel; do
+    # ⚠ PATH, not basename. The first cut compared `basename`, so `fonts/sub/fraunces-variable.woff2`
+    # matched the record and passed — while the SAME file under web/site/public was caught, because
+    # that sweep compares the path relative to public/. Next serves both identically. This is the
+    # "four silent passes" defect documented above, reborn in the copy: a second implementation of one
+    # rule drifts (security-auditor S5, 2026-09-12).
+    case "$rel" in
+      fonts/*/*) echo "font-provenance: UNRECORDED font served from $mp — $rel (in a SUBDIRECTORY)"; fail=1; continue ;;
+    esac
+    base="${rel#fonts/}"
+    case "$rel" in
+      fonts/*) ;;
+      *) echo "font-provenance: UNRECORDED font served from $mp — $rel (outside fonts/)"; fail=1; continue ;;
+    esac
+    if ! grep -qiE "^- stored: *$base\$" "$REC"; then
+      echo "font-provenance: UNRECORDED font served from $mp — $rel"
+      fail=1
+    fi
+  done < <(find "$mp" -type f \( -iname '*.woff2' -o -iname '*.woff' -o -iname '*.ttf' -o -iname '*.otf' \) -printf '%P\n' 2>/dev/null)
+done
+
+# ⚠ THE FAIL GATE. It was deleted by accident while the mirror sweep was being rewritten, and for
+# one run this script printed OK and exited 0 over a leak it had just detected and announced —
+# the SECOND time this exact shape appeared in this file. Its own negative control caught it both
+# times. Nothing between the last `fail=1` and this line may print a verdict.
 [ "$fail" -eq 0 ] || exit 1
-echo "font-provenance: OK — $checked recorded font(s) match their checksums, and no unrecorded .woff2/.woff/.ttf/.otf is served from $PUBLIC"
+
+# ⚠ `${mirrored:+…}` expands on the STRING "0" too — it tests set-and-non-empty, not non-zero — so the
+# verdict line claimed "+0 mirror copy verified" and named a directory the sweep had SKIPPED with
+# `[ -d ]`. A verdict that counts a check it did not run is the failure class this whole file is
+# about (`code-reviewer` #7, 2026-09-12). Both halves are now conditioned on what actually happened.
+mirror_note=''
+[ "$mirrored" -gt 0 ] && mirror_note=" (+$mirrored mirror copy verified)"
+mirror_scope=''
+[ -n "${MIRROR_PUBLIC:-}" ] && [ -d "$MIRROR_PUBLIC" ] && mirror_scope=" or $MIRROR_PUBLIC"
+echo "font-provenance: OK — $checked recorded font(s) match their checksums$mirror_note, and no unrecorded .woff2/.woff/.ttf/.otf is served from $PUBLIC$mirror_scope"
 
 # KNOWN LIMIT, stated rather than implied: this proves the bytes on disk are the bytes we RECORDED, and
 # that nothing unrecorded ships. It does NOT prove the recorded bytes are the upstream author's — a
