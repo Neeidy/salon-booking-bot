@@ -709,6 +709,27 @@ Each CP waits for its own written approval (plan-gate).
       a far noisier gate.* ⚠ *My first directory-symlink drill was mis-built — it copied the file, so
       exit 0 was the correct answer and I nearly recorded it as a miss. Re-built to traverse to the real
       file.*
+    - ✅ **K-2 (read-only Airtable PAT) — MEASURED, not accepted on statement** (2026-09-12, A3 drill).
+      Behaviour, never the scope panel: schema read **200** (6 tables) · records read **200** (data
+      returned) · `PATCH` an existing record **403** · `POST` a new record **403** · and a re-read
+      confirming **nothing was written** (the drill row is absent, the count is unchanged). The write
+      probe was deliberately inert — an existing `bot_metrics` row with `period_key` set to **its own
+      current value** — so even a 200 would have changed nothing; a 200 would have been the STOP,
+      because CRT #10's "the PAT is READ-ONLY" line would be false. Also measured rather than assumed:
+      the token reaches **exactly one base**, which is the other half of the claim.
+    - ☐ **`AIRTABLE_BASE_ID` in `web/dashboard/.env.local` is WRONG** — 32 characters beginning `UxE…`;
+      an Airtable base id is `app` + 14 = 17. Measured: that value returns **404 NOT_FOUND**, while the
+      PAT itself is valid. The drill completed using the base the PAT reports for itself. **Yigitcan
+      must correct the file before the dashboard reads anything**, or every read will 404 and look like
+      a code defect. → **6c-1, before the API layer runs**
+    - ⚠ **UNDOCUMENTED PII TABLE IN THE LIVE BASE — found while running the A3 drill.** `Customers`
+      exists with **3 records** carrying `name`, `phone`, `notes` (values not printed). `DATA-MODEL.md:9`
+      records that `customers` was REMOVED from the document in FIX-1 because a repo-wide scan found
+      **zero** workflow references — which was true about the CODE and said nothing about the DATA. The
+      table outlived its documentation. It has no owner, no TTL and no purge branch, and it sits in the
+      base the dashboard is about to read. Same class as the `leads` TTL item already gating the public
+      release. **Not deleted — that is Yigitcan's data and an irreversible action.** → **public-deploy
+      gate**, alongside the `leads` TTL
     - ☐ **BULGU-4 → 6c-1: a tsconfig `paths` alias in a WALKED-but-unscanned package is invisible.**
       The alias detector reads only tsconfigs under `SCAN_ROOTS`; `web/shared` is walked and HOSTS the
       banned module, and an alias declared there dropped the import into the third-party count with the
