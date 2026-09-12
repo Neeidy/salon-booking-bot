@@ -145,6 +145,7 @@
 - `scripts/check-font-provenance.sh`
 - `scripts/check-hero-engine-text.cjs`
 - `scripts/check-hook-drift.sh`
+- `scripts/check-listeners.sh`
 - `scripts/check-live-parity.py`
 - `scripts/check-no-host-leak.sh`
 - `scripts/check-outbound-inventory.py`
@@ -181,6 +182,34 @@
 ### web/dashboard
 
 - `web/dashboard/.gitkeep`
+- `web/dashboard/next-env.d.ts`
+- `web/dashboard/package.json`
+- `web/dashboard/tsconfig.json`
+
+### web/dashboard/app
+
+- `web/dashboard/app/error.tsx`
+- `web/dashboard/app/globals.css`
+- `web/dashboard/app/layout.tsx`
+- `web/dashboard/app/page.tsx`
+
+### web/dashboard/components
+
+- `web/dashboard/components/AppointmentsPanel.tsx`
+- `web/dashboard/components/HandoffQueue.tsx`
+- `web/dashboard/components/LeadsPanel.tsx`
+- `web/dashboard/components/States.tsx`
+- `web/dashboard/components/SystemHealth.tsx`
+
+### web/dashboard/lib
+
+- `web/dashboard/lib/airtable.ts`
+- `web/dashboard/lib/alertState.test.ts`
+- `web/dashboard/lib/alertState.ts`
+- `web/dashboard/lib/mask.test.ts`
+- `web/dashboard/lib/mask.ts`
+- `web/dashboard/lib/shopConfig.ts`
+- `web/dashboard/lib/types.ts`
 
 ### web/shared
 
@@ -512,6 +541,9 @@
   - ### tests/unit
   - ### web
   - ### web/dashboard
+  - ### web/dashboard/app
+  - ### web/dashboard/components
+  - ### web/dashboard/lib
   - ### web/shared
   - ### web/shared/src/chat
   - ### web/shared/src/config

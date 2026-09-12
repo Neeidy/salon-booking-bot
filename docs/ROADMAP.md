@@ -709,7 +709,14 @@ Each CP waits for its own written approval (plan-gate).
       a far noisier gate.* ⚠ *My first directory-symlink drill was mis-built — it copied the file, so
       exit 0 was the correct answer and I nearly recorded it as a miss. Re-built to traverse to the real
       file.*
-    - ◐ **CP 6c-1 — the dashboard API layer (CRT #10). IN PROGRESS, not committed.**
+    - ✅ **CP 6c-1 — the dashboard API layer (CRT #10). CLOSED 2026-09-12 (`b097053`, pushed).**
+      31 files, +2803 lines, ONE commit as ruled. Three L2 rounds ran before it: the first found 6
+      critical, the second found a guard that was inert and a bearer credential reaching the screen,
+      the third found that the FIX for that credential was itself defeated by the very formula defect
+      it was written for. All 🔴 closed; three findings from the third pass are carried as OWNED open
+      items with their measurements under this phase's round budget, not as closed work.
+      Pushed state verified from the REMOTE ref rather than the working tree: 166 files, zero of the 3
+      redaction targets, instrument confirmed with a positive control first, no Claude attribution.
       - ✅ **`next build` RUN FOR THE FIRST TIME, and in a FRESH CLONE — the 6b question asked and
         answered.** The documented order (`scripts ci` → `web ci` → env → snippet build → dashboard
         build) works from a `git clone`, and the dashboard builds **with fake credentials**: the page is
