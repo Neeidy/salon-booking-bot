@@ -16,6 +16,7 @@ import type { Page } from '../lib/airtable.ts';
 import type { HandoffRow } from '../lib/types.ts';
 import { alertState, alertLabel, triageRank } from '../lib/alertState.ts';
 import { maskFreeText, maskSenderKey, assertMasked } from '../lib/mask.ts';
+import { ReleaseButton } from './ReleaseButton.tsx';
 
 /**
  * The customer's own words, masked. Wrapped because the per-row guard used to cover only the SENDER
@@ -133,6 +134,9 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
                   waiting {waitedFor(r.last_updated)} · {r.turn_count ?? 0} turns
                   {r.last_intent ? ` · last read as "${r.last_intent}"` : ''}
                 </span>
+                {/* D11 — the phase's ONE write. Props are a record id and the already-masked label: no
+                    sender_key, no message text crosses into the client component (CRT #10b, by hand). */}
+                <ReleaseButton recordId={r.id} label={who} />
               </li>
             );
           })}
@@ -157,11 +161,10 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
         </p>
       )}
 
-      {/* D11 is Phase 6d. Saying so is better than an inert button: a control that looks live and does
-          nothing is worse than an absent one, and this phase is read-only by decision. */}
-      <p className="tech">
-        Releasing a conversation back to the bot arrives in the next step; this board is read-only today.
-      </p>
+      {/* D11 landed in CP 6d-1. The sentence that stood here — "this board is read-only today" — was
+          correct while it was true and is removed rather than annotated (`governance-sync.md` §6). Its
+          reasoning is worth keeping: an inert control that LOOKS live is worse than an absent one, which
+          is exactly why the button below is wired to a real signed write before being shown at all. */}
     </section>
   );
 }

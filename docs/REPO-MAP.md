@@ -372,6 +372,7 @@
   - ### The rule held for the NEXT bind and did nothing about the ones already up — so there is a sweep now
   - ### The policy — **root output, Yigitcan ran it 2026-09-12. NOT my measurement.**
   - ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
+  - ### NEVER TYPE THE LITERAL — not in a file, not in a command you SHOW
   - ### Pre-flight before handing over ANY tunnel command
   - ## Why
   - ## Related: do not send him a drill you can run yourself

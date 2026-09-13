@@ -25,6 +25,12 @@ COMMITTED = os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
 # Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise).
 # `/api` is CF-Access "Bypass" today (n8n API key alone); this lets the SAME guard keep working after the
 # planned flip to "Service Auth" (CRT #7 follow-up) — set CF_ACCESS_CLIENT_ID/SECRET in ~/.n8n-api.env then.
+# ⚠ THESE TWO NAMES ARE TAKEN, and by a DIFFERENT token than you may assume. Measured 2026-09-13: they
+# hold the `n8n-rawapi-cc` service token, which is the credential for the `/api` application — this guard
+# and check-content-parity.py both read them. The owner-write path added in CP 6d-0 has its OWN token and
+# is stored under CF_OWNER_ACCESS_CLIENT_ID / CF_OWNER_ACCESS_CLIENT_SECRET, deliberately NOT here:
+# overwriting these would have broken both guards, and one credential opening two applications is a wider
+# blast radius than two credentials opening one each. If you are looking for the owner token, that is it.
 CF_HDRS = ({'CF-Access-Client-Id': os.environ['CF_ACCESS_CLIENT_ID'],
             'CF-Access-Client-Secret': os.environ['CF_ACCESS_CLIENT_SECRET']}
            if os.environ.get('CF_ACCESS_CLIENT_ID') and os.environ.get('CF_ACCESS_CLIENT_SECRET') else {})

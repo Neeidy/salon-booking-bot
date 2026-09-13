@@ -26,6 +26,10 @@
 #   · CURRENT TREE ONLY. History is not scanned; a host already committed in an earlier commit is not
 #     this guard's job (see the forward-only redaction decision, ARCH-DEC §5).
 #   · COMMIT MESSAGES are not scanned. Writing the host into a message would reach GitHub with this
+#   · NEITHER ARE REPORTS: a VERDICT block, a chat answer, a pasted command output. Same class as a commit
+#     message — a channel this guard cannot see — and on 2026-09-13 that is where a host actually leaked
+#     first, from a masking bug in a throwaway diff script. The repo had a control and it fired; the report
+#     had none. Treat every line you SHOW the same way you treat a line you COMMIT.
 #     guard green. Named, not fixed.
 #   · A second `git worktree` has its own index and working tree; this guard only sees its own.
 #   · On a hit it PRINTS the matching lines, host included. That is the point locally, but it means the

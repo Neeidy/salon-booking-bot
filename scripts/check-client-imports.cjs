@@ -126,6 +126,11 @@ const WORKSPACE_DIRS = ['web/shared', 'web/site', 'web/snippet', 'web/dashboard'
  * disappears costs the whole subtree's coverage. Opposite policies, opposite failure costs.
  */
 const BANNED_FILES = {
+  // Added CP 6d-1. The PAT can READ; this one can WRITE to the live conversation store, so it is the
+  // more dangerous of the two and is listed first in importance if not in order.
+  'web/dashboard/lib/ownerAction.ts':
+    'holds OWNER_HMAC_SECRET, which authorises the owner write path. In a browser bundle the signature '
+    + 'becomes decorative and anyone could forge a release for any conversation',
   'web/dashboard/lib/airtable.ts':
     'it holds the Airtable PAT, read from process.env. CRT #10\'s first line — "the PAT never reaches '
     + 'a browser" — is true exactly as long as this file is unreachable from client code',

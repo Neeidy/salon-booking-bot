@@ -161,6 +161,28 @@ target and `scripts/check-no-host-leak.sh` scans for it like any other).
 each time by re-deriving it from "the host we always use". A rule without its reason is re-derived on the
 next contact, and re-derived the same wrong way. The reason is the only part that survives.
 
+### NEVER TYPE THE LITERAL — not in a file, not in a command you SHOW
+
+Every redaction target is referenced by a VARIABLE or a placeholder, in committed files **and in anything
+you display**: `$SSH_ORIGIN_HOST`, `$N8N_HOST`, `<HOST>`. The repo already does this; what was missing is
+the sentence saying it applies to shown text too, and that gap cost two leaks in one checkpoint
+(2026-09-13): one into a report, one typed by hand into a tracked file.
+
+**The root cause is not carelessness, and calling it that would prevent the fix.** Both leaks happened
+while writing ABOUT redaction discipline — the rule file, the gate item, the hygiene sentence.
+**Talking about a secret is the moment you are closest to typing it**, because the sentence needs an
+example and the example is right there. The 2026-09-11 apex leak was the same: it landed inside the rule
+about hosts.
+
+So the discipline is mechanical rather than attentive: **do not handle the literal at all.** Parse it into
+a variable, interpolate it into the command, mask it in output. A value you never hold is a value you
+cannot misplace — and it is the only form of this rule that does not depend on being careful at exactly
+the moment you are least able to be.
+
+⚠ *And note which half had a net: the one typed into a tracked file was stopped by
+`check-no-host-leak.sh` before it reached the index. The one printed into a report was caught by reading
+my own output — reports have no guard and cannot have one (see that script's KNOWN LIMITS).*
+
 ### Pre-flight before handing over ANY tunnel command
 Do not compose the host from memory or from the n8n URL. Read it:
 
