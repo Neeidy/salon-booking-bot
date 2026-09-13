@@ -1,500 +1,964 @@
 {
-  "name": "Salon Booking Bot — Processed Purge",
-  "nodes": [
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "days",
-              "triggerAtHour": 4
-            }
-          ]
-        }
-      },
-      "id": "173b0146-b915-44cd-ad8f-d7462947b983",
-      "name": "Purge Schedule",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.3,
-      "position": [
-        0,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Compute Purge Cutoff (CP5e) — delete processed_messages older than 30 days (dedupe only needs to\n// survive the provider retry window = hours; 30d is amply safe). created_at is an ISO-8601 UTC string,\n// so a lexicographic '<' compare is chronological.\nreturn [{ json: { cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
-      },
-      "id": "7c8584e1-b9eb-43e2-a567-86fa7f3fa4cb",
-      "name": "Compute Purge Cutoff",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        220,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "processed_messages"
-        },
-        "filterByFormula": "={{ '{created_at} < \"' + $json.cutoff + '\"' }}",
-        "options": {}
-      },
-      "id": "caf600de-d0fd-4407-93c0-7fec6e6e67fb",
-      "name": "Find Old Processed",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
-      "position": [
-        440,
-        0
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "operation": "deleteRecord",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "processed_messages"
-        },
-        "id": "={{ $json.id }}"
-      },
-      "id": "30373fd9-19b7-4f5e-ba40-781029d2c943",
-      "name": "Delete Old Processed",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
-      "position": [
-        660,
-        0
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Compute PII Cutoff (FIX-1) — conversations.recent_messages is PII (the rolling last-5 customer\n// message texts). It is SCRUBBED after 30 days; the ROW is deliberately KEPT.\n// WHY not delete the row: deleting it would silently release a stage='handoff' lock (a handed-off\n// customer would start getting bot replies again with no human action) and would drop\n// cancel_target_id / confirm_turn state. Row deletion is a SEPARATE decision — UX-ARCHITECTURE §9 K2.\n// HONEST SCOPE: this scrubs message CONTENT only. sender_key (a phone number on whatsapp) stays for\n// the row's lifetime — this is not a full PII expiry.\nreturn [{ json: { pii_cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
-      },
-      "id": "purge_pii_cutoff",
-      "name": "Compute PII Cutoff",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        220,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations"
-        },
-        "filterByFormula": "={{ 'AND({recent_messages} != \"\", IS_BEFORE({last_updated}, DATETIME_PARSE(\"' + $json.pii_cutoff + '\")))' }}",
-        "options": {}
-      },
-      "id": "purge_find_stale_conv",
-      "name": "Find Stale Conversations",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
-      "position": [
-        440,
-        220
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $json.id }}",
-            "recent_messages": ""
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "recent_messages",
-              "displayName": "recent_messages",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "purge_scrub_recent",
-      "name": "Scrub Recent Messages",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
-      "position": [
-        660,
-        220
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "content": "## PII TTL — recent_messages scrub (FIX-1, 2026-08-27)\n\n**What:** every day at 04:00 this second branch clears `conversations.recent_messages` on rows whose\n`last_updated` is older than **30 days**.\n\n**Why the row is KEPT, not deleted:** deleting the row would (a) silently release a `stage='handoff'`\nlock — a handed-off customer would start getting bot replies again with nobody deciding that — and\n(b) drop `cancel_target_id`/`confirm_turn`. Row deletion is a separate decision (UX-ARCHITECTURE §9 K2).\n\n**Honest scope:** this expires message CONTENT. `sender_key` (a phone number on whatsapp) survives for\nthe row's lifetime. Do NOT describe this as \"PII TTL solved\".",
-        "height": 320,
-        "width": 460
-      },
-      "id": "purge_sticky_pii",
-      "name": "Sticky — PII scrub",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        220,
-        380
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Load Config (Purge) — FIX-1. The purge workflow can now ALERT, so it needs the shared ownerAlert\n// config. Mirrors the reminders pattern (each workflow carries its own inline config).\n// SHARED KEY CONTRACT: ownerAlert.{enabled,throttleMinutes} MUST equal the main + reminders Load Configs\n// — asserted by scripts/check-cancel-validation-parity.py. A kill that silences only some alerts is not a kill.\n// one-swap-to-real: replace this literal with client.config.json / an n8n variable (Phase 4/template).\nconst config = {\n  ownerAlert: { enabled: true, throttleMinutes: 30 }\n};\nreturn [{ json: { ...$json, config } }];"
-      },
-      "id": "purge_load_config",
-      "name": "Load Config (Purge)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        160,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Purge Error (processed) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'processed_messages' } }));"
-      },
-      "id": "purge_err_processed",
-      "name": "Purge Error (processed)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        900,
-        -180
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Purge Error (PII) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'conversations_pii' } }));"
-      },
-      "id": "purge_err_pii",
-      "name": "Purge Error (PII)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        900,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Owner-alert (Purge) — FIX-1. A purge failure used to be INVISIBLE: this workflow had no alert at all,\n// so if the dedupe purge or the PII scrub stopped, the data just quietly stopped being cleaned.\n// Same silent-failure class as cancel_mirror_failed (A1).\n//\n// WHY THE THROTTLE KEY CARRIES THE BRANCH (drill-corrected, exec 1631): n8n runs a node ONCE PER INCOMING\n// CONNECTION, not once with the inputs merged — so $input.all() only ever sees ONE collector. The first\n// build attempt threw both collectors at a single global 'purge_error' throttle key: run#0 (processed)\n// alerted, run#1 (PII) hit the key it had just set and returned [] — the PII failure was SWALLOWED, the\n// exact thing the two collectors exist to prevent. Keying on class+branch makes the two branches\n// independent: each gets its own alert, and each still gets its own storm brake.\nconst lc = $('Load Config (Purge)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst branch = (items[0] && items[0].json && items[0].json._purge_branch) || 'unknown';\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'purge_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + branch;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 purge-error\\nbranch: ' + branch +\n              '\\nfailed items: ' + items.length + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls, _purge_branch: branch } }];"
-      },
-      "id": "purge_build_alert",
-      "name": "Build Owner Alert (Purge)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1120,
-        120
-      ]
-    },
-    {
-      "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
-        "text": "={{ $json.owner_alert_text }}",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
-      "id": "purge_send_alert",
-      "name": "Send Owner Alert (Purge)",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        1340,
-        120
-      ],
-      "credentials": {
-        "telegramApi": {
-          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
-          "name": "Telegram account"
-        }
-      },
-      "onError": "continueErrorOutput",
-      "webhookId": "e96fbf76-9acc-4f64-aba7-93a7766719d1"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Owner-alert delivery failed (Telegram). Visible marker; the purge run itself is unaffected.\n// Terminal on purpose — alerting about a failed alert would recurse.\nreturn [{ json: { owner_alert_failed: true } }];"
-      },
-      "id": "purge_alert_failed",
-      "name": "Owner Alert Failed (Purge)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1560,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## Purge failures now reach a human (FIX-1)\n\nThis workflow had **no alert at all**: if the dedupe purge or the PII scrub broke, cleaning just\nsilently stopped. Same silent-failure class as `cancel_mirror_failed`.\n\n**Two collectors, on purpose.** An n8n error item carries only `{message, error}` — never the node\nthat failed. One collector would say \"purge broke\" without saying WHICH cleanup stopped, so the\nbranch is identified by **topology**: `Purge Error (processed)` vs `Purge Error (PII)`. Both fan into one composer, and the\nthrottle key carries the branch (`purge_error:<branch>`).\n\n**Drill-corrected (exec 1631):** the first build used ONE global throttle key. n8n runs a node once per\nINCOMING CONNECTION, not once with merged inputs — so run#0 (processed) alerted and run#1 (PII) hit the\nkey it had just set and returned `[]`. The PII failure was **swallowed** — the exact thing the two\ncollectors exist to prevent. Keying on class+branch makes them independent.\n\n**Config:** `Load Config (Purge)` carries `ownerAlert` and sits on the main path so it always runs.\nIts `enabled`/`throttleMinutes` MUST match main + reminders — asserted by\n`scripts/check-cancel-validation-parity.py`. A kill-switch that silences only some alerts is broken.\n\n**Not covered (honest):** the two Code nodes (`Compute Purge Cutoff`, `Compute PII Cutoff`) are not\nwrapped — a throw there fails the execution, visible in n8n's log but not on Telegram. Same scope as\nthe reminders workflow.",
-        "height": 460,
-        "width": 540
-      },
-      "id": "purge_sticky_alert",
-      "name": "Sticky — Purge alerts",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1120,
-        420
-      ]
+ "name": "Salon Booking Bot — Processed Purge",
+ "nodes": [
+  {
+   "parameters": {
+    "rule": {
+     "interval": [
+      {
+       "field": "days",
+       "triggerAtHour": 4
+      }
+     ]
     }
-  ],
-  "connections": {
-    "Purge Schedule": {
-      "main": [
-        [
-          {
-            "node": "Load Config (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Compute Purge Cutoff": {
-      "main": [
-        [
-          {
-            "node": "Find Old Processed",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Find Old Processed": {
-      "main": [
-        [
-          {
-            "node": "Delete Old Processed",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Purge Error (processed)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Compute PII Cutoff": {
-      "main": [
-        [
-          {
-            "node": "Find Stale Conversations",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Find Stale Conversations": {
-      "main": [
-        [
-          {
-            "node": "Scrub Recent Messages",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Purge Error (PII)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Load Config (Purge)": {
-      "main": [
-        [
-          {
-            "node": "Compute Purge Cutoff",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Compute PII Cutoff",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Delete Old Processed": {
-      "main": [
-        [],
-        [
-          {
-            "node": "Purge Error (processed)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Scrub Recent Messages": {
-      "main": [
-        [],
-        [
-          {
-            "node": "Purge Error (PII)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Purge Error (processed)": {
-      "main": [
-        [
-          {
-            "node": "Build Owner Alert (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Purge Error (PII)": {
-      "main": [
-        [
-          {
-            "node": "Build Owner Alert (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Owner Alert (Purge)": {
-      "main": [
-        [
-          {
-            "node": "Send Owner Alert (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send Owner Alert (Purge)": {
-      "main": [
-        [],
-        [
-          {
-            "node": "Owner Alert Failed (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+   },
+   "id": "173b0146-b915-44cd-ad8f-d7462947b983",
+   "name": "Purge Schedule",
+   "type": "n8n-nodes-base.scheduleTrigger",
+   "typeVersion": 1.3,
+   "position": [
+    0,
+    0
+   ]
   },
-  "settings": {
-    "executionOrder": "v1"
+  {
+   "parameters": {
+    "jsCode": "// Compute Purge Cutoff (CP5e) — delete processed_messages older than 30 days (dedupe only needs to\n// survive the provider retry window = hours; 30d is amply safe). created_at is an ISO-8601 UTC string,\n// so a lexicographic '<' compare is chronological.\nreturn [{ json: { cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
+   },
+   "id": "7c8584e1-b9eb-43e2-a567-86fa7f3fa4cb",
+   "name": "Compute Purge Cutoff",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    220,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "processed_messages"
+    },
+    "filterByFormula": "={{ '{created_at} < \"' + $json.cutoff + '\"' }}",
+    "options": {}
+   },
+   "id": "caf600de-d0fd-4407-93c0-7fec6e6e67fb",
+   "name": "Find Old Processed",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    440,
+    0
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "operation": "deleteRecord",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "processed_messages"
+    },
+    "id": "={{ $json.id }}"
+   },
+   "id": "30373fd9-19b7-4f5e-ba40-781029d2c943",
+   "name": "Delete Old Processed",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    660,
+    0
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Compute PII Cutoff (FIX-1) — conversations.recent_messages is PII (the rolling last-5 customer\n// message texts). It is SCRUBBED after 30 days; the ROW is deliberately KEPT.\n// WHY not delete the row: deleting it would silently release a stage='handoff' lock (a handed-off\n// customer would start getting bot replies again with no human action) and would drop\n// cancel_target_id / confirm_turn state. Row deletion is a SEPARATE decision — UX-ARCHITECTURE §9 K2.\n// HONEST SCOPE: this scrubs message CONTENT only. sender_key (a phone number on whatsapp) stays for\n// the row's lifetime — this is not a full PII expiry.\nreturn [{ json: { pii_cutoff: $now.minus({ days: 30 }).toUTC().toISO() } }];"
+   },
+   "id": "purge_pii_cutoff",
+   "name": "Compute PII Cutoff",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    220,
+    220
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "filterByFormula": "={{ 'AND({recent_messages} != \"\", IS_BEFORE({last_updated}, DATETIME_PARSE(\"' + $json.pii_cutoff + '\")))' }}",
+    "options": {}
+   },
+   "id": "purge_find_stale_conv",
+   "name": "Find Stale Conversations",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    440,
+    220
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "operation": "update",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "id": "={{ $json.id }}",
+      "recent_messages": ""
+     },
+     "matchingColumns": [
+      "id"
+     ],
+     "schema": [
+      {
+       "id": "id",
+       "displayName": "id",
+       "required": false,
+       "defaultMatch": true,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": true,
+       "removed": false
+      },
+      {
+       "id": "recent_messages",
+       "displayName": "recent_messages",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {}
+   },
+   "id": "purge_scrub_recent",
+   "name": "Scrub Recent Messages",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    660,
+    220
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "content": "## PII TTL — recent_messages scrub (FIX-1, 2026-08-27)\n\n**What:** every day at 04:00 this second branch clears `conversations.recent_messages` on rows whose\n`last_updated` is older than **30 days**.\n\n**Why the row is KEPT, not deleted:** deleting the row would (a) silently release a `stage='handoff'`\nlock — a handed-off customer would start getting bot replies again with nobody deciding that — and\n(b) drop `cancel_target_id`/`confirm_turn`. Row deletion is a separate decision (UX-ARCHITECTURE §9 K2).\n\n**Honest scope:** this expires message CONTENT. `sender_key` (a phone number on whatsapp) survives for\nthe row's lifetime. Do NOT describe this as \"PII TTL solved\".",
+    "height": 320,
+    "width": 460
+   },
+   "id": "purge_sticky_pii",
+   "name": "Sticky — PII scrub",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    220,
+    380
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Load Config (Purge) — FIX-1. The purge workflow can now ALERT, so it needs the shared ownerAlert\n// config. Mirrors the reminders pattern (each workflow carries its own inline config).\n// SHARED KEY CONTRACT: ownerAlert.{enabled,throttleMinutes} MUST equal the main + reminders Load Configs\n// — asserted by scripts/check-cancel-validation-parity.py. A kill that silences only some alerts is not a kill.\n// one-swap-to-real: replace this literal with client.config.json / an n8n variable (Phase 4/template).\nconst config = {\n  ownerAlert: { enabled: true, throttleMinutes: 30 },\n  // leads TTL (CP 6d-1). ABSENT would make the leads branch refuse and alert — fail-closed by\n  // design, because a retention default nobody chose is how a wrong cutoff sweeps a table.\n  leadsRetentionDays: 90\n};\nreturn [{ json: { ...$json, config } }];"
+   },
+   "id": "purge_load_config",
+   "name": "Load Config (Purge)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    160,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Purge Error (processed) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'processed_messages' } }));"
+   },
+   "id": "purge_err_processed",
+   "name": "Purge Error (processed)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    900,
+    -180
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Purge Error (PII) — error collector. Tags WHICH cleanup failed; n8n's error item does not carry the\n// failing node name, so the branch is identified by topology (this node's own identity).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'conversations_pii' } }));"
+   },
+   "id": "purge_err_pii",
+   "name": "Purge Error (PII)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    900,
+    420
+   ]
+  },
+  {
+   "parameters": {
+    "jsCode": "// Owner-alert (Purge) — FIX-1. A purge failure used to be INVISIBLE: this workflow had no alert at all,\n// so if the dedupe purge or the PII scrub stopped, the data just quietly stopped being cleaned.\n// Same silent-failure class as cancel_mirror_failed (A1).\n//\n// WHY THE THROTTLE KEY CARRIES THE BRANCH (drill-corrected, exec 1631): n8n runs a node ONCE PER INCOMING\n// CONNECTION, not once with the inputs merged — so $input.all() only ever sees ONE collector. The first\n// build attempt threw both collectors at a single global 'purge_error' throttle key: run#0 (processed)\n// alerted, run#1 (PII) hit the key it had just set and returned [] — the PII failure was SWALLOWED, the\n// exact thing the two collectors exist to prevent. Keying on class+branch makes the two branches\n// independent: each gets its own alert, and each still gets its own storm brake.\nconst lc = $('Load Config (Purge)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst branch = (items[0] && items[0].json && items[0].json._purge_branch) || 'unknown';\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'purge_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + branch;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 purge-error\\nbranch: ' + branch +\n              '\\nfailed items: ' + items.length + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls, _purge_branch: branch } }];"
+   },
+   "id": "purge_build_alert",
+   "name": "Build Owner Alert (Purge)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1120,
+    120
+   ]
+  },
+  {
+   "parameters": {
+    "resource": "message",
+    "operation": "sendMessage",
+    "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+    "text": "={{ $json.owner_alert_text }}",
+    "additionalFields": {
+     "appendAttribution": false
+    }
+   },
+   "id": "purge_send_alert",
+   "name": "Send Owner Alert (Purge)",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    1340,
+    120
+   ],
+   "credentials": {
+    "telegramApi": {
+     "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+     "name": "Telegram account"
+    }
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "// Owner-alert delivery failed (Telegram). Visible marker; the purge run itself is unaffected.\n// Terminal on purpose — alerting about a failed alert would recurse.\nreturn [{ json: { owner_alert_failed: true } }];"
+   },
+   "id": "purge_alert_failed",
+   "name": "Owner Alert Failed (Purge)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1560,
+    220
+   ]
+  },
+  {
+   "parameters": {
+    "content": "## Purge failures now reach a human (FIX-1)\n\nThis workflow had **no alert at all**: if the dedupe purge or the PII scrub broke, cleaning just\nsilently stopped. Same silent-failure class as `cancel_mirror_failed`.\n\n**Two collectors, on purpose.** An n8n error item carries only `{message, error}` — never the node\nthat failed. One collector would say \"purge broke\" without saying WHICH cleanup stopped, so the\nbranch is identified by **topology**: `Purge Error (processed)` vs `Purge Error (PII)`. Both fan into one composer, and the\nthrottle key carries the branch (`purge_error:<branch>`).\n\n**Drill-corrected (exec 1631):** the first build used ONE global throttle key. n8n runs a node once per\nINCOMING CONNECTION, not once with merged inputs — so run#0 (processed) alerted and run#1 (PII) hit the\nkey it had just set and returned `[]`. The PII failure was **swallowed** — the exact thing the two\ncollectors exist to prevent. Keying on class+branch makes them independent.\n\n**Config:** `Load Config (Purge)` carries `ownerAlert` and sits on the main path so it always runs.\nIts `enabled`/`throttleMinutes` MUST match main + reminders — asserted by\n`scripts/check-cancel-validation-parity.py`. A kill-switch that silences only some alerts is broken.\n\n**Not covered (honest):** the two Code nodes (`Compute Purge Cutoff`, `Compute PII Cutoff`) are not\nwrapped — a throw there fails the execution, visible in n8n's log but not on Telegram. Same scope as\nthe reminders workflow.",
+    "height": 460,
+    "width": 540
+   },
+   "id": "purge_sticky_alert",
+   "name": "Sticky — Purge alerts",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    1120,
+    420
+   ]
+  },
+  {
+   "id": "compute-leads-cutoff",
+   "name": "Compute Leads Cutoff",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -100,
+    520
+   ],
+   "parameters": {
+    "jsCode": "\n// B1 · Compute Leads Cutoff — the public demo's lead capture takes REAL phone numbers from strangers\n// (ARCH-DEC D-11) and `leads` had no TTL at all. This is the third fan-out from Load Config (Purge).\n//\n// FAIL-CLOSED ON PURPOSE: when `leadsRetentionDays` is absent the branch deletes NOTHING and routes to the\n// alert. A retention policy that quietly defaults to a number nobody chose is exactly how one arithmetic\n// slip becomes a swept table — and Airtable has no undo.\nconst lc = $('Load Config (Purge)').first().json;\nconst days = ((lc && lc.config) || {}).leadsRetentionDays;\nif (!Number.isInteger(days) || days < 1) {\n  return [{ json: { _purge_branch: 'leads', _leads_refused: 'no_retention_configured' } }];\n}\nreturn [{ json: { cutoff: $now.minus({ days }).toUTC().toISO(), retention_days: days } }];\n"
+   }
+  },
+  {
+   "id": "leads-cfg-if",
+   "name": "Leads Retention Configured?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    10,
+    520
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "cfg",
+       "leftValue": "={{ !!$json.cutoff }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "count-leads-total",
+   "name": "Count Leads Total",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    120,
+    520
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "leads"
+    },
+    "options": {
+     "fields": [
+      "created_at"
+     ]
+    }
+   }
+  },
+  {
+   "id": "aggregate-leads-total",
+   "name": "Aggregate Leads Total",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    230,
+    520
+   ],
+   "parameters": {
+    "jsCode": "\n// Collapse the row-per-item output of Count Leads Total into ONE item carrying only the count.\n// WHY THIS NODE EXISTS: an n8n Airtable search runs ONCE PER INCOMING ITEM. Feeding 44 rows into\n// Find Old Leads made it run 44 times and report 264 candidates against a 44-row table — the cap\n// refused the run, which is the only reason that was a finding rather than an incident (drill, exec 2764).\nreturn [{ json: { leads_total: $input.all().filter(i => i.json && i.json.id).length } }];\n"
+   }
+  },
+  {
+   "id": "find-old-leads",
+   "name": "Find Old Leads",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    340,
+    520
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "leads"
+    },
+    "options": {
+     "fields": [
+      "created_at"
+     ]
+    },
+    "filterByFormula": "={{ 'AND({created_at} != \"\", {created_at} < \"' + $('Compute Leads Cutoff').first().json.cutoff + '\")' }}"
+   }
+  },
+  {
+   "id": "leads-purge-sane",
+   "name": "Leads Purge Sane?",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    560,
+    520
+   ],
+   "parameters": {
+    "jsCode": "\n// B3 · THE CANDIDATE CAP — the single most important node in this branch.\n// A mis-computed cutoff is one arithmetic slip. WITHOUT a cap its cost is the whole table; WITH one its\n// cost is a Telegram message. Cap = min(200, 20% of the table).\n//\n// ⚠ MEASURED GAP, recorded rather than silently accepted: rows whose `created_at` is EMPTY never match\n// `{created_at} < cutoff`, so they are never candidates and never expire. 3 of 41 rows were in that state\n// when this was built. The cap does not fix it and must not be read as if it did.\nconst CAP_ABS = 200, CAP_PCT = 0.20;\nconst cut = $('Compute Leads Cutoff').first().json;\nconst total = $('Aggregate Leads Total').first().json.leads_total;\nconst rows = $input.all().filter(i => i.json && i.json.id);\nconst cap = Math.min(CAP_ABS, Math.floor(total * CAP_PCT));\nconst within = rows.length > 0 && rows.length <= cap;\n\nif (!within) {\n  return [{ json: { _purge_branch: 'leads',\n    _leads_refused: rows.length === 0 ? 'no_candidates' : 'leads_purge_capped',\n    candidates: rows.length, cap, total, cutoff: cut.cutoff } }];\n}\n// Carry the rows through, each tagged, so the delete node receives one item per record to delete.\nreturn rows.map(i => ({ json: { id: i.json.id, _within_cap: true,\n  _candidates: rows.length, _cap: cap, _total: total, _cutoff: cut.cutoff } }));\n"
+   }
+  },
+  {
+   "id": "leads-cap-if",
+   "name": "Leads Within Cap?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    780,
+    520
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "cap",
+       "leftValue": "={{ $json._within_cap }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "leads-del",
+   "name": "Delete Old Leads",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    1000,
+    440
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "parameters": {
+    "operation": "deleteRecord",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "leads"
+    },
+    "id": "={{ $json.id }}"
+   }
+  },
+  {
+   "id": "count-leads-after",
+   "name": "Count Leads After",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    1220,
+    440
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "leads"
+    },
+    "options": {
+     "fields": [
+      "created_at"
+     ]
+    },
+    "filterByFormula": "={{ 'AND({created_at} != \"\", {created_at} < \"' + $('Compute Leads Cutoff').first().json.cutoff + '\")' }}"
+   }
+  },
+  {
+   "id": "verify-leads-purge",
+   "name": "Verify Leads Purge",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1440,
+    440
+   ],
+   "parameters": {
+    "jsCode": "\n// B7 · Verify Leads Purge — ARITHMETIC PROOF, because \"the delete returned 200\" is not \"the rows are gone\".\n// before − after === deleted, or the branch alerts. A delete that reports success and removes nothing, and\n// one that removes more than it was asked to, both fail this check and both are silent without it.\nconst sane = $('Leads Purge Sane?').first().json;\nconst before = sane._candidates;\nconst deleted = $('Delete Old Leads').all().filter(i => i.json && !i.json.error).length;\nconst after = $('Count Leads After').all().filter(i => i.json && i.json.id).length;\n\nif (before - after !== deleted) {\n  return [{ json: { _purge_branch: 'leads', _leads_refused: 'leads_purge_arithmetic_mismatch',\n                    before, after, deleted } }];\n}\nreturn [];   // clean run: nothing to alert about\n"
+   }
+  },
+  {
+   "id": "purge-error-leads",
+   "name": "Purge Error (leads)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1000,
+    660
+   ],
+   "parameters": {
+    "jsCode": "\n// Error + refusal collector for the leads branch. n8n's error item does not carry the failing node name,\n// so the branch is identified by this node's own identity — the same topology trick the other two\n// collectors use. Keyed per branch so the two existing branches cannot swallow this one's alert\n// (drill-corrected once already, exec 1631).\nreturn $input.all().map(i => ({ json: { ...i.json, _purge_branch: 'leads' } }));\n"
+   }
+  },
+  {
+   "id": "sticky-leads",
+   "name": "Sticky — leads TTL",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -120,
+    340
+   ],
+   "parameters": {
+    "width": 900,
+    "height": 160,
+    "content": "## leads TTL — the branch the public deploy is GATED on\nA stranger can type a real phone number into the public demo's lead capture (`dryRun=false`, D-11) and `leads` had no expiry at all. Cutoff comes from `leadsRetentionDays` in config — **absent = delete nothing and alert**.\n\n⚠ **The CANDIDATE CAP is the load-bearing node**, not the delete: `min(200, 20% of the table)`. Without it one wrong cutoff costs the table; with it, one Telegram message.\n⚠ **CORRECTED BY A DRILL (exec 2764).** This note first said rows with an EMPTY `created_at` \"never match and never expire\". The OPPOSITE is true: Airtable sorts a blank below any string, so `{created_at} < cutoff` MATCHED all 3 blank rows and they would have been deleted on every run. The filter now carries `{created_at} != \"\"`, and blank rows are REPORTED rather than deleted — their age is unknown, and deleting a row of unknown age is the irreversible choice. Who owns them is an OPEN item."
+   }
   }
+ ],
+ "connections": {
+  "Purge Schedule": {
+   "main": [
+    [
+     {
+      "node": "Load Config (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Compute Purge Cutoff": {
+   "main": [
+    [
+     {
+      "node": "Find Old Processed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Old Processed": {
+   "main": [
+    [
+     {
+      "node": "Delete Old Processed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (processed)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Compute PII Cutoff": {
+   "main": [
+    [
+     {
+      "node": "Find Stale Conversations",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Stale Conversations": {
+   "main": [
+    [
+     {
+      "node": "Scrub Recent Messages",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (PII)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Load Config (Purge)": {
+   "main": [
+    [
+     {
+      "node": "Compute Purge Cutoff",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Compute PII Cutoff",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "Compute Leads Cutoff",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Delete Old Processed": {
+   "main": [
+    [],
+    [
+     {
+      "node": "Purge Error (processed)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Scrub Recent Messages": {
+   "main": [
+    [],
+    [
+     {
+      "node": "Purge Error (PII)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Purge Error (processed)": {
+   "main": [
+    [
+     {
+      "node": "Build Owner Alert (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Purge Error (PII)": {
+   "main": [
+    [
+     {
+      "node": "Build Owner Alert (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Owner Alert (Purge)": {
+   "main": [
+    [
+     {
+      "node": "Send Owner Alert (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Owner Alert (Purge)": {
+   "main": [
+    [],
+    [
+     {
+      "node": "Owner Alert Failed (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Compute Leads Cutoff": {
+   "main": [
+    [
+     {
+      "node": "Leads Retention Configured?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Leads Retention Configured?": {
+   "main": [
+    [
+     {
+      "node": "Count Leads Total",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Count Leads Total": {
+   "main": [
+    [
+     {
+      "node": "Aggregate Leads Total",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Aggregate Leads Total": {
+   "main": [
+    [
+     {
+      "node": "Find Old Leads",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Old Leads": {
+   "main": [
+    [
+     {
+      "node": "Leads Purge Sane?",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Leads Purge Sane?": {
+   "main": [
+    [
+     {
+      "node": "Leads Within Cap?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Leads Within Cap?": {
+   "main": [
+    [
+     {
+      "node": "Delete Old Leads",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Delete Old Leads": {
+   "main": [
+    [
+     {
+      "node": "Count Leads After",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Count Leads After": {
+   "main": [
+    [
+     {
+      "node": "Verify Leads Purge",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Verify Leads Purge": {
+   "main": [
+    [
+     {
+      "node": "Purge Error (leads)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Purge Error (leads)": {
+   "main": [
+    [
+     {
+      "node": "Build Owner Alert (Purge)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1"
+ }
 }

@@ -34,7 +34,14 @@ That one value goes in **two places and nowhere else**:
 
 | Where | How |
 |---|---|
-| **n8n** | the CONTAINER ENV, alongside `NODE_FUNCTION_ALLOW_BUILTIN=crypto` — measured 2026-09-13: a Code node on this instance has **no `crypto` at all** (neither `node:crypto` nor WebCrypto), so the builtin must be allowed or the declared HMAC cannot be computed. `$env` access itself works. a root-owned host directory is root-owned, so this edit is Yigitcan's. |
+| **n8n** | the CONTAINER ENV, alongside `NODE_FUNCTION_ALLOW_BUILTIN=crypto` and `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` — measured 2026-09-13: a Code node on this instance has **no `crypto` at all** (neither `node:crypto` nor WebCrypto), so the builtin must be allowed or the declared HMAC cannot be computed. ⚠ **`$env` access did NOT work, and this line used to claim it did.** The first probe read `typeof $env`,
+got `"object"`, and the conclusion was written from that. `$env` is a proxy: `typeof` measures the wrapper,
+and every actual READ threw *"access to env vars denied"* — `$env.PATH` and `$env.N8N_PORT` too, so it was a
+blanket block, not a missing allow-list entry. It took a **third** container env key,
+`N8N_BLOCK_ENV_ACCESS_IN_NODE=false` (n8n's documented default is `false`; this instance had it on), after
+which `$env.OWNER_HMAC_SECRET` reads back at its full length. ⚠ And `Object.keys($env).length` is **0 even
+now, with access working** — enumeration is not access, so it is not a valid instrument for this question.
+a root-owned host directory is root-owned, so this edit is Yigitcan's. |
 | **the dashboard** | `web/dashboard/.env.local` → `OWNER_HMAC_SECRET=<value>` |
 
 ⚠ **It must never take a `NEXT_PUBLIC_` prefix.** That prefix inlines the value into the browser bundle,
@@ -66,8 +73,15 @@ Compute `HMAC-SHA256(raw_body, OWNER_HMAC_SECRET)`; compare to header `X-Owner-S
 **`crypto.timingSafeEqual`**.
 *Why constant-time:* `===` leaks the signature one byte at a time to anyone who can measure latency.
 *Skip it and:* the endpoint is effectively unsigned, and the Access token becomes a single point of failure.
-⚠ **This n8n instance blocks `require()`** (measured, all modules). `crypto` is available as a **global** —
-do not write `require('crypto')`.
+⚠ **CORRECTED 2026-09-13 — this paragraph said the OPPOSITE of what is true, in both halves, and a build
+that followed it would have failed on its first run.** It read: *"this instance blocks `require()` (measured,
+all modules); `crypto` is available as a global — do not write `require('crypto')`."* Measured after the
+container env change: **`require('crypto')` returns an object and computes a real HMAC**, while the
+**global `crypto` is `undefined`** and `crypto.subtle` is absent. `NODE_FUNCTION_ALLOW_BUILTIN=crypto` opens
+the require path; it does not inject a WebCrypto global. So: **write `require('crypto')`, do not reach for a
+global.** `timingSafeEqual` came with it and was verified in both directions (`same=true diff=false`).
+*(The old sentence was true when it was written — before the env change — which is exactly why it is
+corrected in place rather than annotated beside it: `governance-sync.md` §6.)*
 
 ### A3 · `Owner Request Fresh?` — Code + IF  ⟵ replay window
 The signed body carries `ts` (unix seconds). Reject if `abs(now - ts) > 300`.

@@ -220,7 +220,11 @@ Each CP waits for its own written approval (plan-gate).
     item, and heavier: a blocked font breaks the LOCKED typography (GSAP degrades gracefully), and visitor IPs reach a
     third party on an EU-framed demo. Fix in 6a-2 by self-hosting via `next/font` (build-time download, no runtime
     request, not Vercel-specific).
-  - ▶ **6a-2 slice 1 — the barber demo site (L1-L9) ported and CONFIG-WIRED (2026-09-03).** `web/site`
+  - ✅ **6a-2 slice 1 — the barber demo site (L1-L9) ported and CONFIG-WIRED (2026-09-03).**
+    *(Marker flipped ▶ → ✅ on 2026-09-13 after measuring, not after remembering: the block carries **no open
+    sub-item** and **no "remaining / not yet / eksik / kalan" sentence** in its 21 lines — the two searches were
+    run and both came back empty. The `▶` was a stale marker on finished work, the same class as the three
+    corrected earlier the same day. Yigitcan's ruling, CP 6d-1.)* `web/site`
     (Next.js 16 App Router, plain CSS per D-8). `globals.css` is a VERBATIM transcription of the approved
     mockup's style block and `motion-engine.js` a verbatim transcription of its inline script — the visual
     contract is locked, so the port is a transcription, not a redesign. Config now drives brand name,
@@ -285,7 +289,13 @@ Each CP waits for its own written approval (plan-gate).
     round: **$0.014233** month-to-date against the $10 cap.
   - ☐ 6a-2 slice 2 → remaining: cancel the test booking + clean up, snippet/dashboard untouched against the real endpoint (the embedded panel is a static
     transcription today and is labelled as such — it is not wired to the engine yet).
-- ▶ **6b — embeddable snippet.**
+- ✅ **6b — embeddable snippet.**
+  *(Marker flipped ▶ → ✅ on 2026-09-13, measured: **12 ✅ children and not one `☐`**. The single `◐`
+  (Privacy Addendum) is a SHIP-GATE item and moved to that table rather than holding a finished phase open;
+  the two `⚠` children are honesty caveats attached to items that passed, not open work. ⚠ The 6b DoD table
+  counts 7 and `testing.md` counts 8 today — the 8th (resume-point memory written AND read back) was added
+  AFTER 6b closed, so it is **not back-filled**: a retroactive tick would be a claim about a check nobody ran.
+  Yigitcan's ruling, CP 6d-1.)*
   - ✅ **GATE PASSED (Tur 1 spike, 2026-09-09): Turnstile renders VISIBLY inside a Shadow DOM and mints a token
     in BOTH Invisible and Managed mode — proven by screenshot, not by a DOM reading. The engine leg was inherited from the
     Invisible run, and the reason is structural, read from the committed workflow: `Verify Turnstile` sends only
@@ -571,6 +581,7 @@ Each CP waits for its own written approval (plan-gate).
     scroll (`scrollWidth === clientWidth`), page overflow 0, the placeholder renders as a placeholder.
     Local styles by design — `globals.css` is a verbatim transcription of an approved mockup and a new
     route does not get to edit a locked visual contract.
+  - ➡ **Privacy Addendum obligation — MOVED to the public-deploy gate on 2026-09-13** (Yigitcan's ruling, CP 6d-1: it is a SHIP condition, not unfinished 6b work — carrying it as `◐` held a finished phase open). It is item **17** of the gate table. Moved, NOT deleted; the original text stands below.
   - ◐ **Privacy Addendum obligation — HALF closed.** Cloudflare requires a site using Turnstile to
     reference the Turnstile Privacy Addendum in its own privacy policy. ✅ The **client-facing** half is
     done: `/install` states it as a condition of use, not a suggestion, with the link. ☐ The **demo
@@ -2078,6 +2089,7 @@ Each CP waits for its own written approval (plan-gate).
 | 17 | **CF_API_TOKEN İPTAL EDİLECEK ya da Read'e düşürülecek — 6d bitince.** Bugün `Access: Apps and Policies = Edit` + `Access: Service Tokens = Edit` yetkisiyle `~/.n8n-api.env`'de duruyor; IP filtresi origin'e kilitli (değer `CLAUDE.local.md`'de), TTL 2026-10-15. ⚠ *TTL bir kapı değildir — unutulmaya bırakılan bir Edit token'ı, süresi dolana kadar Edit token'ıdır. 6d'nin son commit'inde kapatılır.* Ayrıca `cc-owner-write` servis token'ı 6d gerçekten çalışana kadar yalnız drill'lerde kullanılır. | Edit yetkili bir kimlik, ihtiyaç bittikten sonra ayakta kalmaz |
 | 18 | **`Access dashboard'ı koruyor` CÜMLESİ HÂLÂ ÖLÇÜLMEDİ.** CP 6d-0'da kanıtlanan şey *"Access bu hesapta Service Auth'u doğru uyguluyor"* — bu ikisi aynı cümle değil. Access envanterinde `dashboard` adlı bir uygulama **var** ve bir e-posta politikası taşıyor, ama arkasında konuşlanmış bir şey yok; koruduğu ölçülemez. | dashboard konuşlanmadan CRT #9 kapanamaz |
 | 16 | **Site GERÇEKTEN konuşlandığında, SIRAYLA doğrula: (a) hangi platform, (b) root directory değeri, (c) ignore/exclude dosyasının gerçekten UYGULANDIĞI, (d) DEPLOYMENT PROTECTION AÇIK.** ⚠ *(d), Faz 6 planının "6a/6b/6c protection ON ile deploy edilebilir" cümlesinden **taşındı, silinmedi** (2026-09-13): o cümle var olmayan bir platformu tarif ediyordu, ama içindeki niyet — public'e açılmadan önce korumanın açık olması — geçerli. Cümleyi silmek niyeti de silerdi.* Üçü de o güne kadar **ÖLÇÜLEMEZ** — repoda Vercel projesi yok (2026-09-12). `.vercelignore` bu yüzden bir kontrol değil, doğrulanmamış ön-hazırlıktır; `check-deploy-separation.sh` ise repoyu ölçer ve platformdan bağımsızdır. | dashboard'ı public deployment'ın dışında tutan şeyin PLATFORM yarısı; repo yarısı CP 6c-3'te kapandı |
+| 17 | **Privacy Addendum — Turnstile kullanan bir siteyi Cloudflare'in bağladığı yükümlülük. YARISI kapalı.** 6b'den buraya **TAŞINDI, silinmedi** (2026-09-13): bitmiş bir fazı açık tutan bir sevk koşuluydu. Vitrin public'e açılmadan önce kapanır. | atıf/metin yükümlülüğünün kalan yarısı |
 
 **→ Sahibi ZATEN kapanmış turlarda olan, taşınmayan:** CRT #7 (control-plane lockdown, CP5b HARD-ORDER) ·
 `secret-scan.sh`'ın binary-blob ve stdin-boş kör noktaları (guard borcu, faz değil).
@@ -2179,7 +2191,71 @@ yazılıyor — `close-with-the-gap-inside-the-tick`: boşluk tik'in İÇİNDE d
 - ☐ **Widget refresh splits UI from state** — `sessionStorage` (by design) keeps the conversation across a reload, but
   the panel repaints empty, so the visitor sees a clean widget while the engine is mid-conversation (or locked). Fix
   direction: show the transcript, do NOT drop the session.
-- ☐ **6d — D11 release-handoff-lock**, the phase's only write action, via a new protected n8n path.
+- ◐ **6d — D11 release-handoff-lock**, the phase's only write action, via a new protected n8n path.
+  - ✅ **CP 6d-0 — the Cloudflare Access application for `/webhook/owner-*` (2026-09-12).**
+  - ◐ **CP 6d-1 — the write path BUILT AND DRILLED ON THE LIVE INSTANCE (2026-09-13).** CC built it over the
+    n8n public API; Yigitcan supplied only what physically required him (three container env keys).
+    - **`Salon Booking Bot — Owner Actions (D11)`**, a NEW workflow, 38 nodes, ACTIVE, `POST /webhook/owner-release`.
+      Round-tripped after creation: 36 node names, **0 field diffs**, connections identical to what was sent.
+    - **Both layers proven live, THREE-WAY, on one endpoint:** no service token → `403` (Cloudflare HTML) ·
+      the `owner-*` service token → reaches n8n, `403 {"ok":false,"error":"invalid_signature"}` (JSON, the
+      workflow's own refusal) · **the OTHER service token (the n8n-API one) → `403`, refused by Access.**
+      That third row is the one that matters: Access is scoping per application, not merely "on".
+    - **Cases measured 5 of 7**, plus the end-to-end. 1 no token `403` · 2 wrong HMAC `403` ·
+      4 nonexistent record → `404` and the row unchanged · **§5b, the assumption that had never been measured:
+      a REAL record id belonging to the `leads` table → `404`** · 5/6 real release then replay.
+      **The button itself was clicked in a browser** (two-step confirm → "Released — the bot will answer the next
+      message"), and Airtable then read back `stage='new'` with `last_intent` ABSENT — both fields, which is the
+      2026-09-09f lesson. **Cases 3 (action off the allow-list) and 7 (stale `ts`) are NOT run:** they need the
+      raw secret to forge a body, `~/.n8n-api.env` does not carry it, and `.env.local` is behind a deny rule this
+      repo forbids routing around. One line from Yigitcan unblocks them.
+    - **The replay guard was mutation-tested on the SAME row in the SAME state**, which is the only version of
+      this test that means anything: same `messageId` → `Respond Owner Replayed`, **no write** (exec 2760);
+      fresh `messageId` → `Respond Owner OK`, **wrote** (exec 2761). Control and treatment differ.
+    - ⚠ **A defect this round produced and the drill caught: the owner alert failed SILENTLY.** Telegram parses
+      Markdown by default and a lone `_` in "last_intent cleared" opened an entity that never closed —
+      `Bad Request: can't parse entities`, swallowed by `onError: continueRegularOutput` while the caller got a
+      200. Fixed (HTML parse mode + escaping) and re-measured: `ok:true, message_id 286`. A named
+      `Owner Alert Undelivered (no re-alert)` leaf now makes the failure visible on the canvas without
+      alerting about an alert. **The same mechanism is live in the main workflow**; its last 40 executions
+      carried 5 alert sends and 0 failures, but this measurement does NOT clear it — I could not confirm those
+      texts exercised the defect, and a zero from a control that may never fire is not evidence.
+    - ✅ **The open item "the button shipped before the endpoint" CLOSES here** — the endpoint exists, is
+      reachable through both layers, and the button drove it end to end.
+  - ✅ **CP 6d-1 PART B — the `leads` TTL purge branch (2026-09-13).** Eleven nodes added to the EXISTING purge
+    workflow (now 26); the instance was never unpublished, only that workflow was deactivated for the edit and
+    re-activated after, verified from the API. Export diff showed **10 nodes added, 0 removed, exactly ONE
+    existing node changed** (`Load Config (Purge)`, which is where the retention window is read from) — and the
+    diff instrument was positive-controlled with a one-character mutation first, so the clean result means
+    something. New config key `leadsRetentionDays` (schema + both examples + generated types), **fail-closed:
+    absent means delete nothing and alert.**
+    - ⚠ **That sentence was written on FOUR surfaces before it was true, and `security-auditor` caught it.**
+      `Compute Leads Cutoff` returned a refusal object with no `cutoff` — and **nothing read it**: the next
+      node was the search, so the formula became `{created_at} < "undefined"` and the only thing standing
+      between that and a delete was the cap's arithmetic. A `Leads Retention Configured?` IF now routes the
+      refusal straight to the error collector. **Mutation-tested, which is exactly what the claim was
+      missing:** with the key REMOVED, `Count Leads Total` · `Find Old Leads` · `Delete Old Leads` **all never
+      ran**, and the collector carried `no_retention_configured` — the specific reason, not a routine
+      "capped" that an owner would read as an ordinary day. This is `reporting.md`'s own rule — *a claim about
+      a guard is written AFTER the mutation test* — broken by the hand that keeps quoting it.
+    - ⚠⚠ **THE CANDIDATE CAP EARNED ITS PLACE ON ITS FIRST RUN, against a defect I had just written.**
+      The drill reported **264 candidates over a 44-row table**. Two causes: an n8n Airtable search runs ONCE
+      PER INCOMING ITEM and I had fed it 44 rows, and — the one that matters — **rows with an EMPTY `created_at`
+      MATCH `{created_at} < cutoff`**, because Airtable sorts blank below any string. The sticky note I had
+      written claimed the exact opposite ("never match, never expire"). **The cap refused the run and deleted
+      nothing.** That is the difference between this being a finding and this being an incident.
+    - Both fixed and both directions re-drilled: cap 2 vs 3 candidates → **refused**, `Delete Old Leads` never
+      ran · real cap `min(200, 20% of table)` = 8 vs 3 candidates → **deleted 3**, and `before − after = deleted`
+      verified arithmetically. Afterwards the three drill rows were gone and **the three blank-timestamp rows
+      were still there**, which is the fix stated as an outcome rather than as an intention.
+    - ⚠ **OPEN, and it is a PII question, not a bug:** rows with no `created_at` (3 of 41) can never expire under
+      any cutoff. Deleting a row whose age is unknown is the irreversible choice; naming it is the reversible
+      one, so the branch reports them. **The same hazard exists in the live `processed_messages` branch** — its
+      filter has the same shape and was NOT changed this round.
+    - ⚠ **Declared deviation:** the build package says "batch 25 per request". The n8n Airtable node's
+      `deleteRecord` takes ONE id per item and cannot batch, so the call budget is one call per deleted row.
+      The bound that actually protects the table is the CAP, and it is intact. Airtable calls for the whole of
+      PART B: budget declared at ≤25 before measuring, ~20 used.
 
 ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
 1a idempotency · 1b concurrency/no-double-book · 2 Google Calendar write · 3 webhook verification ·

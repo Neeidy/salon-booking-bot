@@ -22,15 +22,64 @@
       "type": "object",
       "description": "FRONTEND-ONLY page copy — no n8n node reads it (same class as branding.* and demoMode). This is the SHOP'S OWN VOICE: two different clients must not ship the same marketing sentences, or the \"every client gets their own site\" claim is false on inspection. Structural UI labels (nav items, section eyebrows, CTA wording) are deliberately NOT here — they are identical for every client, and a config key nobody needs to change is a trap for the next client. OPTIONAL at the root so the engine's own Load Config (which has no page copy) still validates; the site build requires it and fails closed without it. NOTE: headline/menuTitle/closerTitle end WITHOUT a full stop — the oxide period is markup (<span class=\"dot\">), not text.",
       "additionalProperties": false,
-      "required": ["tagline", "headline", "subline", "menuTitle", "craftTitle", "craftBody", "closerTitle"],
+      "required": [
+        "tagline",
+        "headline",
+        "subline",
+        "menuTitle",
+        "craftTitle",
+        "craftBody",
+        "closerTitle"
+      ],
       "properties": {
-        "tagline": { "type": "string", "minLength": 1, "description": "Hero eyebrow — what the shop is and where, in one line." },
-        "headline": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "string", "minLength": 1 }, "description": "Hero headline, exactly 3 lines; line 2 is set in the accent italic. No trailing period on line 3." },
-        "subline": { "type": "string", "minLength": 1 },
-        "menuTitle": { "type": "string", "minLength": 1, "description": "No trailing period." },
-        "craftTitle": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string", "minLength": 1 }, "description": "Two lines; line 2 is set in the accent italic." },
-        "craftBody": { "type": "string", "minLength": 1 },
-        "closerTitle": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string", "minLength": 1 }, "description": "Two lines. No trailing period on line 2." }
+        "tagline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Hero eyebrow — what the shop is and where, in one line."
+        },
+        "headline": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Hero headline, exactly 3 lines; line 2 is set in the accent italic. No trailing period on line 3."
+        },
+        "subline": {
+          "type": "string",
+          "minLength": 1
+        },
+        "menuTitle": {
+          "type": "string",
+          "minLength": 1,
+          "description": "No trailing period."
+        },
+        "craftTitle": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Two lines; line 2 is set in the accent italic."
+        },
+        "craftBody": {
+          "type": "string",
+          "minLength": 1
+        },
+        "closerTitle": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Two lines. No trailing period on line 2."
+        }
       }
     },
     "business": {
@@ -212,6 +261,12 @@
           "description": "Suppression window. main: per (class, sender_key). reminders/purge: per (class, branch). Throttle is applied BEFORE delivery, so a suppressed alert is never retried."
         }
       }
+    },
+    "leadsRetentionDays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3650,
+      "description": "Retention window in days for the `leads` table. OPTIONAL and FAIL-CLOSED: when the key is ABSENT the purge branch deletes NOTHING and alerts instead — a retention policy that silently defaults to a number nobody chose is how one wrong cutoff sweeps a table, and Airtable has no undo. The public demo's lead capture takes real phone numbers from strangers (ARCH-DEC D-11), which is why this key exists at all."
     },
     "messageTemplates": {
       "type": "object",

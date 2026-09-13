@@ -10,12 +10,22 @@
   "$comment_site": "Frontend-only page copy = the shop's own voice. Values here are TODAY'S wording, moved verbatim out of the components; changing the site's marketing text is now a CONFIG edit, not a code edit. Structural labels (nav, section eyebrows, CTA wording) stay in code on purpose.",
   "site": {
     "tagline": "Barbershop · Vienna, first district",
-    "headline": ["Pick a time and", "the chair is yours", "to the minute"],
+    "headline": [
+      "Pick a time and",
+      "the chair is yours",
+      "to the minute"
+    ],
     "subline": "Send one message. Open times come back in the reply, and so does the confirmation. No phone call, no app.",
     "menuTitle": "Prices, plain as print",
-    "craftTitle": ["Hot towel. Straight razor.", "A chair that runs on time."],
+    "craftTitle": [
+      "Hot towel. Straight razor.",
+      "A chair that runs on time."
+    ],
     "craftBody": "One chair, one appointment at a time. Nothing is double-booked, nothing is rushed — your cut gets the time it needs.",
-    "closerTitle": ["Walk in booked.", "Walk out sharp"]
+    "closerTitle": [
+      "Walk in booked.",
+      "Walk out sharp"
+    ]
   },
   "googleCalendarId": "REPLACE_WITH_CALENDAR_ID@group.calendar.google.com",
   "branding": {
@@ -28,23 +38,62 @@
       "enabled": true,
       "provider": "zernio",
       "accountId": "REPLACE_WITH_ZERNIO_ACCOUNT_ID",
-      "reminderTemplate": { "name": "appointment_reminder", "language": "en_US" }
+      "reminderTemplate": {
+        "name": "appointment_reminder",
+        "language": "en_US"
+      }
     },
-    "widget": { "enabled": true, "provider": "webchat", "turnstile": { "enabled": true } },
-    "instagram": { "enabled": false, "provider": "meta-graph" }
+    "widget": {
+      "enabled": true,
+      "provider": "webchat",
+      "turnstile": {
+        "enabled": true
+      }
+    },
+    "instagram": {
+      "enabled": false,
+      "provider": "meta-graph"
+    }
   },
   "services": [
-    { "id": "haircut", "name": "Haircut", "durationMin": 30, "priceEUR": 25 },
-    { "id": "beard", "name": "Beard Trim", "durationMin": 20, "priceEUR": 15 },
-    { "id": "haircut_beard", "name": "Haircut + Beard", "durationMin": 45, "priceEUR": 35 }
+    {
+      "id": "haircut",
+      "name": "Haircut",
+      "durationMin": 30,
+      "priceEUR": 25
+    },
+    {
+      "id": "beard",
+      "name": "Beard Trim",
+      "durationMin": 20,
+      "priceEUR": 15
+    },
+    {
+      "id": "haircut_beard",
+      "name": "Haircut + Beard",
+      "durationMin": 45,
+      "priceEUR": 35
+    }
   ],
   "workingHours": {
-    "mon": ["10:00-19:00"],
-    "tue": ["10:00-19:00"],
-    "wed": ["10:00-19:00"],
-    "thu": ["10:00-19:00"],
-    "fri": ["10:00-19:00"],
-    "sat": ["10:00-18:00"],
+    "mon": [
+      "10:00-19:00"
+    ],
+    "tue": [
+      "10:00-19:00"
+    ],
+    "wed": [
+      "10:00-19:00"
+    ],
+    "thu": [
+      "10:00-19:00"
+    ],
+    "fri": [
+      "10:00-19:00"
+    ],
+    "sat": [
+      "10:00-18:00"
+    ],
     "sun": []
   },
   "bot": {
@@ -60,10 +109,15 @@
     "whatsappSendDisabled": true,
     "llmPricePer1kTokensIn": 0.001,
     "llmPricePer1kTokensOut": 0.005,
-    "llmCostCapUsd": 10.00
+    "llmCostCapUsd": 10.0
   },
   "$comment_ownerAlert": "Owner-alert channel (Telegram). enabled=false silences EVERY alert class, silently — there is no second channel. These two values MUST match across the three Load Configs (main / reminders / purge); scripts/check-cancel-validation-parity.py asserts it.",
-  "ownerAlert": { "enabled": true, "throttleMinutes": 30 },
+  "ownerAlert": {
+    "enabled": true,
+    "throttleMinutes": 30
+  },
+  "$comment_leadsRetentionDays": "Days a leads row is kept. ABSENT = the purge deletes nothing and alerts (fail-closed).",
+  "leadsRetentionDays": 90,
   "messageTemplates": {
     "askIntent": "Hi! I can help you book, change or cancel an appointment — what would you like?",
     "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",

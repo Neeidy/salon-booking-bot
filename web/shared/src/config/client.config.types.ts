@@ -157,6 +157,10 @@ export interface ClientConfig {
     throttleMinutes?: number;
   };
   /**
+   * Retention window in days for the `leads` table. OPTIONAL and FAIL-CLOSED: when the key is ABSENT the purge branch deletes NOTHING and alerts instead — a retention policy that silently defaults to a number nobody chose is how one wrong cutoff sweeps a table, and Airtable has no undo. The public demo's lead capture takes real phone numbers from strangers (ARCH-DEC D-11), which is why this key exists at all.
+   */
+  leadsRetentionDays?: number;
+  /**
    * Named reply templates; may contain {service},{date},{time} placeholders.
    */
   messageTemplates: {
@@ -306,6 +310,7 @@ export interface ClientConfig {
          */
         throttleMinutes?: number;
       }
+    | number
     | {
         [k: string]: string;
       }

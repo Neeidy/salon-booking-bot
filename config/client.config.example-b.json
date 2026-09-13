@@ -120,6 +120,8 @@
     "enabled": true,
     "throttleMinutes": 30
   },
+  "$comment_leadsRetentionDays": "Days a leads row is kept. ABSENT = the purge deletes nothing and alerts (fail-closed).",
+  "leadsRetentionDays": 90,
   "messageTemplates": {
     "askIntent": "Welcome to Hofgasse Barbers — would you like to book, move or cancel a visit?",
     "askService": "Which one would you like? (Skin Fade / Classic Cut / Beard Sculpt / Cut & Beard)",

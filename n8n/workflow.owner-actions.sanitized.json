@@ -1,0 +1,1347 @@
+{
+ "name": "Salon Booking Bot — Owner Actions (D11)",
+ "nodes": [
+  {
+   "id": "recv",
+   "name": "Receive Owner Action",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    -400,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "owner-release",
+    "responseMode": "responseNode",
+    "options": {
+     "rawBody": true
+    }
+   }
+  },
+  {
+   "id": "verify-owner-signature",
+   "name": "Verify Owner Signature",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -180,
+    0
+   ],
+   "parameters": {
+    "jsCode": "\n// A2 · Verify Owner Signature — HMAC-SHA256 over the RAW bytes, constant-time compare.\n//\n// WHY RAW: the dashboard signs the exact string it sends. If n8n re-serialises the parsed JSON, key order\n// and spacing change and a correct signature stops matching — paid for once already on the Zernio inbound.\n// _raw_source is reported so a drill can SEE which route supplied the bytes; a silent fallback between two\n// routes would hide the day the webhook stops producing binary.\n//\n// CORRECTED 2026-09-13: this instance has NO global `crypto` (typeof === 'undefined') but DOES have\n// require('crypto') since NODE_FUNCTION_ALLOW_BUILTIN=crypto. The build package said the opposite.\nconst crypto = require('crypto');\n\nconst item = $input.first();\nlet raw = '', src = 'none';\nif (item.binary && item.binary.data && item.binary.data.data) {\n  raw = Buffer.from(item.binary.data.data, 'base64').toString('utf8'); src = 'binary';\n} else if (typeof item.json.body === 'string') {\n  raw = item.json.body; src = 'json.body:string';\n} else if (item.json.body && typeof item.json.body === 'object') {\n  raw = JSON.stringify(item.json.body); src = 'json.body:reserialised';\n}\n\nconst headers = item.json.headers || {};\nconst given = headers['x-owner-signature'];\nconst secret = $env.OWNER_HMAC_SECRET;\n\nlet sig_valid = false;\nif (typeof secret === 'string' && secret.length > 0 && typeof given === 'string' && raw.length > 0) {\n  const mine = crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');\n  // timingSafeEqual THROWS on a length mismatch, so the length is checked first and a wrong-length\n  // signature is rejected without ever reaching the comparison.\n  if (given.length === mine.length) {\n    sig_valid = crypto.timingSafeEqual(Buffer.from(mine, 'utf8'), Buffer.from(given, 'utf8'));\n  }\n}\n\n// The body is parsed ONLY to carry fields forward. Nothing downstream acts on it before Signature Valid?.\nlet parsed = {};\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }\nconst ts = Number(parsed.ts);\nconst now = Math.floor(Date.now() / 1000);\n\nreturn [{ json: {\n  sig_valid,\n  _raw_source: src,\n  ts_fresh: Number.isFinite(ts) && Math.abs(now - ts) <= 300,\n  action: typeof parsed.action === 'string' ? parsed.action : '',\n  record_id: typeof parsed.record_id === 'string' ? parsed.record_id : '',\n  messageId: typeof parsed.messageId === 'string' ? parsed.messageId : '',\n  ts: Number.isFinite(ts) ? ts : null,\n} }];\n"
+   }
+  },
+  {
+   "id": "signature-valid",
+   "name": "Signature Valid?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    40,
+    0
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Signature Valid?",
+       "leftValue": "={{ $json.sig_valid }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "reject-unsigned-owner-request",
+   "name": "Reject Unsigned Owner Request",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    260,
+    180
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'invalid_signature' } }}",
+    "options": {
+     "responseCode": 403
+    }
+   }
+  },
+  {
+   "id": "owner-request-fresh",
+   "name": "Owner Request Fresh?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    260,
+    -80
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Owner Request Fresh?",
+       "leftValue": "={{ $json.ts_fresh }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "reject-stale-owner-request",
+   "name": "Reject Stale Owner Request",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    480,
+    100
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'stale_request' } }}",
+    "options": {
+     "responseCode": 401
+    }
+   }
+  },
+  {
+   "id": "validate-owner-action",
+   "name": "Validate Owner Action",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    480,
+    -160
+   ],
+   "parameters": {
+    "jsCode": "\n// A5 · Validate Owner Action — THE ALLOW-LIST.\n// prompt-injection.md expressed in the engine: there is exactly ONE write verb, so there is nothing for a\n// compromise to escalate INTO. It is also why CRT #11 is auditable at all — the surface is one verb.\n// Mirrors OWNER_ACTIONS in web/dashboard/lib/ownerAction.ts; a second verb must be added in BOTH places\n// deliberately, never inherited.\nconst OWNER_ACTIONS = ['release_handoff'];\n\n// record_id is signature-verified, so this is not a trust boundary — it is an INJECTION boundary: the value\n// is interpolated into an Airtable formula downstream, and a formula built from an unconstrained string is\n// the same defect class whatever signed it.\nconst RECORD_ID = /^rec[A-Za-z0-9]{1,20}$/;\n\nconst j = $json;\nreturn [{ json: { ...j,\n  action_allowed: OWNER_ACTIONS.includes(j.action) && RECORD_ID.test(j.record_id) && j.messageId.length > 0,\n} }];\n"
+   }
+  },
+  {
+   "id": "action-allowed",
+   "name": "Action Allowed?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    700,
+    -160
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Action Allowed?",
+       "leftValue": "={{ $json.action_allowed }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "reject-unknown-owner-action",
+   "name": "Reject Unknown Owner Action",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    920,
+    20
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'unknown_action' } }}",
+    "options": {
+     "responseCode": 400
+    }
+   }
+  },
+  {
+   "id": "find-target-conversation",
+   "name": "Find Target Conversation",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    920,
+    -260
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "filterByFormula": "={{ \"RECORD_ID() = '\" + $json.record_id + \"'\" }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "validate-release-target",
+   "name": "Validate Release Target",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1140,
+    -260
+   ],
+   "parameters": {
+    "jsCode": "\n// A7 · Validate Release Target — a correct signature does not say WHICH conversation.\n// ARCH-DEC (2026-09-03) names the threat: \"an unsigned owner-action endpoint would let anyone unlock any\n// conversation\" — a SIGNED one with no target check has the same hole for anyone holding the secret.\n// Three conditions, all required: the record exists · stage === 'handoff' · it was touched recently.\nconst MAX_AGE_DAYS = 30;\n\nconst ctx = $('Validate Owner Action').first().json;\nconst rows = $input.all().filter(i => i.json && i.json.id && !i.json.error);\nconst row = rows[0] ? rows[0].json : null;\nconst f = row ? (row.fields || row) : {};\n\nconst found = !!row;\nconst stage = typeof f.stage === 'string' ? f.stage : '';\nconst lu = f.last_updated ? Date.parse(f.last_updated) : NaN;\nconst fresh = Number.isFinite(lu) ? (Date.now() - lu) <= MAX_AGE_DAYS * 86400000 : false;\n\nreturn [{ json: { ...ctx,\n  target_found: found,\n  target_locked: found && stage === 'handoff' && fresh,\n  target_record: found ? row.id : '',\n  // stage is carried for the alert text only; no customer content crosses this node.\n  target_stage: stage,\n} }];\n"
+   }
+  },
+  {
+   "id": "target-found",
+   "name": "Target Found?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    1360,
+    -260
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Target Found?",
+       "leftValue": "={{ $json.target_found }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "reject-missing-target",
+   "name": "Reject Missing Target",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1580,
+    -80
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'not_found' } }}",
+    "options": {
+     "responseCode": 404
+    }
+   }
+  },
+  {
+   "id": "target-locked",
+   "name": "Target Locked?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    1580,
+    -360
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Target Locked?",
+       "leftValue": "={{ $json.target_locked }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "reject-unlocked-target",
+   "name": "Reject Unlocked Target",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1800,
+    -180
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'not_locked' } }}",
+    "options": {
+     "responseCode": 409
+    }
+   }
+  },
+  {
+   "id": "check-owner-replay",
+   "name": "Check Owner Replay",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    1800,
+    -460
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "processed_messages"
+    },
+    "filterByFormula": "={{ \"{message_id} = '\" + $json.messageId + \"'\" }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "owner-replay-seen",
+   "name": "Owner Replay Seen?",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2020,
+    -460
+   ],
+   "parameters": {
+    "jsCode": "\n// A8 · Owner replay check — booking-integrity.md item 1: the same click twice must produce ONE write.\n//\n// ⚠ MEASURED BOUND, stated rather than overclaimed: Record Owner Action Processed writes at the END, so a\n// replay arriving while the first is still IN FLIGHT finds nothing and proceeds. On the booking path a\n// deterministic calendar event id absorbs that; HERE THERE IS NO SUCH BACKSTOP. What makes it safe is that\n// the write is idempotent — setting stage='new' twice equals once. Do not write \"deduplicated\" on a sticky.\nconst ctx = $('Validate Release Target').first().json;\nconst hits = $input.all().filter(i => i.json && i.json.id && !i.json.error);\nreturn [{ json: { ...ctx, is_replay: hits.length > 0 } }];\n"
+   }
+  },
+  {
+   "id": "owner-replay",
+   "name": "Owner Replay?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    2240,
+    -460
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Owner Replay?",
+       "leftValue": "={{ $json.is_replay }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "respond-owner-replayed",
+   "name": "Respond Owner Replayed",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    2460,
+    -600
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: true } }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "release",
+   "name": "Release Handoff Lock",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    2460,
+    -320
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "operation": "update",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "id": "={{ $json.target_record }}",
+      "stage": "new",
+      "last_intent": ""
+     },
+     "matchingColumns": [
+      "id"
+     ],
+     "schema": [
+      {
+       "id": "id",
+       "displayName": "id",
+       "required": false,
+       "defaultMatch": true,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": true,
+       "removed": false
+      },
+      {
+       "id": "stage",
+       "displayName": "stage",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "options",
+       "options": [
+        {
+         "name": "new",
+         "value": "new"
+        },
+        {
+         "name": "collecting",
+         "value": "collecting"
+        },
+        {
+         "name": "ready",
+         "value": "ready"
+        },
+        {
+         "name": "confirming",
+         "value": "confirming"
+        },
+        {
+         "name": "booked",
+         "value": "booked"
+        },
+        {
+         "name": "done",
+         "value": "done"
+        },
+        {
+         "name": "handoff",
+         "value": "handoff"
+        },
+        {
+         "name": "cancel_confirming",
+         "value": "cancel_confirming"
+        },
+        {
+         "name": "cancelled",
+         "value": "cancelled"
+        },
+        {
+         "name": "reschedule_confirming",
+         "value": "reschedule_confirming"
+        },
+        {
+         "name": "",
+         "value": ""
+        }
+       ],
+       "readOnly": false,
+       "removed": false
+      },
+      {
+       "id": "last_intent",
+       "displayName": "last_intent",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {
+     "typecast": true
+    }
+   }
+  },
+  {
+   "id": "release-wrote",
+   "name": "Release Wrote?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    2680,
+    -320
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Release Wrote?",
+       "leftValue": "={{ !$json.error && !!$json.id }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "re-read-released-conversation",
+   "name": "Re-read Released Conversation",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    2900,
+    -440
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "filterByFormula": "={{ \"RECORD_ID() = '\" + $('Owner Replay Seen?').first().json.target_record + \"'\" }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "write-verified",
+   "name": "Write Verified?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    3120,
+    -440
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Write Verified?",
+       "leftValue": "={{ $json.fields ? $json.fields.stage === 'new' && !$json.fields.last_intent : false }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "recproc",
+   "name": "Record Owner Action Processed",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    3340,
+    -560
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "operation": "create",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "processed_messages"
+    },
+    "columns": {
+     "mappingMode": "defineBelow",
+     "value": {
+      "message_id": "={{ $('Owner Replay Seen?').first().json.messageId }}",
+      "sender_key": "owner:dashboard",
+      "channel": "owner",
+      "created_at": "={{ $now.toUTC().toISO() }}"
+     },
+     "matchingColumns": [],
+     "schema": [
+      {
+       "id": "message_id",
+       "displayName": "message_id",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      },
+      {
+       "id": "sender_key",
+       "displayName": "sender_key",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      },
+      {
+       "id": "channel",
+       "displayName": "channel",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      },
+      {
+       "id": "created_at",
+       "displayName": "created_at",
+       "required": false,
+       "defaultMatch": false,
+       "canBeUsedToMatch": true,
+       "display": true,
+       "type": "string",
+       "readOnly": false,
+       "removed": false
+      }
+     ]
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "build-owner-alert-release",
+   "name": "Build Owner Alert (Release)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3560,
+    -560
+   ],
+   "parameters": {
+    "jsCode": "\n// Telegram is asked for HTML parse mode (a bare `_` in Markdown mode broke a real send: \"can't parse\n// entities\", exec 2761 — the alert vanished while the caller got a 200). These three are the only\n// characters HTML mode treats as markup.\nconst esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n// A11 · Build Owner Alert (Release) — class `handoff_released`.\n// An owner-initiated WRITE that leaves no trace is the one kind nobody can audit afterwards.\n// No customer content and no full record id in the text: an alert lands in a third-party chat log.\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_released',\n  _alert_at: new Date().toISOString(),\n  owner_alert_text: esc('🔓 Handoff released from the dashboard\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'stage: handoff → new (last_intent cleared)\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
+   }
+  },
+  {
+   "id": "tg-ok",
+   "name": "Send Owner Alert (Telegram)",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    3780,
+    -560
+   ],
+   "credentials": {
+    "telegramApi": {
+     "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+     "name": "Telegram account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+    "text": "={{ $json.owner_alert_text }}",
+    "additionalFields": {
+     "appendAttribution": false,
+     "parse_mode": "HTML"
+    }
+   }
+  },
+  {
+   "id": "owner-alert-delivered",
+   "name": "Owner Alert Delivered?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    4000,
+    -560
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Owner Alert Delivered?",
+       "leftValue": "={{ !$json.error }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "undeliv",
+   "name": "Owner Alert Undelivered (no re-alert)",
+   "type": "n8n-nodes-base.noOp",
+   "typeVersion": 1,
+   "position": [
+    4220,
+    -420
+   ],
+   "parameters": {}
+  },
+  {
+   "id": "respond-owner-ok",
+   "name": "Respond Owner OK",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    4220,
+    -640
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: true } }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "build-release-failure-alert",
+   "name": "Build Release Failure Alert",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3120,
+    -140
+   ],
+   "parameters": {
+    "jsCode": "\n// Telegram is asked for HTML parse mode (a bare `_` in Markdown mode broke a real send: \"can't parse\n// entities\", exec 2761 — the alert vanished while the caller got a 200). These three are the only\n// characters HTML mode treats as markup.\nconst esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n// The release path's FAILURE alert — a separate class, deliberately not merged with the success one.\n// handoff.md: an infrastructure failure must never be indistinguishable from a normal outcome.\n// ⚠ This leaf is TERMINAL — no alert about a failed alert (Codex INVARIANT #1, infinite loop).\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_release_failed',\n  owner_alert_text: esc('⚠ Handoff release FAILED (dashboard)\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'the lock was NOT opened — the owner saw an error and the row is unchanged or half-written\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
+   }
+  },
+  {
+   "id": "tg-fail",
+   "name": "Send Release Failure Alert (Telegram)",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    3340,
+    -140
+   ],
+   "credentials": {
+    "telegramApi": {
+     "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+     "name": "Telegram account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "parameters": {
+    "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+    "text": "={{ $json.owner_alert_text }}",
+    "additionalFields": {
+     "appendAttribution": false,
+     "parse_mode": "HTML"
+    }
+   }
+  },
+  {
+   "id": "respond-release-failed",
+   "name": "Respond Release Failed",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    3560,
+    -140
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'release_failed' } }}",
+    "options": {
+     "responseCode": 502
+    }
+   }
+  },
+  {
+   "id": "sticky0",
+   "name": "Sticky — 1",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -400,
+    -260
+   ],
+   "parameters": {
+    "content": "## Two layers, and they answer DIFFERENT questions\nCloudflare Access Service Auth (in front, `/webhook/owner-*`) answers **which machine**. The HMAC here answers **which request**. Both are required: if the service token ever leaks, the signature is the only thing left standing.\n\nRaw body ON — the signature is over the exact bytes the dashboard sent.",
+    "width": 520,
+    "height": 220
+   }
+  },
+  {
+   "id": "sticky1",
+   "name": "Sticky — 2",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    480,
+    -420
+   ],
+   "parameters": {
+    "content": "## The allow-list is the security model\nExactly ONE verb: `release_handoff`. `prompt-injection.md` — there is no other write action, so there is nothing for a compromise to escalate into. This is also why CRT #11 is auditable: the surface is one verb.\n\nMirrors `OWNER_ACTIONS` in `lib/ownerAction.ts`. Two places, on purpose.",
+    "width": 520,
+    "height": 220
+   }
+  },
+  {
+   "id": "sticky2",
+   "name": "Sticky — 3",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    1360,
+    -560
+   ],
+   "parameters": {
+    "content": "## A signature does not say WHICH conversation\nThree conditions, all required: the record exists · `stage === 'handoff'` · touched within 30 days. Otherwise 404 (missing) / 409 (not locked).\n\nWithout this, one valid signature unlocks ARBITRARY conversations — the same hole the endpoint exists to close, just moved inside the fence.",
+    "width": 520,
+    "height": 220
+   }
+  },
+  {
+   "id": "sticky3",
+   "name": "Sticky — 4",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2240,
+    -700
+   ],
+   "parameters": {
+    "content": "## Replay: the honest bound\nThe dedupe row is written at the END. A replay arriving while the first is STILL IN FLIGHT finds nothing and proceeds.\n\nWhat makes that safe is that the write is IDEMPOTENT — `stage='new'` twice equals once. There is no calendar-id backstop here like the booking path has. Do NOT read this as \"deduplicated\".",
+    "width": 520,
+    "height": 240
+   }
+  },
+  {
+   "id": "sticky4",
+   "name": "Sticky — 5",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    2900,
+    -760
+   ],
+   "parameters": {
+    "content": "## Write-then-verify\nAirtable and the engine share no transaction. A 200 is not a confirmed write — `booking-integrity.md` requires the re-read on every mutation path.\n\n`stage` AND `last_intent` TOGETHER: two escalation ladders read `last_intent`, so clearing only `stage` leaves the conversation half-armed and it re-locks on the next uncertain turn.",
+    "width": 560,
+    "height": 240
+   }
+  },
+  {
+   "id": "sticky5",
+   "name": "Sticky — 6",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    3120,
+    60
+   ],
+   "parameters": {
+    "content": "## Failure is VISIBLE\nA release that did not happen must never look like one that did. Separate alert class, separate branch, 502 to the caller.\n\n⚠ This leaf is TERMINAL — no alert about a failed alert (infinite loop).",
+    "width": 520,
+    "height": 200
+   }
+  }
+ ],
+ "connections": {
+  "Receive Owner Action": {
+   "main": [
+    [
+     {
+      "node": "Verify Owner Signature",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Verify Owner Signature": {
+   "main": [
+    [
+     {
+      "node": "Signature Valid?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Signature Valid?": {
+   "main": [
+    [
+     {
+      "node": "Owner Request Fresh?",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Unsigned Owner Request",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Owner Request Fresh?": {
+   "main": [
+    [
+     {
+      "node": "Validate Owner Action",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Stale Owner Request",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Validate Owner Action": {
+   "main": [
+    [
+     {
+      "node": "Action Allowed?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Action Allowed?": {
+   "main": [
+    [
+     {
+      "node": "Find Target Conversation",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Unknown Owner Action",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Find Target Conversation": {
+   "main": [
+    [
+     {
+      "node": "Validate Release Target",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Validate Release Target": {
+   "main": [
+    [
+     {
+      "node": "Target Found?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Target Found?": {
+   "main": [
+    [
+     {
+      "node": "Target Locked?",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Missing Target",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Target Locked?": {
+   "main": [
+    [
+     {
+      "node": "Check Owner Replay",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Unlocked Target",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Check Owner Replay": {
+   "main": [
+    [
+     {
+      "node": "Owner Replay Seen?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Owner Replay Seen?": {
+   "main": [
+    [
+     {
+      "node": "Owner Replay?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Owner Replay?": {
+   "main": [
+    [
+     {
+      "node": "Respond Owner Replayed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Release Handoff Lock",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Release Handoff Lock": {
+   "main": [
+    [
+     {
+      "node": "Release Wrote?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Release Wrote?": {
+   "main": [
+    [
+     {
+      "node": "Re-read Released Conversation",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Release Failure Alert",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Re-read Released Conversation": {
+   "main": [
+    [
+     {
+      "node": "Write Verified?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Write Verified?": {
+   "main": [
+    [
+     {
+      "node": "Record Owner Action Processed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Release Failure Alert",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Record Owner Action Processed": {
+   "main": [
+    [
+     {
+      "node": "Build Owner Alert (Release)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Owner Alert (Release)": {
+   "main": [
+    [
+     {
+      "node": "Send Owner Alert (Telegram)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Owner Alert (Telegram)": {
+   "main": [
+    [
+     {
+      "node": "Owner Alert Delivered?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Owner Alert Delivered?": {
+   "main": [
+    [
+     {
+      "node": "Respond Owner OK",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Owner Alert Undelivered (no re-alert)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Owner Alert Undelivered (no re-alert)": {
+   "main": [
+    [
+     {
+      "node": "Respond Owner OK",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Release Failure Alert": {
+   "main": [
+    [
+     {
+      "node": "Send Release Failure Alert (Telegram)",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Release Failure Alert (Telegram)": {
+   "main": [
+    [
+     {
+      "node": "Respond Release Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1"
+ }
+}

@@ -44,9 +44,13 @@ Thumbs.db
 # ── Project-specific (tailored) ──
 # Raw n8n exports — only the sanitized workflow is committed
 n8n/**/*.json
+# ⚠ These were three HAND-LISTED exceptions until 2026-09-13, and the fourth workflow
+# (owner-actions, CP 6d-1) was silently NOT committable because nobody remembered to extend the list —
+# the same stale-allow-list defect that `check-deploy-separation.sh` was written to close, repeated here.
+# Suffix-matched now, so the next sanitized export inherits it. The deny above stays broad: only files
+# the sanitize step itself produces (`*.sanitized.json`) come back, never a raw export.
 !n8n/workflow.sanitized.json
-!n8n/workflow.reminders.sanitized.json
-!n8n/workflow.purge.sanitized.json
+!n8n/workflow.*.sanitized.json
 
 # Real per-client config — only the .example is committed
 config/client.config.json
@@ -82,8 +86,11 @@ web/site/public/barber-widget.js
 *.tsbuildinfo
 
 # Next.js 16 auto-generates these agent-instruction files on dev/build (tool output, not our content).
-web/site/AGENTS.md
-web/site/CLAUDE.md
+# ⚠ These two lines named `web/site/` ONLY until 2026-09-13. `web/dashboard` is a second Next app and its
+# first `npm run dev` dropped both files into a tree that had been clean — the pattern was a hand-written
+# per-app list that did not grow when a new app did. Written per-workspace now, so the next app inherits it.
+web/*/AGENTS.md
+web/*/CLAUDE.md
 
 # Playwright MCP scratch (page snapshots + console logs — can capture tokens/PII)
 .playwright-mcp/
