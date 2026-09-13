@@ -89,6 +89,10 @@ web/site/public/barber-widget.js
 # ⚠ These two lines named `web/site/` ONLY until 2026-09-13. `web/dashboard` is a second Next app and its
 # first `npm run dev` dropped both files into a tree that had been clean — the pattern was a hand-written
 # per-app list that did not grow when a new app did. Written per-workspace now, so the next app inherits it.
+# ⚠ DELIBERATE TRADE-OFF, written down because it is not obvious: this ALSO hides a hand-written
+# `web/<app>/CLAUDE.md` should anyone ever want one. Accepted — `next dev` recreates the generated
+# file on every run, so a hand-written one at that path would be overwritten anyway. Directory-scoped
+# instructions for this repo live in the root CLAUDE.md and `.claude/rules/`.
 web/*/AGENTS.md
 web/*/CLAUDE.md
 

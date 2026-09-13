@@ -29,7 +29,7 @@
     0
    ],
    "parameters": {
-    "jsCode": "\n// A2 · Verify Owner Signature — HMAC-SHA256 over the RAW bytes, constant-time compare.\n//\n// WHY RAW: the dashboard signs the exact string it sends. If n8n re-serialises the parsed JSON, key order\n// and spacing change and a correct signature stops matching — paid for once already on the Zernio inbound.\n// _raw_source is reported so a drill can SEE which route supplied the bytes; a silent fallback between two\n// routes would hide the day the webhook stops producing binary.\n//\n// CORRECTED 2026-09-13: this instance has NO global `crypto` (typeof === 'undefined') but DOES have\n// require('crypto') since NODE_FUNCTION_ALLOW_BUILTIN=crypto. The build package said the opposite.\nconst crypto = require('crypto');\n\nconst item = $input.first();\nlet raw = '', src = 'none';\nif (item.binary && item.binary.data && item.binary.data.data) {\n  raw = Buffer.from(item.binary.data.data, 'base64').toString('utf8'); src = 'binary';\n} else if (typeof item.json.body === 'string') {\n  raw = item.json.body; src = 'json.body:string';\n} else if (item.json.body && typeof item.json.body === 'object') {\n  raw = JSON.stringify(item.json.body); src = 'json.body:reserialised';\n}\n\nconst headers = item.json.headers || {};\nconst given = headers['x-owner-signature'];\nconst secret = $env.OWNER_HMAC_SECRET;\n\nlet sig_valid = false;\nif (typeof secret === 'string' && secret.length > 0 && typeof given === 'string' && raw.length > 0) {\n  const mine = crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');\n  // timingSafeEqual THROWS on a length mismatch, so the length is checked first and a wrong-length\n  // signature is rejected without ever reaching the comparison.\n  if (given.length === mine.length) {\n    sig_valid = crypto.timingSafeEqual(Buffer.from(mine, 'utf8'), Buffer.from(given, 'utf8'));\n  }\n}\n\n// The body is parsed ONLY to carry fields forward. Nothing downstream acts on it before Signature Valid?.\nlet parsed = {};\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }\nconst ts = Number(parsed.ts);\nconst now = Math.floor(Date.now() / 1000);\n\nreturn [{ json: {\n  sig_valid,\n  _raw_source: src,\n  ts_fresh: Number.isFinite(ts) && Math.abs(now - ts) <= 300,\n  action: typeof parsed.action === 'string' ? parsed.action : '',\n  record_id: typeof parsed.record_id === 'string' ? parsed.record_id : '',\n  messageId: typeof parsed.messageId === 'string' ? parsed.messageId : '',\n  ts: Number.isFinite(ts) ? ts : null,\n} }];\n"
+    "jsCode": "\n// A2 · Verify Owner Signature — HMAC-SHA256 over the RAW bytes, constant-time compare.\n//\n// WHY RAW: the dashboard signs the exact string it sends. If n8n re-serialises the parsed JSON, key order\n// and spacing change and a correct signature stops matching — paid for once already on the Zernio inbound.\n// _raw_source is reported so a drill can SEE which route supplied the bytes; a silent fallback between two\n// routes would hide the day the webhook stops producing binary.\n//\n// CORRECTED 2026-09-13: this instance has NO global `crypto` (typeof === 'undefined') but DOES have\n// require('crypto') since NODE_FUNCTION_ALLOW_BUILTIN=crypto. The build package said the opposite.\nconst crypto = require('crypto');\n\nconst item = $input.first();\nlet raw = '', src = 'none';\nif (item.binary && item.binary.data && item.binary.data.data) {\n  raw = Buffer.from(item.binary.data.data, 'base64').toString('utf8'); src = 'binary';\n} else if (typeof item.json.body === 'string') {\n  raw = item.json.body; src = 'json.body:string';\n} else if (item.json.body && typeof item.json.body === 'object') {\n  raw = JSON.stringify(item.json.body); src = 'json.body:reserialised';\n}\n\nconst headers = item.json.headers || {};\nconst given = headers['x-owner-signature'];\nconst secret = $env.OWNER_HMAC_SECRET;\n\nlet sig_valid = false;\nif (typeof secret === 'string' && secret.length > 0 && typeof given === 'string' && raw.length > 0) {\n  const mine = crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');\n  // timingSafeEqual THROWS on a length mismatch, so the length is checked first and a wrong-length\n  // signature is rejected without ever reaching the comparison.\n  if (given.length === mine.length) {\n    sig_valid = crypto.timingSafeEqual(Buffer.from(mine, 'utf8'), Buffer.from(given, 'utf8'));\n  }\n}\n\n// The body is parsed ONLY to carry fields forward. Nothing downstream acts on it before Signature Valid?.\nlet parsed = {};\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }\nconst ts = Number(parsed.ts);\nconst now = Math.floor(Date.now() / 1000);\n\nreturn [{ json: {\n  sig_valid,\n  _raw_source: src,\n  // CHOICE, stated rather than left implicit: the window is SYMMETRIC (±300s). A future-dated `ts` is\n  // accepted within the same 5 minutes because the dashboard's clock is not ours to trust to the second and\n  // a one-sided window turns ordinary clock skew into an unexplainable 401 for the owner. The replay risk a\n  // symmetric window adds is bounded by the same 5 minutes and is covered by the messageId dedupe.\n  ts_fresh: Number.isFinite(ts) && Math.abs(now - ts) <= 300,\n  action: typeof parsed.action === 'string' ? parsed.action : '',\n  record_id: typeof parsed.record_id === 'string' ? parsed.record_id : '',\n  messageId: typeof parsed.messageId === 'string' ? parsed.messageId : '',\n  ts: Number.isFinite(ts) ? ts : null,\n} }];\n"
    }
   },
   {
@@ -144,7 +144,7 @@
     -160
    ],
    "parameters": {
-    "jsCode": "\n// A5 · Validate Owner Action — THE ALLOW-LIST.\n// prompt-injection.md expressed in the engine: there is exactly ONE write verb, so there is nothing for a\n// compromise to escalate INTO. It is also why CRT #11 is auditable at all — the surface is one verb.\n// Mirrors OWNER_ACTIONS in web/dashboard/lib/ownerAction.ts; a second verb must be added in BOTH places\n// deliberately, never inherited.\nconst OWNER_ACTIONS = ['release_handoff'];\n\n// record_id is signature-verified, so this is not a trust boundary — it is an INJECTION boundary: the value\n// is interpolated into an Airtable formula downstream, and a formula built from an unconstrained string is\n// the same defect class whatever signed it.\nconst RECORD_ID = /^rec[A-Za-z0-9]{1,20}$/;\n\nconst j = $json;\nreturn [{ json: { ...j,\n  action_allowed: OWNER_ACTIONS.includes(j.action) && RECORD_ID.test(j.record_id) && j.messageId.length > 0,\n} }];\n"
+    "jsCode": "\n// A5 · Validate Owner Action — THE ALLOW-LIST.\n// prompt-injection.md expressed in the engine: there is exactly ONE write verb, so there is nothing for a\n// compromise to escalate INTO. It is also why CRT #11 is auditable at all — the surface is one verb.\n// Mirrors OWNER_ACTIONS in web/dashboard/lib/ownerAction.ts; a second verb must be added in BOTH places\n// deliberately, never inherited.\nconst OWNER_ACTIONS = ['release_handoff'];\n\n// record_id is signature-verified, so this is not a trust boundary — it is an INJECTION boundary: the value\n// is interpolated into an Airtable formula downstream, and a formula built from an unconstrained string is\n// the same defect class whatever signed it.\nconst RECORD_ID = /^rec[A-Za-z0-9]{14}$/;   // Airtable ids are rec + EXACTLY 14; {1,20} was looser than the format it checks\n\nconst j = $json;\nreturn [{ json: { ...j,\n  action_allowed: OWNER_ACTIONS.includes(j.action) && RECORD_ID.test(j.record_id) && j.messageId.length > 0,\n} }];\n"
    }
   },
   {
@@ -776,7 +776,7 @@
     -560
    ],
    "parameters": {
-    "jsCode": "\n// Telegram is asked for HTML parse mode (a bare `_` in Markdown mode broke a real send: \"can't parse\n// entities\", exec 2761 — the alert vanished while the caller got a 200). These three are the only\n// characters HTML mode treats as markup.\nconst esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n// A11 · Build Owner Alert (Release) — class `handoff_released`.\n// An owner-initiated WRITE that leaves no trace is the one kind nobody can audit afterwards.\n// No customer content and no full record id in the text: an alert lands in a third-party chat log.\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_released',\n  _alert_at: new Date().toISOString(),\n  owner_alert_text: esc('🔓 Handoff released from the dashboard\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'stage: handoff → new (last_intent cleared)\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
+    "jsCode": "\n// Telegram parses Markdown by default and a lone `_` opened an entity that never closed: the send came\n// back \"can't parse entities\" and the alert vanished while the caller still got 200 (exec 2761).\n// This is the SAME transform the Main, Reminders and Purge builders have carried all along — copied\n// deliberately rather than re-solved, because a second escaping strategy is a second truth that drifts.\nconst esc = (t) => String(t).replace(/[_*`\\[\\]~]/g, '-');\n// A11 · Build Owner Alert (Release) — class `handoff_released`.\n// An owner-initiated WRITE that leaves no trace is the one kind nobody can audit afterwards.\n// No customer content and no full record id in the text: an alert lands in a third-party chat log.\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_released',\n  _alert_at: new Date().toISOString(),\n  owner_alert_text: esc('🔓 Handoff released from the dashboard\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'stage: handoff → new (last_intent cleared)\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
    }
   },
   {
@@ -794,60 +794,27 @@
      "name": "Telegram account"
     }
    },
-   "onError": "continueRegularOutput",
+   "onError": "continueErrorOutput",
    "parameters": {
     "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
     "text": "={{ $json.owner_alert_text }}",
     "additionalFields": {
-     "appendAttribution": false,
-     "parse_mode": "HTML"
+     "appendAttribution": false
     }
    }
   },
   {
-   "id": "owner-alert-delivered",
-   "name": "Owner Alert Delivered?",
-   "type": "n8n-nodes-base.if",
-   "typeVersion": 2.3,
+   "id": "owner-alert-failed-release",
+   "name": "Owner Alert Failed (Release)",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
    "position": [
     4000,
-    -560
-   ],
-   "parameters": {
-    "conditions": {
-     "options": {
-      "caseSensitive": true,
-      "leftValue": "",
-      "typeValidation": "strict",
-      "version": 3
-     },
-     "conditions": [
-      {
-       "id": "Owner Alert Delivered?",
-       "leftValue": "={{ !$json.error }}",
-       "rightValue": "",
-       "operator": {
-        "type": "boolean",
-        "operation": "true",
-        "singleValue": true
-       }
-      }
-     ],
-     "combinator": "and"
-    },
-    "options": {}
-   }
-  },
-  {
-   "id": "undeliv",
-   "name": "Owner Alert Undelivered (no re-alert)",
-   "type": "n8n-nodes-base.noOp",
-   "typeVersion": 1,
-   "position": [
-    4220,
     -420
    ],
-   "parameters": {}
+   "parameters": {
+    "jsCode": "\n// TERMINAL by design — an alert about a failed alert is the infinite loop Codex INVARIANT #1 names.\n// It exists so a delivery failure is VISIBLE on the canvas and in the execution instead of vanishing into\n// the success path, which is exactly how exec 2761 returned 200 while nothing reached the owner.\n// It still responds: the RELEASE succeeded, and leaving the caller to time out would turn a delivered\n// write into an apparent outage.\nreturn [{ json: { _alert_delivery_failed: true } }];\n"
+   }
   },
   {
    "id": "respond-owner-ok",
@@ -876,7 +843,7 @@
     -140
    ],
    "parameters": {
-    "jsCode": "\n// Telegram is asked for HTML parse mode (a bare `_` in Markdown mode broke a real send: \"can't parse\n// entities\", exec 2761 — the alert vanished while the caller got a 200). These three are the only\n// characters HTML mode treats as markup.\nconst esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n// The release path's FAILURE alert — a separate class, deliberately not merged with the success one.\n// handoff.md: an infrastructure failure must never be indistinguishable from a normal outcome.\n// ⚠ This leaf is TERMINAL — no alert about a failed alert (Codex INVARIANT #1, infinite loop).\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_release_failed',\n  owner_alert_text: esc('⚠ Handoff release FAILED (dashboard)\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'the lock was NOT opened — the owner saw an error and the row is unchanged or half-written\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
+    "jsCode": "\n// Telegram parses Markdown by default and a lone `_` opened an entity that never closed: the send came\n// back \"can't parse entities\" and the alert vanished while the caller still got 200 (exec 2761).\n// This is the SAME transform the Main, Reminders and Purge builders have carried all along — copied\n// deliberately rather than re-solved, because a second escaping strategy is a second truth that drifts.\nconst esc = (t) => String(t).replace(/[_*`\\[\\]~]/g, '-');\n// The release path's FAILURE alert — a separate class, deliberately not merged with the success one.\n// handoff.md: an infrastructure failure must never be indistinguishable from a normal outcome.\n// ⚠ This leaf is TERMINAL — no alert about a failed alert (Codex INVARIANT #1, infinite loop).\nconst ctx = $('Owner Replay Seen?').first().json;\nreturn [{ json: {\n  _alert_class: 'handoff_release_failed',\n  owner_alert_text: esc('⚠ Handoff release FAILED (dashboard)\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'the lock was NOT opened — the owner saw an error and the row is unchanged or half-written\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
    }
   },
   {
@@ -894,13 +861,12 @@
      "name": "Telegram account"
     }
    },
-   "onError": "continueRegularOutput",
+   "onError": "continueErrorOutput",
    "parameters": {
     "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
     "text": "={{ $json.owner_alert_text }}",
     "additionalFields": {
-     "appendAttribution": false,
-     "parse_mode": "HTML"
+     "appendAttribution": false
     }
    }
   },
@@ -1282,17 +1248,6 @@
    "main": [
     [
      {
-      "node": "Owner Alert Delivered?",
-      "type": "main",
-      "index": 0
-     }
-    ]
-   ]
-  },
-  "Owner Alert Delivered?": {
-   "main": [
-    [
-     {
       "node": "Respond Owner OK",
       "type": "main",
       "index": 0
@@ -1300,14 +1255,14 @@
     ],
     [
      {
-      "node": "Owner Alert Undelivered (no re-alert)",
+      "node": "Owner Alert Failed (Release)",
       "type": "main",
       "index": 0
      }
     ]
    ]
   },
-  "Owner Alert Undelivered (no re-alert)": {
+  "Owner Alert Failed (Release)": {
    "main": [
     [
      {

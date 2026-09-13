@@ -30,11 +30,27 @@
 # noisy one.
 set -uo pipefail
 
-input="$(cat)"
-tool="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null || echo '')"
-cmd="$(printf  '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null || echo '')"
+#  4. UNEARNED PASS (2026-09-13). Two modes were being conflated. As a HOOK the scope `@{u}..HEAD` is
+#     exactly right — it is what leaves the machine. But the same file is also run BY HAND as a pre-commit
+#     gate, and then that scope is EMPTY: `rev-list --count` is 0, nothing is extracted, and it exits 0.
+#     Worse, invoked with no hook payload at all it never even reached the scan — line "[[ $tool == Bash ]]
+#     || exit 0" returned success. A gate reporting a pass it did not earn is the `check-listeners` dead
+#     `exit 1` again: green, and measuring nothing. Manual mode below scans the WORKING TREE too, and
+#     returns 2 NOT MEASURED — never 0 — when there is genuinely nothing to look at.
 
-[[ "$tool" == "Bash" && "$cmd" == *"git push"* ]] || exit 0
+input=""
+manual=1
+if [[ ! -t 0 ]]; then
+  input="$(cat)"
+  tool="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null || echo '')"
+  cmd="$(printf  '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null || echo '')"
+  [[ -n "$tool" ]] && manual=0
+fi
+
+if [[ "$manual" -eq 0 ]]; then
+  # HOOK MODE — unchanged contract: only a `git push` is inspected, anything else passes through.
+  [[ "$cmd" == *"git push"* ]] || exit 0
+fi
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -58,6 +74,30 @@ else
   ahead=1
 fi
 
+# MANUAL MODE also scans what is NOT yet committed — the whole reason a person runs this before a commit.
+# Untracked files go through `--exclude-standard`, so gitignored secrets (.env, CLAUDE.local.md) are not read.
+if [[ "$manual" -eq 1 ]]; then
+  # NOT MEASURED is decided on the REAL question — is there anything under review? — and not on whether
+  # $tmp/raw happens to be empty. `git log --format=%B` always yields a commit message, so a check on raw
+  # alone could never reach this branch: dead code wearing a guard's clothes, which is the defect this
+  # whole file keeps paying for.
+  # `ahead` is set to 1 by the no-upstream fallback above, so it cannot answer this question. Ask it
+  # directly: is anything unpushed, and is the tree dirty?
+  unpushed=0
+  if git rev-parse --verify -q '@{u}' >/dev/null 2>&1; then
+    unpushed="$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)"
+  fi
+  if [[ "${unpushed:-0}" -eq 0 ]] && [[ -z "$(git status --porcelain 2>/dev/null)" ]]; then
+    echo "secret-scan: NOT MEASURED — no unpushed commits and a clean working tree; there was nothing to scan." >&2
+    echo "  (a pass here would be a pass this gate did not earn)" >&2
+    exit 2
+  fi
+  git diff -U0 HEAD 2>/dev/null | grep -E '^[+]' | grep -v -E '^[+][+][+]' >> "$tmp/raw" || true
+  while IFS= read -r f; do
+    [[ -f "$f" ]] && sed -e 's/^/+/' -- "$f" >> "$tmp/raw" 2>/dev/null
+  done < <(git ls-files --others --exclude-standard 2>/dev/null)
+fi
+
 # Self-check: commits pending but nothing extracted = the scan itself broke. Never approve unscanned.
 if [[ ! -s "$tmp/raw" ]]; then
   if [[ "${ahead:-0}" -gt 0 ]] && [[ -n "$(git log -1 --format=%H 2>/dev/null)" ]] \
@@ -66,13 +106,22 @@ if [[ ! -s "$tmp/raw" ]]; then
     echo "a push it did not actually scan. Fix the hook; do not bypass it." >&2
     exit 2
   fi
+  # Nothing committed AND nothing in the working tree. For the hook that is a legitimate no-op; for a
+  # person running this as a gate it is indistinguishable from a broken scan, so it is NOT MEASURED.
+  if [[ "$manual" -eq 1 ]]; then
+    echo "secret-scan: NOT MEASURED — nothing to scan (no unpushed commits and a clean working tree)." >&2
+    exit 2
+  fi
   exit 0
 fi
 
 # ── EXCLUSIONS: shapes that look secret-ish but are not. Each is a real FP from this repo. ──
 EXCLUDE='("integrity"|"resolved"|sha512-|sha1-|REPLACE_WITH_|PLACEHOLDER|__REDACTED__|example\.com|process\.env\.|os\.environ|\$\{?[A-Z_]{3,}\}?|\$credentials|<your-|xxxx)'
 grep -Ev -- "$EXCLUDE" "$tmp/raw" > "$tmp/cand" || true
-[[ -s "$tmp/cand" ]] || exit 0
+if [[ ! -s "$tmp/cand" ]]; then
+  [[ "$manual" -eq 1 ]] && echo "secret-scan: OK — scanned $(wc -l < "$tmp/raw") added line(s); every candidate was an excluded shape." >&2
+  exit 0
+fi
 
 # ── RULES: value SHAPES ──────────────────────────────────────────────────────
 declare -a RULES=(
@@ -104,8 +153,9 @@ for rule in "${RULES[@]}"; do
 done
 
 if (( hits > 0 )); then
-  echo "BLOCKED: the commits about to be pushed contain ${hits} possible secret(s) (see above)." >&2
-  echo "Scope scanned: ${base:-HEAD}..HEAD. Remove it, ROTATE it if it ever left this machine, then push." >&2
+  echo "BLOCKED: ${hits} possible secret(s) in the scanned content (see above)." >&2
+  echo "Scope scanned: ${base:-HEAD}..HEAD$([[ "$manual" -eq 1 ]] && printf ' + working tree'). Remove it, ROTATE it if it ever left this machine, then push." >&2
   exit 2
 fi
+[[ "$manual" -eq 1 ]] && echo "secret-scan: OK — scanned $(wc -l < "$tmp/cand") candidate line(s) against ${#RULES[@]} value-shape rules." >&2
 exit 0

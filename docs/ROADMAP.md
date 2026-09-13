@@ -173,7 +173,7 @@ Plan approved in chat 2026-09-03 (full `/plan-flow`, decisions D-1…D-11 ruled)
 risk last: **6a** site+widget → **6b** snippet → **6c** dashboard (read-only) → **6d** D11 write action.
 Each CP waits for its own written approval (plan-gate).
 
-- ▶ **6a — barber demo site + widget.**
+- ✅ **6a — barber demo site + widget.** *(Closed 2026-09-13 when its last open sub-item — the uncleaned test booking — was MEASURED clean on both halves: 0 `booked` rows in `appointments`, 0 events on the production calendar since 2026-08-01, the calendar read positive-controlled as a real Google response rather than an empty one. Yigitcan's ruling, CP 6d closure: "6a `▶` kalır, 7 bitince kapanır".)*
   - ✅ **6a-1 — config contract for the frontend (DONE 2026-09-03).** `web/` npm workspace + `@salon/shared`;
     `web/shared/src/config/loadConfig.ts` reads `config/client.config.json` (gitignored) and falls back to the
     committed mock example, then **ajv-validates against the COMMITTED `schemas/client.config.schema.json`** and
@@ -283,11 +283,11 @@ Each CP waits for its own written approval (plan-gate).
     bubbles rendered invisible (CSS needs `.in`; my drill read textContent and passed on a blank screen) · a hydration
     mismatch that broke the Turnstile mount · the webhook URL held the n8n EDITOR path, which my own wildcard shape check
     waved through. All fixed; drills tightened.
-    **⚠ OPEN — test data NOT yet cleaned:** the booking (GCal event + `appointments` + `conversations` rows) is still live.
+    **✅ CLOSED 2026-09-13 — and it was stale in BOTH halves, so it is corrected here rather than ticked beside.** It read *"⚠ OPEN — test data NOT yet cleaned: the booking (GCal event + `appointments` + `conversations` rows) is still live."* Measured: **`appointments` has 0 rows in `booked` status** (every row is `cancelled`), and the production calendar returns **0 events since 2026-08-01** — a real Google response (`kind: calendar#events`, `accessRole`, `nextSyncToken`) with an empty `items`, not a failed call dressed as a zero. The calendar half had been called a capability wall in the CP 6d-1 report; it was not. The `googleApi` credential is selectable from a new workflow exactly as the Airtable one is, and a temporary read workflow (created, used, deleted) answered the question in one pass.
     The Google Calendar connector available here cannot see that service-account calendar, so the clean path is the bot's
     own cancel flow from the browser (`I want to cancel my appointment` → `yes`), which also drills cancel. Spend this
     round: **$0.014233** month-to-date against the $10 cap.
-  - ☐ 6a-2 slice 2 → remaining: cancel the test booking + clean up, snippet/dashboard untouched against the real endpoint (the embedded panel is a static
+  - ✅ 6a-2 slice 2 → CLOSED 2026-09-13, was: cancel the test booking + clean up, snippet/dashboard untouched against the real endpoint (the embedded panel is a static
     transcription today and is labelled as such — it is not wired to the engine yet).
 - ✅ **6b — embeddable snippet.**
   *(Marker flipped ▶ → ✅ on 2026-09-13, measured: **12 ✅ children and not one `☐`**. The single `◐`
@@ -2201,7 +2201,14 @@ yazılıyor — `close-with-the-gap-inside-the-tick`: boşluk tik'in İÇİNDE d
       the `owner-*` service token → reaches n8n, `403 {"ok":false,"error":"invalid_signature"}` (JSON, the
       workflow's own refusal) · **the OTHER service token (the n8n-API one) → `403`, refused by Access.**
       That third row is the one that matters: Access is scoping per application, not merely "on".
-    - **Cases measured 5 of 7**, plus the end-to-end. 1 no token `403` · 2 wrong HMAC `403` ·
+    - **SEVEN OF SEVEN as of 2026-09-13** (`run-d11: 7 passed, 0 failed`) once the shared secret reached
+      `~/.n8n-api.env`: case 3 (action off the allow-list) → **400**, case 7 (stale `ts`) → **401**, and the
+      discrimination check this file exists for passed too (case 1 = 403 vs case 5a = 200). ⚠ Cases 4/5/6 read
+      the DATA through a **`STATE_URL`** route added to the harness this round: a machine holding the ENGINE's
+      credentials but no standalone PAT had no way to assert on the data, and comparing `NO-AIRTABLE` with
+      `NO-AIRTABLE` is two equal readings from an instrument that measured nothing. With NEITHER route set the
+      harness still fails case 6 loudly — the fallback adds a route, not a way to pass without evidence.
+      Earlier the same day only 5 of 7 ran, plus the end-to-end. 1 no token `403` · 2 wrong HMAC `403` ·
       4 nonexistent record → `404` and the row unchanged · **§5b, the assumption that had never been measured:
       a REAL record id belonging to the `leads` table → `404`** · 5/6 real release then replay.
       **The button itself was clicked in a browser** (two-step confirm → "Released — the bot will answer the next
@@ -2217,11 +2224,57 @@ yazılıyor — `close-with-the-gap-inside-the-tick`: boşluk tik'in İÇİNDE d
       `Bad Request: can't parse entities`, swallowed by `onError: continueRegularOutput` while the caller got a
       200. Fixed (HTML parse mode + escaping) and re-measured: `ok:true, message_id 286`. A named
       `Owner Alert Undelivered (no re-alert)` leaf now makes the failure visible on the canvas without
-      alerting about an alert. **The same mechanism is live in the main workflow**; its last 40 executions
-      carried 5 alert sends and 0 failures, but this measurement does NOT clear it — I could not confirm those
-      texts exercised the defect, and a zero from a control that may never fire is not evidence.
+      alerting about an alert. ⚠ **CORRECTED THE SAME DAY: the sentence that stood here said "the same
+      mechanism is live in the main workflow". That was an INFERENCE from a shared node type, and it was
+      WRONG.** Measured across all four workflows: Main, Reminders and Purge each strip `[_*`[]~]` to `-`
+      in their alert builder — Main's line even carries the comment *"class names carry '_'"* — and each
+      wires the Telegram node's ERROR output to a named `Owner Alert Failed (...)` leaf. A connection dump
+      (run, not assumed) shows `Build Owner Alert` is the ONLY feeder of Main's Telegram node, so that
+      transform cannot be bypassed. **The mechanism is shared; the defect was not — the workflow that
+      regressed was the NEW one**, which invented a second escaping strategy instead of copying the proven
+      one. It has been aligned to the repo's single pattern, and Main's 191-node export was never touched
+      this round (`git diff` on it is empty).
+
+
     - ✅ **The open item "the button shipped before the endpoint" CLOSES here** — the endpoint exists, is
       reachable through both layers, and the button drove it end to end.
+  - ✅ **CP 6d CLOSING ROUND (2026-09-13) — four things measured, three of them corrections to my own report.**
+    - **run-d11 7/7.** See the 6d-1 entry above.
+    - **The alert path was aligned to the repo's ONE proven pattern** rather than kept as a second one:
+      Telegram's default parse mode + `[_*`[]~]` stripped in the builder + the node's ERROR output wired to a
+      named `Owner Alert Failed (Release)` leaf — the shape Main, Reminders and Purge have all carried.
+      **Mutation-tested in both directions, which the first attempt was not:** with a routable chat id the leaf
+      does NOT run and the alert delivers (exec 2780, `last_intent` rendered as `last-intent`, proving the
+      transform ran); with an unroutable one the **leaf RUNS** (exec 2783), the release is still written, and
+      the caller still gets `200` — because the release genuinely happened and letting it time out would turn a
+      completed write into an apparent outage. ⚠ The first attempt at this failed silently for a reason worth
+      keeping: I set `onError: continueErrorOutput` in the builder, the edit did not land, and the mutant run
+      showed `Bad Request: chat not found` arriving on the MAIN output with the leaf unreached. The defect was
+      mine, not n8n's — and it was only visible because the mutation was run instead of assumed.
+    - **`scripts/secret-scan.sh` was reporting a pass it had not earned**, and the finding was its own author's.
+      As a push HOOK its `@{u}..HEAD` scope is exactly right. Run BY HAND as a pre-commit gate that scope is
+      EMPTY, and with no hook payload it returned 0 without reaching the scan at all. It now has a MANUAL mode
+      that also reads the working tree (tracked diffs + untracked files, `--exclude-standard` so gitignored
+      secrets are never read) and returns **2 NOT MEASURED — never 0 — when there is genuinely nothing to
+      scan**. Proven four ways: clean repo → 2 · dirty file → 0 · planted `AKIA…` in an untracked file → 2 ·
+      planted `ghp_…` in a tracked modified file → 2 · and hook mode still passes a non-push command through.
+      ⚠ The first NOT MEASURED condition I wrote was **unreachable** — it tested whether the extracted buffer
+      was empty, but `git log --format=%B` always yields a commit message, so it could never fire. Dead code
+      wearing a guard's clothes, in the file whose entire history is that defect. It asks the real question now.
+      🔴 **`scripts/check-hook-drift.sh` is therefore RED:** the INSTALLED copy at `~/.claude/hooks/` is still
+      the old one. Overwriting it is on the `irreversible-actions.md` list by name, so it is NOT done and is an
+      OPEN item — until it is reconciled, the guard that RUNS is not the guard that was reviewed.
+    - **The three `leads` rows with no `created_at` are NOT captured leads.** They are `id` 1, 2 and 3 — the
+      three empty records Airtable creates with a new table — and a filter proven able to return rows (5 shown)
+      returns **zero** when asked for blank-timestamp rows carrying a name, phone or message. So the earlier
+      framing of them as "permanent PII" was wrong: they are permanent EMPTY rows, and the question is tidiness,
+      not privacy. They are still excluded from the purge, because a row of unknown age is not one to delete.
+    - **`processed_messages` carries the same blank-timestamp hazard in MECHANISM but has zero rows exposed to
+      it today** (measured; the inverse query returns rows, so the zero is about the data and not the
+      instrument). `Find Old Processed` filters `{created_at} < cutoff` with no blank guard. One-line hardening
+      whenever that branch is next opened — NOT applied this round, because it is an existing production node
+      with nothing currently at risk and the instruction was to measure.
+
   - ✅ **CP 6d-1 PART B — the `leads` TTL purge branch (2026-09-13).** Eleven nodes added to the EXISTING purge
     workflow (now 26); the instance was never unpublished, only that workflow was deactivated for the edit and
     re-activated after, verified from the API. Export diff showed **10 nodes added, 0 removed, exactly ONE

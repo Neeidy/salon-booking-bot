@@ -13,6 +13,7 @@
 # Usage:
 #   set -a; . ~/.n8n-api.env; set +a
 #   OWNER_ACTION_URL="https://<n8n-host>/webhook/owner-release" \
+#   STATE_URL="https://<n8n-host>/webhook/<a read endpoint>"   # OR the two AIRTABLE_* vars below
 #   OWNER_HMAC_SECRET="…" AIRTABLE_PAT_READONLY="…" AIRTABLE_BASE_ID="app…" \
 #   TARGET_RECORD="rec…" bash tests/run-d11.sh
 #
@@ -25,6 +26,11 @@ CID="${CF_OWNER_ACCESS_CLIENT_ID:?set CF_OWNER_ACCESS_CLIENT_ID (from ~/.n8n-api
 CSE="${CF_OWNER_ACCESS_CLIENT_SECRET:?set CF_OWNER_ACCESS_CLIENT_SECRET}"
 TGT="${TARGET_RECORD:?set TARGET_RECORD — the Airtable record id of a conversation in stage=handoff}"
 PAT="${AIRTABLE_PAT_READONLY:-}"; BASE="${AIRTABLE_BASE_ID:-}"
+# ⚠ STATE_URL is not a standing endpoint: the 2026-09-13 7/7 run used a TEMPORARY n8n workflow that
+# returned "stage|last_intent" for a posted record_id, created for the drill and deleted after it. Recreate
+# it (or supply AIRTABLE_PAT_READONLY + AIRTABLE_BASE_ID) before re-running, or cases 4/5/6 have no way to
+# read the DATA — and this file's whole premise is that a status code is only half the test.
+
 RUN="$(date +%s)"
 PASS=0; FAIL=0
 
@@ -51,8 +57,25 @@ body_for() { # body_for <action> <sender> <messageId> <ts>
   printf '{"action":"%s","record_id":"%s","messageId":"%s","ts":%s}' "$1" "$2" "$3" "$4"
 }
 
-# Airtable read helper — returns "stage|last_intent" for TGT, or "NO-AIRTABLE" when unconfigured.
+# Reading the STATE is half the test: cases 4/5/6 must show what the DATA did, not what a status code
+# said. Two routes, because the credential you have depends on where you are standing:
+#   · AIRTABLE_PAT_READONLY + AIRTABLE_BASE_ID — a standalone read token.
+#   · STATE_URL — an endpoint that returns "stage|last_intent" for a posted record_id. A machine that
+#     holds the ENGINE's credentials but no separate PAT has this route and not the first one; that was
+#     exactly the situation on 2026-09-13, and without it cases 4/5/6 degrade to comparing "NO-AIRTABLE"
+#     with "NO-AIRTABLE" — two equal readings from an instrument that measured nothing, which this file's
+#     own header calls a broken instrument rather than a pass.
+# With NEITHER configured it still returns NO-AIRTABLE and case 6 still FAILS loudly. That is deliberate:
+# the fallback adds a route, it does not add a way to pass without evidence.
 state_of() {
+  if [ -n "${STATE_URL:-}" ]; then
+    curl -s -4 -m 25 -X POST "$STATE_URL" \
+      -H 'Content-Type: application/json' \
+      ${CF_OWNER_ACCESS_CLIENT_ID:+-H "CF-Access-Client-Id: $CF_OWNER_ACCESS_CLIENT_ID"} \
+      ${CF_OWNER_ACCESS_CLIENT_SECRET:+-H "CF-Access-Client-Secret: $CF_OWNER_ACCESS_CLIENT_SECRET"} \
+      --data "{\"record_id\":\"$TGT\"}"
+    return
+  fi
   [ -n "$PAT" ] && [ -n "$BASE" ] || { echo "NO-AIRTABLE"; return; }
   curl -s -4 -m 25 -G "https://api.airtable.com/v0/$BASE/conversations/$TGT" \
     -H "Authorization: Bearer $PAT" \
