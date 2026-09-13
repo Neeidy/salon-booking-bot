@@ -13,6 +13,7 @@
 
 - `.env.example`
 - `.gitignore`
+- `.vercelignore`
 - `CLAUDE.md`
 - `LICENSE`
 - `MASTER-BRIEF.md`
@@ -142,6 +143,7 @@
 - `scripts/check-computed-reply-coverage.py`
 - `scripts/check-config-schema.cjs`
 - `scripts/check-content-parity.py`
+- `scripts/check-deploy-separation.sh`
 - `scripts/check-font-provenance.sh`
 - `scripts/check-hero-engine-text.cjs`
 - `scripts/check-hook-drift.sh`
@@ -170,6 +172,7 @@
 
 ### tests/unit
 
+- `tests/unit/locked-once-parity.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/validate-intent.test.cjs`
 
@@ -266,6 +269,7 @@
 - `web/site/lib/config.ts`
 - `web/site/lib/endpoint.ts`
 - `web/site/lib/heroScenarios.ts`
+- `web/site/lib/lockedOnce.ts`
 
 ### web/site/public/fonts
 
@@ -289,6 +293,7 @@
 
 - `web/snippet/src/fonts.ts`
 - `web/snippet/src/index.ts`
+- `web/snippet/src/lockedOnce.ts`
 - `web/snippet/src/styles.ts`
 - `web/snippet/src/turnstile.ts`
 

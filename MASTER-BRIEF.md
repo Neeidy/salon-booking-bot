@@ -187,20 +187,49 @@ Each layer catches a different class of error → no single point of dependency.
 
 ## 9. Critical-Review Targets (Codex audit — gate before "done")
 
+**THIS TABLE IS THE SINGLE SOURCE OF AUDIT STATUS.** `docs/ARCHITECTURE-DECISIONS.md` §7 holds the
+EVIDENCE and the HISTORY — what was audited, when, what was found — and points here for status. It does
+not restate it: a second status table is a second truth, and `governance-sync.md` §1 says a copy always
+drifts. (Ruling 2026-09-13. A parity guard between the two was considered and REJECTED — a guard that
+keeps a copy in sync legitimises the copy.)
+
+**The five criteria** — ⚠ *this legend did not exist until 2026-09-13, and its absence had a cost: a
+plan dropped criterion 2 from a CRT re-derivation with the reasoning "the legend does not define it, so
+I did not use it". A documentation gap closed a whole RISK AXIS. The definitions were in use across the
+repo; only the key was missing.*
+
+| # | Criterion | Means |
+|---|---|---|
+| **1** | irreversible | once done it cannot be undone — a calendar event, a sent message, rewritten history |
+| **2** | **money / quota** | it spends, or it consumes a metered allowance that cannot be raised in time. ⚠ *Live in this project, not theoretical: the free Airtable plan (1,000 calls/month/workspace, 5 req/s/base) stopped this project once already.* |
+| **3** | data leak | a secret or PII can reach somewhere it must not — a public repo, a browser bundle, a screenshot |
+| **4** | shared state / race | two writers, one row; TOCTOU; no atomic lock across Airtable + Calendar |
+| **5** | silent failure | it breaks and nobody is told — the failure mode this repo forbids by name |
+
+⚠ **`[x]` IN THE TABLE BELOW MEANS ONE THING: audited AND findings addressed. THERE IS NO THIRD STATE.**
+Not "mostly", not "audited with items outstanding". A row whose findings have not been through the audit
+is `[ ]`, with a one-line note saying where its closure lives. *(Ruling 2026-09-13, after #12 was ticked
+with "closed WITH a recorded gap": five items had never entered a second-vendor audit at all. A record
+that can be MISREAD AT A GLANCE is a wrong record — the caveat sits in the cell, the tick sits in the
+scan, and the scan is what a reader trusts.)* The one deliberate exception is a risk that WAS audited and
+CONSCIOUSLY ACCEPTED with its reasoning — that is a finding addressed, not a finding pending (#13).
+
 | # | What | Why critical (criterion) | Status |
 |---|---|---|---|
 | 1a | Idempotency — same message twice → one booking (dedupe store + TTL) | 4 — shared state | [ ] |
 | 1b | Concurrency / no-double-book — two customers, same slot; **no atomic lock** → write-then-verify | 4 — race / TOCTOU | [ ] |
 | 2 | Google Calendar write (external, hard to undo) | 1 — irreversible | [ ] |
-| 3 | Webhook verification — Zernio HMAC + widget (no secret → rate-limit/bot-protect) | 1/3 — origin/leak | [ ] |
+| 3 | Webhook verification — Zernio HMAC + widget (no secret → rate-limit/bot-protect) | 1/3 — origin/leak | **[x]** — CLOSED (CP5d; `docs/ROADMAP.md`: "CRT #3 audit CLOSED") |
 | 4 | Secret + PII handling in a PUBLIC repo | 3 — data leak | [ ] |
 | 5 | Human-handoff threshold (low-confidence → human) | 1/5 — wrong action / silent | [ ] |
 | 6 | Error visibility (no silent failure) | 5 — silent failure | [ ] |
-| 7 | n8n control-plane exposure — only webhook endpoints public; editor/admin UI never on the internet (behind auth / Cloudflare Access) | 1/3 — admin takeover | [ ] |
-| 8 | Booking mutation via bot (cancel/reschedule = delete-write on real appointments) | 1+4 — irreversible + shared state | [ ] |
+| 7 | n8n control-plane exposure — only webhook endpoints public; editor/admin UI never on the internet (behind auth / Cloudflare Access) | 1/3 — admin takeover | **[x]** — CLOSED (CP5b; `docs/ROADMAP.md`: "CRT #7 control-plane — CLOSED") |
+| 8 | Booking mutation via bot (cancel/reschedule = delete-write on real appointments) | 1+4 — irreversible + shared state | **[x]** ⚠ CLOSED with a residual — `docs/ROADMAP.md`: "CRT #8 CLOSED (last round; residual concurrency → Phase 5)" |
 | 9 | Dashboard auth (PII + destructive surface) | 3 — data leak / unauthorized destructive | [ ] |
-| 10 | **Dashboard API layer authz** (Phase 6) — our own API layer is the only path to Airtable: PAT never reaches a browser, PAT is READ-ONLY, the endpoint is not a general proxy, and the Vercel bundle contains no dashboard/PII code path | 3 — data leak | [ ] |
+| 10 | **Dashboard API layer authz** (Phase 6) — our own API layer is the only path to Airtable: PAT never reaches a browser, PAT is READ-ONLY, the endpoint is not a general proxy, and the Vercel bundle contains no dashboard/PII code path | 3 — data leak | **[x]** — CLOSED 2026-09-12, `b097053` pushed (CP 6c-1) |
 | 11 | **D11 owner write path** (Phase 6) — release-handoff-lock via a new n8n webhook: HMAC + Access Service Auth + action allow-list + target validation + write-then-verify + owner-alert + idempotent replay | 1+4 — unauthorized write on shared state | [ ] |
+| 12 | **Date resolution** — `Resolve Date` + the `dateExpr` prompt/schema contract | 1+4+5 — a wrong-day event, three stores disagreeing, and the model was wrong at `confidence=0.92` so no threshold catches it | **[ ]** — round-5's five R3 items never went through the second-vendor audit; that is not "findings addressed". Closure belongs to CP 6d-1's CRT round. Evidence + counts so far: ARCH-DEC §7 |
+| 13 | **The embeddable snippet's isolation + supply chain** — `web/snippet/` and the transport it imports | 3 — the widget executes on a THIRD PARTY's page | **[x]** ⚠ CLOSED WITH AN ACCEPTED R1-CLASS FINDING — an open Shadow DOM is style encapsulation, NOT a security boundary; the only fix is a cross-origin iframe and that is on the approved NOT-build list. Recorded and architecturally justified, NOT repaired. Evidence: ARCH-DEC §7 |
 
 ## 10. Roadmap (Phase 0 → 8) + Definition of Done
 

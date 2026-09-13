@@ -37,7 +37,13 @@ sources() {
 
 # ---- A. the declaration -------------------------------------------------------------------------
 if [ ! -f .vercelignore ]; then
-  echo "✗ .vercelignore is missing — the site/dashboard split would rest entirely on a panel setting."
+  # ⚠ This message used to read "…would rest entirely on a panel setting." There is no panel: the repo
+  # has no Vercel project and no deployment (confirmed 2026-09-12, after the message was written). A
+  # live, WRONG sentence about a security boundary, in a public repo — the same class as the firewall
+  # claim corrected the day before. What the missing file actually costs is the DECLARATION, not a
+  # control: nothing today enforces the split at deploy time, because there is no deploy.
+  echo "✗ .vercelignore is missing — the site/dashboard split would then be declared NOWHERE in git."
+  echo "  (The file is pre-provisioning, not a control. This check's own value is section B below.)"
   fail=1
 elif ! grep -qE "^[[:space:]]*${PRIVATE}[[:space:]]*/?$" .vercelignore; then
   echo "✗ .vercelignore does not exclude '${PRIVATE}'. The split is then undeclared in git."
