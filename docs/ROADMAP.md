@@ -786,11 +786,22 @@ Each CP waits for its own written approval (plan-gate).
         design and is not carried as a finding at all.
         **Reachability: `curl` from Yigitcan's network returned `000` (timeout)** — operator
         measurement from an external vantage point, not reproducible from this box and not re-openable
-        now that the listener is closed. ⚠ **The mechanism is UNIDENTIFIED and is deliberately not
-        called "the firewall".** This machine has no `iptables`/`nft` binary and no `ufw`/`firewalld`,
-        and any ruleset is unreadable without root: one vantage point measured an EFFECT, and naming a
-        cause we did not measure would be the exact unproven-mechanism claim `reporting.md` forbids.
-        The open probe that would settle it is in `remote-operator.md`.
+        now that the listener is closed.
+        ⚠ **THE MECHANISM IS NAMED — and the sentence that stood here was WRONG, about a security
+        control, in a public repo.** It named three firewall tools and declared all of them absent from
+        this machine. That was **an artefact of my own `PATH`**: `command -v` as a non-root user does not
+        search `/usr/sbin`, so "not found" meant "not on my PATH" and got written down as "not on this
+        machine". Measured 2026-09-13, four independent ways: the binaries exist, the service unit is
+        **loaded and ACTIVE**, its config declares it **enabled**, and a kernel reject module carries a
+        non-zero refcount — at least one reject rule in place. *(Package, unit and path names are
+        deliberately not written here: a precise firewall description for a reachable host is a service
+        inventory on a public repo — `security-auditor`'s 2026-09-12 M3 class, flagged again here.)*
+        **A negative result about a TOOL is a claim
+        about your environment, not about the box** (same family as the empty-search rule; here the
+        instrument was `$PATH`).
+        The half that was TRUE stays true: the ruleset is root-only (three separate read routes all refused), so **naming the mechanism is not reading the policy** —
+        and "the firewall is up" does not establish that the firewall is what closed 3001. See the
+        policy record below (CP 6c-3).
         **What actually changed as a result:** the rule now has a SWEEP, not just a bind instruction —
         `scripts/check-listeners.sh`.
         ⚠ **AND THE FIRST VERSION OF IT WAS INERT — found by BOTH L2 auditors, independently, hours
@@ -824,6 +835,188 @@ Each CP waits for its own written approval (plan-gate).
         inventory for a reachable host is worth more to a stranger than it is to us
         (`security-auditor` M3).
 
+      - ◐ **CP 6c-3 — the closing round. IN PROGRESS, not committed.** Six items, the budget's last
+        round. Every acceptance below is a MEASUREMENT; none closes on "it is in the DOM".
+        - ✅ **S6a — I published a FALSE claim about a security control, and it was mine.**
+          `remote-operator.md` and this file named three firewall tools and declared all of them absent
+          from this machine. Measured 2026-09-13, four independent ways: the binaries exist, the service
+          unit is **loaded and ACTIVE**, its config declares it **enabled**, and a kernel reject module
+          is loaded with a non-zero refcount. *(Package, unit and path names are deliberately not written
+          here — a precise firewall description for a reachable host is a service inventory on a public
+          repo; `security-auditor`'s 2026-09-12 M3 class.)* The cause was `$PATH`: `command -v` as a
+          non-root user does not search
+          `/usr/sbin`, so "not found" meant "not on my PATH" and I wrote it down as a fact about the
+          box. **A negative result about a TOOL is a claim about your environment** — same family as
+          the empty-search rule, with `$PATH` as the instrument. Corrected in place on both surfaces.
+        - ⏳ **S6b — the POLICY, which naming the mechanism does NOT give us.** Default incoming
+          policy, the allow list, and whether 3001 was closed by default-deny or merely by absence
+          from that list are three different facts, and "a wall" and "a door that happened to be shut"
+          are not the same assurance. All three need root — three separate read routes were tried and
+          all three refused. Requested from Yigitcan; when it lands it is recorded as **"root output,
+          operator ran it"**, never as "measured". ⚠ *And only the DEFAULT POLICY and the 3001 verdict
+          are recorded — never the allow list itself, which is precisely the service inventory this repo
+          removed once already.*
+        - ✅ **S4 — `esc()` escaped `&<>"` and not `'`.** It was SAFE, which is exactly why it had to
+          be fixed: every call site sits inside a double-quoted attribute, so the guarantee lived in
+          the three callers rather than in the escaper. Drilled both ways with a single-quoted
+          attribute template: before → `<span title='Tom' onfocus=alert(1) x=''>`, i.e. a real
+          break-out; after → `Tom&#39; onfocus=…`, inert.
+        - ✅ **S2 — `.retry-note` outlived its reason.** W67's line ("Not ready to send yet") was added
+          when a retry could not send and was never removed, so it stood over an OPEN composer telling
+          the visitor they cannot do what they can now do. It now dies inside `setGate('ready')` — at
+          the instant its reason dies, not on the next successful send. **Measured end to end in
+          headless Chromium** against the real bundle, with Turnstile and `fetch` stubbed: note after
+          the failed retry click = 1, note after the next token = 0. **Mutation:** the same bundle with
+          the removal pointed at a class that does not exist → 1 and 1, VERDICT FAIL. The control
+          produces the defect.
+        - ✅ **S1 — the two surfaces had diverged on the handoff lock.** `LiveChatPanel` never read
+          `reply.locked`, so a locked conversation repeated the same sentence on every message while
+          the snippet showed it once. Fixed as a MIRROR, not a shared module: `@salon/shared` holds no
+          UI state (it is imported by the snippet, whose bundle is a contract surface).
+          `contract-integrity.md` allows a hand-mirrored copy only with a drift guard in the same
+          change — `tests/unit/locked-once-parity.test.cjs`, wired into `check-all`, which drives BOTH
+          copies over sequences and compares transcripts. ⚠ **Yigitcan's E1: the guard must fail in
+          BOTH directions or the mirror is just a copy with a comment.** Mutated each side alone:
+          snippet-only → RED, site-only → RED, restored → green. The suite also PINS the expected
+          transcripts, because two identically wrong copies would agree perfectly.
+          **Rendered proof, bubbles counted, not asserted:** the site built and started on
+          `127.0.0.1`, driven over CDP with `fetch` returning `locked:true` three times →
+          **POSTs=3, lock bubbles=1**. Negative control, rebuilt with the rule mutated to always draw
+          → **POSTs=3, lock bubbles=3**. ⚠ *The first negative-control run reported 1 and I nearly
+          recorded it: a stale `next start` still held the port, so I had measured the OLD build. Two
+          listeners on one port was the tell. The result was discarded, not explained away.*
+        - ✅ **S3 — the decided texts and the code had drifted, and one row was stale as MECHANISM.**
+          K-4 ruling: **the code wins** — the code's sentence is the one a visitor sees, so of the two
+          only one is real. W57 and W60 corrected in place, and the method changed: the cells now NAME
+          the `FRONTEND_TEXT` key instead of repeating the string, because a repeated string is a
+          second copy and a second copy drifts (`governance-sync.md` §1) — which is what produced this
+          item. ⚠ **W58 was not a wording problem:** the decision said "frontend fixed text" and no
+          such constant exists — 400 `invalid_payload` reads from config and lands in the SAME branch
+          as W55, so the document showed one behaviour as two decisions. Aligning only the words would
+          have left a finer lie: a reader still hunting for a constant that was never written
+          (Yigitcan's K-B). The real remaining question — a client error and "I did not understand
+          you" sharing one sentence — is carried to **Phase 7**, named in the row.
+          Verified by script, not by eye, with a positive control (8 keys parsed) and a negative one
+          (corrupting the string turns the check red): W57 and W60 byte-identical, W58 naming the
+          config mechanism.
+        - ✅ **S5 — the REPO-side split is now measured. The PLATFORM side does not exist to measure.**
+          `scripts/check-deploy-separation.sh` (in `check-all`) is the control: it proves no publicly
+          deployed package reaches `web/dashboard` by import, symlink or hardlink, drilled on nine paths.
+          `.vercelignore` is kept as **UNVERIFIED PRE-PROVISIONING and is NOT a control** — see below.
+          ⚠ **The drill list that stood here said "four ways" and was ALREADY STALE when written** — the
+          same round had added a negation check and a symlink section it did not mention — and then
+          `code-reviewer` walked three more routes straight through the guard. Rewritten from the runs
+          rather than from memory. **Nine paths, each measured:** named import → 1 · **side-effect
+          `import '…'`, relative and package form → 1** (they carry no `from`, no `require(`, no
+          `import(`, so the original regex could not see perfectly valid ES syntax) · `.jsx` → 1 ·
+          `.mts` → 1 (and `web/site/tsconfig.json` lists `**/*.mts` in its OWN `include`, so the repo
+          called it live source while the guard could not read it) · **symlink → 1** · **hardlink → 1**
+          · a `!web/dashboard/lib` negation → 1 · a declared package MISSING → **exit 2 NOT MEASURED**
+          · clean tree → 0.
+          ⚠ **DECLARED DEVIATION from the approved plan (`governance-sync.md` §5): no `vercel.json`
+          was written.** The plan said "config + guard" and named `web/site/vercel.json`. Every
+          functional field in it (`buildCommand`, `installCommand`, `outputDirectory`) encodes an
+          assumption about the project's ROOT-DIRECTORY setting, which is exactly the value no clone
+          can read — and a wrong one breaks the live deployment rather than protecting it. Writing a
+          file I cannot verify, to enforce a separation, would be the cargo-cult version of this
+          item. ⚠ **AND THE PREMISE UNDER ALL OF IT WAS FALSE, confirmed 2026-09-12: there is no Vercel
+          project for this repo** — no deployment, no root-directory setting, no platform to honour
+          anything. So `.vercelignore` is not a weak control, it is **pre-provisioning whose application
+          cannot be measured at all**, and every surface naming it now says so. The earlier line here,
+          *"what completes it is one value from Yigitcan's Vercel panel"*, is withdrawn: there is no
+          panel. The guard is unaffected — it measures the repo, never a platform.
+          Measured before committing, because excluding a workspace member could have broken install:
+          fresh clone with `web/dashboard` deleted → `npm ci` **exit 0**, `npm run build -w @salon/site`
+          **exit 0**. *(Independently reproduced by `code-reviewer` from a `git archive` tree.)*
+          *(A question about whether the pattern is written against the right base directory was raised
+          and is NOT carried as an open item: it cannot be answered before a platform exists, and a
+          question nobody can answer today is noise on a list, not an item on it. It moved to the
+          public-deploy gate, where it becomes answerable.)*
+        - ✅ **E3 — the site's build OUTPUT, not just its import graph.** Same fresh clone, dashboard
+          absent: **0 files** under `web/site/.next` carry a dashboard string
+          (`AIRTABLE_PAT_READONLY`, `maskSenderKey`, `readHandoffQueue`, `@salon/dashboard`), with the
+          grep proven live by a positive control (5 files carry a site string). The guard sees the
+          import graph; this sees what would actually ship. Two different surfaces, both measured.
+        - ✅ **A6 — "does a fresh deployment actually produce this?", asked of the DASHBOARD.** In
+          `/tmp`, a clean `git clone` (not the working tree): `npm ci` **0** → `npm run build -w
+          @salon/dashboard` with **no env at all** → **0** → `next start` on `127.0.0.1:3312` →
+          the page serves the **`misconfigured`** branch (*"This board is not configured yet"*) with
+          `detail=ConfigError`. Zero occurrences of an empty-shop panel, zero credential-shaped
+          strings. The CP 6c-1 branch that was written for this case is the one that actually renders.
+        - ◐ **L2 ROUND ON 6c-3 — `security-auditor` PASSED the tree for push and still found three
+          things, two of them in code I had written that same hour.**
+          - **M2 — the suppression could silence an INFRASTRUCTURE failure.** `chatClient.ts`'s
+            unmapped-response branch returns `kind:'system'` **and carries `locked` through**, and that
+            path is reachable: `messageTemplates` has no required keys in the committed schema, so a
+            client config missing `handoffLocked` yields `200 + locked:true` with no reply text. The
+            visitor would have got "something went wrong" once and **total silence on every later
+            message** — `handoff.md`'s "never leave the customer in silence" and
+            `n8n-conventions.md`'s "failures must be VISIBLE", reopened by a de-duplication feature.
+            ⚠ **A second defect was found while fixing it and is the subtler one:** a `system+locked`
+            reply also BURNED the one-shot, so the next genuine lock line would have been the one that
+            vanished. Both are closed inside the rule itself — it now returns BOTH decisions (`draw`
+            and `nowShown`) instead of leaving each caller to re-derive the flag with a copied
+            condition, which is `contract-integrity.md`'s own argument one layer up. Two new parity
+            cases pin it, and the E1 two-way mutation was re-run against the M2 shape: snippet-only
+            RED, site-only RED.
+          - **M1 — the new deploy guard had FOUR measured bypasses, and one is a repeat offence.** A
+            dashboard import walked past it as `.jsx`, as `.mts` (which `web/site/tsconfig.json` lists
+            in its OWN `include` — the repo called it live source while the guard could not read it),
+            through a **symlink** out of the public tree, and past a `!web/dashboard/lib` negation that
+            re-included what the exclude line excluded. The symlink one is the BULGU-3 class from
+            CP 6c-1 reappearing in a file written the same day. All four closed and re-drilled to exit
+            1; the blind-sweep path still exits 2. ⚠ *And the symlink fix itself was wrong on the first
+            attempt: it read the link AFTER `cd`-ing into the link's directory, so the relative path no
+            longer resolved, `readlink` returned empty, and every symlink appeared to point at its own
+            parent — the check ran, printed nothing, and passed. Caught by re-running the auditor's
+            exact probe instead of trusting the patch.*
+          - **M3 — a present-tense claim about a record that did not exist**, inside the paragraph whose
+            subject is not claiming more than was measured: the rule said the firewall policy and allow
+            list "are recorded below". They are not; they are an open item. Corrected, with a forward
+            instruction attached — when the root output arrives, record the DEFAULT POLICY and the 3001
+            verdict, **never the allow list**, which is the service inventory this repo already removed
+            once.
+          - **LOW, accepted:** the firewall correction itself described this host's stack on a public
+            repo. Package, unit and path names are now dropped from both surfaces; the transferable
+            lesson (`"X is not installed"` is a claim about `$PATH`) needs none of them.
+
+        - ◐ **`code-reviewer`'s round — three MORE routes through the same new guard, one of them a
+          repeat of a class I had closed myself three days earlier.**
+          - **Side-effect imports** (`import '../../dashboard/lib/airtable'`) matched none of `from`,
+            `require(`, `import(`. Valid ES syntax, packed by a bundler exactly like a named import,
+            invisible to the check. Closed, drilled in both the relative and the package form.
+          - **A missing package was SILENTLY SKIPPED** — `[ -d "$pkg" ] || continue`, with `scanned`
+            kept as a TOTAL. Moving `web/site` away left the guard printing *"11 source files, 0 reach
+            the dashboard"* and exiting 0: the 26 files that matter had stopped existing as far as the
+            sweep was concerned, hidden behind a comfortable non-zero number. **The guard committed,
+            inside itself, the exact failure it was written to prevent** — `PUBLIC_PKGS` is a
+            hand-written list, and this round began BECAUSE a hand-written list went stale. Now a
+            declared package that is absent, or that yields zero files, is **exit 2 NOT MEASURED**,
+            counted per package instead of in aggregate.
+          - **HARDLINK — the other half of BULGU-3, left open in the file whose own section C names
+            BULGU-3.** `realpath` does not resolve a hardlink (it has its own genuine path), so
+            `ln web/dashboard/lib/mask.ts web/site/lib/x.ts` puts the dashboard's bytes inside the
+            public package, invisible to every path test and to the import graph. Closed with the
+            `(dev, inode)` identity the sibling guard already uses. **A class closed in one guard is
+            not closed in the next one**, and the sibling guard was mine.
+          - **The two CALL SITES remain unguarded twins** — deleting `handoffShown = lock.nowShown;`
+            from one caller leaves the suite green (measured). Returning both decisions shrank the
+            surface from "a condition re-derived" to "a mechanical assignment"; it did not remove it.
+            Now written into BOTH headers, because the existing header claimed a coverage a reader
+            would over-read. → owned open item.
+          - **The site panel had `try/finally` and no `catch`** while the snippet has carried a
+            deliberate one for months: the SECOND divergence in the very function whose first
+            divergence this round existed to close. Not reachable today — `sendMessage` catches every
+            path — fixed anyway, because "not reachable" is a claim about the callee and the cost of
+            being wrong is the silence `handoff.md` forbids outright.
+          - **An unreproducible number in a committed comment:** `.vercelignore` claimed "5 files carry
+            a site string" without naming the string. The control string is now written out.
+
+        - ⚠ **E4, kept as written: this round's guards do NOT close CRT #10b.** The prop path —
+          a server component handing fetched PII to a client child, which lands in the RSC payload —
+          is still gate-silent and rule-covered only. `check-deploy-separation.sh` reads the import
+          graph, a different surface entirely. Saying so in advance beats being corrected later.
+
       - ◐ **THE L2 FIX ROUND (2026-09-12) — `code-reviewer` 6 critical + `security-auditor` 8, closed
         in one pass, and the round is itself re-audited before the commit.** The six that were load-
         bearing: **K1/S4** one WhatsApp row could take the WHOLE page down (`assertMasked` threw during
@@ -849,22 +1042,27 @@ Each CP waits for its own written approval (plan-gate).
         times in a single session.
       - ☐ **OWNED OPEN ITEMS carried out of CP 6c-1** (named, not closed — each one is a claim we
         cannot currently make):
+        - ✅ **PINNED (CP 6c-3) — see the 6c-3 record below.** Original wording kept for its reasoning:
         - ⏳ **PIN THE SITE/DASHBOARD SEPARATION IN THE REPO — DUE BEFORE 6c CLOSES.** Raised from a
           named boundary to a scheduled item by Yigitcan on 2026-09-12, **because this round made the
           claim WEAKER rather than stronger**: `web/dashboard` is now a member of the `web/` npm
           workspace, so the separation no longer rests on the dashboard sitting outside the build tree
-          at all. It rests entirely on one root-directory value in a web panel that cannot be audited
-          from a clone (`security-auditor`). **This is not a leak and is not recorded as one** — the PAT
+          at all. It was said to rest entirely on one root-directory value in a web panel that cannot be
+          audited from a clone (`security-auditor`). ⚠ *Corrected 2026-09-12: there is no such panel —
+          the project is not deployed anywhere. So the separation rested on NOTHING enforceable, which
+          is worse than the sentence claimed, and the fix is a repo guard rather than a platform file.* **This is not a leak and is not recorded as one** — the PAT
           lives in `web/dashboard/.env.local`, gitignored, and the auditor confirmed the commit set
           carries no credential. What is no longer true is the sentence *"the dashboard's code never
           goes there"*: nothing enforces it, and the surface for accidental inclusion grew. Fix: pin it
-          with `vercel.json` / `.vercelignore` so the separation is a committed fact. What WAS verified
+          in the repo so the separation is a committed fact. *(Answered in CP 6c-3 by a GUARD rather
+          than by a config file — the platform turned out not to exist; see S5.)* What WAS verified
           this round is only the code direction — `site`, `snippet` and `shared` import nothing from
           `dashboard`. → **CP 6c-3** The whole dashboard/site
           separation, which is Phase 6 decision D-1 and the reason the dashboard holds the only PAT,
-          rests on a root-directory value in a web panel that cannot be audited from a clone. It must be
-          pinned in the repo (`vercel.json` / `.vercelignore`) so the separation is a committed fact
-          rather than a setting someone remembers. → **before the public deploy**
+          was said here to rest on a root-directory value in a web panel. ⚠ *It did not: there is no
+          such panel and no such deployment (confirmed 2026-09-12). CLOSED in CP 6c-3 by a GUARD that
+          measures the repository — `scripts/check-deploy-separation.sh`, nine paths — rather than by a
+          config file for a platform that does not exist. See S5.*
         - **Cloudflare Access's `/_next/*` coverage is not pinned in the repo** (K-6). The `/webhook/*`
           exemption was drilled both ways (E3); the asset paths were not.
         - **CRT #10b — the prop path**, above: gate-silent, rule-covered only.
@@ -1877,6 +2075,7 @@ Each CP waits for its own written approval (plan-gate).
 | 13 | **`leads` için TTL/purge — 6d'ye katlanmış, public release ona GATE'li** | yabancı biri public demo'ya gerçek telefon yazabilir |
 | 14 | **Privacy Addendum atfı** | yayın öncesi hukuki metin |
 | 15 | **Managed modda gizli-container kontrolü (SP4a) temiz koşulmadı** | 6b gate'inin tik içine yazılmış eksiği |
+| 16 | **Site GERÇEKTEN konuşlandığında, SIRAYLA doğrula: (a) hangi platform, (b) root directory değeri, (c) ignore/exclude dosyasının gerçekten UYGULANDIĞI.** Üçü de o güne kadar **ÖLÇÜLEMEZ** — repoda Vercel projesi yok (2026-09-12). `.vercelignore` bu yüzden bir kontrol değil, doğrulanmamış ön-hazırlıktır; `check-deploy-separation.sh` ise repoyu ölçer ve platformdan bağımsızdır. | dashboard'ı public deployment'ın dışında tutan şeyin PLATFORM yarısı; repo yarısı CP 6c-3'te kapandı |
 
 **→ Sahibi ZATEN kapanmış turlarda olan, taşınmayan:** CRT #7 (control-plane lockdown, CP5b HARD-ORDER) ·
 `secret-scan.sh`'ın binary-blob ve stdin-boş kör noktaları (guard borcu, faz değil).

@@ -68,13 +68,60 @@ after it closed, the same command exits **0**. The flag is now asserted by the s
 ⚠ **What the gate does NOT tell you, stated because the — for once — reassuring half of the 3001
 measurement came from outside this machine:** it measures the **bind**, never **reachability**. From
 Yigitcan's own network `curl` to that port returned `000` (timeout), so the page was not in fact being
-served to the internet for those 37 hours — a near-miss, not an exposure. **But the mechanism was never
-identified and must not be asserted:** this machine has no `iptables`/`nft` binary and no `ufw`/
-`firewalld`, and the ruleset is unreadable without root, so "the firewall held" is a story, not a
-measurement. One external vantage point measured an EFFECT. The single cheap control that would turn it
-into a claim is a second probe from that same vantage point at a wildcard port **we did not open** —
-one of the system daemons the sweep lists, whose port the sweep prints locally. If it answers, nothing
-is blocking inbound and the 3001 timeout had another cause entirely.
+served to the internet for those 37 hours — a near-miss, not an exposure.
+
+⚠⚠ **THE MECHANISM IS NAMED NOW, AND THE SENTENCE THAT STOOD HERE FOR A DAY WAS WRONG — IN A PUBLIC
+REPO, ABOUT A SECURITY CONTROL.** It named three firewall tools and declared all of them absent from
+this machine, concluding that *"'the firewall held' is a story, not a measurement."* The conclusion's
+second half was true. **The premise was an artefact of my own `PATH`:**
+`command -v` as a non-root user does not search `/usr/sbin` or `/sbin`, so "not found" meant "not on my
+PATH", and it was written down as "not on this machine".
+
+**Measured 2026-09-13, four ways that each answer on their own:** the firewall BINARIES are present
+(under `/usr/sbin`, which a login shell does not search) · its **service unit is loaded and ACTIVE** ·
+its config file declares it **enabled** · and the kernel has a **reject module loaded with a non-zero
+refcount**, i.e. at least one reject rule exists. So **a host firewall is installed, enabled and
+running** — a named mechanism, consistent with the timeout the external probe measured.
+
+⚠ *The specific package names, unit names, ports and file paths are deliberately NOT written here. On a
+PUBLIC repo, a precise description of a reachable host's firewall stack is a service inventory for a
+stranger — the same class `security-auditor` removed in the 2026-09-12 M3 finding, and flagged again
+here. The transferable lesson below needs none of them.*
+
+**Two things it still does NOT license, and they are the reason this paragraph is long:**
+1. *Named is not the same as READ.* The ruleset itself is root-only — three separate read routes were
+   tried and all three refused. What is recorded from a root run belongs to Yigitcan
+   and is labelled **"root output, operator ran it"**, never "measured".
+2. *A firewall being up is not proof it is what stopped THAT port.* Default-deny and "3001 simply was
+   not on the allow list" produce the identical timeout and are different facts — one is a wall, the
+   other is a door that happened to be shut.
+   ⚠ *An earlier draft of this sentence said the policy "is recorded below". It was not, and nothing
+   below said so — a present-tense claim about a record that did not exist, inside the paragraph whose
+   whole subject is not claiming more than was measured (`security-auditor` M3, 2026-09-13). It is
+   recorded now, and the distinction it drew is exactly what the answer turned on.*
+
+### The policy — **root output, Yigitcan ran it 2026-09-12. NOT my measurement.**
+
+**Incoming connections on the build host are DENIED BY DEFAULT.** The `*:3001` exposure was closed by
+that default, **not** by the absence of a port-specific rule — the wall, not the shut door.
+
+**The consequence is the part worth keeping, and it cuts against the comfortable reading:** binding
+drill and dev servers to `127.0.0.1` is NOT the only defence, and it is NOT thereby redundant. It is the
+**second layer, and it stays** — precisely BECAUSE a default-deny is one `allow` rule away from being
+switched off for any port, by anyone, at any time, for a reason that will sound good on the day. Two
+independent controls, both standing. A control you drop because another one currently covers it is a
+control you have traded for someone else's future decision.
+
+⚠ *Deliberately NOT written here, in this file or any other: the firewall tool, package or unit name ·
+the list or count of open ports · the logging level, profile policy or file paths.* **The reason is not
+squeamishness, it is maintenance:** an inventory has to be kept in sync forever, and on the day it is
+not, the repo once again carries a FALSE sentence about a security control — which is the exact defect
+this round paid for twice. A fact that cannot go stale is worth more than a list that can.
+
+**The general lesson, which outlives this machine:** *a negative result about a TOOL is a claim about
+your environment, not about the box.* Before writing "X is not installed", ask which PATH answered.
+This is the same family as the empty-search rule in `reporting.md` — the instrument was the defect
+again, and this time the instrument was `$PATH`.
 ⚠ *The port number and the daemon's name used to be written out here and were removed on 2026-09-12
 (`security-auditor` M3): on a PUBLIC repo, naming which services listen on every interface of a host
 whose apex this same file says is NOT behind Cloudflare's proxy is a service inventory for a stranger.

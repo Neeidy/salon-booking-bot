@@ -31,6 +31,7 @@ import { sendMessage, getSessionId, newMessageId, welcomeLine, FRONTEND_TEXT, ty
 import { STYLES } from './styles';
 import { injectUiFont, injectDisplayFont, ownOrigin } from './fonts';
 import { mountTurnstile } from './turnstile';
+import { lockLineDecision } from './lockedOnce';
 
 /* Baked at build time by build.mjs — see that file for what is included and why so little. */
 declare const __BAKED_CONFIG__: {
@@ -86,7 +87,15 @@ function boot(selfSrc: string | null) {
   const root = host.attachShadow({ mode: 'open' });
 
   const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+  /**
+   * The `'` is in this set and it was NOT, and the reason it is worth a comment is that the omission was
+   * SAFE — every interpolation below sits inside a double-quoted attribute, so a single quote could not
+   * break out. That is exactly why it had to be fixed rather than noted: the guarantee lived in the three
+   * call sites, not in the escaper, so the day somebody writes `alt='...'` the escaper silently stops
+   * being one. An escaper whose correctness depends on how its callers are written is a caller
+   * convention wearing a function's name (6b carry-over, closed in CP 6c-3).
+   */
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
   root.innerHTML = `<style>${STYLES}</style>
 <button class="launcher" type="button" aria-expanded="false" aria-controls="bw-panel">
@@ -247,7 +256,16 @@ function boot(selfSrc: string | null) {
       : ok ? 'Type a message…' : 'Verifying…';
 
     clearTimeout(gateTimer);
-    if (ok) stuckShown = false;          // a stall that ended may happen again, and must be sayable again
+    if (ok) {
+      stuckShown = false;                // a stall that ended may happen again, and must be sayable again
+      // W67's note said "Not ready to send yet — see the box below." It was added when a retry click
+      // could not send, and it was never taken away: the moment the token arrived, the composer opened
+      // and the sentence went on standing over it, telling the visitor they cannot do the thing they
+      // can now do. It dies here, at the instant its REASON dies — not on the next successful send,
+      // because "the note is gone once you manage to send" is the same sentence being wrong for
+      // exactly as long as it matters (6b carry-over, closed in CP 6c-3).
+      root.querySelectorAll('.retry-note').forEach((n) => n.remove());
+    }
     if (state === 'pending' && !sending && mounted) {
       gateTimer = setTimeout(() => {
         input.placeholder = 'Still verifying — reload the page';
@@ -340,10 +358,9 @@ function boot(selfSrc: string | null) {
     // K2 = C — the handoff lock answers every message with the same line, so show it once. Detected by the
     // engine's STRUCTURAL `locked` flag, never by comparing its words with our baked template: those two
     // configs live in different places and have drifted before (CP5a).
-    if (reply.locked) {
-      if (handoffShown) return;
-      handoffShown = true;
-    }
+    const lock = lockLineDecision(reply, handoffShown);
+    handoffShown = lock.nowShown;
+    if (!lock.draw) return;
     bubble(reply.kind === 'system' ? 'system' : 'bot', reply.text);
   }
 

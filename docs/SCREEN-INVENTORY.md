@@ -283,10 +283,10 @@ Motorda metni olmayan yedi durumun her biri karara bağlandı. **Design bu metin
 | **W54** 503 `state_unavailable` | **motor değişmez — frontend config'ten okur** | `messageTemplates.handoff` | Bu bir *konuşma* anıdır ve WhatsApp tarafı **zaten** bu anahtarı gönderiyor; iki kanal tek metin kaynağında birleşir. Motora `reply` eklemek CP4b-1'in "widget gövdesi bit-identical kalır" sözleşmesini bozar ve `check-outbound-inventory.py` guard'ına takılır. Yeni anahtar gerekmiyor. |
 | **W55** 400 `invalid_payload` | **motor değişmez — frontend config'ten okur** | `messageTemplates.notUnderstood` | Aynı gerekçe; WhatsApp tarafı bu anahtarı gönderiyor. Müşterinin mesajı işlenemedi — bu marka sesiyle söylenmeli. |
 | **W56** duplicate | **EKRAN YOK — sessizce yut** | *(hiçbir şey)* | Müşteri ilk teslimatta cevabını **zaten aldı**. İkinci bir balon "bir şey ters gitti" izlenimi verir. Motor da aynı şeyi söylüyor: `_outbound_should_send:false`. |
-| **W57** 403 Turnstile | **frontend sabit metni** | *"We couldn't verify your browser. Please refresh the page and try again."* | Motor **hiç çalışmadı** — bu bir güvenlik katmanı reddi, konuşma değil. Marka sesi taşımasına gerek yok, config anahtarı hak etmiyor. |
-| **W58** 400 normalize reddi | **frontend sabit metni** | *"Something went wrong on our side. Please refresh the page and try again."* | `sessionId` eksik = istemci hatası; müşterinin yapabileceği tek şey yenilemek. Motor çalışmadı. |
+| **W57** 403 Turnstile | **frontend sabit metni** | `FRONTEND_TEXT.blocked` → *"We couldn't verify this browser. Please reload the page and try again."* (değişen sözcükler: *your→this*, *refresh→reload*) | Motor **hiç çalışmadı** — bu bir güvenlik katmanı reddi, konuşma değil. ⚠ *Bu hücre 2026-09-13'e kadar "your browser… refresh" yazıyordu; kod "this browser… reload" diyor. **K-4: KOD KAZANIR** — hücre koda göre düzeltildi ve artık metni tekrar etmek yerine **anahtarı adlandırıyor**, çünkü tekrarlanan bir dize yeniden sürüklenir.* |
+| **W58** 400 normalize reddi | ⚠ **KARAR GERÇEKLEŞMEDİ — kod BAŞKA bir mekanizma kullanıyor** | `messageTemplates.notUnderstood` (config, dükkânın sesi) — `chatClient.ts`, `400 + error:'invalid_payload'` dalı | ⚠ ***Bu satır yalnız METİN olarak değil MEKANİZMA olarak bayattı ve düzeltmesi kelime değiştirmek değildi.*** Karar "frontend sabit metni" diyordu; kodda 400 için bir frontend sabiti **yok** — 400 `invalid_payload`, üç satır yukarıdaki **W55** ile aynı dala düşüyor ve config'ten okunuyor. Yani W55 ve W58 kodda TEK bir davranış; doküman bunları iki ayrı karar gibi gösteriyordu. Yalnızca kelimeleri hizalamak daha ince bir yalan bırakırdı: okuyucu hâlâ var olmayan bir frontend sabiti arardı (Yigitcan'ın K-B hükmü, 2026-09-13). **Açık kalan asıl soru, artık adıyla:** `sessionId` eksikliği bir İSTEMCİ hatası, "seni anlamadım" ise dükkânın sesi — şu an ikisi aynı cümleyi alıyor. Ayrıştırmak bir ürün kararı, bu turun işi değil → **Faz 7**. |
 | **W59** rate-limit (edge) | **frontend sabit metni** | *"Too many messages just now — please wait a moment and try again."* | İstek n8n'e **hiç ulaşmıyor** (Cloudflare); motorun bundan haberi yok. |
-| **W60** offline / erişilemez | **frontend sabit metni** | *"We can't reach the salon right now. Please try again in a moment."* | Ağ hatası; sistemde karşılığı yok. |
+| **W60** offline / erişilemez | **frontend sabit metni** | `FRONTEND_TEXT.offline` → *"That didn't reach us — check your connection and try again."* · zaman aşımında `FRONTEND_TEXT.timeout` | Ağ hatası; sistemde karşılığı yok. ⚠ *Hücre "We can't reach the salon right now…" yazıyordu. **K-4: KOD KAZANIR.** Kodun cümlesi ayrıca daha doğru: ziyaretçinin ağı da sebep olabilir ve "salonu arayamıyoruz" bunu bizim tarafımıza yıkıyor. Ayrıca kod **iki** durumu ayırıyor (ulaşamadı / çok uzun sürdü); karar tek metin öngörmüştü — kodun ayrımı korunur.* |
 
 #### 2.10.1a — UYGULAMA DURUMU ve iki YENİ frontend durumu (2026-09-11, `code-reviewer` Tur 3 yeniden koşusu)
 
@@ -300,11 +300,26 @@ uygulama arasındaki boşluk bu projenin tekrar eden kusur sınıfı.
 | **W66 ⭐ — doğrulama takıldı** | *(yoktu)* | ✅ **VAR (ikinci deneme)** | ✅ **KAPANDI 2026-09-11, ama ilk denemeden SONRA.** Metin: `system` balonu *"Still checking this browser. If the box below stays greyed out, reload the page."* + placeholder *"Still verifying — reload the page"*, doğrulama gerçekten istendikten 20 sn sonra. **v1 GERİ ALINMIŞTI**: zamanlayıcı MOUNT anında kuruluyordu, Turnstile ise ilk açılışta mount olur → paneli 20 sn açmayan ziyaretçide `turnstileRendered:0` iken yalan alarm, ve tek atışlık bayrak orada yandığı için gerçek takılma sessiz. v2 üç koşullu (`mounted` · `!sending` · `ready`'de yeniden kurulan tek atış) ve **beş eksende** negatif kontrolden geçti + pozitif kontrol. Drill'ler ve **taranmayan eksenler**: `tests/snippet/DRILLS.md` STUCK-1…6. ⚠ Bu ekran bekleyişi ONARMAZ — onu yalnız Cloudflare onarabilir; sessiz bir çıkışsızlığı beyan edilmiş bir çıkışsızlığa çevirir. |
 | **W67 ⭐ YENİ — başlayamayan retry** | *(yoktu)* | *(yoktu)* | ✅ eklendi — `Try again`, token henüz yokken hiçbir iz bırakmadan hiçbir şey yapıyordu (ölçüm: balon 5→5, POST 1→1, placeholder değişmedi). Artık balonun içine tek satır giriyor: *"Not ready to send yet — see the box below."* Sebebi ADLANDIRMIYOR, çünkü `canSend()` üç ayrı nedenle reddedebilir ve hangisi olduğunu zaten alttaki composer söylüyor. |
 
-⚠ **KAPATILMAYAN, adıyla:** §2.10.1'in W57/W58/W60 için yazdığı **birebir metinler** ile koddaki
-`FRONTEND_TEXT` sözcükleri AYNI DEĞİL (ör. karar *"We couldn't verify your browser. Please refresh the
-page…"*, kod *"We couldn't verify this browser. Please reload the page…"*). Bu drift bu turda
-**düzeltilmedi** — onaylı metinleri tek taraflı yeniden yazmak bu turun işi değil. Açık madde olarak
-ROADMAP §6b'de duruyor; kapanmış sayılmamaktadır.
+✅ **KAPANDI 2026-09-13 (CP 6c-3) — ve kapanışın şekli, metnin kendisinden daha önemli.**
+Bu paragraf şunu diyordu: *"§2.10.1'in W57/W58/W60 için yazdığı birebir metinler ile koddaki
+`FRONTEND_TEXT` sözcükleri AYNI DEĞİL… bu turda düzeltilmedi… kapanmış sayılmamaktadır."* Doğruydu ve
+6b'den 6c'ye devredildi.
+
+**Yigitcan'ın K-4 hükmü: KOD KAZANIR, doküman düzeltilir.** Gerekçe, bir tercih değil bir ölçüm: kodun
+cümlesi ziyaretçiye GÖSTERİLİYOR, dokümanınki gösterilmiyor — yani ikisinden yalnız biri gerçek. Onaylı
+bir metni korumak, kimsenin görmediği bir cümleyi kimsenin göremediği bir gerekçeyle savunmak olurdu.
+
+**Üç satırın üçü de yukarıda yerinde düzeltildi**, ve ikisinde yöntem değişti: hücre artık metni TEKRAR
+ETMİYOR, `FRONTEND_TEXT` **anahtarını adlandırıyor**. Tekrarlanan bir dize ikinci bir kopyadır ve
+`governance-sync.md` §1'in dediği gibi ikinci kopya daima sürüklenir — bu paragrafın var oluş sebebi
+zaten o sürüklenmeydi.
+
+⚠ **W58 metin değil MEKANİZMA olarak bayattı ve bu ayrım kaydediliyor:** karar "frontend sabit metni"
+diyordu, kodda o sabit **hiç yok** — 400 `invalid_payload` config'ten okuyor ve W55 ile aynı dala
+düşüyor. Yalnız kelimeleri hizalamak **daha ince bir yalan** bırakırdı: okuyucu var olmayan bir sabiti
+aramaya devam ederdi (Yigitcan, 2026-09-13). Geriye kalan gerçek soru — istemci hatası ile "seni
+anlamadım"ın aynı cümleyi paylaşması — **Faz 7'ye sahipli açık madde** olarak devredildi, W58 satırında
+adıyla yazılı.
 
 **Neden W57-W60 için config anahtarı eklenmedi:** tüketicisi (frontend) henüz yokken config anahtarı
 eklemek, K5'te sildiğimiz ölü-anahtar tuzağının aynısıdır. Bunlar taşıyıcı/güvenlik katmanı

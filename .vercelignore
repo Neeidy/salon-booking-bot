@@ -1,0 +1,26 @@
+# ⚠⚠ UNVERIFIED PRE-PROVISIONING. THIS FILE IS **NOT A CONTROL.**
+#
+# There is no Vercel project for this repo (confirmed by Yigitcan, 2026-09-12). No deployment, no root
+# directory setting, no platform to honour anything written here. Whether this file is ever read — and
+# whether its pattern is even written against the right base directory — CANNOT BE MEASURED until a
+# target platform is chosen and provisioned. It is kept because it is two lines and it should already be
+# in place on deployment day, not because it protects anything today.
+#
+# It was briefly written up as though it enforced something. It does not, and the difference matters
+# more here than anywhere: the thing it would exclude is `web/dashboard`, the only holder of the
+# Airtable PAT.
+#
+# WHAT IS ACTUALLY A CONTROL — and it is a separate thing, mentioned separately on purpose:
+# `scripts/check-deploy-separation.sh` measures the REPO (no publicly-deployed package reaches the
+# dashboard by import, symlink or hardlink) and is drilled on nine paths. It measures the repository,
+# never a platform. Do not read the two as one mechanism.
+#
+# Measured on 2026-09-13, and this part IS a measurement — that removing the directory does not break a
+# workspace install, so the exclusion is safe to keep sitting here:
+#   fresh clone with `web/dashboard` deleted -> npm --prefix web ci             exit 0
+#                                              npm run build -w @salon/site     exit 0
+#   dashboard strings in web/site/.next      -> 0 files, searching for
+#       AIRTABLE_PAT_READONLY | maskSenderKey | readHandoffQueue | @salon/dashboard
+#     with the grep proven live first: searching 'barber-inbound' in the same tree matched 5 files.
+#     (The control string is NAMED because a count nobody can reproduce is not evidence.)
+web/dashboard

@@ -17,6 +17,7 @@ import {
   type ChatReply, type EndpointConfig,
 } from '@salon/shared/chat';
 import { TurnstileWidget, type TurnstileState } from './TurnstileWidget';
+import { lockLineDecision } from '../../lib/lockedOnce';
 
 interface Bubble { from: 'bot' | 'user' | 'system'; text: string; stamp: string }
 
@@ -38,6 +39,9 @@ export function LiveChatPanel({ config, endpoint }: { config: ClientConfig; endp
     stamp: '',
   }]);
   const [draft, setDraft] = useState('');
+  // A ref, not state: it must not re-render anything and it must be readable inside the same submit that
+  // sets it. `useState` would read a stale value for two replies arriving in one tick.
+  const handoffShown = useRef(false);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [tsState, setTsState] = useState<TurnstileState>('loading');
@@ -81,12 +85,28 @@ export function LiveChatPanel({ config, endpoint }: { config: ClientConfig; endp
     let reply: ChatReply;
     try {
       reply = await sendMessage(endpoint, config, text, sessionId.current, token, newMessageId());
+    } catch {
+      // The snippet has carried this belt-and-braces path for months (`index.ts`, the `send()` catch);
+      // this panel did not, and the round whose whole subject was "the two surfaces had diverged" found
+      // the second divergence in the same function (`code-reviewer`, 2026-09-13). `sendMessage` handles
+      // its own failures today, so this is not reachable now — but "not reachable today" is a statement
+      // about the callee, and the cost of being wrong is the one thing `handoff.md` forbids outright:
+      // a throw escaping an async handler draws NOTHING and leaves the customer in silence.
+      reply = { kind: 'system', text: FRONTEND_TEXT.unexpected, origin: 'frontend', status: 0 };
     } finally {
       setBusy(false);
       setToken(null);
       setResetSignal((n) => n + 1);   // a token is single-use — mint the next one
     }
     if (reply.kind === 'silent') return;      // duplicate_ignored is deliberately screenless (W56)
+    // The handoff lock answers EVERY message with the same sentence. This panel did not read the flag at
+    // all, so a locked conversation repeated that line on every turn while the snippet showed it once —
+    // the same engine, two surfaces, two different behaviours (6b carry-over, closed in CP 6c-3). The
+    // rule is mirrored rather than shared because @salon/shared holds no UI state; the copies are held
+    // together by tests/unit/locked-once-parity.test.cjs, which fails if either one moves alone.
+    const lock = lockLineDecision(reply, handoffShown.current);
+    handoffShown.current = lock.nowShown;
+    if (!lock.draw) return;
     setThread((t) => [...t, { from: reply.kind === 'system' ? 'system' : 'bot', text: reply.text, stamp: now() }]);
   }
 
