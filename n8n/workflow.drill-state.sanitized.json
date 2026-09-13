@@ -1,0 +1,278 @@
+{
+ "name": "Salon Booking Bot — Drill State Read",
+ "nodes": [
+  {
+   "id": "in",
+   "name": "Receive Drill Read",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    -300,
+    0
+   ],
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "owner-drill-state",
+    "responseMode": "responseNode",
+    "options": {
+     "rawBody": true
+    }
+   }
+  },
+  {
+   "id": "verify-drill-signature",
+   "name": "Verify Drill Signature",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    -100,
+    0
+   ],
+   "parameters": {
+    "jsCode": "\n// Same signature gate as the owner write path, same secret, SEPARATE verb space.\n// It is deliberately NOT an entry in OWNER_ACTIONS: the write path's whole auditability rests on that\n// list holding exactly one verb, and widening it to let a test read would trade the security model for\n// convenience. A different workflow with its own allow-list costs nothing and keeps that claim true.\nconst crypto = require('crypto');\nconst item = $input.first();\nlet raw = '', src = 'none';\nif (item.binary && item.binary.data && item.binary.data.data) {\n  raw = Buffer.from(item.binary.data.data, 'base64').toString('utf8'); src = 'binary';\n} else if (typeof item.json.body === 'string') { raw = item.json.body; src = 'json.body:string'; }\nelse if (item.json.body && typeof item.json.body === 'object') { raw = JSON.stringify(item.json.body); src = 'json.body:reserialised'; }\n\nconst given = (item.json.headers || {})['x-owner-signature'];\nconst secret = $env.OWNER_HMAC_SECRET;\nlet sig_valid = false;\nif (typeof secret === 'string' && secret && typeof given === 'string' && raw) {\n  const mine = crypto.createHmac('sha256', secret).update(raw, 'utf8').digest('hex');\n  if (given.length === mine.length) sig_valid = crypto.timingSafeEqual(Buffer.from(mine,'utf8'), Buffer.from(given,'utf8'));\n}\nlet p = {}; try { p = JSON.parse(raw); } catch (e) { p = {}; }\n\n// Injection boundary, not a trust boundary — both values are interpolated into Airtable formulas.\nconst RECORD_ID = /^rec[A-Za-z0-9]{14}$/;\nconst MESSAGE_ID = /^[A-Za-z0-9._-]{1,64}$/;\nconst record_id = typeof p.record_id === 'string' ? p.record_id : '';\nconst messageId = typeof p.messageId === 'string' ? p.messageId : '';\nreturn [{ json: { sig_valid, _raw_source: src,\n  action_ok: p.action === 'read_drill_state' && RECORD_ID.test(record_id) && MESSAGE_ID.test(messageId),\n  record_id, messageId } }];\n"
+   }
+  },
+  {
+   "id": "drill-request-valid",
+   "name": "Drill Request Valid?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    100,
+    0
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Drill Request Valid?",
+       "leftValue": "={{ $json.sig_valid && $json.action_ok }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "rej",
+   "name": "Reject Drill Read",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    300,
+    140
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "REFUSED",
+    "options": {
+     "responseCode": 403
+    }
+   }
+  },
+  {
+   "id": "read-conversation",
+   "name": "Read Conversation",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    300,
+    -120
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Conversations"
+    },
+    "filterByFormula": "={{ \"RECORD_ID() = '\" + $json.record_id + \"'\" }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "count-markers",
+   "name": "Count Markers",
+   "type": "n8n-nodes-base.airtable",
+   "typeVersion": 2.2,
+   "position": [
+    500,
+    -120
+   ],
+   "credentials": {
+    "airtableTokenApi": {
+     "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
+     "name": "Airtable Personal Access Token account"
+    }
+   },
+   "onError": "continueRegularOutput",
+   "alwaysOutputData": true,
+   "parameters": {
+    "operation": "search",
+    "base": {
+     "__rl": true,
+     "value": "appXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "Barber Bot"
+    },
+    "table": {
+     "__rl": true,
+     "value": "tblXXXXXXXXXXXXXX",
+     "mode": "list",
+     "cachedResultName": "processed_messages"
+    },
+    "filterByFormula": "={{ \"{message_id} = '\" + $('Verify Drill Signature').first().json.messageId + \"'\" }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "shape-drill-state",
+   "name": "Shape Drill State",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    700,
+    -120
+   ],
+   "parameters": {
+    "jsCode": "\n// \"stage|last_intent|markerCount\" — the three facts run-d11 needs and nothing else.\n// markerCount is the MUTATION COUNTER: state equality cannot tell \"no second write\" from \"a second\n// IDENTICAL write\", because setting stage='new' twice leaves the row looking the same. One full pass\n// writes exactly one dedupe marker, so the count is what actually discriminates.\nconst ctx = $('Verify Drill Signature').first().json;\nconst conv = $('Read Conversation').all().filter(i => i.json && i.json.id);\nconst marks = $input.all().filter(i => i.json && i.json.id);\nconst f = conv[0] ? (conv[0].json.fields || conv[0].json) : null;\nconst state = f ? ((f.stage || '') + '|' + (f.last_intent || '')) : 'NOT-FOUND';\nreturn [{ json: { line: state + '|' + marks.length } }];\n"
+   }
+  },
+  {
+   "id": "out",
+   "name": "Respond Drill State",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    900,
+    -120
+   ],
+   "parameters": {
+    "respondWith": "text",
+    "responseBody": "={{ $json.line }}",
+    "options": {}
+   }
+  },
+  {
+   "id": "sticky",
+   "name": "Sticky — what this is and is not",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -320,
+    -320
+   ],
+   "parameters": {
+    "width": 760,
+    "height": 240,
+    "content": "## Drill state read — TEST SUPPORT, read-only\n`tests/run-d11.sh` must assert on the DATA, not on status codes. This returns `stage|last_intent|markerCount`\nfor one record and nothing else: no name, no phone, no message, no sender_key.\n\n**Why an endpoint and not a read-only Airtable PAT** (the alternative, weighed): a PAT is a long-lived\ncredential that can read the WHOLE base — every table, all the PII — and it would have to live in a file on\nthe build host. This reaches exactly three fields, requires the Cloudflare Access service token AND a valid\nHMAC over the body, and writes nothing. The smaller surface won.\n\n⚠ **The `owner-` prefix is there for a MEASURED reason, not for tidiness.** Published first as\n`/webhook/drill-state`, all three probes — owner token, api token, and NO token at all — reached this\nworkflow and were stopped only by the signature gate: `/webhook/*` is Access-EXEMPT by design, so that\npath had ONE layer while the note beside it claimed two. Moved under `/webhook/owner-*`, which the\nCP 6d-0 Access application covers, and re-measured: no token now gets Cloudflare's own 403.\n\n⚠ `read_drill_state` is deliberately NOT in `OWNER_ACTIONS`. That list holding exactly ONE verb is what makes\nthe write path auditable; widening it so a test could read would have traded the security model for convenience."
+   }
+  }
+ ],
+ "connections": {
+  "Receive Drill Read": {
+   "main": [
+    [
+     {
+      "node": "Verify Drill Signature",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Verify Drill Signature": {
+   "main": [
+    [
+     {
+      "node": "Drill Request Valid?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Drill Request Valid?": {
+   "main": [
+    [
+     {
+      "node": "Read Conversation",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Reject Drill Read",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Read Conversation": {
+   "main": [
+    [
+     {
+      "node": "Count Markers",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Count Markers": {
+   "main": [
+    [
+     {
+      "node": "Shape Drill State",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Shape Drill State": {
+   "main": [
+    [
+     {
+      "node": "Respond Drill State",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1"
+ }
+}

@@ -22,6 +22,7 @@ PAIRS=(
   "EHsn2WocYqB2bYi1:n8n/workflow.reminders.sanitized.json"
   "sdXropaqnNaOvIvs:n8n/workflow.purge.sanitized.json"
   "lTyYKxqyzumH2JMz:n8n/workflow.owner-actions.sanitized.json"
+  "sTn3xfa9qI6IyBNP:n8n/workflow.drill-state.sanitized.json"
 )
 
 if [ -z "${N8N_API_KEY:-}" ] || [ -z "${N8N_HOST:-}" ]; then

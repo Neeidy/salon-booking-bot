@@ -144,7 +144,7 @@
     -160
    ],
    "parameters": {
-    "jsCode": "\n// A5 · Validate Owner Action — THE ALLOW-LIST.\n// prompt-injection.md expressed in the engine: there is exactly ONE write verb, so there is nothing for a\n// compromise to escalate INTO. It is also why CRT #11 is auditable at all — the surface is one verb.\n// Mirrors OWNER_ACTIONS in web/dashboard/lib/ownerAction.ts; a second verb must be added in BOTH places\n// deliberately, never inherited.\nconst OWNER_ACTIONS = ['release_handoff'];\n\n// record_id is signature-verified, so this is not a trust boundary — it is an INJECTION boundary: the value\n// is interpolated into an Airtable formula downstream, and a formula built from an unconstrained string is\n// the same defect class whatever signed it.\nconst RECORD_ID = /^rec[A-Za-z0-9]{14}$/;   // Airtable ids are rec + EXACTLY 14; {1,20} was looser than the format it checks\n\nconst j = $json;\nreturn [{ json: { ...j,\n  action_allowed: OWNER_ACTIONS.includes(j.action) && RECORD_ID.test(j.record_id) && j.messageId.length > 0,\n} }];\n"
+    "jsCode": "\n// A5 · Validate Owner Action — THE ALLOW-LIST.\n// prompt-injection.md expressed in the engine: there is exactly ONE write verb, so there is nothing for a\n// compromise to escalate INTO. It is also why CRT #11 is auditable at all — the surface is one verb.\n// Mirrors OWNER_ACTIONS in web/dashboard/lib/ownerAction.ts; a second verb must be added in BOTH places\n// deliberately, never inherited.\nconst OWNER_ACTIONS = ['release_handoff'];\n\n// record_id is signature-verified, so this is not a trust boundary — it is an INJECTION boundary: the value\n// is interpolated into an Airtable formula downstream, and a formula built from an unconstrained string is\n// the same defect class whatever signed it.\nconst RECORD_ID = /^rec[A-Za-z0-9]{14}$/;\nconst MESSAGE_ID = /^[A-Za-z0-9._-]{1,64}$/;   // no quote, brace or paren: nothing that can end a formula string   // Airtable ids are rec + EXACTLY 14; {1,20} was looser than the format it checks\n\nconst j = $json;\nreturn [{ json: { ...j,\n  // `messageId` is interpolated into an Airtable formula downstream exactly as `record_id` is, and it was\n  // only LENGTH-checked — the injection surface closed on one field was left open on the other, in the\n  // same expression (Codex CRT #11). CONSTRAIN rather than escape: the id is ours to generate\n  // (ReleaseButton emits `d11-<ts>-<rand>`), so a strict character class is a smaller and more checkable\n  // contract than a quoting routine, and a future caller cannot forget to apply it.\n  action_allowed: OWNER_ACTIONS.includes(j.action) && RECORD_ID.test(j.record_id) && MESSAGE_ID.test(j.messageId),\n} }];\n"
    }
   },
   {
@@ -243,7 +243,7 @@
     -260
    ],
    "parameters": {
-    "jsCode": "\n// A7 · Validate Release Target — a correct signature does not say WHICH conversation.\n// ARCH-DEC (2026-09-03) names the threat: \"an unsigned owner-action endpoint would let anyone unlock any\n// conversation\" — a SIGNED one with no target check has the same hole for anyone holding the secret.\n// Three conditions, all required: the record exists · stage === 'handoff' · it was touched recently.\nconst MAX_AGE_DAYS = 30;\n\nconst ctx = $('Validate Owner Action').first().json;\nconst rows = $input.all().filter(i => i.json && i.json.id && !i.json.error);\nconst row = rows[0] ? rows[0].json : null;\nconst f = row ? (row.fields || row) : {};\n\nconst found = !!row;\nconst stage = typeof f.stage === 'string' ? f.stage : '';\nconst lu = f.last_updated ? Date.parse(f.last_updated) : NaN;\nconst fresh = Number.isFinite(lu) ? (Date.now() - lu) <= MAX_AGE_DAYS * 86400000 : false;\n\nreturn [{ json: { ...ctx,\n  target_found: found,\n  target_locked: found && stage === 'handoff' && fresh,\n  target_record: found ? row.id : '',\n  // stage is carried for the alert text only; no customer content crosses this node.\n  target_stage: stage,\n} }];\n"
+    "jsCode": "\n// A7 · Validate Release Target — a correct signature does not say WHICH conversation.\n// ARCH-DEC (2026-09-03) names the threat: \"an unsigned owner-action endpoint would let anyone unlock any\n// conversation\" — a SIGNED one with no target check has the same hole for anyone holding the secret.\n// Three conditions, all required: the record exists · stage === 'handoff' · it was touched recently.\nconst MAX_AGE_DAYS = 30;\n\nconst ctx = $('Validate Owner Action').first().json;\nconst rows = $input.all().filter(i => i.json && i.json.id && !i.json.error);\nconst row = rows[0] ? rows[0].json : null;\nconst f = row ? (row.fields || row) : {};\n\nconst found = !!row;\nconst stage = typeof f.stage === 'string' ? f.stage : '';\nconst lu = f.last_updated ? Date.parse(f.last_updated) : NaN;\n// ⚠ The comment said \"touched within 30 days\" and the arithmetic did not: `Date.now() - lu <= 30d` is\n// TRUE for ANY future timestamp, so `last_updated = 2099` unlocked a row the window existed to exclude\n// (Codex CRT #11). The age must be NON-NEGATIVE and within the window; a small forward tolerance covers\n// ordinary clock skew instead of pretending clocks agree. Comment and code say the same thing now.\nconst CLOCK_SKEW_MS = 5 * 60 * 1000;\nconst age = Number.isFinite(lu) ? (Date.now() - lu) : NaN;\nconst fresh = Number.isFinite(age) && age >= -CLOCK_SKEW_MS && age <= MAX_AGE_DAYS * 86400000;\n\nreturn [{ json: { ...ctx,\n  target_found: found,\n  target_locked: found && stage === 'handoff' && fresh,\n  target_record: found ? row.id : '',\n  // stage is carried for the alert text only; no customer content crosses this node.\n  target_stage: stage,\n} }];\n"
    }
   },
   {
@@ -393,7 +393,7 @@
     -460
    ],
    "parameters": {
-    "jsCode": "\n// A8 · Owner replay check — booking-integrity.md item 1: the same click twice must produce ONE write.\n//\n// ⚠ MEASURED BOUND, stated rather than overclaimed: Record Owner Action Processed writes at the END, so a\n// replay arriving while the first is still IN FLIGHT finds nothing and proceeds. On the booking path a\n// deterministic calendar event id absorbs that; HERE THERE IS NO SUCH BACKSTOP. What makes it safe is that\n// the write is idempotent — setting stage='new' twice equals once. Do not write \"deduplicated\" on a sticky.\nconst ctx = $('Validate Release Target').first().json;\nconst hits = $input.all().filter(i => i.json && i.json.id && !i.json.error);\nreturn [{ json: { ...ctx, is_replay: hits.length > 0 } }];\n"
+    "jsCode": "\n// A8 · Owner replay check — booking-integrity.md item 1: the same click twice must produce ONE write.\n//\n// ⚠ MEASURED BOUND, stated rather than overclaimed: Record Owner Action Processed writes at the END, so a\n// replay arriving while the first is still IN FLIGHT finds nothing and proceeds. On the booking path a\n// deterministic calendar event id absorbs that; HERE THERE IS NO SUCH BACKSTOP. What makes it safe is that\n// the write is idempotent — setting stage='new' twice equals once. Do not write \"deduplicated\" on a sticky.\nconst ctx = $('Validate Release Target').first().json;\n// ⚠ FAIL-CLOSED ON A LOOKUP ERROR (Codex CRT #11). This filtered error items away, so a FAILED search read\n// as \"not a replay\" — and the node runs with continueRegularOutput, meaning an Airtable outage would have\n// waved a duplicate straight through to the write. A lookup failure is not a refusal and it is not an\n// all-clear: it is UNCERTAINTY, and `handoff.md` is explicit that we do not act on what we distrust.\nconst items = $input.all();\nconst errored = items.some(i => i.json && i.json.error);\nconst hits = items.filter(i => i.json && i.json.id && !i.json.error);\nreturn [{ json: { ...ctx, replay_lookup_failed: errored,\n                  is_replay: errored ? true : hits.length > 0 } }];\n"
    }
   },
   {
@@ -431,19 +431,70 @@
    }
   },
   {
+   "id": "replay-lookup-ok",
+   "name": "Replay Lookup OK?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    2460,
+    -600
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Replay Lookup OK?",
+       "leftValue": "={{ !$json.replay_lookup_failed }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
    "id": "respond-owner-replayed",
    "name": "Respond Owner Replayed",
    "type": "n8n-nodes-base.respondToWebhook",
    "typeVersion": 1.5,
    "position": [
-    2460,
-    -600
+    2680,
+    -700
    ],
    "parameters": {
     "respondWith": "json",
     "responseBody": "={{ { ok: true } }}",
     "options": {
      "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "respond-replay-check-unavailable",
+   "name": "Respond Replay Check Unavailable",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    2680,
+    -560
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: false, error: 'replay_check_unavailable' } }}",
+    "options": {
+     "responseCode": 503
     }
    }
   },
@@ -767,6 +818,53 @@
    }
   },
   {
+   "id": "marker-written",
+   "name": "Marker Written?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.3,
+   "position": [
+    3450,
+    -560
+   ],
+   "parameters": {
+    "conditions": {
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "strict",
+      "version": 3
+     },
+     "conditions": [
+      {
+       "id": "Marker Written?",
+       "leftValue": "={{ !$json.error && !!$json.id }}",
+       "rightValue": "",
+       "operator": {
+        "type": "boolean",
+        "operation": "true",
+        "singleValue": true
+       }
+      }
+     ],
+     "combinator": "and"
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "build-marker-failure-alert",
+   "name": "Build Marker Failure Alert",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3560,
+    -760
+   ],
+   "parameters": {
+    "jsCode": "\n// B4 · the dedupe marker did not get written. The RELEASE succeeded, so this is not a failure — but it is\n// not a plain success either: without the marker the replay guard has no record, and the same messageId can\n// write again. Reporting `{ok:true}` here would close idempotency SILENTLY, which is the one thing\n// `booking-integrity.md` does not allow a write path to do.\nconst ctx = $('Owner Replay Seen?').first().json;\nconst esc = (t) => String(t).replace(/[_*`\\[\\]~]/g, '-');\nreturn [{ json: {\n  _alert_class: 'handoff_release_marker_unwritten',\n  owner_alert_text: esc('⚠ Handoff released, but the dedupe marker was NOT written\\n'\n    + 'conversation: ' + String(ctx.target_record || '').slice(0, 3) + '…\\n'\n    + 'the lock IS open; a repeat of the same click would write again\\n'\n    + 'at: ' + new Date().toISOString()),\n} }];\n"
+   }
+  },
+  {
    "id": "build-owner-alert-release",
    "name": "Build Owner Alert (Release)",
    "type": "n8n-nodes-base.code",
@@ -834,6 +932,40 @@
    }
   },
   {
+   "id": "respond-owner-ok-(alert-undelivered)",
+   "name": "Respond Owner OK (Alert Undelivered)",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    4220,
+    -420
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: true, degraded: 'alert_undelivered' } }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
+   "id": "respond-owner-ok-(marker-unwritten)",
+   "name": "Respond Owner OK (Marker Unwritten)",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    4220,
+    -800
+   ],
+   "parameters": {
+    "respondWith": "json",
+    "responseBody": "={{ { ok: true, degraded: 'marker_unwritten' } }}",
+    "options": {
+     "responseCode": 200
+    }
+   }
+  },
+  {
    "id": "build-release-failure-alert",
    "name": "Build Release Failure Alert",
    "type": "n8n-nodes-base.code",
@@ -884,6 +1016,30 @@
     "responseBody": "={{ { ok: false, error: 'release_failed' } }}",
     "options": {
      "responseCode": 502
+    }
+   }
+  },
+  {
+   "id": "tg-marker",
+   "name": "Send Marker Failure Alert (Telegram)",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    3780,
+    -760
+   ],
+   "credentials": {
+    "telegramApi": {
+     "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+     "name": "Telegram account"
+    }
+   },
+   "onError": "continueErrorOutput",
+   "parameters": {
+    "chatId": "REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID",
+    "text": "={{ $json.owner_alert_text }}",
+    "additionalFields": {
+     "appendAttribution": false
     }
    }
   },
@@ -1150,7 +1306,7 @@
    "main": [
     [
      {
-      "node": "Respond Owner Replayed",
+      "node": "Replay Lookup OK?",
       "type": "main",
       "index": 0
      }
@@ -1158,6 +1314,24 @@
     [
      {
       "node": "Release Handoff Lock",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Replay Lookup OK?": {
+   "main": [
+    [
+     {
+      "node": "Respond Owner Replayed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Respond Replay Check Unavailable",
       "type": "main",
       "index": 0
      }
@@ -1226,7 +1400,36 @@
    "main": [
     [
      {
+      "node": "Marker Written?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Marker Written?": {
+   "main": [
+    [
+     {
       "node": "Build Owner Alert (Release)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Build Marker Failure Alert",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Build Marker Failure Alert": {
+   "main": [
+    [
+     {
+      "node": "Send Marker Failure Alert (Telegram)",
       "type": "main",
       "index": 0
      }
@@ -1266,7 +1469,7 @@
    "main": [
     [
      {
-      "node": "Respond Owner OK",
+      "node": "Respond Owner OK (Alert Undelivered)",
       "type": "main",
       "index": 0
      }
@@ -1289,6 +1492,31 @@
     [
      {
       "node": "Respond Release Failed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Respond Release Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "Send Marker Failure Alert (Telegram)": {
+   "main": [
+    [
+     {
+      "node": "Respond Owner OK (Marker Unwritten)",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "Respond Owner OK (Marker Unwritten)",
       "type": "main",
       "index": 0
      }

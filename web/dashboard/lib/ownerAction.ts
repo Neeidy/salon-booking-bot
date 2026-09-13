@@ -44,6 +44,14 @@ export class OwnerConfigError extends Error {
 
 /** What the owner is allowed to ask for. ONE verb, and the engine enforces the same list independently. */
 export const OWNER_ACTIONS = ['release_handoff'] as const;
+
+/**
+ * The engine's success shape, asserted rather than assumed. Anything else reaching the 200 branch is an
+ * engine we do not recognise, and saying "released" about it would be a guess wearing a fact's clothes.
+ */
+function isReleaseBody(v: unknown): v is { ok: boolean; degraded?: string; error?: string } {
+  return typeof v === 'object' && v !== null && 'ok' in v && typeof (v as { ok: unknown }).ok === 'boolean';
+}
 export type OwnerAction = (typeof OWNER_ACTIONS)[number];
 
 export interface ReleaseOutcome {
@@ -52,6 +60,8 @@ export interface ReleaseOutcome {
   status: number;
   /** A SHAPE for the screen — never an engine payload, never a credential. */
   reason: 'released' | 'not_locked' | 'not_found' | 'refused' | 'stale' | 'unreachable' | 'misconfigured';
+  /** Set when the release happened but something downstream did not — e.g. the owner alert never arrived. */
+  degraded?: string;
 }
 
 function credentials() {
@@ -109,7 +119,25 @@ export async function releaseHandoff(recordId: string, messageId: string): Promi
   // ⚠ EVERY STATUS IS READ SEPARATELY AND SAYS A DIFFERENT TRUE THING. A single "something went wrong"
   // would be the silence `handoff.md` forbids — here the person left in the dark is the OWNER, staring at
   // a lock they cannot open and unable to tell a refusal from an outage.
-  if (res.status === 200) return { ok: true, status: 200, reason: 'released' };
+  // ⚠ THE STATUS IS NOT THE ANSWER — the BODY is (Codex CRT #11). This branch used to return
+  // `{ok:true, reason:'released'}` on any 200, and a mocked `200 {"ok":false}` proved it: the screen said
+  // "Released" while the engine had said the opposite. A status code says the request was handled; only the
+  // body says what was DONE, and this client's whole job is to tell the owner which.
+  if (res.status === 200) {
+    let body: unknown = null;
+    try { body = await res.json(); } catch { body = null; }
+    if (!isReleaseBody(body)) {
+      console.error('[dashboard] owner action: 200 with an unrecognised body shape');
+      return { ok: false, status: 200, reason: 'unreachable' };
+    }
+    if (body.ok !== true) return { ok: false, status: 200, reason: 'refused' };
+    // A DEGRADED success is still a success — the lock is open — but it is not the same event and the
+    // owner is the person who has to know the alert never arrived.
+    if (typeof body.degraded === 'string') {
+      return { ok: true, status: 200, reason: 'released', degraded: body.degraded };
+    }
+    return { ok: true, status: 200, reason: 'released' };
+  }
   if (res.status === 409) return { ok: false, status: 409, reason: 'not_locked' };
   if (res.status === 404) return { ok: false, status: 404, reason: 'not_found' };
   if (res.status === 401) return { ok: false, status: 401, reason: 'stale' };

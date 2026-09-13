@@ -14,15 +14,22 @@ import { releaseHandoff } from '../../../lib/ownerAction.ts';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request): Promise<Response> {
-  let payload: { recordId?: unknown; messageId?: unknown };
+  let payload: unknown;
   try {
     payload = await request.json();
   } catch {
     return Response.json({ ok: false, reason: 'bad_request' }, { status: 400 });
   }
+  // ⚠ `request.json()` on a body of literal `null` SUCCEEDS and yields null, so the destructuring below
+  // threw a TypeError and the client saw an unhandled 500 instead of the structured refusal this handler
+  // exists to give (Codex CRT #11). Valid JSON is not the same thing as a usable object.
+  if (typeof payload !== 'object' || payload === null) {
+    return Response.json({ ok: false, reason: 'bad_request' }, { status: 400 });
+  }
+  const p = payload as { recordId?: unknown; messageId?: unknown };
 
-  const recordId = typeof payload.recordId === 'string' ? payload.recordId.trim() : '';
-  const messageId = typeof payload.messageId === 'string' ? payload.messageId.trim() : '';
+  const recordId = typeof p.recordId === 'string' ? p.recordId.trim() : '';
+  const messageId = typeof p.messageId === 'string' ? p.messageId.trim() : '';
   // Shape-check here as well as in the engine. Two independent checks of one precondition is not
   // duplication when they sit on opposite sides of a network boundary: this one keeps a malformed click
   // from spending an Airtable call, the engine's keeps a forged request from writing.
@@ -31,10 +38,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const outcome = await releaseHandoff(recordId, messageId);
-  // The engine's status is REPORTED, not proxied: the body is ours, so nothing the engine says can reach
-  // the browser unexamined.
+  // The engine's status is REPORTED, not proxied: the body is ours, so nothing the engine says reaches the
+  // browser unexamined. ⚠ But it used to collapse every outcome onto HTTP 200 — `outcome.ok ? 200 : 200`,
+  // which is the same number twice and was written as if it were a choice. A failure that arrives as 200
+  // is invisible to anything that reads status codes: a proxy, a log, a future caller that is not this
+  // component (Codex CRT #11). The reason still carries the detail; the status now carries the outcome.
+  const status = outcome.ok ? 200
+    : outcome.reason === 'misconfigured' ? 500
+    : outcome.reason === 'unreachable' ? 502
+    : outcome.status >= 400 ? outcome.status
+    : 400;
   return Response.json(
-    { ok: outcome.ok, reason: outcome.reason },
-    { status: outcome.ok ? 200 : 200 },
+    { ok: outcome.ok, reason: outcome.reason, ...(outcome.degraded ? { degraded: outcome.degraded } : {}) },
+    { status },
   );
 }

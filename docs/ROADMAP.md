@@ -2238,6 +2238,69 @@ yazılıyor — `close-with-the-gap-inside-the-tick`: boşluk tik'in İÇİNDE d
 
     - ✅ **The open item "the button shipped before the endpoint" CLOSES here** — the endpoint exists, is
       reachable through both layers, and the button drove it end to end.
+  - ✅ **CP 6d · CRT #11 REMEDIATION (Codex, 2026-09-13).** Every finding was re-verified against the CURRENT
+    head before anything was touched — the audit ran against `b74f10b` and the tree had moved — and all of
+    them still held. **`run-d11` is now 8 cases / 13 assertions, 0 failed.**
+    - **A1 · the harness was proving things it could not prove.** Case 5 compared STATE, and `stage='new'`
+      written twice leaves the row identical, so the assertion could not go red for the defect it existed to
+      catch. It counts dedupe MARKERS now. ⚠ The first mutant (replay guard disabled) did NOT turn it red —
+      because the target-lock check blocks the second write on its own; only disabling BOTH produced a real
+      double write, and then the counter went **1 → 2, red**. That failed mutant is worth more than the
+      passing one: it says which guard is actually holding the re-click, and the answer is the target check,
+      not the replay check. The replay check covers the other window — a duplicate arriving while the row is
+      still `handoff` — which was drilled separately (exec 2760).
+    - **A1 · every refusal now asserts the row DID NOT MOVE.** Status-only checks pass "write, then return
+      403". Proven red by a mutant that returns a perfectly correct **401 and writes anyway**: the status
+      assertion stayed green and `↳ 7` caught `handoff|handoff` → `new|`.
+    - **A1 · case 4 split.** Once the record-id pattern was tightened to the real Airtable shape, the old
+      fixture (18 chars) stopped testing "nonexistent" and started testing "malformed". Two refusals were
+      wearing one case; they are **4** (well-formed, nonexistent → 404) and **4b** (malformed → 400) now.
+    - **A2 · the state route is permanent and committed** — `Salon Booking Bot — Drill State Read`, a
+      signature-gated READ-ONLY workflow. See the decision log for why a read-only PAT was rejected, and for
+      the path-prefix measurement that made "two layers" true instead of merely written down.
+    - **B1 · the replay guard was fail-OPEN and is now fail-CLOSED.** An Airtable error read as "not a
+      replay", and the node runs `continueRegularOutput`, so an outage would have waved a duplicate through
+      to the write. Proven: with the lookup broken, `Release Handoff Lock` **never ran**. ⚠ And the first fix
+      was still wrong — it answered `200 {ok:true}`, so an OUTAGE arrived dressed as a successful replay and
+      the owner would have stopped looking. It answers **503 `replay_check_unavailable`** now.
+    - **B2 · the injection surface was closed on one field and open on the other, in the same expression.**
+      `messageId` is interpolated into an Airtable formula exactly as `record_id` is and was only
+      length-checked. Constrained (not escaped — the id is ours to generate, so a character class is a
+      smaller contract a future caller cannot forget to apply). Quote, paren and brace shapes all **400**;
+      a clean id passes.
+    - **B3 · at-most-once is NOT achieved, and the mechanism chosen says why.** Airtable has no atomic
+      claim, so two genuinely concurrent identical requests can both pass the replay read before either
+      marker exists. Claim-then-act was considered and REJECTED: writing the marker first turns a failed
+      release into a permanently swallowed retry, which is a worse failure than a duplicate whose write is
+      idempotent (`stage='new'` twice equals once). **Accepted risk, bounded by that idempotency**, and the
+      window is the gap between the replay read and the marker create.
+    - **B4 · a failed dedupe marker used to return plain success**, silently closing idempotency. It answers
+      `200 {ok:true, degraded:'marker_unwritten'}` now, with its own alert class and its own sender.
+    - **B5 · an undelivered alert is DEGRADED, not success** — `200 {ok:true, degraded:'alert_undelivered'}`.
+      A 4xx would be a lie (the lock IS open) and a plain 200 hides that nobody was told.
+    - **C1 · the dashboard trusted the STATUS and ignored the BODY.** A mocked `200 {"ok":false}` displayed
+      "Released". The body shape is asserted now, with 4 unit tests and a negative control; removing the
+      check kills exactly one of them.
+    - **C2 · `outcome.ok ? 200 : 200`** — the same number twice, written as if it were a choice, so every
+      failure reached the browser as a 200 and was invisible to anything reading status codes. Also a JSON
+      body of literal `null` parsed fine and then threw a TypeError, turning a structured refusal into a 500.
+    - **C3 · "Nothing was changed" was an unknowable claim** and is now an admitted uncertainty: an
+      unanswered call and an unobserved success are indistinguishable from the board.
+    - **D1 · the 30-day window accepted any FUTURE timestamp.** `Date.now() - lu <= 30d` is true for
+      `last_updated = 2099`, so a row the window existed to exclude was unlockable — the comment and the
+      arithmetic disagreed. Age must be non-negative (5-minute skew tolerance) AND within the window:
+      2099 → **409**, realistic → **200**.
+    - **D2 · the same blank-timestamp hazard in `processed_messages` is closed** — the pattern proven on
+      `leads`, one line, in a branch that has shipped since CP5e. Zero rows were exposed, which is why it was
+      worth closing before one appeared.
+    - **D3 · the installed push guard was replaced, and the GATE was proven — not the file.** Backup taken and
+      the restore command written down first; `check-hook-drift` green after. Then a throwaway local branch
+      carrying a fake, non-functional AWS-shaped string attempted a REAL `git push`: the hook **BLOCKED it**,
+      naming the rule and masking the value. The branch was deleted and nothing reached the remote. ⚠ The
+      clean direction is this checkpoint's own push — same gate, same tool path, real content — because
+      pushing a branch that had ever carried a key-shaped string to a PUBLIC repo is a worse outcome than a
+      control taken one step later.
+
   - ✅ **CP 6d CLOSING ROUND (2026-09-13) — four things measured, three of them corrections to my own report.**
     - **run-d11 7/7.** See the 6d-1 entry above.
     - **The alert path was aligned to the repo's ONE proven pattern** rather than kept as a second one:

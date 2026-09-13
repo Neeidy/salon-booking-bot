@@ -23,9 +23,17 @@ const MESSAGE: Record<string, string> = {
   not_found: 'That conversation is no longer in the store.',
   refused: 'The request was refused. Check that this board is signing with the right key.',
   stale: 'That took too long to confirm — press release again.',
-  unreachable: 'The engine did not answer. Nothing was changed.',
+  // ⚠ THIS LINE USED TO SAY "Nothing was changed." and that is a claim nobody can make (Codex CRT #11).
+  // The request may have reached the engine and written before the answer was lost — an unanswered call and
+  // an unobserved success look identical from here. `honesty-demos.md`: a visible gap beats a hidden one,
+  // and the gap is the whole point for the person deciding whether to press it again.
+  unreachable: 'The engine did not answer, so this board cannot tell whether the release happened. Reload before pressing again.',
   misconfigured: 'This board is not configured to write. Nothing was sent.',
   bad_request: 'The request was malformed and was not sent.',
+  // A DEGRADED success. The lock IS open — saying only "released" would hide the half that failed, and the
+  // owner is the one person who needs to know the notification never arrived.
+  released_no_alert: 'Released — but the owner notification could not be delivered, so nobody was told by message.',
+  released_no_marker: 'Released — but the duplicate-guard record was not written, so pressing again could write a second time.',
 };
 
 export function ReleaseButton({ recordId, label }: { recordId: string; label: string }) {
@@ -42,9 +50,14 @@ export function ReleaseButton({ recordId, label }: { recordId: string; label: st
         // deliberate second release look like a replay and silently do nothing.
         body: JSON.stringify({ recordId, messageId: `d11-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }),
       });
-      const data = (await res.json()) as { ok?: boolean; reason?: string };
-      setReason(data.reason ?? 'unreachable');
-      setPhase(data.ok ? 'done' : 'failed');
+      // The route now answers with a REAL status, so a non-2xx with an unreadable body is still a failure
+      // and must not be read as a success by default.
+      let data: { ok?: boolean; reason?: string; degraded?: string } = {};
+      try { data = (await res.json()) as typeof data; } catch { data = {}; }
+      setReason(data.degraded === 'alert_undelivered' ? 'released_no_alert'
+              : data.degraded === 'marker_unwritten' ? 'released_no_marker'
+              : data.reason ?? 'unreachable');
+      setPhase(data.ok === true ? 'done' : 'failed');
     } catch {
       setReason('unreachable');
       setPhase('failed');

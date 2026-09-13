@@ -49,7 +49,7 @@
      "mode": "list",
      "cachedResultName": "processed_messages"
     },
-    "filterByFormula": "={{ '{created_at} < \"' + $json.cutoff + '\"' }}",
+    "filterByFormula": "={{ 'AND({created_at} != \"\", {created_at} < \"' + $json.cutoff + '\")' }}",
     "options": {}
    },
    "id": "caf600de-d0fd-4407-93c0-7fec6e6e67fb",

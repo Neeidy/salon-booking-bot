@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-d11 — the seven cases that decide whether the D11 owner write path is real.
+# run-d11 — the eight cases that decide whether the D11 owner write path is real.
 #
 # WHAT MAKES A CASE EVIDENCE, and the reason it is stated before any code: a case counts only when the
 # CONTROL and the TREATMENT differ. In CP 6d-0 a token-bearing request and an unauthenticated one both
@@ -67,13 +67,17 @@ body_for() { # body_for <action> <sender> <messageId> <ts>
 #     own header calls a broken instrument rather than a pass.
 # With NEITHER configured it still returns NO-AIRTABLE and case 6 still FAILS loudly. That is deliberate:
 # the fallback adds a route, it does not add a way to pass without evidence.
-state_of() {
+state_of() { # state_of [messageId]  -> "stage|last_intent|markerCount"
+  local mid="${1:-zz-no-such-message-id}"
   if [ -n "${STATE_URL:-}" ]; then
-    curl -s -4 -m 25 -X POST "$STATE_URL" \
-      -H 'Content-Type: application/json' \
+    local body sig
+    body="$(printf '{"action":"read_drill_state","record_id":"%s","messageId":"%s"}' "$TGT" "$mid")"
+    sig="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$SEC" -r | cut -d' ' -f1)"
+    curl -s -4 -m 25 -X POST "$STATE_URL" -H 'Content-Type: application/json' \
+      -H "X-Owner-Signature: $sig" \
       ${CF_OWNER_ACCESS_CLIENT_ID:+-H "CF-Access-Client-Id: $CF_OWNER_ACCESS_CLIENT_ID"} \
       ${CF_OWNER_ACCESS_CLIENT_SECRET:+-H "CF-Access-Client-Secret: $CF_OWNER_ACCESS_CLIENT_SECRET"} \
-      --data "{\"record_id\":\"$TGT\"}"
+      --data "$body"
     return
   fi
   [ -n "$PAT" ] && [ -n "$BASE" ] || { echo "NO-AIRTABLE"; return; }
@@ -85,10 +89,22 @@ try: d=json.load(sys.stdin)
 except Exception: print('READ-FAILED'); sys.exit()
 if 'fields' not in d: print('NOT-FOUND'); sys.exit()
 f=d['fields']
-print('%s|%s' % (f.get('stage',''), f.get('last_intent','')))"
+print('%s|%s|?' % (f.get('stage',''), f.get('last_intent','')))"
 }
 
-echo "run-d11 — seven cases, tag $RUN"
+# A REFUSAL THAT STILL WROTE is the failure this endpoint exists to prevent, and checking only the status
+# code cannot see it: "write, then return 403" passes a status-only assertion. Every rejected request is
+# therefore followed by this.
+assert_unchanged() { # assert_unchanged <case label> <expected state>
+  local now; now="$(state_of)"
+  if [ "$now" = "$2" ]; then
+    ok "  ↳ $1" "target row UNCHANGED after the refusal"
+  else
+    bad "  ↳ $1" "the refusal still MOVED the row: '$2' -> '$now'"
+  fi
+}
+
+echo "run-d11 — eight cases, tag $RUN"
 echo "target record: ${TGT:0:3}…  (masked — security-secrets.md redacts record ids to a bare rec…)"
 BEFORE="$(state_of)"; echo "airtable before: $BEFORE"
 echo
@@ -101,55 +117,81 @@ S_OK="$(sign "$B_OK")"
 c1="$(post "$B_OK" "$S_OK" --no-token)"
 [ "$c1" = "403" ] && ok "1 no service token" "403 (Access refused)" \
                   || bad "1 no service token" "got $c1, expected 403"
+assert_unchanged "1 no service token" "$BEFORE"
 
 # 2 — token present, signature wrong.
 c2="$(post "$B_OK" "$(sign "${B_OK}tampered")")"
 [ "$c2" = "403" ] && ok "2 token OK, HMAC wrong" "403" \
                   || bad "2 token OK, HMAC wrong" "got $c2, expected 403"
+assert_unchanged "2 token OK, HMAC wrong" "$BEFORE"
 
 # 3 — signed correctly, action outside the allow-list.
 B3="$(body_for delete_everything "$TGT" "d11-$RUN-3" "$NOW")"
 c3="$(post "$B3" "$(sign "$B3")")"
 [ "$c3" = "400" ] && ok "3 action off the allow-list" "400" \
                   || bad "3 action off the allow-list" "got $c3, expected 400"
+assert_unchanged "3 action off the allow-list" "$BEFORE"
 
 # 7 — stale ts (run before the real release so it cannot be masked by an already-released target).
 B7="$(body_for release_handoff "$TGT" "d11-$RUN-7" "$((NOW-3600))")"
 c7="$(post "$B7" "$(sign "$B7")")"
 [ "$c7" = "401" ] && ok "7 ts older than the window" "401" \
                   || bad "7 ts older than the window" "got $c7, expected 401"
+assert_unchanged "7 ts older than the window" "$BEFORE"
 
 # 4 — a target that is not in handoff (or does not exist) — AND Airtable must not change.
-S4="recZZnonexistent99"
+# ⚠ The fixture used to be `recZZnonexistent99`, which is 18 characters. Once `Validate Owner Action`
+# tightened its pattern to the REAL Airtable shape (`rec` + exactly 14) that id stopped being a
+# nonexistent-record test and became a malformed-input test: it returns 400 at the allow-list and never
+# reaches the lookup. Two different refusals were wearing one case. They are separate now — 4 proves the
+# 404 path with a WELL-FORMED id that does not exist, 4b proves the 400 path on purpose.
+S4="recZZZZZZZZZZZZZZ"
 B4="$(body_for release_handoff "$S4" "d11-$RUN-4" "$NOW")"
 c4="$(post "$B4" "$(sign "$B4")")"
-A4="$(state_of)"
+A4="$(state_of)"    # same shape as BEFORE, so the comparison below is a real one
 if { [ "$c4" = "404" ] || [ "$c4" = "409" ]; } && [ "$A4" = "$BEFORE" ]; then
-  ok "4 wrong target" "$c4 and the target row is UNCHANGED"
+  ok "4 wrong target (well-formed, nonexistent)" "$c4 and the target row is UNCHANGED"
 else
-  bad "4 wrong target" "got $c4, state ${BEFORE} -> ${A4}"
+  bad "4 wrong target (well-formed, nonexistent)" "got $c4, state ${BEFORE} -> ${A4}"
 fi
 
+# 4b — a MALFORMED record id must be refused by the allow-list, before any lookup, and write nothing.
+B4b="$(body_for release_handoff "recNOPE" "d11-$RUN-4b" "$NOW")"
+c4b="$(post "$B4b" "$(sign "$B4b")")"
+[ "$c4b" = "400" ] && ok "4b malformed record id" "400 at the allow-list, before the lookup" \
+                   || bad "4b malformed record id" "got $c4b, expected 400"
+assert_unchanged "4b malformed record id" "$BEFORE"
+
 # 5 + 6 — the real release, then the replay.
+# ⚠ THE COUNTER, NOT THE STATE. An earlier version compared AFTER2 with AFTER1 and called that a replay
+# proof. It is not: `stage='new'` written twice leaves the row IDENTICAL, so two writes and one write are
+# indistinguishable by state — the assertion could not go red for the defect it existed to catch (Codex
+# CRT #11, 2026-09-13). One complete pass writes exactly ONE dedupe marker, so the MARKER COUNT is what
+# actually discriminates. State equality is kept as a second, weaker check, not as the proof.
 c5a="$(post "$B_OK" "$S_OK")"
-AFTER1="$(state_of)"
+AFTER1="$(state_of "d11-$RUN")"
 c5b="$(post "$B_OK" "$S_OK")"
-AFTER2="$(state_of)"
+AFTER2="$(state_of "d11-$RUN")"
+M1="${AFTER1##*|}"; M2="${AFTER2##*|}"
 
 # 6 — write-then-verify, from the DATA not the status code.
 if [ "$AFTER1" = "NO-AIRTABLE" ]; then
   bad "6 released state" "Airtable not configured — cannot verify the DATA, only the code ($c5a)"
-elif [ "$AFTER1" = "new|" ]; then
+elif [ "${AFTER1%|*}" = "new|" ]; then
   ok "6 released state" "stage='new' AND last_intent empty"
 else
-  bad "6 released state" "expected 'new|', got '$AFTER1'"
+  bad "6 released state" "expected 'new|…', got '$AFTER1'"
 fi
 
-# 5 — the replay must not write a second time. The discriminator is the STATE, not the status.
-if [ "$AFTER2" = "$AFTER1" ]; then
-  ok "5 replay (same messageId)" "codes $c5a/$c5b, state unchanged by the second call"
+# 5 — the replay must not write a second time. The discriminator is the WRITE COUNT.
+if [ "$AFTER1" = "NO-AIRTABLE" ]; then
+  bad "5 replay (same messageId)" "no state route — cannot count writes, only statuses ($c5a/$c5b)"
+elif [ "$M1" = "?" ] || [ "$M2" = "?" ]; then
+  bad "5 replay (same messageId)" "the state route returned no marker count; the PAT route cannot count writes"
+elif [ "$M1" = "1" ] && [ "$M2" = "1" ]; then
+  ok "5 replay (same messageId)" "codes $c5a/$c5b · dedupe markers 1 -> 1, so the second call wrote NOTHING"
 else
-  bad "5 replay (same messageId)" "state moved on the replay: '$AFTER1' -> '$AFTER2'"
+  bad "5 replay (same messageId)" "marker count moved $M1 -> $M2 (expected 1 -> 1): the replay wrote again"
 fi
 
 echo
