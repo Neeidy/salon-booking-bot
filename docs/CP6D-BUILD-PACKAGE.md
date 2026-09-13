@@ -1,7 +1,19 @@
 # CP 6d — build package (ONE editor session)
 
-> **Who does what.** Yigitcan builds these nodes in the n8n editor, generates the secret and publishes.
-> Claude Code builds the dashboard client, the test harness and the docs, and **does every measurement**.
+> ⚠ **WHO DOES WHAT — CORRECTED 2026-09-13, and this document was the thing that drifted.** Its first
+> version opened *"Yigitcan builds these nodes in the n8n editor"*. `CLAUDE.md` had already said the
+> opposite for a month, and on 2026-09-13 Yigitcan ruled it explicitly: **he does not build — he audits
+> and rules. CC builds everything it can reach, including these nodes, over the n8n API.**
+>
+> **So this file is no longer a hand-over; it is the SPEC and the WALKTHROUGH.** Its "what breaks if you
+> skip this" lines are what carries the understanding the old rule protected by hand-clicking — that
+> purpose did not lapse when the hands changed.
+>
+> **What still needs Yigitcan is a LIMIT, not a role, and it is exactly Step 0 below:** the secret's
+> literal value. CC deliberately does not generate or hold one (`remote-operator.md` — the value you
+> never hold is the value you cannot misplace), and the container's host config lives in a root-owned directory with no sudo, so the
+> container env is his too. Everything after that, CC builds and CC measures.
+>
 > "I built it" is not a measurement — the drills in `tests/run-d11.sh` are.
 >
 > **Two jobs are in here on purpose:** the D11 owner write path and the `leads` TTL branch. Both are n8n
@@ -12,7 +24,7 @@
 
 ---
 
-## STEP 0 — the shared secret (Yigitcan, before touching the editor)
+## STEP 0 — the shared secret (Yigitcan; the ONE thing CC does not do)
 
 ```
 openssl rand -hex 32
@@ -22,7 +34,7 @@ That one value goes in **two places and nowhere else**:
 
 | Where | How |
 |---|---|
-| **n8n** | Credentials → new *Header Auth* or a workflow-level variable named `OWNER_HMAC_SECRET` |
+| **n8n** | the CONTAINER ENV, alongside `NODE_FUNCTION_ALLOW_BUILTIN=crypto` — measured 2026-09-13: a Code node on this instance has **no `crypto` at all** (neither `node:crypto` nor WebCrypto), so the builtin must be allowed or the declared HMAC cannot be computed. `$env` access itself works. a root-owned host directory is root-owned, so this edit is Yigitcan's. |
 | **the dashboard** | `web/dashboard/.env.local` → `OWNER_HMAC_SECRET=<value>` |
 
 ⚠ **It must never take a `NEXT_PUBLIC_` prefix.** That prefix inlines the value into the browser bundle,
@@ -182,9 +194,9 @@ run**, daily. Write that number on the sticky next to the branch.
 
 ---
 
-## After publishing
+## After building
 
-Tell Claude Code. The seven cases in `tests/run-d11.sh` then run against the live path, and each one is
+CC builds these over the API and then measures. The seven cases in `tests/run-d11.sh` then run against the live path, and each one is
 only evidence if the control and the treatment **differ** — a case where both return the same status is a
 broken measurement, not a pass. That distinction is not pedantry: in CP 6d-0 a token-bearing request and an
 unauthenticated one both returned 404 while the application was inert, and it had been written down as a

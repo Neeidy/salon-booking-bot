@@ -3,7 +3,7 @@
 
 **Version:** v1.2 — updated 2026-08-22 · (v1.1 2026-07-04 · v1.0 approved 2026-06-29)
 > Changelog v1.2: **build-ownership corrected to Phase-3 reality — CC builds the n8n flow (MCP/raw-API);
-> Yigitcan approves, is final judge, does UI-only actions (Airtable field, Publish, Execute); the
+> Yigitcan approves and is final judge; he does NOT build (2026-09-13 ruling — see CLAUDE.md); the
 > "understand + sell" purpose is secured by the WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM, not by
 > hand-clicking every node** (§2 + docs/ARCHITECTURE-DECISIONS.md §5).
 > Changelog v1.1: cancel·reschedule·reminders OUT→IN SCOPE (v1 core) · Instagram = config-gated
@@ -15,7 +15,7 @@
 > Produced in Cowork (architecture/brain). Hand this to **Claude Code on the RS**; CC runs
 > `/repo-scaffold` from it, then builds Phases 0→8. **Cowork stays the brain** (architecture,
 > review, teaching); **CC is the builder** (incl. the n8n flow); **Yigitcan** approves, is the final judge,
-> and does the UI-only actions (Airtable field, Publish, Execute).
+> and is the final judge. He does NOT build — CC builds everything it can reach (2026-09-13).
 
 ---
 
@@ -33,7 +33,7 @@
   `/goal`** fits that phase and how — or explicitly say **"neither"** (rationale in §11).
 - **One small verifiable step at a time.** Build a piece → test it → confirm understanding → next. No big jumps.
 - **Teach-while-build (CC builds · Yigitcan understands).** CC builds the n8n nodes (MCP/raw-API) and explains
-  WHAT / WHY / HOW at every step; Yigitcan approves, is final judge, and does UI-only actions (Airtable field,
+  WHAT / WHY / HOW at every step; Yigitcan approves and is final judge, and does NOT build (2026-09-13;
   Publish, Execute). The goal — Yigitcan can explain + sell the system — is secured by that walkthrough + a
   current FLOW-DIAGRAM, not by hand-clicking every node. No black boxes.
 - **Secrets & PII — repo is PUBLIC.** `.env` gitignored; real keys live in **n8n Credentials / Vercel env**.
@@ -54,7 +54,7 @@
 |---|---|
 | **Cowork (brain)** | architecture · brainstorming · review/audit (**from git**) · teaching · briefs. **Not building** — incl. the Phase 1 mockup: CC builds it, Cowork reviews it from git. |
 | **Claude Code (RS)** | scaffolding · code · config · **builds all artifacts incl. the mockup** · commits/push. Builds Phases 0→8. |
-| **Yigitcan** | approvals · **final judge** · UI-only actions (Airtable field, Publish, Execute, deploys). Understands + can sell the system via the per-step WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM (not by hand-clicking nodes). |
+| **Yigitcan** | approvals · **final judge · AUDITOR** · ⚠ *does NOT build (2026-09-13 ruling). What still physically requires him is a LIMIT, not a role, and it is named in CLAUDE.md: root-owned host files, a credential that does not yet exist, and generating a secret's literal value — which CC deliberately never holds.* Understands + can sell the system via the per-step WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM (not by hand-clicking nodes). |
 
 **Review / test / audit = defense-in-depth (multiple independent layers, not one set of eyes):**
 - **L1 — Claude Code:** builds + self-checks its own output.

@@ -106,6 +106,7 @@
 
 - `docs/ARCHITECTURE-DECISIONS.md`
 - `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
+- `docs/CP6D-BUILD-PACKAGE.md`
 - `docs/DATA-MODEL.md`
 - `docs/FLOW-DIAGRAM.md`
 - `docs/OPERATIONAL-INCIDENTS.md`
@@ -163,6 +164,7 @@
 - `tests/golden-set.md`
 - `tests/jailbreak-cases.md`
 - `tests/regression-suite.md`
+- `tests/run-d11.sh`
 - `tests/run-regression.sh`
 
 ### tests/snippet
@@ -196,11 +198,16 @@
 - `web/dashboard/app/layout.tsx`
 - `web/dashboard/app/page.tsx`
 
+### web/dashboard/app/api/release
+
+- `web/dashboard/app/api/release/route.ts`
+
 ### web/dashboard/components
 
 - `web/dashboard/components/AppointmentsPanel.tsx`
 - `web/dashboard/components/HandoffQueue.tsx`
 - `web/dashboard/components/LeadsPanel.tsx`
+- `web/dashboard/components/ReleaseButton.tsx`
 - `web/dashboard/components/States.tsx`
 - `web/dashboard/components/SystemHealth.tsx`
 
@@ -211,6 +218,8 @@
 - `web/dashboard/lib/alertState.ts`
 - `web/dashboard/lib/mask.test.ts`
 - `web/dashboard/lib/mask.ts`
+- `web/dashboard/lib/ownerAction.test.ts`
+- `web/dashboard/lib/ownerAction.ts`
 - `web/dashboard/lib/shopConfig.ts`
 - `web/dashboard/lib/types.ts`
 
@@ -484,6 +493,32 @@
   - ## Incremental build order (one verifiable step at a time — NEVER 13 nodes at once)
   - ## Stop conditions (unchanged)
 
+### `docs/CP6D-BUILD-PACKAGE.md`
+  - ## STEP 0 — the shared secret (Yigitcan; the ONE thing CC does not do)
+  - ## PART A — the D11 owner write path (11 nodes, new workflow *or* a new trigger in the main one)
+  - ### A1 · `Receive Owner Action` — Webhook
+  - ### A2 · `Verify Owner Signature` — Code
+  - ### A3 · `Owner Request Fresh?` — Code + IF  ⟵ replay window
+  - ### A4 · `Signature Valid?` — IF
+  - ### A5 · `Validate Owner Action` — Code  ⟵ **the allow-list**
+  - ### A6 · `Find Target Conversation` — Airtable (get by record id)
+  - ### A7 · `Validate Release Target` — Code  ⟵ **target validation**
+  - ### A8 · `Check Owner Replay` — Airtable (search) on `processed_messages` by `messageId`
+  - ### A9 · `Release Handoff Lock` — Airtable (update)
+  - ### A10 · `Re-read Released Conversation` — Airtable (get)  ⟵ **write-then-verify**
+  - ### A11 · `Build Owner Alert (Release)` — Code → existing `Send Owner Alert (Telegram)`
+  - ### A12 · `Respond Owner OK` — Respond to Webhook — **200**
+  - ## PART B — the `leads` TTL branch (a NEW branch in the EXISTING purge workflow)
+  - ### B1 · `Compute Leads Cutoff` — Code (from `Load Config (Purge)`)
+  - ### B2 · `Find Old Leads` — Airtable (search)
+  - ### B3 · `Leads Purge Sane?` — IF  ⟵ **THE CANDIDATE CAP**
+  - ### B4 · `Count Leads Before` — Airtable (search, count only)
+  - ### B5 · `Delete Old Leads` — Airtable (deleteRecord), **batched at 25 per request**
+  - ### B6 · `Count Leads After` — Airtable (search, count only)
+  - ### B7 · `Verify Leads Purge` — Code: assert `before − after === deleted`; mismatch → alert branch.
+  - ### B8 · errors → the existing `Build Owner Alert (Purge)`
+  - ## After building
+
 ### `docs/DATA-MODEL.md`
   - ## `leads`
   - ## `appointments`
@@ -549,6 +584,7 @@
   - ### web
   - ### web/dashboard
   - ### web/dashboard/app
+  - ### web/dashboard/app/api/release
   - ### web/dashboard/components
   - ### web/dashboard/lib
   - ### web/shared
@@ -596,6 +632,7 @@
   - ### `design/flow-diagram.md`
   - ### `docs/ARCHITECTURE-DECISIONS.md`
   - ### `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
+  - ### `docs/CP6D-BUILD-PACKAGE.md`
   - ### `docs/DATA-MODEL.md`
   - ### `docs/FLOW-DIAGRAM.md`
   - ### `docs/OPERATIONAL-INCIDENTS.md`

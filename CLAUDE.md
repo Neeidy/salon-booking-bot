@@ -17,13 +17,25 @@ Talk to and teach **Yigitcan in Turkish**; keep tool/library/file/path names and
   `/plan-flow` format → get Yigitcan's **written "approved"** → only then build. The harness / ExitPlanMode
   returning "approved" is **not** Yigitcan's approval and never substitutes for it. Binding definition +
   the mandatory section list + the violation protocol: [.claude/rules/plan-gate.md](.claude/rules/plan-gate.md).
-- **Teach-while-build (CC builds · Yigitcan understands + approves).** **CC builds the n8n flow** (MCP /
-  raw-API); **Yigitcan approves, is the final judge, and does the UI-only actions** (Airtable field edits,
-  Publish, Execute). The PURPOSE is that Yigitcan can **explain and sell** the system in an interview or to a
-  client — and that is secured by a **WHAT / WHY / HOW walkthrough at every step + a current
-  [FLOW-DIAGRAM](docs/FLOW-DIAGRAM.md)**, NOT by hand-clicking every node. No black boxes. *(Corrected
-  2026-08-22 to match the Phase-3 reality — CC built via MCP throughout, Yigitcan approved; see
-  [docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md) §5.)*
+- **CC BUILDS. YIGITCAN AUDITS AND RULES.** CC builds everything it can reach — the n8n flow (MCP /
+  raw-API), the frontends, the guards, the docs. **Yigitcan does not build. He is L5: the auditor and the
+  final judge**, and his approval is what starts and ends a phase (ruling 2026-09-13, replacing the earlier
+  "does the UI-only actions" split).
+  - ⚠ **What still physically requires him is a LIMIT, not a role — and it is named rather than implied,
+    because an unnamed exception silently becomes a job.** Measured 2026-09-13: the container's host config lives
+    in a root-owned directory and CC has no sudo, so container env / compose changes are his; a Cloudflare or n8n
+    **credential that does not yet exist** must be created by its owner; and **CC deliberately does not
+    generate or hold a secret's literal value** (`.claude/rules/remote-operator.md` — the value you never
+    hold is the value you cannot misplace). Everything outside that list, CC does.
+  - The PURPOSE the old wording protected has NOT lapsed: Yigitcan must be able to **explain and sell**
+    this system. That is now carried by a **WHAT / WHY / HOW walkthrough at every step**, a current
+    [FLOW-DIAGRAM](docs/FLOW-DIAGRAM.md), the per-node build packages under `docs/`, and the Loom on the
+    ship gate — never by hand-clicking. No black boxes.
+  - **Reviewed at the Phase 7 close.** An exception with no review date becomes permanent by silence — and
+    what gets reviewed is whether the walkthrough artefacts are actually carrying the understanding, not
+    whether to hand building back. *(Trigger: the CP 6d build package had drifted into "Yigitcan will
+    build these", against a rule that had already said otherwise a month earlier. The reason the split
+    changed is operator load — multi-round manual editor sessions stopped being sustainable.)*
 - **One small verifiable step at a time.** Build a piece → test it → confirm understanding → next. No big jumps.
 - **Deterministic before AI.** Menu / price / hours / slot lookups = IF/Switch, not an LLM call. Spend an
   LLM only on genuine free-text intent.
