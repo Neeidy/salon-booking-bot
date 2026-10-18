@@ -240,7 +240,7 @@ has them), never `require('playwright')`.
 isolation, responsive, accessibility, asset loading or request blocking is **Claude's to run**. Yigitcan's
 browser is for the cases that need a **REAL TURNSTILE TOKEN** and nothing else: E2E-1/2/3 and a live
 conversation (`tests/snippet/DRILLS.md`). The one thing still genuinely out of reach is a Turnstile
-challenge in this headless Chromium (error 600010, measured repeatedly) — that limit is real; "no browser"
+challenge in this headless Chromium (error 600010, measured repeatedly — and **re-measured 2026-10-18 with a control, which narrows the claim**: the always-pass TEST key mints a token here, so the widget script and the harness work (a test key runs no real bot challenge, so this is not proof the browser could pass one); it is the REAL key that fails, and Cloudflare documents `600*` as *"Bot behavior detected"*. The limit is bot detection, not the browser) — that limit is real; "no browser"
 never was.
 
 Before writing "I can't", run the check. This section exists because that was not done.

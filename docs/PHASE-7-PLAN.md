@@ -7,10 +7,36 @@
 > **v3 was re-derived, not inherited:** v2's premises had all moved — 6d did not exist, the `leads` TTL
 > did not exist, the ship gate was not consolidated, and the Codex findings had not arrived.
 
-## ⚠ STEP 0 — before the first BUILD step
+## Ship-gate #17 — MOVED to the end-of-phase security pass (Yigitcan's ruling, 2026-10-18)
 
-**Ship-gate #17: `CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated.**
-Yigitcan's hands. CP 7-0 does not start until it is done. Planning was not blocked by it; building is.
+**Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
+**is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays
+OPEN on the ship gate — the row is not deleted, only its position changed.
+
+*(This section used to read "STEP 0 — before the first BUILD step … CP 7-0 does not start until it is
+done." That was the plan as approved on 2026-09-17; the rotation then stopped on a measured capability
+wall — the Cloudflare account id is unreachable from this machine — and the plan is corrected in place
+rather than annotated beside, per `governance-sync.md` §6.)*
+
+**Why the deferral is safe:**
+*Yigitcan's rationale (his ruling, recorded as given), with what was measured against it:*
+- **None of the four leaked values sits on a customer path.** The four that leaked on 2026-09-13 are: two
+  Cloudflare service tokens (each an id + secret pair), the n8n API key, and the owner's Telegram chat id.
+  The two service tokens gate the n8n API and the owner-only `/webhook/owner-*` path; the API key is an
+  operator tool; the chat id addresses the OWNER, not a customer. No customer request is authenticated by
+  any of them. *(`CF_API_TOKEN` did NOT leak — it is on #17 because its Edit scope must be reduced after the
+  rotation, a separate reason. An earlier draft of this paragraph listed it among the four; corrected.)*
+- **The leaked values went into a transcript on the machine that already stores them.** Measured
+  2026-10-18: all six variables the leak printed are present in `~/.n8n-api.env` (presence only — values
+  not read). ⚠ **That makes "no new exposure" true for THIS MACHINE and not beyond it:** the transcript is
+  a session that was also transmitted to the model provider, which this framing does not cover.
+
+**Measured before writing this (2026-10-18), not assumed:** no CP in this plan requires a Cloudflare API
+WRITE. Every Cloudflare-shaped line in this file was grepped; the only one that writes to Cloudflare is
+#17 itself. (Positive control: `grep -ciE turnstile` returned 9 against `00c626f`, before this round's edits.) ⚠ One conditional: CP 7-0's *real-token* option could turn out to need a Turnstile widget
+hostname-allow-list change, which IS a Cloudflare write. That is an outcome 7-0 might discover, not a
+requirement the plan states — and if it is the only route, it is blocked by the same missing account id
+and 7-0 stops and reports rather than routing around it.
 
 ---
 
@@ -214,3 +240,61 @@ Verify Slot ──► Check Race ──► Race Gate ──┬─ true  ─► C
 ⚠ **This is a STRUCTURAL measurement, not a behavioural one.** It says what the graph does; it does not
 say what happened, because firing two concurrent widget bookings needs the Turnstile gate — which is
 exactly CP 7-0. The behavioural confirmation belongs to CP 7-1 and is not claimed here.
+
+---
+
+## CP 7-0 · RESULT — measured 2026-10-18 (round 1 of 2) · ⛔ STOPPED for a ruling before 7-1
+
+**Verdict: a real-token path for the automated suite is NOT POSSIBLE from this machine, and every
+remaining route either changes the security model or tests only a sliver. Per the plan: no redesign —
+stop and report. K-1 applies.**
+
+### The measurement — a 2×2, each cell in a FRESH headless browser
+
+| | Cloudflare's always-pass test key | the REAL site key |
+|---|---|---|
+| `127.0.0.1` | ✅ token minted | ❌ **error 600010** |
+| `localhost` | ✅ token minted | ❌ **error 600010** |
+
+- **The control is what makes the treatment mean something.** The test key mints on both hostnames, so
+  the widget script loads and the harness works; the real key fails on both with the same code. ⚠ *Narrower
+  than it first read:* an always-pass test key does not run a real bot-detection challenge, so it proves the
+  harness and the script — not that this browser could pass a real challenge.
+- **What 600010 is, from Cloudflare's own error-code table, not from memory:** `600*` = *"Generic challenge
+  failure — Bot behavior detected."* The hostname-allow-list failure is a DIFFERENT code, **110200**
+  *"Domain not authorized"*. We got 600010, so **the measured wall is bot detection, and a hostname change would not
+  address it.** ⚠ What is NOT measured: whether the hostname list is ALSO wrong — if bot detection is
+  evaluated first, a 110200 could be masked behind it. The conditional recorded earlier on 2026-10-18 is
+  resolved only in that narrower sense: no Cloudflare write is indicated by what was measured.
+- Getting past bot detection would be detection evasion against our own control. It is not an option.
+
+⚠ **An instrument defect was caught on the way, and it would have produced a false PASS.** The first real-key
+run reported `TOKEN len=21`. A real Turnstile token is hundreds of characters (Cloudflare's documentation — no real token was minted in this round to measure it); 21 is exactly the length of
+`XXXX.DUMMY.TOKEN.XXXX`, the test key's dummy. The control and treatment URLs differed only in their `#`
+fragment, which the browser treats as a SAME-DOCUMENT navigation — the page never reloaded, and the driver
+read the control's leftover result. Every cell above was then re-run in its own fresh browser with a query
+string. **The token's length was the only thing that gave it away.**
+
+### A structural fact that decides the remaining options
+
+`Turnstile Gate` checks only `channel === 'widget'` and `turnstile.enabled === true` — **there is no
+session memory**. Every widget message goes to `Verify Turnstile`, and a Turnstile token is single-use
+(Cloudflare's documented behaviour; not separately measured here). **So every message needs a fresh token.**
+
+### The routes, and why none is taken without a ruling
+
+| Route | Status | Why |
+|---|---|---|
+| (a) real token from this machine | ❌ measured impossible | 600010 bot detection, both hostnames |
+| (b) a signed test lane in production (HMAC bypasses Turnstile) | ⛔ **security-model change** | replaces a verification layer on the PUBLIC endpoint for signed requests — a declared stop condition; it would also never exercise `Verify Turnstile` itself |
+| (c) human-minted tokens (Yigitcan's real browser) | ◐ a sliver only | one token per message × the harness's own header estimate of "~44 requests" (a comment in `tests/run-regression.sh`, not a count), each single-use and short-lived — workable for two or three targeted drills, not for a suite |
+| (d) lower the gate for the run | ⛔ forbidden | NOT-build here, and a declared stop condition |
+| (e) **PROPOSED, not adopted:** a drill COPY of Main behind `/webhook/owner-*` with Turnstile off in the copy only | ◐ needs a ruling | production's gate never moves and its security model is untouched; the copy is behind Access Service Auth and active only during a drill. ⚠ The cost is a second truth — a copy that drifts tests something that is not production, the exact defect this repo keeps paying for — so it is viable ONLY with a parity check (every node equal to Main except the Turnstile flag) run immediately before each drill, and it does not prove `Verify Turnstile` itself |
+
+### ⛔ THE RULING NEEDED BEFORE 7-1 — a conflict inside the approved plan
+
+K-1 says: if 7-0 cannot be solved, "tested" closes as *"run only with the gate down"* and the real-token run
+becomes **ship gate 21**. But this plan's NOT-build also says **✗ lowering Turnstile for a drill**. Read
+together, they leave 7-1 with **no live route at all**: the gate up fails on bot detection, the gate down
+is forbidden. Which of these governs 7-1 is Yigitcan's to rule — it decides how 7-1 runs, which is exactly
+why 7-0 stops here instead of flowing into it.
