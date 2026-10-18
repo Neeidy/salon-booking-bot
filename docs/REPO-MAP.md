@@ -547,6 +547,7 @@
   - ## The invariants this diagram encodes (why the shapes are what they are)
 
 ### `docs/OPERATIONAL-INCIDENTS.md`
+  - ## OPS-5 · 2026-10-06 → STILL OPEN at 2026-10-18 · The Airtable monthly API quota ran out and the bot has had no data layer for 12 days
   - ## OPS-1 · 2026-09-09 · A resync step sanitized the LIVE workflow — production broke, and the parity guard stayed GREEN
   - ## OPS-2 · 2026-09-11 · `pkill -f` matched its own shell and killed it mid-script; a server survived 2h37m
   - ## OPS-3 · 2026-09-11 · `git clone --local` failed silently, so a subagent's negative control ran in the REAL repo
@@ -584,6 +585,9 @@
   - ### A structural fact that decides the remaining options
   - ### The routes, and why none is taken without a ruling
   - ### ⛔ THE RULING NEEDED BEFORE 7-1 — a conflict inside the approved plan
+  - ## WINDOW PROTOCOL — Yigitcan's ruling, 2026-10-18
+  - ## CP 7-0 · STATUS 2026-10-18 — protocol designed, window NOT opened
+  - ## 7-1 · WINDOW PLAN — PROPOSED, not run
 
 ### `docs/REPO-MAP.md`
   - ## Tracked files by directory

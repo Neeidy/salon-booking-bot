@@ -18,6 +18,56 @@
 
 ---
 
+## OPS-5 · 2026-10-06 → STILL OPEN at 2026-10-18 · The Airtable monthly API quota ran out and the bot has had no data layer for 12 days
+
+**What happened.** Airtable began refusing every API call from this workspace with
+`PUBLIC_API_BILLING_LIMIT_EXCEEDED` — *"You've reached the maximum number of requests allowed for this month
+… wait until usage resets."* The free plan allows **1,000 API calls per month per workspace** (measured
+2026-09-12, ARCH-DEC). Every workflow that reads or writes state has been failing since. For the live bot
+that means `Load State` / `Check Processed` / `Save State` cannot run: a real conversation could not be
+served for the whole period.
+
+**When — measured, not estimated.** A binary search over the hourly Reminders executions (n8n keeps 14
+days of them): last successful Airtable call **2026-10-06 21:00 UTC**, first refused **2026-10-06 22:00
+UTC**, still refused **2026-10-18 18:00 UTC**. Confirmed by a second, independent instrument the same day
+— the Airtable connector outside n8n returned the identical billing-limit error.
+
+**How it was noticed.** Not by anyone reading the alerts. It surfaced on 2026-10-18 while declaring a call
+budget for CP 7-0: the latest Purge run's `Count Leads Total` returned an empty item on its success output
+and an error item on its error output, and the error said billing limit. **The alerting itself worked:**
+250 of the last 250 blocked Reminders runs sent an owner alert, and all 250 were delivered (`ok:true`) —
+those 250 cover about ten days (2026-10-08 08:00 → 10-18 18:00); the first ~1.5 days of the block were not
+checked. "Failures are visible" held for every run that was examined. What did not exist was anything that
+turned roughly one identical alert per hour into one escalation — **a visible failure nobody acts on is the same outcome as a silent one,
+reached more slowly.**
+
+**Impact.** The data layer — therefore the bot — down for the whole measured window — 11 days 20 hours (2026-10-06 22:00 → 2026-10-18 18:00 UTC). No paying customer exists
+(Yigitcan, 2026-10-18), so the impact is the demo, not a client. The LLM spend brake reads spend from
+Airtable, but its error path routes only to an owner alert and never reaches `Build LLM Request` (read from
+the published graph), so the outage did not open an unbounded-spend path.
+
+**Cause — NOT established, and it is written as unknown rather than guessed.** What was measured: the scheduled jobs' own
+per-run Airtable cost, from real executions — on a day with nothing to remind or purge, so it is a FLOOR.
+On that floor the housekeeping alone consumes **the large majority of the monthly allowance before any test
+or any customer** — and it still does not reach the limit by October 6 on a calendar-month cycle. *(Exact call counts are deliberately kept OUT of this public repo: per-turn cost combined with the remaining headroom is enough for a stranger to compute how few widget messages would take the data layer down for a month — and OPS-5 shows such an outage can go unacted on for days. Same reasoning as the firewall-inventory rule in `remote-operator.md`. The figures are in the round report.)* The hypothesis tested here — that Purge was deleting September's drill
+rows one call each as they aged past 30 days — was **NOT supported**: the visible October 5 and 6 runs
+deleted nothing. Unmeasurable from this machine: October 1–4 (pruned from n8n), the workspace's billing-cycle
+start date, and any OTHER base or integration sharing the same workspace quota. **Yigitcan can read the exact
+usage and reset date in Airtable's workspace settings — that is the one reading that settles it.**
+
+**How it is being reverted.** Not by this build: waiting for the reset or upgrading the plan is money and a
+workspace setting, both Yigitcan's. **Nothing was changed** in response — no workflow was paused to save
+quota, because that is a production change outside the approved scope.
+
+**What prevents a repeat — proposed, not built.** (1) An escalation rule: the same alert class firing N
+times without a change in state becomes one louder message, not N quiet ones. (2) A quota line in the
+call-budget declaration — background jobs alone take most of the plan, so every test budget must be
+declared against what is LEFT, not against the headline allowance. (3) The data-layer migration that ARCH-DEC 2026-09-12 shelved now
+has a trigger: on the measured floor, the housekeeping leaves too little for even one regression window in a
+month (the window's cost is an ESTIMATE, not a measurement).
+
+---
+
 ## OPS-1 · 2026-09-09 · A resync step sanitized the LIVE workflow — production broke, and the parity guard stayed GREEN
 
 **What happened.** A resync pushed committed node bodies to the live n8n instance and swept up `Load Config`

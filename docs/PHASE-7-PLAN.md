@@ -185,7 +185,7 @@ convergence; half of this phase is **Codex, triggered by Yigitcan** and **a rota
 
 ## §12 · NOT-BUILD
 ✗ deployment · ✗ opening Zernio · ✗ Supabase · ✗ v2 RAG · ✗ deleting `Customers` · ✗ closing a
-ship-gate item "while we're here" · ✗ a new n8n capability family · ✗ **lowering Turnstile for a drill**
+ship-gate item "while we're here" · ✗ a new n8n capability family · ✗ lowering Turnstile for ANY purpose other than a regression/drill run under the **window protocol** below *(changed 2026-10-18 by Yigitcan's ruling; this line used to read "✗ lowering Turnstile for a drill")*
 · ✗ the eight items in the v2 bucket
 
 ---
@@ -298,3 +298,82 @@ becomes **ship gate 21**. But this plan's NOT-build also says **✗ lowering Tur
 together, they leave 7-1 with **no live route at all**: the gate up fails on bot detection, the gate down
 is forbidden. Which of these governs 7-1 is Yigitcan's to rule — it decides how 7-1 runs, which is exactly
 why 7-0 stops here instead of flowing into it.
+
+
+---
+
+## WINDOW PROTOCOL — Yigitcan's ruling, 2026-10-18
+
+**The NOT-build line above changed.** Turnstile MAY be lowered **only for the duration of a regression/drill
+run**, under this protocol, and for no other purpose. This is the security-model stop condition's
+pre-approval **for this scope only**: Turnstile only · the widget lane only · the run's duration only. Any
+other security change is still a STOP.
+
+**Why, as ruled:** there is no paying customer; a window lasts minutes; the exposure is "findable but not
+being looked for", not hidden. **K-1's label is now the accurate description:** *"tested — gate lowered for
+the duration of each run, restored and measured after each."* Ship gate **21** (a run with the gate UP =
+Yigitcan's real-browser E2E) stays as K-1 set it.
+
+**Every window, inside ONE turn:** lower → run → restore → **measure that it is restored** (published graph
+`enabled:true` AND behaviour: a dummy token → `403 turnstile_failed`). A window never crosses a turn
+boundary. Open and close times and the duration are recorded. **Every turn begins by measuring the gate;**
+found lowered → restore first, measure, and report it as an INCIDENT at the top.
+
+**How a window is executed (designed 2026-10-18, NOT yet run):** a pre-window raw backup of Main; the flip
+changes exactly one token (`turnstile: { enabled: true }` → `false` inside `Load Config`), and the diff is
+asserted to be that one token before the PUT; the run sits under a hard timeout; restoration PUTs the
+BACKUP's own body (not a re-edit) from a shell `trap`, so it happens even if the run fails or is killed; then
+both measurements, then `exports-parity` + `live-parity` to prove Main is byte-equal to the commit again.
+
+## CP 7-0 · STATUS 2026-10-18 — protocol designed, window NOT opened
+
+**The window was not opened, and the reason is not the gate.** Declaring the call budget (step 1) found
+that **Airtable has refused every API call since 2026-10-06 22:00 UTC** — the monthly quota is exhausted
+(`docs/OPERATIONAL-INCIDENTS.md` OPS-5). With the data layer down, every regression turn fails at
+`Load State`: all assertions would go red for the quota, not for the behaviour under test. Control and
+treatment cannot separate, which is a declared stop condition — and a window with no evidential value is
+pure exposure. **The gate stayed UP the whole turn.**
+
+**Step 1 — measured:**
+- **LLM cost cap:** `llmCostCapUsd: 10.00` in the PUBLISHED config (`maxTurnsPerConversation: 12`,
+  `killSwitch: false`). The brake reads spend from Airtable; on a read error its path goes only to an owner
+  alert and never reaches `Build LLM Request` — **it fails closed**, read from the published graph. ⚠ Its
+  BEHAVIOUR (a turn refused at the cap) was NOT measured: that needs Airtable, and lowering the cap is outside
+  the approved scope.
+- **Call budget — declared, and the declaration is what found the outage:** one window ≈ 52 requests
+  (the 46-request suite + 4 for the race drill + 2 for a DST booking), each making several Airtable calls,
+  plus counting and K-3 cleanup. Against that, the scheduled jobs' OWN cost — measured from real executions on
+  a day with nothing to remind or purge, so a floor — already takes **the large majority of the free plan's
+  monthly allowance**. *(The per-turn estimate and the window's total are an ESTIMATE from the graph, not a
+  measurement. Exact counts are deliberately kept out of this public repo — combined, they let a stranger
+  compute how few widget messages would take the data layer down for a month. Figures are in the round
+  report.)*
+
+## 7-1 · WINDOW PLAN — PROPOSED, not run
+
+**First criterion, as asked: the fewest windows and the shortest total time.** Answer: **ONE window, ~7
+minutes**, plus everything else outside it.
+
+**Inside the window — only what genuinely needs the widget lane with the gate down:**
+
+| Work | Requests | Feeds |
+|---|---|---|
+| the full regression suite | 46 | CRT 1a (idempotency #3) · 2 (book / cancel / reschedule) · 5 (handoff, clarify ×2, lock) · 12 (past / invalid / pre-hours dates) · part of 6 |
+| the race drill — two bookings fired in parallel into one slot, then both "yes" | 4 | CRT 1b, asserted on the M2 expectation (`race_other_count >= 1`, no orphan) |
+| one DST-boundary booking | 2 | CRT 12 |
+
+~52 requests at `PACE=4` (the edge rate limit is 20/min/IP; the pace is not a workaround, it keeps us under
+our own rule) ≈ 3.5 minutes of pacing + model latency ≈ **6–7 minutes, one window.**
+
+**Outside the window — gate UP, no exposure:** `run-d11` (owner path, not the widget lane) · the unit
+suites (`resolve-date`, `validate-intent`, `locked-once-parity`) · error visibility on the scheduled
+workflows (OPS-5 is itself a live demonstration of it) · reading executions for MUST-RUN / MUST-NOT-RUN
+nodes · the K-3 cleanup counts · both parity gates.
+
+**A saving to rule on:** CP 7-0's remaining deliverable — "prove the protocol end to end once" — is the
+SAME act as 7-1's window. Running them as ONE window instead of two halves the exposure and the quota cost.
+
+**Preconditions for that window, all measured at the start of its turn:** (1) Airtable answering again —
+quota reset or plan change (Yigitcan) — AND the remaining allowance, read from the workspace usage page,
+measured above the window's declared budget with margin, since background jobs keep consuming daily; (2) the gate measured UP; (3) baseline row counts
+taken for K-3's arithmetic.
