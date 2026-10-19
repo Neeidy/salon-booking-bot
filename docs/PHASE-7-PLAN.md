@@ -1,5 +1,7 @@
 # Phase 7 — Test + Codex + DoD · PLAN v3
 
+> **⏸ 2026-10-19: ON HOLD until the Airtable → Postgres migration is done** (Yigitcan's ruling, [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md)). **The plan's premises are re-checked after the migration.** It was derived against Airtable's behaviour, and that cannot be assumed to still hold.
+>
 > **Status:** APPROVED by Yigitcan, 2026-09-17. Derived against `232321c` (181 files).
 > **This file exists because v2 did not.** The Phase 7 plan was produced once before, lived only in
 > chat, and evaporated — so v3 had to be derived from scratch. A plan that is not in the repo is not a
