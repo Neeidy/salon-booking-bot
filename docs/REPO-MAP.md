@@ -181,7 +181,9 @@
 
 ### tests/unit
 
+- `tests/unit/drill-state-shape.test.cjs`
 - `tests/unit/locked-once-parity.test.cjs`
+- `tests/unit/message-id-guard.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/validate-intent.test.cjs`
 

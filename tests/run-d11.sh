@@ -20,6 +20,42 @@
 # Nothing here prints a secret, a host, a full record id or any conversation content.
 set -u -o pipefail
 
+# A STATE ORACLE THAT COULD NOT LOOK IS NOT A READING (Q11, 2026-10-19). The drill-state endpoint now
+# answers "STORE-ERROR|…" when a store read failed; it used to answer "NOT-FOUND|0", and two identical error
+# readings made every "unchanged" check below pass for the wrong reason.
+# The classifier is an ALLOW-LIST: only the known reading shapes count as a state ("stage|last_intent|count",
+# "NOT-FOUND[|count]", "NO-AIRTABLE"). Everything else is a HARD failure: STORE-ERROR…, READ-FAILED, an empty
+# body (curl failed), and anything unexpected (a REFUSED, an HTML error page, a 404 body), which a
+# deny-list would have let through as a "reading" (pre-push audit, 2026-10-19).
+# `--selftest-state` exercises it with no network and no credentials.
+STATE_RE='^([a-z_]*\|[a-z_]*\|([0-9]+|\?)|NOT-FOUND(\|[0-9]+)?|NO-AIRTABLE)$'
+# [[ =~ ]] anchors ^/$ to the WHOLE string; `grep` would have matched any ONE line of a multi-line body.
+is_state_error() { [[ $1 =~ $STATE_RE ]] && return 1; return 0; }
+# The direct-read route's parser, shared by state_of and the selftest so the selftest checks THIS code.
+PAT_PARSE='
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: print("READ-FAILED"); sys.exit()
+if "error" in d: print("READ-FAILED"); sys.exit()   # a store ERROR is not an empty read (Q11)
+if "fields" not in d: print("NOT-FOUND"); sys.exit()
+f=d["fields"]
+print("%s|%s|?" % (f.get("stage",""), f.get("last_intent","")))'
+if [ "${1:-}" = "--selftest-state" ]; then
+  rc=0
+  for s in 'STORE-ERROR|read-conversation' 'STORE-ERROR|read-conversation+count-markers' 'READ-FAILED' '' \
+           'REFUSED' '<html>error</html>' 'The requested webhook is not registered' \
+           $'<html>\nNOT-FOUND|0\n</html>' $'REFUSED\nnew||1'; do
+    is_state_error "$s" || { echo "✗ '$s' was NOT treated as a store error"; rc=1; }; done
+  for s in 'new||1' 'handoff|handoff|0' 'reschedule_confirming|invalid|12' 'NOT-FOUND|0' 'NOT-FOUND' 'new||?' 'NO-AIRTABLE'; do
+    is_state_error "$s" && { echo "✗ '$s' WAS treated as a store error"; rc=1; }; done
+  got="$(printf '%s' '{"error":{"type":"PUBLIC_API_BILLING_LIMIT_EXCEEDED"}}' | python3 -c "$PAT_PARSE")"
+  [ "$got" = "READ-FAILED" ] || { echo "✗ direct-read parser turned a store error into '$got'"; rc=1; }
+  got="$(printf '%s' '{"id":"recAAAAAAAAAAAAAA","fields":{"stage":"new"}}' | python3 -c "$PAT_PARSE")"
+  [ "$got" = "new||?" ] || { echo "✗ direct-read parser misread a record as '$got'"; rc=1; }
+  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK"
+  exit "$rc"
+fi
+
 URL="${OWNER_ACTION_URL:?set OWNER_ACTION_URL}"
 SEC="${OWNER_HMAC_SECRET:?set OWNER_HMAC_SECRET}"
 CID="${CF_OWNER_ACCESS_CLIENT_ID:?set CF_OWNER_ACCESS_CLIENT_ID (from ~/.n8n-api.env)}"
@@ -83,13 +119,7 @@ state_of() { # state_of [messageId]  -> "stage|last_intent|markerCount"
   [ -n "$PAT" ] && [ -n "$BASE" ] || { echo "NO-AIRTABLE"; return; }
   curl -s -4 -m 25 -G "https://api.airtable.com/v0/$BASE/conversations/$TGT" \
     -H "Authorization: Bearer $PAT" \
-  | python3 -c "
-import json,sys
-try: d=json.load(sys.stdin)
-except Exception: print('READ-FAILED'); sys.exit()
-if 'fields' not in d: print('NOT-FOUND'); sys.exit()
-f=d['fields']
-print('%s|%s|?' % (f.get('stage',''), f.get('last_intent','')))"
+  | python3 -c "$PAT_PARSE"
 }
 
 # A REFUSAL THAT STILL WROTE is the failure this endpoint exists to prevent, and checking only the status
@@ -97,6 +127,9 @@ print('%s|%s|?' % (f.get('stage',''), f.get('last_intent','')))"
 # therefore followed by this.
 assert_unchanged() { # assert_unchanged <case label> <expected state>
   local now; now="$(state_of)"
+  if is_state_error "$now"; then
+    bad "  ↳ $1" "the state oracle returned a STORE ERROR ('${now%%|*}') — 'unchanged' cannot be judged"; return
+  fi
   if [ "$now" = "$2" ]; then
     ok "  ↳ $1" "target row UNCHANGED after the refusal"
   else
@@ -107,6 +140,11 @@ assert_unchanged() { # assert_unchanged <case label> <expected state>
 echo "run-d11 — eight cases, tag $RUN"
 echo "target record: ${TGT:0:3}…  (masked — security-secrets.md redacts record ids to a bare rec…)"
 BEFORE="$(state_of)"; echo "airtable before: $BEFORE"
+if is_state_error "$BEFORE"; then
+  echo "✗ ABORT: the state oracle reported a store error ('${BEFORE%%|*}'). Nothing this run could assert"
+  echo "  about the DATA would be evidence, so it stops here instead of producing green that means nothing."
+  exit 2
+fi
 echo
 
 NOW=$(date +%s)
@@ -173,6 +211,9 @@ AFTER1="$(state_of "d11-$RUN")"
 c5b="$(post "$B_OK" "$S_OK")"
 AFTER2="$(state_of "d11-$RUN")"
 M1="${AFTER1##*|}"; M2="${AFTER2##*|}"
+for st in "$A4" "$AFTER1" "$AFTER2"; do
+  is_state_error "$st" && bad "state read during cases 4–6" "the state oracle returned a STORE ERROR ('${st%%|*}')"
+done
 
 # 6 — write-then-verify, from the DATA not the status code.
 if [ "$AFTER1" = "NO-AIRTABLE" ]; then

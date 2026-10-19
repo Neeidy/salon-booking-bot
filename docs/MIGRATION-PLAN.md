@@ -482,7 +482,11 @@ sudo docker run --rm --network none --entrypoint sh -v "$T":/home/node/.n8n <the
    - The allow-list is exactly the Airtable node names for that workflow. Allowed changes:
      `type`/`typeVersion`/`parameters`/`credentials` of those nodes only.
    - A declared temporary test trigger (spike S7) is allowed only while the copy is on a test path,
-     and must be gone at cutover.
+     and must be gone at cutover. **Ruling Q13 makes it the ONLY way to test schedule-triggered copies;
+     n8n's manual/test execution is not used in this phase.** Its security conditions:
+     - **only on a path behind Access.** Purge deletes, so an unprotected trigger would let anyone fire a
+       deletion, which makes spike S6 (Access covers the copy paths) its precondition;
+     - **removed before the swap**, its absence proven by this diff tool against the original.
    - **Positive control first:** change one unrelated node → red · change one connection → red · rename a
      data node → red · clean copy → green.
 2. **Contract-shape test.** For each of the 34 nodes: its SQL runs against the seeded DB (as `salon_ro`
@@ -669,7 +673,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 | S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement |
 | S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets |
 | S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge |
-| S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | measure whether any API route runs a workflow; otherwise a declared temporary webhook trigger |
+| S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | **Ruled by Q13: no manual/test execution.** A declared temporary webhook trigger, only behind Access (S6 first), removed before the swap and proven absent by the diff tool |
 | S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n |
 | S9 | one Airtable record with an ABSENT field, the case no recorded fixture covers (§3b). **Ruled (Q4): rides on D6c's export read, not on D2** | none extra: read from the export |
 
@@ -712,7 +716,15 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
 - **Q10 ✅ APPLIED 2026-10-19, before Main's copy was taken** (§3f, with its evidence).
 
 **Raised at D2a's close (2026-10-19), both ruled the same day**
-- **Q11 ✅ ruled 2026-10-19 (fix the ORIGINAL before D3 copies it): to be built next round.** Drill State Read presents an infrastructure error as "not found".
+- **Q11 ✅ APPLIED 2026-10-19 on the original, before D3 copies it.** `Shape Drill State` now answers
+  `STORE-ERROR|<read>` when a store read failed. Live, with the store down: control `NOT-FOUND|0` →
+  treatment `STORE-ERROR|read-conversation+count-markers`; only that node's code changed. `run-d11.sh`
+  treats it as a hard failure on BOTH of its routes (an allow-list of reading shapes; its direct read now
+  returns `READ-FAILED` on an error JSON), and both guards are in `check-all` (see ARCH-DEC 2026-10-19).
+  **For D3:** an error item that also carried an `id` would read as found, and so would a node-level
+  throw that passes its input through unchanged (auditor's recollection of n8n core, not verified). That is theoretical with
+  Airtable's measured error shape, and the Postgres version adds a positive identity check on the markers
+  (`message_id` equals the requested one). Originally: Drill State Read presents an infrastructure error as "not found".
   - **Measured:** both of its Airtable reads returned error items (quota/rate message), and the
     response was still `NOT-FOUND|0` with 200.
   - **Why it matters:** `run-d11.sh` uses this endpoint as its state oracle. During a store outage, an
@@ -727,7 +739,11 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
   approval gate names: creating it · activating it · editing it, active or inactive · executing it by
   hand, active or inactive (§3g). *The first version named only the first two; the audit found the rest
   open.*
-- **Q13 (open, raised at Q10's close): what "executing by hand, active" covers.** Read literally, it could
+- **Q13 ✅ ruled 2026-10-19, with Yigitcan's condition "nothing runs by hand, no manual at all if
+  possible":** n8n's manual/test execution is NOT USED in this phase. Schedule-triggered copies go through
+  a declared temporary webhook trigger, only behind Access and removed before the swap. If a manual run
+  looks unavoidable, stop and ask. Drill requests to an approved active workflow's normal trigger are
+  outside the rule (`irreversible-actions.md`). Originally asked: Read literally, it could
   include the signed drill and regression POSTs Claude sends to Main's production webhook once Main
   uses a database credential (D4 onward); then every regression run would need approval. **Intended
   scope unconfirmed.** Is it n8n's manual/test execution only, or webhook drills too? Must be ruled before

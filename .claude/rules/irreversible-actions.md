@@ -51,6 +51,23 @@ Geri alınabilir mi:<evet/hayır + nasıl>
   singular, and an earlier version of this line leaned on it for active ones; that reading was never
   written down, so it was not a boundary.*
   *(Added 2026-10-19 as the implementation of migration ruling Q6; widened the same day by ruling Q12.)*
+  **What "EXECUTING it BY HAND" means, and the stricter rule on top of it (ruling Q13, 2026-10-19,
+  Yigitcan: "elle bir şey çalışmasın, mümkünse hiç manuel olmasın"):**
+  - It means n8n's OWN manual/test execution: "execute" from the editor or the API, starting from a node,
+    or running with pinned data. **During the migration phase this is NOT USED AT ALL**, so approval is
+    not the default way forward. Schedule-triggered copies are tested through a DECLARED TEMPORARY WEBHOOK
+    trigger (spike S7's fallback). If a manual execution ever looks unavoidable: **STOP and ask
+    Yigitcan.**
+  - **The temporary webhook trigger has two binding conditions:**
+    - it lives **only on a path behind Access**. Purge deletes, so an unprotected trigger would let anyone
+      fire a deletion, which makes the Access-coverage spike (S6) its precondition;
+    - it is **removed before the swap**, and its absence is proven by the copy-diff tool.
+    Adding it to a copy is an EDIT of a workflow that uses a database credential, so it falls under this
+    item.
+  - It does NOT cover drill requests sent to the NORMAL trigger (webhook or schedule) of an approved,
+    active workflow. Those are governed by the Turnstile window protocol, the `mig-` seed and the call
+    budget, not by this item. **A temporary test trigger is NOT a normal trigger,** and this exception never
+    covers it.
   Under Q6, Claude is given only the read-only DB role, from D2, so it cannot write to the database
   directly, unless a write credential reaches it some other way (OPS-6). But the n8n API key lets it
   build, change or run a workflow that writes through the app credential. That path has no technical
