@@ -44,16 +44,21 @@ Geri alınabilir mi:<evet/hayır + nasıl>
 - **WRITING to the live n8n workflow** — adding or editing a node, publishing, touching `activeVersion` —
   and separately **ACTIVATING/DEACTIVATING a workflow or re-opening the Zernio webhook**, which is
   deliberately CLOSED for spend-safety; re-opening it costs money and exposure, and is its own API call.
-- **CREATING or ACTIVATING any workflow that uses a database credential**, including a brand-new one
-  that touches no existing workflow. *(Added 2026-10-19 as the implementation of migration ruling Q6.)*
-  Under that ruling Claude is given only the read-only DB role, from D2, so it cannot write to the
-  database directly, unless a write credential reaches it some other way (OPS-6). But the n8n API key
-  lets it build a workflow that writes through the app credential. That path has no technical
+- **Any of these on a workflow that uses a database credential: CREATING it (including a brand-new one
+  that touches no existing workflow) · ACTIVATING it · EDITING it, ACTIVE OR INACTIVE · EXECUTING it BY
+  HAND (a manual or test run, with chosen input or pinned data), ACTIVE OR INACTIVE.**
+  *"Active or inactive" is written out deliberately. The item above says "the live n8n workflow" in the
+  singular, and an earlier version of this line leaned on it for active ones; that reading was never
+  written down, so it was not a boundary.*
+  *(Added 2026-10-19 as the implementation of migration ruling Q6; widened the same day by ruling Q12.)*
+  Under Q6, Claude is given only the read-only DB role, from D2, so it cannot write to the database
+  directly, unless a write credential reaches it some other way (OPS-6). But the n8n API key lets it
+  build, change or run a workflow that writes through the app credential. That path has no technical
   barrier; **its only boundary is this line.** A boundary that exists only in a plan is not a boundary.
-  The item above names the LIVE workflow, and a new workflow is not the live one, so without this line
-  the path was unnamed.
-  ⚠ *Still unnamed: EDITING a non-live workflow that already uses the credential, and EXECUTING an
-  inactive one. Widening this line is proposed (MIGRATION-PLAN Q12) and awaits a ruling.*
+  **Why the two later verbs are named:** the first version named creating and activating only, and the
+  pre-push audit found two routes it left open. An approved, inactive D3 copy could later have its query
+  changed from SELECT to DELETE, and an inactive copy could be run by hand without ever being activated.
+  Both are named now.
 - **Editing or deleting n8n Credentials.**
 - **Airtable DELETE or bulk update — and deleting a FIELD**, which is not a row but a whole column
   (`appointments.calendar_id` and `conversations.cancel_target_id` were added by hand; they can go the same way).

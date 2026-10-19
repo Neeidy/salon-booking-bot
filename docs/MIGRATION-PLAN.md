@@ -284,8 +284,27 @@ client-supplied identifier reaches an Airtable formula without a strict characte
   2026-09-13.
   - Patching the original while no copy exists keeps the diff base intact: D4 copies the PATCHED
     original, so the patch is never part of the data-layer diff.
-  - Prepared in D2a (chat report, 2026-10-19). Applied in the next round with approval, because it is a
-    live-workflow write.
+  - **✅ APPLIED 2026-10-19** (approved by Yigitcan; measured by Claude). One condition was added to
+    `Validate Payload`: `message_id` must match `^[A-Za-z0-9._:=+/-]{1,128}$`.
+    - **The base was the PUBLISHED graph.** The draft carried two unpublished sticky-note moves, and a
+      raw PUT publishes the draft. Those two cosmetic moves were discarded so that the running graph
+      changed by this condition alone.
+    - **Only that one condition changed:** the published graph before and after differs in exactly that
+      condition (checked by a tool shown to catch an added change), and published == draft afterwards.
+    - **Drilled inside a Turnstile window on Main only** (open 49 s, restored and measured both ways):
+      - **7 hostile ids → 400**; `Check Processed` did NOT run, per the execution records.
+      - **3 clean ids → 503** (store down, OPS-5); `Check Processed` DID run.
+      - No LLM node ran.
+    - After the window, the live graph is structurally identical to the post-patch graph. Only meta and
+      the runtime `staticData` values differ.
+    - **Drift guard:** `tests/unit/message-id-guard.test.cjs` is in `check-all` and was red on 5 of 5
+      mutants.
+    - **Rollback:** the pre-patch snapshot is kept, gitignored and untracked.
+    - **D4 copies THIS patched original.**
+  - ⚠ **Precondition for opening the WhatsApp/Zernio channel:** a REAL Zernio `message_id` must pass
+    this class. The `=+/` in it rest on a base64 assumption, and no real Zernio id was available. Without
+    that check, real WhatsApp messages could get 400. *(The ship gate has no item for opening that
+    channel; where to put this is open, see the D2a/Q10 report.)*
 
 ## 3g · Roles (least privilege)
 
@@ -309,17 +328,12 @@ client-supplied identifier reaches an Airtable formula without a strict characte
     uses the `salon_app` credential.
   - **That path is held by a PROCEDURAL boundary, not a technical one:** the approval gate in
     `irreversible-actions.md`.
-  - **The gate now names PART of that path:** `irreversible-actions.md` lists "creating or activating
-    any workflow that uses a database credential", added 2026-10-19 in the wording of the D2a brief, as
-    the implementation of ruling Q6.
-  - ⚠ **Two routes are still unnamed:**
-    - EDITING a non-live workflow that already uses the credential, such as an approved inactive D3
-      copy whose query is later changed;
-    - EXECUTING an inactive one without activating it.
-
-    D1's correction 1 said "create or edit". Widening the rule to "creating, editing, activating or
-    executing" is **proposed as Q12, not applied**, because it changes the security model beyond the
-    brief's wording.
+  - **The gate names the whole path:** `irreversible-actions.md` lists, for any workflow that uses a
+    database credential: creating it · activating it · editing it, active or inactive · executing it by
+    hand, active or inactive.
+  - It was added 2026-10-19 for Q6 with the first two verbs. **The audit found the last two routes open,
+    and ruling Q12 widened the rule the same day.** The rule's text now says so, which is the only basis
+    on which this plan calls the gap closed.
   - *(The proposal said this keeps "agent never holds prod write credentials" literally true. That was
     too strong; this paragraph replaces it.)*
 - The cost: every schema change needs one turn from Yigitcan.
@@ -695,10 +709,10 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
 - **Q7 ✅** Postgres on `127.0.0.1` only.
 - **Q8 → decided in D6**, not now.
 - **Q9 ✅** A 7-day soak.
-- **Q10 ✅ NOW, before Main's copy is taken** (§3f). Prepared in D2a; applied next round with approval.
+- **Q10 ✅ APPLIED 2026-10-19, before Main's copy was taken** (§3f, with its evidence).
 
-**Open, raised at D2a's close (2026-10-19): awaiting a ruling**
-- **Q11: Drill State Read presents an infrastructure error as "not found".**
+**Raised at D2a's close (2026-10-19), both ruled the same day**
+- **Q11 ✅ ruled 2026-10-19 (fix the ORIGINAL before D3 copies it): to be built next round.** Drill State Read presents an infrastructure error as "not found".
   - **Measured:** both of its Airtable reads returned error items (quota/rate message), and the
     response was still `NOT-FOUND|0` with 200.
   - **Why it matters:** `run-d11.sh` uses this endpoint as its state oracle. During a store outage, an
@@ -709,6 +723,12 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
   - **Options:** fix the ORIGINAL before D3 copies it (Q10's pattern), or leave it to Phase 7 and mark
     every CRT #11 run during an outage as not evidence.
   - **Recommendation:** fix it before D3. D3 re-proves CRT #11 through this exact oracle.
-- **Q12: widen the approval gate** to "creating, editing, activating or executing any workflow that
-  uses a database credential" (§3g). Today the rule names only creating and activating, in the D2a
-  brief's wording.
+- **Q12 ✅ ruled and applied 2026-10-19.** For any workflow that uses a database credential, the
+  approval gate names: creating it · activating it · editing it, active or inactive · executing it by
+  hand, active or inactive (§3g). *The first version named only the first two; the audit found the rest
+  open.*
+- **Q13 (open, raised at Q10's close): what "executing by hand, active" covers.** Read literally, it could
+  include the signed drill and regression POSTs Claude sends to Main's production webhook once Main
+  uses a database credential (D4 onward); then every regression run would need approval. **Intended
+  scope unconfirmed.** Is it n8n's manual/test execution only, or webhook drills too? Must be ruled before
+  D4.
