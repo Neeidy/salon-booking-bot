@@ -70,7 +70,7 @@ D3 and runs on the one workflow where it is harmless.
 |---|---|---|
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
-| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
+| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
@@ -473,6 +473,132 @@ sudo docker run --rm --network none --entrypoint sh -v "$T":/home/node/.n8n <the
 - **Who changed the tag on 2026-10-13: most likely the operator, NOT VERIFIED.** Yigitcan does not
   remember. An optional check (the host's shell history and docker events around that date) was offered
   and not run.
+
+## 3n · D2b-1 (2026-10-19): schema files, gates, operator commands, offline only
+
+**Postgres version: major 18.** It is the newest supported release, and the official versioning page lists
+version 18 with its final release on **November 14, 2030**. Quoted: *"The PostgreSQL Global Development Group
+supports a major version for 5 years after its initial release."* The image is pinned by DIGEST in the
+compose file. The digest was read from the registry's own API, without the docker CLI, and the operator's
+pull re-checks it. Exact tag and digest stay out of this public file. Postgres 18's image also moved its
+volume, and the official image page says so: *"The defined `VOLUME` was changed in 18 and above to
+`/var/lib/postgresql`."*
+
+**`db/schema/001_init.sql`:** the five tables of §3d, schema `salon`, the `rec`+14 id generator (no
+extension: built from `gen_random_uuid()` bytes), and `salon.at_ts()` for Airtable's timestamp text.
+- **`stage` CHECK: the nine values Main can WRITE, measured from the committed export** (executable nodes
+  only; sticky notes excluded):
+  - `booked`, `cancel_confirming`, `cancelled`, `handoff`, `new`: literal writes;
+  - `confirming`, `reschedule_confirming`: assignments;
+  - `collecting`, `ready`: Slot Gate's ternary.
+  - Owner Actions writes only `new`.
+  - This closes §3d's "not yet measured". *Still open:* whether any path writes an EMPTY stage. Merge
+    State defaults it to `new`; D4's drills decide.
+- **`sender_masked`:** a generated column carrying the FIXED formula. With Postgres, `left(s, n)` and a
+  NEGATIVE `n` return all but the last |n| characters, so the length is clamped with `GREATEST(…, 0)`.
+  Without the clamp, a very short key would come back almost whole, which is exactly the defect the
+  formula was fixed for.
+
+**`db/schema/002_roles.sql`:** `salon_owner` (NOLOGIN) · `salon_migrator` · `salon_app` · `salon_ro`, as
+§3g. **Passwords: no literal, and never on a command line** (OPS-6: argv is readable by every local
+account, including argv inside a container).
+- They live in a root-only roles file that is **never** given to the container as an env file, so they
+  are not in its lasting environment, where `docker inspect` would show them.
+- The operator's root shell loads that file and runs `docker compose exec -e NAME …`. With `-e NAME` and no
+  value, only the NAME reaches the command line; the value reaches that one psql process, which reads it
+  with `\getenv`. The SQL itself arrives on STDIN.
+- The script fails with a real error on a missing or short password. It keeps error text terse, and it
+  raises `log_min_error_statement` for its session, because a failed `CREATE ROLE` would otherwise put
+  the password in the server log.
+- **Neither file has BEGIN/COMMIT:** the runner wraps both in ONE transaction, first as a dry run ending
+  in ROLLBACK (Postgres rolls back `CREATE ROLE` too), then for real.
+- ⚠ **Not executed:** there is no Postgres in reach. The dry run is the first execution.
+
+**Gates (all in `check-all`, each shown red):**
+- `scripts/check-sql-params.py`: 14 fixtures, and the selftest checks that each bad fixture fails FOR ITS
+  OWN reason.
+  - Each of its rules was disabled in turn without crashing the tool: executeQuery only · no expression in
+    the SQL · every $N has a parameter · every parameter is used · array form only · no formatting
+    filter or named placeholder (`$N^`, `$N#`, `${…}` included) · the query is a string. Each disabled
+    rule turned the selftest red.
+  - It counts the `postgresTool` type too, with its own fixture.
+  - On the committed exports it reports "0 Postgres nodes checked", which is stated as such.
+  - *Before the pre-push audit, the array-form rule could be switched off with the selftest staying
+    green, because its fixture also failed another rule. The reason check closed that.*
+- `scripts/diff-workflow-copy.py`: 18 cases built from the committed Drill State export. Each of its 11
+  checks, disabled, turns the selftest red. The checks:
+  - added node · removed node · a node outside the data layer · connections · a data node's non-data keys
+    · settings;
+  - the temporary trigger left in at the swap · the trigger path at the swap;
+  - type (only airtable → postgres) · `pinData` · an `--allow` node that was not a data-layer node in the
+    original (the pre-push audit showed a non-data node could otherwise be rewritten freely).
+- `tests/contract/`: key/type/format fixtures from D0 (114 records, the 0-row `{}`, the error-item shape;
+  no values). Each of the checker's 10 rules, and a fixture mutation, turn it red. The run against the
+  real database is in D2b-3.
+- `tests/unit/sanitize-postgres.test.cjs`: a fake Postgres credential block. A real-looking id is a
+  SANITISE FAILURE, the placeholder passes, and with the sanitizer's credential walk disabled the test is
+  red.
+
+**Deny rule:** the project settings deny `~/.salon-db-ro.env` and `~/.salon-db-ro.env*`, the second
+covering its backups (the D2a gap). Measured from a subagent once the file exists (D2b-3).
+
+**Raised for a ruling (both block the operator's commands):**
+- **Q14: the DB passwords go in SEPARATE files, not in n8n's own env file.**
+  - The D2b-1 brief named n8n's own env file. **Measured:** n8n's compose service loads that file as its
+    `env_file` (from D0's copy of the compose file), and workflows read the environment (Owner Actions and
+    Drill State read `$env.OWNER_HMAC_SECRET`).
+  - Every DB password there, the superuser's included, would be readable by any workflow, and so,
+    indirectly, by anything that can edit workflows.
+  - Two files keep them out of n8n entirely:
+    - the Postgres service's env file holds only the bootstrap superuser's password (residual: it stays in
+      that container's environment, root-visible);
+    - a root-only roles file, never mounted anywhere, holds the three role passwords.
+  - n8n gets the app password only through its credential.
+  - *Declared deviation: the commands are written for the separate file; not run.*
+- **Q16: `salon_ro` can read EVERY column**, including the bearer-credential `sender_key`, message content
+  and lead PII, and every future table by default. Claude would hold it (Q6).
+  - Postgres allows column grants, so a split is possible:
+    - a dashboard role with exactly the columns the dashboard renders;
+    - a verification role for Claude with only non-PII columns and counts.
+  - That changes Q6's security model, so it is **proposed, not applied**.
+  - Recommendation: split before D5. Until then, D2b-3 uses only counts and shapes through `salon_ro`.
+- **Q15: how Claude reaches Postgres as `salon_ro` in D2b-3.** There is no client on the host (no psql,
+  no driver). Recommendation: the `pg` package, pinned, as a dashboard dependency, because D5 needs it
+  anyway. The alternative is read-only probes through temporary workflows only.
+
+### D2b-3 measurement plan (written now, run later; every workflow named here needs approval, Q12)
+- **Network:**
+  - `ss -ltn` shows `127.0.0.1:5432` and NO `0.0.0.0:5432` / `[::]:5432`;
+  - `check-listeners.sh` stays green;
+  - the operator's external probe times out, with a positive control on port 22.
+- **S8:** a temporary workflow, triggered only by a temporary webhook behind Access. It uses the
+  `salon_app` credential:
+  - a SELECT on `salon.conversations` must return rows;
+  - `CREATE TABLE`, `DROP TABLE salon.leads`, `TRUNCATE salon.leads` and `ALTER TABLE` must each return
+    "permission denied". `onError` is `continueRegularOutput`, so every outcome comes back in one
+    response.
+- **`salon_ro` negatives** (through the Q15 route): INSERT / UPDATE / DELETE on each table, and
+  `CREATE TEMP TABLE`, must each return "permission denied". The same TEMP check runs for `salon_app` (in
+  S8), and connecting to the `postgres` database must be refused for both.
+- **Operator-side role checks:**
+  - `salon_owner` cannot log in;
+  - `salon_migrator` can `SET ROLE salon_owner`;
+  - nobody else can.
+- **S1–S6:** each runs as a throwaway workflow behind a temporary Access-covered webhook.
+  - S1: two workflows on one throwaway path, activating both.
+  - S2: return shapes on `mig-` seed rows: rows, 0 rows, `RETURNING`, `ON CONFLICT DO NOTHING RETURNING`
+    with 0 rows, jsonb, timestamptz, and the available typeVersion.
+  - S3: hostile values through an array `queryReplacement`, echoed back byte for byte.
+  - S4: the error-item shape of an SQL error. An auth failure needs a deliberately wrong credential,
+    which is the operator's to create.
+  - S5: batching modes with 3 items.
+  - S6: a credential-less request to the temporary path is refused at the edge.
+  - **No manual execution (Q13).** Each workflow is deleted at the end, and its absence is measured with
+    a 404 on GET.
+- **Contract run:** the Airtable-shape SQL for each table, run through `salon_ro` and checked by
+  `tests/contract/shape.cjs`.
+- **Seed hygiene:** every row uses the `mig-` prefix, and the prefix-guarded cleanup runs at the end.
+- **S9:** D6c.
 
 ## 4 · "No new bug": QA design
 

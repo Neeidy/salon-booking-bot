@@ -1,0 +1,22 @@
+{
+ "name": "fixture",
+ "nodes": [
+  {
+   "name": "Load State",
+   "type": "n8n-nodes-base.postgres",
+   "typeVersion": 2.6,
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "SELECT id FROM salon.leads WHERE name = ${name}",
+    "options": {}
+   },
+   "credentials": {
+    "postgres": {
+     "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+     "name": "Salon Postgres"
+    }
+   }
+  }
+ ],
+ "connections": {}
+}

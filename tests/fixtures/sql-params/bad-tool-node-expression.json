@@ -1,0 +1,22 @@
+{
+ "name": "fixture",
+ "nodes": [
+  {
+   "name": "PG Tool",
+   "type": "n8n-nodes-base.postgresTool",
+   "typeVersion": 2.6,
+   "parameters": {
+    "operation": "executeQuery",
+    "query": "=SELECT * FROM salon.leads WHERE name = '{{ $fromAI('n') }}'",
+    "options": {}
+   },
+   "credentials": {
+    "postgres": {
+     "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+     "name": "Salon Postgres"
+    }
+   }
+  }
+ ],
+ "connections": {}
+}

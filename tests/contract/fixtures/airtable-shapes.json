@@ -1,0 +1,78 @@
+{
+ "_source": "D0 restore point (2026-10-18), n8n execution history of the Airtable nodes. KEYS, TYPES and FORMAT FLAGS only \u2014 no value was copied (the leads rows behind them are PII).",
+ "nodes": {
+  "Count Leads Total": {
+   "empty_items": 11,
+   "error_item_keys": {
+    "error": 11,
+    "message": 11
+   },
+   "field_string_is_iso_ms_z": {
+    "created_at": 114
+   },
+   "field_types": {
+    "created_at": {
+     "str": 114
+    }
+   },
+   "record_createdTime_iso_ms_z": 114,
+   "record_id_matches_rec14": 114,
+   "record_items": 114,
+   "record_top_level_key_sets": {
+    "createdTime,fields,id": 114
+   }
+  },
+  "Find Due Appointments": {
+   "empty_items": 0,
+   "error_item_keys": {
+    "error": 267,
+    "message": 267
+   },
+   "field_string_is_iso_ms_z": {},
+   "field_types": {},
+   "record_createdTime_iso_ms_z": 0,
+   "record_id_matches_rec14": 0,
+   "record_items": 0,
+   "record_top_level_key_sets": {}
+  },
+  "Find Old Leads": {
+   "empty_items": 14,
+   "error_item_keys": {
+    "error": 11,
+    "message": 11
+   },
+   "field_string_is_iso_ms_z": {},
+   "field_types": {},
+   "record_createdTime_iso_ms_z": 0,
+   "record_id_matches_rec14": 0,
+   "record_items": 0,
+   "record_top_level_key_sets": {}
+  },
+  "Find Old Processed": {
+   "empty_items": 0,
+   "error_item_keys": {
+    "error": 11,
+    "message": 11
+   },
+   "field_string_is_iso_ms_z": {},
+   "field_types": {},
+   "record_createdTime_iso_ms_z": 0,
+   "record_id_matches_rec14": 0,
+   "record_items": 0,
+   "record_top_level_key_sets": {}
+  },
+  "Find Stale Conversations": {
+   "empty_items": 0,
+   "error_item_keys": {
+    "error": 11,
+    "message": 11
+   },
+   "field_string_is_iso_ms_z": {},
+   "field_types": {},
+   "record_createdTime_iso_ms_z": 0,
+   "record_id_matches_rec14": 0,
+   "record_items": 0,
+   "record_top_level_key_sets": {}
+  }
+ }
+}

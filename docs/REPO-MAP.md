@@ -62,6 +62,11 @@
 - `config/client.config.example-b.json`
 - `config/client.config.example.json`
 
+### db/schema
+
+- `db/schema/001_init.sql`
+- `db/schema/002_roles.sql`
+
 ### design
 
 - `design/DESIGN-DIRECTIONS.md`
@@ -158,7 +163,9 @@
 - `scripts/check-live-parity.py`
 - `scripts/check-no-host-leak.sh`
 - `scripts/check-outbound-inventory.py`
+- `scripts/check-sql-params.py`
 - `scripts/compile-intent-validator.cjs`
+- `scripts/diff-workflow-copy.py`
 - `scripts/env-presence.sh`
 - `scripts/generate-config-types.cjs`
 - `scripts/package-lock.json`
@@ -174,6 +181,32 @@
 - `tests/run-d11.sh`
 - `tests/run-regression.sh`
 
+### tests/contract
+
+- `tests/contract/airtable-shape.test.cjs`
+- `tests/contract/shape.cjs`
+
+### tests/contract/fixtures
+
+- `tests/contract/fixtures/airtable-shapes.json`
+
+### tests/fixtures/sql-params
+
+- `tests/fixtures/sql-params/bad-expression-in-query.json`
+- `tests/fixtures/sql-params/bad-hash-filter.json`
+- `tests/fixtures/sql-params/bad-identifier-placeholder.json`
+- `tests/fixtures/sql-params/bad-insert-operation.json`
+- `tests/fixtures/sql-params/bad-missing-param.json`
+- `tests/fixtures/sql-params/bad-named-placeholder.json`
+- `tests/fixtures/sql-params/bad-non-string-query.json`
+- `tests/fixtures/sql-params/bad-raw-filter.json`
+- `tests/fixtures/sql-params/bad-string-params.json`
+- `tests/fixtures/sql-params/bad-tool-node-expression.json`
+- `tests/fixtures/sql-params/bad-unused-param.json`
+- `tests/fixtures/sql-params/good-nested-array-element.json`
+- `tests/fixtures/sql-params/good-no-params.json`
+- `tests/fixtures/sql-params/good-select-two-params.json`
+
 ### tests/snippet
 
 - `tests/snippet/DRILLS.md`
@@ -185,6 +218,7 @@
 - `tests/unit/locked-once-parity.test.cjs`
 - `tests/unit/message-id-guard.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
+- `tests/unit/sanitize-postgres.test.cjs`
 - `tests/unit/validate-intent.test.cjs`
 
 ### web
@@ -567,6 +601,8 @@
   - ## 3k · Credential-decryption test (precondition of D2)
   - ## 3l · Rollback per step
   - ## 3m · n8n image pinning (D2's first step) — measured 2026-10-19
+  - ## 3n · D2b-1 (2026-10-19): schema files, gates, operator commands, offline only
+  - ### D2b-3 measurement plan (written now, run later; every workflow named here needs approval, Q12)
   - ## 4 · "No new bug": QA design
   - ## 5 · Critical-Review Targets
   - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix
@@ -628,6 +664,7 @@
   - ### .claude/commands
   - ### .claude/rules
   - ### config
+  - ### db/schema
   - ### design
   - ### design/mockups
   - ### design/mockups/dashboard
@@ -642,6 +679,9 @@
   - ### schemas
   - ### scripts
   - ### tests
+  - ### tests/contract
+  - ### tests/contract/fixtures
+  - ### tests/fixtures/sql-params
   - ### tests/snippet
   - ### tests/unit
   - ### web

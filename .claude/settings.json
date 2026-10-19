@@ -16,7 +16,9 @@
       "Read(./.env.*)",
       "Read(./secrets/**)",
       "Read(./credentials/**)",
-      "Read(./config/client.config.json)"
+      "Read(./config/client.config.json)",
+      "Read(~/.salon-db-ro.env)",
+      "Read(~/.salon-db-ro.env*)"
     ]
   }
 }
