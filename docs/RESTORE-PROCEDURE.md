@@ -28,6 +28,16 @@ A full restore over a partly working system destroys the evidence of what broke.
 A DB and a `config` from different moments **do not mix**: if the key does not match, every credential
 is unreadable after the restore.
 
+**Proving the pairing without a full restore:** run `n8n export:credentials --all --decrypted` inside a
+`--rm --network none` container of the PINNED image, mounted on COPIES of the backup's DB and config,
+and print only counts. **The decrypted output is written INSIDE the container (its `/tmp`), never to a
+mounted path,** so `--rm` destroys it. The copies are deleted afterwards. Written to a mounted path, it
+would leave every credential in plain text on the host's disk. Expect total = decrypted = the manifest's credential count. The negative control is
+the same run with a wrong key, which must fail. Capture the failure's class, not only the fact that
+it failed; a generic "no output" can come from a wrong mount as easily as from a wrong key. **What this proves is the key ↔ DB pairing on that
+image. It is NOT a full restore:** n8n is never started serving, and no workflow runs. *(First run: the
+migration's D2a on 2026-10-19, against D0's backup: passed, negative control red. The failure class was not captured.)*
+
 ## 0 · Is the backup itself intact?
 ```
 cd <BACKUP_DIR> && sha256sum -c <CHECKSUM_FILE>       # macOS: shasum -a 256 -c <CHECKSUM_FILE>

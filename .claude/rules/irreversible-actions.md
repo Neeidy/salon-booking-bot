@@ -44,6 +44,16 @@ Geri alınabilir mi:<evet/hayır + nasıl>
 - **WRITING to the live n8n workflow** — adding or editing a node, publishing, touching `activeVersion` —
   and separately **ACTIVATING/DEACTIVATING a workflow or re-opening the Zernio webhook**, which is
   deliberately CLOSED for spend-safety; re-opening it costs money and exposure, and is its own API call.
+- **CREATING or ACTIVATING any workflow that uses a database credential**, including a brand-new one
+  that touches no existing workflow. *(Added 2026-10-19 as the implementation of migration ruling Q6.)*
+  Under that ruling Claude is given only the read-only DB role, from D2, so it cannot write to the
+  database directly, unless a write credential reaches it some other way (OPS-6). But the n8n API key
+  lets it build a workflow that writes through the app credential. That path has no technical
+  barrier; **its only boundary is this line.** A boundary that exists only in a plan is not a boundary.
+  The item above names the LIVE workflow, and a new workflow is not the live one, so without this line
+  the path was unnamed.
+  ⚠ *Still unnamed: EDITING a non-live workflow that already uses the credential, and EXECUTING an
+  inactive one. Widening this line is proposed (MIGRATION-PLAN Q12) and awaits a ruling.*
 - **Editing or deleting n8n Credentials.**
 - **Airtable DELETE or bulk update — and deleting a FIELD**, which is not a row but a whole column
   (`appointments.calendar_id` and `conversations.cancel_target_id` were added by hand; they can go the same way).

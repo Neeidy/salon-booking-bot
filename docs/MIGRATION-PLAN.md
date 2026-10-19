@@ -70,7 +70,7 @@ D3 and runs on the one workflow where it is harmless.
 |---|---|---|
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
-| **D2** | **Foundations + spikes.** **First: pin the n8n image by digest (§3m).** Precondition: credential-decryption test (§3k), run with THAT pinned image. Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9; the duplicate `OWNER_HMAC_SECRET` line fixed | every gate shown able to go red · every spike answered or its design branch chosen |
+| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
@@ -309,11 +309,17 @@ client-supplied identifier reaches an Airtable formula without a strict characte
     uses the `salon_app` credential.
   - **That path is held by a PROCEDURAL boundary, not a technical one:** the approval gate in
     `irreversible-actions.md`.
-  - ⚠ **That gate today names writing to the LIVE workflow and activation. It does not name creating
-    a NEW workflow that references the DB write credential.** **Proposed, not applied** (it changes a
-    rule, so Yigitcan rules on it): the gate names "creating or editing any workflow that references a
-    database write credential". Until then, the boundary for that path is this sentence, not the
-    rule.
+  - **The gate now names PART of that path:** `irreversible-actions.md` lists "creating or activating
+    any workflow that uses a database credential", added 2026-10-19 in the wording of the D2a brief, as
+    the implementation of ruling Q6.
+  - ⚠ **Two routes are still unnamed:**
+    - EDITING a non-live workflow that already uses the credential, such as an approved inactive D3
+      copy whose query is later changed;
+    - EXECUTING an inactive one without activating it.
+
+    D1's correction 1 said "create or edit". Widening the rule to "creating, editing, activating or
+    executing" is **proposed as Q12, not applied**, because it changes the security model beyond the
+    brief's wording.
   - *(The proposal said this keeps "agent never holds prod write credentials" literally true. That was
     too strong; this paragraph replaces it.)*
 - The cost: every schema change needs one turn from Yigitcan.
@@ -353,10 +359,18 @@ tunnel target and its env handling inside a data-layer phase, which is scope cre
 - **`salon_ro` for Claude's verification** lives in a new mode-600 file outside the repo, which gets a
   **new deny rule in the same change** (the operator API env file's lesson: deny globs stop at the repo
   root).
-- **Duplicate `OWNER_HMAC_SECRET`:** D2, by Yigitcan. Sourcing makes the LAST line effective, and that
-  is the value `run-d11.sh` passed 13/13 with, so he deletes the earlier line. Evidence:
-  `grep -c '^OWNER_HMAC_SECRET='` = 1 (a count, never a value), plus a signed drill-state read still
-  verifying after D3.
+- **Duplicate `OWNER_HMAC_SECRET`: ✅ removed 2026-10-19 (D2a, by Yigitcan).**
+  - **Before deleting, compared without printing a value or a hash** (*operator statement, Yigitcan's
+    terminal output; not re-measurable now*): both lines held the SAME value, and the last one equals
+    the value n8n reads from the compose env file. The earlier line was deleted; the count is now 1 and
+    the file mode stays 600.
+  - **After deleting, measured by behaviour, both directions** (*measured by Claude*): a drill-state read signed with the
+    remaining value passed the signature gate (200), while the same request signed with a wrong key was
+    refused (403, `REFUSED`).
+  - The deletion's backup file held the value and fell outside the deny rule, which is bound to the
+    exact path. It was deleted without being read, and its absence was measured. **The gap itself is
+    open: backups of a secret file fall outside the deny scope.** It joins the final security pass, and
+    the new DB credential file (above) gets a deny pattern that covers its backups.
 
 ## 3j · Backup
 
@@ -389,6 +403,18 @@ sudo docker run --rm --network none --entrypoint sh -v "$T":/home/node/.n8n <the
 - **Negative control (required):** the same run with a config whose key has been altered must NOT
   decrypt them; an error or a decrypted count of 0 is expected.
 - Afterwards: `sudo rm -rf "$T"`.
+- **✅ PASSED 2026-10-19 (D2a, run by Yigitcan with the digest-pinned image; *operator statement*):**
+  - `total 6 decrypted 6`. The six match D0's MANIFEST.
+  - The negative control with a wrong key gave `export failed (no file)`. ⚠ **That message is generic.**
+    A wrong mount or a typo would print the same thing, and the failure class (a key mismatch) was not
+    captured. The red direction is shown, but its specificity is not.
+  - Both temporary copies were removed, and a search found no leftovers.
+  - **What this proves:** level B's key ↔ database pairing, on the pinned image. **What it does NOT
+    prove:** a full n8n restore. n8n was never started serving from the backup, and no workflow ran
+    on it.
+  - *(The first attempt did not run, because the block was pasted while the previous command was still
+    sleeping and the running command swallowed it. Every command block from now on carries a
+    "do not paste the next block before the prompt returns" line.)*
 - **Quoted (n8n CLI docs):** `n8n export:credentials --all --decrypted --output=…`, *"Exports the
   credentials in a plain text format"*, *"All sensitive information is visible in the files"*. That
   warning is why the file never leaves a `--network none` container that is deleted on exit.
@@ -423,6 +449,16 @@ sudo docker run --rm --network none --entrypoint sh -v "$T":/home/node/.n8n <the
   4. Run §3k with that SAME reference.
 - The restore procedures (`docs/RESTORE-PROCEDURE.md`, and the canonical copy inside D0) record that
   **the pinned image is part of the restore.**
+- **✅ DONE 2026-10-19 (D2a, by Yigitcan; *operator statement*).** Compose and the running container
+  both reference the tag plus digest. The proof is "new container == pinned image == previous image":
+  the restart changed the reference and not the bytes.
+- Recovery measured afterwards (*measured by Claude*): API read 200 · webhook GET 404 · all 5 workflows active, with node
+  counts, versionId and activeVersionId equal to D0's · `check-exports-parity` 0 · `check-live-parity` 0.
+- *The exact version and digest are not written here (an exact version of a public-facing service
+  turns CVE matching into one step). They live in the compose file and D0's private copy.*
+- **Who changed the tag on 2026-10-13: most likely the operator, NOT VERIFIED.** Yigitcan does not
+  remember. An optional check (the host's shell history and docker events around that date) was offered
+  and not run.
 
 ## 4 · "No new bug": QA design
 
@@ -660,3 +696,19 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
 - **Q8 → decided in D6**, not now.
 - **Q9 ✅** A 7-day soak.
 - **Q10 ✅ NOW, before Main's copy is taken** (§3f). Prepared in D2a; applied next round with approval.
+
+**Open, raised at D2a's close (2026-10-19): awaiting a ruling**
+- **Q11: Drill State Read presents an infrastructure error as "not found".**
+  - **Measured:** both of its Airtable reads returned error items (quota/rate message), and the
+    response was still `NOT-FOUND|0` with 200.
+  - **Why it matters:** `run-d11.sh` uses this endpoint as its state oracle. During a store outage, an
+    "unchanged" assertion can pass because both readings are the same `NOT-FOUND|0`, which is a silent
+    failure in a test instrument (CRT #6's class).
+  - **Why the migration cannot fix it inside the copy:** the defect sits in `Shape Drill State`, outside
+    the data layer, so the mechanical diff rule (§4) forbids changing it in D3's copy.
+  - **Options:** fix the ORIGINAL before D3 copies it (Q10's pattern), or leave it to Phase 7 and mark
+    every CRT #11 run during an outage as not evidence.
+  - **Recommendation:** fix it before D3. D3 re-proves CRT #11 through this exact oracle.
+- **Q12: widen the approval gate** to "creating, editing, activating or executing any workflow that
+  uses a database credential" (§3g). Today the rule names only creating and activating, in the D2a
+  brief's wording.
