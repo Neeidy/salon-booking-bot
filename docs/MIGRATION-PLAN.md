@@ -70,7 +70,7 @@ D3 and runs on the one workflow where it is harmless.
 |---|---|---|
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
-| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
+| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
@@ -600,6 +600,72 @@ covering its backups (the D2a gap). Measured from a subagent once the file exist
 - **Seed hygiene:** every row uses the `mig-` prefix, and the prefix-guarded cleanup runs at the end.
 - **S9:** D6c.
 
+## 3o · D2b-2 (operator) and D2b-3 (measurements), 2026-10-19: STOPPED at S2 on a design-changing answer
+
+**D2b-2: operator statements (Yigitcan's terminal output, not verified by Claude except where noted):**
+- **(a)** the image was pulled and its digest verified.
+- **(b)** two files exist (Q14), holding 4 passwords of ≥32 characters, mode 600.
+- **(c)** Postgres is healthy and bound only to loopback. The n8n container's id and start time are
+  unchanged, and the volume was created. Cowork added three guards to the block before it ran.
+- **(d)** the dry run (ROLLBACK) and the COMMIT both passed. ⚠ *The block's check line was a false red:
+  casting a boolean to text in Postgres gives `true`/`false`, not `t`/`f`, and the expected string was
+  wrong (it existed only in the chat command, never in this repo). Re-measured with the right spelling:
+  5 tables, the roles as designed.* Cowork checked with `git diff` that the SQL applied is the committed
+  one.
+- **(e)** the n8n Postgres credential, with its connection limit lowered to 10.
+  - ⚠ **Measured: the credential's name on the instance is "Postgres account", not the one reported.** The
+    name is cosmetic.
+  - What matters was measured by S8: it connects as `salon_app` to `salon`.
+- **(f)** the read-only file exists, mode 600, 5 lines.
+- **(g)** from the operator's machine, port 22 succeeded (the control) and 5432 timed out, in two runs.
+
+**D2b-3: measured by Claude:**
+- **Network, two layers:**
+  - the bind address: `ss` shows `127.0.0.1:5432` and no wildcard 5432; `check-listeners` is green;
+  - the firewall: the operator's external probe timed out (*operator statement*).
+- **Q15 done:** `pg` is pinned to an exact version, installed as a dashboard dependency, and recorded in
+  the lockfile (only pg's own dependency tree was added).
+- **The deny rule works.** A subagent's Read of the read-only DB file was refused, both by absolute path
+  and in `~/` form.
+- **`salon_ro` negatives: 26/26** (`tests/db/ro-negatives.cjs`, which prints SQLSTATE codes only and
+  makes every attempt unable to change data: `WHERE false`, or a rolled-back transaction for TRUNCATE and
+  CREATE):
+  - controls: the connection as `salon_ro`, and SELECT on all 5 tables;
+  - refused with 42501: INSERT, UPDATE and DELETE on every table, TRUNCATE, CREATE TABLE, CREATE TEMP
+    TABLE, and connecting to `postgres`;
+  - catalog: `salon_owner` has `rolcanlogin = false`.
+- **S6 ✅ · S8 ✅ · S2 measured · S4 partly answered.** See the S-table.
+- **Clean-up was measured:** the prefix-guarded delete removed exactly the seeded rows (2/1/1/1/1). Counts
+  were all zero before and all zero after.
+  - The three temporary workflows were deleted, each confirmed by a 404.
+  - The live instance is back to 5 workflows, and both parity guards are green.
+  - The clean-up trigger was added to the S2 workflow itself, as §3n planned, so no workflow outside the
+    approved list was created.
+
+**THE ANSWER THAT CHANGES THE DESIGN (S2), and why D2b-3 stopped there:**
+- §3e prescribes `INSERT … ON CONFLICT DO NOTHING RETURNING` for the owner replay marker (`Record Owner
+  Action Processed`).
+- S2 measured that on a conflict this returns `{success: true}` with `alwaysOutputData`, and NOTHING
+  without it. That node has no `alwaysOutputData`.
+- Its consumer, `Marker Written?`, tests `!$json.error && !!$json.id`.
+- So in the race the marker guards (two identical owner requests at once), Airtable would have created a
+  second marker, returned its id and taken the "written" path. Postgres would either stop the flow
+  silently or route to "marker failure". **That breaks "behaviour does not change."**
+- `Record Processed` in Main is unaffected: nothing reads its success output.
+- **The general rule this exposes, for D3/D4:** a 0-row WRITE does not return `{}`. Every update/upsert
+  node whose target can be missing needs its consumer checked one by one.
+
+**Q17 (awaiting a ruling):** how the owner marker keeps Airtable's observable behaviour.
+- **(a)** `ON CONFLICT (message_id) DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id`. A no-op
+  update returns the EXISTING row's id, so `Marker Written?` takes the same path as on Airtable; there is
+  one marker row instead of Airtable's two.
+- **(b)** `DO NOTHING` plus `alwaysOutputData`. A race then raises a "marker failure" alert, which is a
+  behaviour change.
+- **(c)** change `Marker Written?`. That is outside the data layer, so it is forbidden in the copy by the
+  diff rule.
+- **Recommendation: (a).** S3, S5, S1 and the contract run against the database were NOT run; they
+  resume after the ruling.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
@@ -793,14 +859,14 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 | # | Question | Smallest safe probe |
 |---|---|---|
-| S1 | Can two active workflows hold one production webhook path? | two throwaway workflows on a throwaway path, activate both, read the error |
-| S2 | On this instance's Postgres node: return shape for rows / 0 rows (with and without `alwaysOutputData`) / `RETURNING` / `ON CONFLICT DO NOTHING RETURNING` with 0 rows / `jsonb` parsing / `timestamptz` serialization; and which typeVersion is available | a throwaway workflow against a scratch table |
-| S3 | `queryReplacement`: does an array expression keep comma / quote / `$2` / newline values as one parameter; what does the comma-string form do | the same, with hostile values |
-| S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement |
-| S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets |
-| S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge |
+| S1 | Can two active workflows hold one production webhook path? | two throwaway workflows on a throwaway path, activate both, read the error · **NOT RUN (D2b-3 stopped at S2, see §3o)** |
+| S2 | On this instance's Postgres node: return shape for rows / 0 rows (with and without `alwaysOutputData`) / `RETURNING` / `ON CONFLICT DO NOTHING RETURNING` with 0 rows / `jsonb` parsing / `timestamptz` serialization; and which typeVersion is available | a throwaway workflow against a scratch table · **⚠ ANSWERED 2026-10-19, and one answer changes the design (§3o):**<br>· INSERT … RETURNING returns its rows (`rec`+14 ids).<br>· **A WRITE that returns 0 rows** (ON CONFLICT DO NOTHING RETURNING) gives `{success: true}` with `alwaysOutputData` and NOTHING without it.<br>· A **READ** with 0 rows gives `{}` with `alwaysOutputData` (the same as Airtable) and nothing without it.<br>· The Airtable-shaped SELECT conforms: `fields` is a parsed object, `createdTime` is ISO-ms-Z, empty values are dropped.<br>· A raw `timestamptz` serializes as ISO-ms-Z; a raw `numeric` comes back as a STRING but as a number inside jsonb; booleans and null pass through.<br>· typeVersion 2.6 works.<br>· A node runs once per input item, the same as the Airtable nodes. |
+| S3 | `queryReplacement`: does an array expression keep comma / quote / `$2` / newline values as one parameter; what does the comma-string form do | the same, with hostile values · **NOT RUN (stopped at S2)** |
+| S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement · **PARTLY ANSWERED by S8:** an SQL error under `continueRegularOutput` is exactly `{error, message}`, the same top-level shape as the recorded Airtable error item, so the `Errored?` IFs (`!!$json.error`) hold. The auth-failure shape is not run (it needs an extra credential, which is not on the approved list) |
+| S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets · **NOT RUN (stopped at S2)** |
+| S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge · **✅ ANSWERED 2026-10-19:** an `owner-…` path is covered. No token → 403 from Access at the edge (a Cloudflare Access header, and no n8n execution created); the owner service token → 200 from n8n; the n8n API's service token → 403. Executions went 0 → 1: only the owner-token request reached n8n |
 | S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | **Ruled by Q13: no manual/test execution.** A declared temporary webhook trigger, only behind Access (S6 first), removed before the swap and proven absent by the diff tool |
-| S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n |
+| S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n · **✅ ANSWERED 2026-10-19:** the connection by service name works and runs as `salon_app` on `salon`. Each attempt was wrapped so that a success rolls itself back, and Postgres's own messages show all five refused: CREATE TABLE "permission denied for schema salon" · DROP "must be owner of table leads" · TRUNCATE "permission denied for table leads" · ALTER "must be owner" · TEMP "permission denied to create temporary tables". CONNECT on the `postgres` database: false |
 | S9 | one Airtable record with an ABSENT field, the case no recorded fixture covers (§3b). **Ruled (Q4): rides on D6c's export read, not on D2** | none extra: read from the export |
 
 ## 10 · Budget and emergency exit

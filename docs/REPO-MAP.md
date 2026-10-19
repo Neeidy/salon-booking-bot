@@ -190,6 +190,10 @@
 
 - `tests/contract/fixtures/airtable-shapes.json`
 
+### tests/db
+
+- `tests/db/ro-negatives.cjs`
+
 ### tests/fixtures/sql-params
 
 - `tests/fixtures/sql-params/bad-expression-in-query.json`
@@ -603,6 +607,7 @@
   - ## 3m · n8n image pinning (D2's first step) — measured 2026-10-19
   - ## 3n · D2b-1 (2026-10-19): schema files, gates, operator commands, offline only
   - ### D2b-3 measurement plan (written now, run later; every workflow named here needs approval, Q12)
+  - ## 3o · D2b-2 (operator) and D2b-3 (measurements), 2026-10-19: STOPPED at S2 on a design-changing answer
   - ## 4 · "No new bug": QA design
   - ## 5 · Critical-Review Targets
   - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix
@@ -681,6 +686,7 @@
   - ### tests
   - ### tests/contract
   - ### tests/contract/fixtures
+  - ### tests/db
   - ### tests/fixtures/sql-params
   - ### tests/snippet
   - ### tests/unit
