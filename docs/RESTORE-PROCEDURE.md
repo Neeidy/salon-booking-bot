@@ -20,7 +20,7 @@ A full restore over a partly working system destroys the evidence of what broke.
 | Raw API export of every live workflow (draft + published) | Level A restore without touching the DB | Claude (API) |
 | The n8n SQLite DB, taken with SQLite's online `.backup` | Workflows, credentials (encrypted), activation state | the nightly job / operator (docker) |
 | The n8n `config` file | **Holds the encryption key.** Without it, credentials in the DB cannot be decrypted | the nightly job / operator |
-| Compose file + host env | Service definitions, image version, engine env | operator (root) |
+| Compose file + host env | Service definitions, **the n8n image pinned by digest**, engine env | operator (root) |
 | Local env files | Operator tooling and the frontends | operator (the deny rule blocks Claude, deliberately) |
 | Repo: a pushed tag + `git bundle --all` | Code and docs, with or without GitHub | Claude |
 | A checksum file covering every item | The only check that covers **every byte of every item** | whoever adds the item |
@@ -59,8 +59,11 @@ enough: go to Level B.
    SQLite replays them over the restored file.
 4. Restore `config` only if it changed, and only from the SAME moment as the DB.
 5. Restore the compose file + env only if they changed. Diff first.
-6. **Never start an n8n image OLDER than the one the DB was taken with.** The DB carries its last schema
-   migration, and an older image cannot open it.
+6. **The pinned image is PART of the restore.** Start exactly the image the DB was taken with: the
+   compose file's `<image>:<tag>@sha256:<digest>` reference, never a bare tag. A tag can be re-pointed
+   upstream, so a bare tag on a clean machine may pull different bytes. **Never an OLDER image:** the DB
+   carries its last schema migration, and an older image cannot open it. Measure after the start that
+   the running container's image id is the pinned one.
 7. Start the service.
 
 ## 3 · Anything the change added (e.g. a Postgres service)

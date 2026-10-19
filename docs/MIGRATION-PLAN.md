@@ -1,6 +1,9 @@
 # Migration phase — Airtable → self-hosted Postgres · PLAN (D1)
 
-> **Status:** PROPOSED, 2026-10-19. **Not approved. Nothing in it is built.** Derived against `3196ecb`.
+> **Status:** **APPROVED by Yigitcan, 2026-10-19** ("onaylıyorum", with Cowork's recommendations), with the
+> rulings in §11 and three corrections applied in place (the race drill row, n8n image pinning as D2's first
+> step, the Q6 wording). Derived against `3196ecb`; rulings applied on top of `a9ab867`. **Nothing is built
+> yet.** D2a (preparation) is in the chat report of 2026-10-19.
 > The build starts only on Yigitcan's written "approved" (`.claude/rules/plan-gate.md`).
 > **Why this file exists:** the ruling (ARCHITECTURE-DECISIONS 2026-10-19) made the migration an interim
 > phase before Phase 7. A plan that is not in the repo is a memory, and Phase 7's v2 plan evaporated that
@@ -27,8 +30,8 @@ store · the shutdown of the Airtable runtime path.
 
 **NOT built in this phase:**
 - ✗ **Behaviour changes riding along with the swap.** The copy differs from the original ONLY in its
-  data-layer nodes (§4). The one exception is the claim-first fix for CRT 1a's race. It is a separate,
-  explicitly ruled step that comes after equivalence has been proven (decision Q5).
+  data-layer nodes (§4). **This rule has no exceptions:** the claim-first fix for CRT 1a's race went to
+  Phase 7 (ruling Q5), so the equivalence proof stays clean.
 - ✗ The Customers table (Yigitcan's separate decision). It is not migrated, not created in Postgres, and
   not deleted from Airtable by this phase.
 - ✗ Migrating existing Airtable rows. The record shows every bot row is drill or test data (cost report
@@ -67,7 +70,7 @@ D3 and runs on the one workflow where it is harmless.
 |---|---|---|
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
-| **D2** | **Foundations + spikes.** Precondition: credential-decryption test (§3k). Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9; the duplicate `OWNER_HMAC_SECRET` line fixed | every gate shown able to go red · every spike answered or its design branch chosen |
+| **D2** | **Foundations + spikes.** **First: pin the n8n image by digest (§3m).** Precondition: credential-decryption test (§3k), run with THAT pinned image. Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9; the duplicate `OWNER_HMAC_SECRET` line fixed | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
@@ -230,7 +233,7 @@ nodes.** Atomicity therefore comes only from single statements plus constraints.
   response). Two copies of the same message arriving inside that window are both processed. The UNIQUE
   makes the second `Record Processed` a no-op; it does **not** stop the second processing. The fix
   (claim-first, with a release on failure so provider retries still work) is a behaviour change.
-  **Separate step after D4's equivalence proof, or Phase 7: Q5.**
+  **Ruled (Q5): Phase 7.** The migration's rule is "behaviour does not change".
 - **CRT 1b:** Google Calendar plus the store have no common transaction. Write-then-verify stays
   exactly as it is.
 - **The spend meter's read-then-write TOCTOU** across concurrent turns stays (1:1). An atomic increment
@@ -276,9 +279,13 @@ client-supplied identifier reaches an Airtable formula without a strict characte
   moment the quota returns.
 - On Postgres the lookup is a parameterized equality. **It closes at D4's cutover and is evidenced by
   the hostile-identifier drill (§4).**
-- **An interim mitigation before D4 is proposed, not applied: Q10.** It is a strict character class on
-  that identifier in the payload validator, the same shape as the owner path's fix of 2026-09-13. It is
-  a live-workflow write, so it needs approval.
+- **Interim mitigation, ruled NOW (Q10), and BEFORE Main's copy is taken.** It is a strict character
+  class on that identifier in the payload validator, the same shape as the owner path's fix of
+  2026-09-13.
+  - Patching the original while no copy exists keeps the diff base intact: D4 copies the PATCHED
+    original, so the patch is never part of the data-layer diff.
+  - Prepared in D2a (chat report, 2026-10-19). Applied in the next round with approval, because it is a
+    live-workflow write.
 
 ## 3g · Roles (least privilege)
 
@@ -292,11 +299,24 @@ client-supplied identifier reaches an Airtable formula without a strict characte
 - **CRT #10's boundary today rests on a read-only Airtable PAT.** It moves to `salon_ro`, which preserves
   it. The dashboard has no write credential to the data store at all; its one write goes through the
   owner path (CRT #11), unchanged.
-- **⚠ SECURITY-MODEL PROPOSAL — Yigitcan rules, nothing is applied:** Claude holds **only `salon_ro`**.
-  DDL is applied by Yigitcan's one command (the schema files are committed, and he runs them). Writes
-  happen only through n8n, behind the same approval gate as every live-workflow write. This keeps the
-  global rule *"agent never holds prod write credentials"* literally true for the new store. The cost:
-  every schema change needs one turn from Yigitcan. **Q6.**
+- **Ruled (Q6): Claude holds only `salon_ro`. DDL is applied by Yigitcan's one command** (the schema
+  files are committed, and he runs them).
+- **What that does and does not guarantee, stated exactly:**
+  - **Claude cannot write to the database DIRECTLY.** It holds no write credential. This holds only
+    as long as no DB write credential is visible to it some other way (OPS-6 records one such case on
+    this host).
+  - **It CAN cause an INDIRECT write.** With the n8n API key it can create or edit a workflow that
+    uses the `salon_app` credential.
+  - **That path is held by a PROCEDURAL boundary, not a technical one:** the approval gate in
+    `irreversible-actions.md`.
+  - ⚠ **That gate today names writing to the LIVE workflow and activation. It does not name creating
+    a NEW workflow that references the DB write credential.** **Proposed, not applied** (it changes a
+    rule, so Yigitcan rules on it): the gate names "creating or editing any workflow that references a
+    database write credential". Until then, the boundary for that path is this sentence, not the
+    rule.
+  - *(The proposal said this keeps "agent never holds prod write credentials" literally true. That was
+    too strong; this paragraph replaces it.)*
+- The cost: every schema change needs one turn from Yigitcan.
 
 ## 3h · Network
 
@@ -349,8 +369,8 @@ tunnel target and its env handling inside a data-layer phase, which is scope cre
   (D0's lessons: `integrity_check` and `bundle verify` both checked less than assumed).
 - **The nightly job lives outside the repo**, so editing it needs Yigitcan's approval
   (`irreversible-actions.md`, writing outside the repo root).
-- **Permanent off-server target: Yigitcan chooses (Q8).** Recommendation: a client-side-encrypted
-  `restic` repository.
+- **Permanent off-server target: decided in D6, not now (ruling Q8).** Recommendation on the table: a
+  client-side-encrypted `restic` repository.
 
 ## 3k · Credential-decryption test (precondition of D2)
 
@@ -359,10 +379,12 @@ leaving the container.** Run by Yigitcan (root + docker), on COPIES, never on th
 ```
 T=$(sudo mktemp -d) && sudo cp <D0>/n8n/<db>.sqlite "$T/database.sqlite" \
  && sudo tar -C "$T" -xzf <D0>/n8n/<config>.tar.gz config && sudo chown -R 1000:1000 "$T"
-sudo docker run --rm --network none -v "$T":/home/node/.n8n <the pinned n8n image> sh -c \
+sudo docker run --rm --network none --entrypoint sh -v "$T":/home/node/.n8n <the digest-pinned image, §3m> -c \
  'n8n export:credentials --all --decrypted --output=/tmp/c.json >/dev/null 2>&1;
   node -e "const c=require(\"/tmp/c.json\");console.log(\"total\",c.length,\"decrypted\",c.filter(x=>x.data&&Object.keys(x.data).length).length)"'
 ```
+- *`--entrypoint sh` corrected 2026-10-19:* without it, the image's entrypoint hands `sh -c …` to
+  `n8n` as arguments, and the test never runs.
 - **Pass:** total = decrypted = the credential count recorded in D0's MANIFEST.
 - **Negative control (required):** the same run with a config whose key has been altered must NOT
   decrypt them; an error or a decrypted count of 0 is expected.
@@ -381,6 +403,26 @@ sudo docker run --rm --network none -v "$T":/home/node/.n8n <the pinned n8n imag
 | D5 | the dashboard is wrong on Postgres | `git revert` + restore the dashboard's env from D0 (the dashboard is local and not public) |
 | D6b | any acceptance assertion red · an error-branch alert class not seen before · a parity guard red · Turnstile not restored | §3a's steps reversed for every swapped workflow + dashboard env back. ⚠ This lands on Airtable, which is quota-blocked (§3a) |
 | D6c | — | the Airtable shutdown runs only after the soak, and **only the revocations run, never a deletion** (§7). A revoked PAT is reversible by issuing a new one |
+
+## 3m · n8n image pinning (D2's first step) — measured 2026-10-19
+
+- **The running n8n version was read** from the running process's own `package.json`, without the
+  docker CLI. *(The value lives in D0's private copy, not here: an exact version of a public-facing
+  service turns CVE matching into one step, and it goes stale at the first upgrade.)*
+- **The compose file in force pins that same version TAG, not `:latest`.** Read from D0's copy of the compose directory,
+  which the operator verified byte-equal to live on 2026-10-18. The same directory holds an older
+  `.bak` file that still names `:latest`. *(A premise in the D1 approval brief said the compose file
+  names `:latest`. The measurement says that is the `.bak`, not the file in force. The conclusion
+  stands either way: a tag is mutable.)*
+- **What is NOT pinned is the DIGEST.** A tag can be re-pointed upstream, so a clean machine pulling
+  the same tag later could get different bytes.
+- **D2's first step:**
+  1. Measure the running container's image id and the digest behind it.
+  2. Pin compose to `n8nio/n8n:<tag>@sha256:<digest>`.
+  3. Restart, and prove that the running image IS the pinned one.
+  4. Run §3k with that SAME reference.
+- The restore procedures (`docs/RESTORE-PROCEDURE.md`, and the canonical copy inside D0) record that
+  **the pinned image is part of the restore.**
 
 ## 4 · "No new bug": QA design
 
@@ -402,8 +444,8 @@ sudo docker run --rm --network none -v "$T":/home/node/.n8n <the pinned n8n imag
    **Recorded Airtable shapes exist for comparison** (§3b, from the D0 backup): the record shape
    `{createdTime, fields, id}`, the 0-row `{}` and the error-item shape. They are extracted in D2 as
    KEY/TYPE fixtures, never values; the leads rows behind them are PII. What no fixture covers is a
-   record with an absent field. If the quota returns during D2, spike S9 can record one. **Q4:** does
-   D4's cutover wait for that, or rely on the static scan plus end-to-end drills?
+   record with an absent field. **Ruled (Q4): D4 does NOT wait for it.** S9 rides on D6c's export read.
+   D4 proceeds on the recorded shapes, the static scan and the end-to-end drills.
 3. **Per-workflow drills on a test path against a mock-prefixed seed** (§6 mock data). Each workflow's
    own existing drills re-run: `run-d11.sh` for Owner Actions + Drill State, the purge drills, the
    reminders dedupe, Main's golden subset.
@@ -512,7 +554,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 |---|---|---|---|---|
 | Duplicate message (idempotency) | same `mig-` message id twice to the Main copy | one reply path, 1 processed row | Check Processed → duplicate branch | Book Appointment (2nd) |
 | Hostile `message_id` | quote / comma / `$1` / SQL-comment ids | normal or duplicate behaviour; row counts unchanged | Check Processed (parameterized) | any write outside the expected rows |
-| Double-booking race | two senders, one slot, parallel, both "yes" | one booking + handoff (M2 expectation) | write-then-verify | a 2nd surviving booking |
+| Double-booking race | two senders, one slot, parallel, both "yes" | **PHASE-7-PLAN M2's five measured items:** (1) exactly ONE `booked` row for that slot · (2) the loser's `stage='handoff'` with `gcal_event_id` cleared · (3) the loser's calendar event cancelled, not orphaned · (4) **`race_other_count >= 1`**, which separates a real race from a `verify_incomplete` handoff · (5) `Build Orphan State` did NOT run. *("one booking + handoff" was the weak, never-measured expectation M2 replaced; corrected.)* M2 is a structural measurement and is re-measured after the migration (§8) | write-then-verify; Cancel Our Event; Build Race-Lost State | a 2nd surviving booking; Build Orphan State |
 | New customer (0 rows) | unknown sender | `found=false` path, welcome reply | Merge State with `{}` | Mark Handoff |
 | Uncertain turn | low-confidence text | 1st clarify / 2nd handoff, as today | clarify ladder | booking |
 | Owner release (CRT #11) | `run-d11.sh` against Postgres | 13/13 | Release Handoff Lock + replay marker | a 2nd release on replay |
@@ -527,8 +569,8 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 ## 7 · Airtable shutdown (D6c) · gates and order
 
-1. **Gate 0:** the cutover has passed acceptance, and the soak has passed (duration: Q9; recommendation
-   7 days with no rollback trigger).
+1. **Gate 0:** the cutover has passed acceptance, and the soak has passed: **7 days with no rollback
+   trigger (ruling Q9).**
 2. **Gate 1, the export:** every table **including Customers** is exported through the API, in Airtable's
    own record shape, to an out-of-repo directory, checksummed, and its record counts compared with the
    base. The export is copied off-server. *This is the only Airtable read the phase plans. It needs quota,
@@ -547,7 +589,8 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 - **K-1** / the Turnstile window plan: the 7-1 window's **Airtable request budget** stops being a premise.
 - **CRTs #1a, #1b, #6, #8, #10, #11:** their evidence becomes migration evidence (§5).
 - **M2's measured lost-race graph:** node names are kept, but the data nodes behind it change, so it is
-  re-measured.
+  re-measured. The migration's race drill row (§6) already asserts M2's five items, so this
+  re-measurement is what the D6b race drill produces.
 - **The drill matrix:** rows that assert Airtable formulas, `!= ""` guards, `sender_masked`'s formula, or
   quota behaviour.
 - **The ship-gate items that name an Airtable PAT** or the base.
@@ -578,7 +621,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 | S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge |
 | S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | measure whether any API route runs a workflow; otherwise a declared temporary webhook trigger |
 | S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n |
-| S9 | (if the quota returns) one Airtable record with an ABSENT field, the case no recorded fixture covers (§3b) | one read call |
+| S9 | one Airtable record with an ABSENT field, the case no recorded fixture covers (§3b). **Ruled (Q4): rides on D6c's export read, not on D2** | none extra: read from the export |
 
 ## 10 · Budget and emergency exit
 
@@ -602,20 +645,18 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
 - The proposal on the table becomes **Airtable Team**. Its price is not measured; Yigitcan reads it.
 - "Third fix-of-a-fix" (the brief's stop rule) also stops a step regardless of budget.
 
-## 11 · Open questions for Yigitcan (numbered)
+## 11 · Rulings (Yigitcan, 2026-10-19: "onaylıyorum", with Cowork's recommendations)
 
-The list is also in the chat report.
-- **Q1** No data migration: Postgres starts empty plus a `mig-` seed.
-- **Q2** Cutover: test per workflow, swap per store (one coordinated cutover), with the Purge rehearsal
-  as the only single swap.
-- **Q3** Keep the `rec`+14 id format.
-- **Q4** Does D4's cutover wait for an absent-field fixture (S9), or go on the recorded shapes plus the
-  static scan plus end-to-end drills?
-- **Q5** The claim-first fix for CRT 1a's race: a separate step after D4's equivalence proof, or Phase 7?
-- **Q6** Security model: Claude holds only `salon_ro`; Yigitcan applies DDL; writes only through n8n.
-- **Q7** Network: Postgres published on `127.0.0.1` only (not moving the dashboard into compose).
-- **Q8** Permanent off-server target (recommendation: encrypted `restic`).
-- **Q9** Soak length before the Airtable revocations (recommendation: 7 days).
-- **Q10** Interim mitigation for the open input-validation finding (§3f): a strict character class on
-  that identifier now (a live Main write, gated), or wait for D4. Recommendation: now, because the
-  finding re-opens the moment the quota returns.
+- **Q1 ✅** No data migration: an empty schema plus the `mig-` seed.
+- **Q2 ✅** Test per workflow, swap in one coordinated cutover; the Purge rehearsal is the one exception.
+- **Q3 ✅** The `rec`+14 id format is kept.
+- **Q4 ❌** D4 does NOT wait for the absent-field fixture. S9 rides on D6c's export read; D4 proceeds on
+  the recorded shapes, the static scan and end-to-end drills.
+- **Q5 → Phase 7.** The migration's rule is "behaviour does not change", so the equivalence proof stays
+  clean.
+- **Q6 ✅, with the wording corrected** (§3g): no DIRECT write; an INDIRECT write through n8n is held by
+  a procedural boundary (the approval gate), not a technical one.
+- **Q7 ✅** Postgres on `127.0.0.1` only.
+- **Q8 → decided in D6**, not now.
+- **Q9 ✅** A 7-day soak.
+- **Q10 ✅ NOW, before Main's copy is taken** (§3f). Prepared in D2a; applied next round with approval.

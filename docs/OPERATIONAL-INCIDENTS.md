@@ -18,6 +18,38 @@
 
 ---
 
+## OPS-6 · 2026-10-19 · A process listing printed part of the tunnel credential
+
+**What happened.** While measuring how the dashboard runs, I ran a process listing (`ps`) to find
+it. The tunnel daemon's token was visible in the process listing, so the listing printed it.
+The output went through the masker, but the masker only knew hex-shaped secrets; this token is a
+base64/JWT shape, so it passed through. Because the line was cut at a fixed width, **only the first part
+of the token reached the transcript.**
+
+**What was exposed: DERIVED, not re-read.** Only lengths were printed: the line prefix, the token
+length and the cut width. From those and the token's field order, the printed part is **derived** to
+cover the account field and the start of the tunnel identifier, ending before the secret field. The
+derivation rests on two things, neither confirmed by reading the value: that field order, and that this
+line was the only place the token reached the transcript. Nothing reached the repo.
+
+**The standing exposure, which matters more than the incident.** The listing showed that the full
+credential is readable on this host more widely than intended, including by the account the agent runs
+as. A rule says the agent never holds a production credential; this one was within the agent's reach,
+and nobody had decided that. *The mechanism is deliberately not described here until it is fixed
+(`remote-operator.md`: no service inventory of a reachable host). It is added back, in the past tense,
+once the fix lands.*
+
+**What changed immediately.** The masker now also redacts JWT-shaped tokens, long base64 runs and the
+value after `--token`/`--password`/`--secret`/`--key`, self-tested on fake strings only. ⚠ *The masker
+lives in the session scratchpad, not in the repo, so this protection is rebuilt with it each session.*
+Process listings from now on print process NAMES, never arguments.
+
+**Decision (Yigitcan, 2026-10-19).** No rotation, on the derivation above. The fix moves the token into a
+root-only file (mode 0600) and closes the wider read path. It is done in the **final security pass together with ship-gate #17**,
+following his ruling to defer security work to the end. **Open until then.**
+
+---
+
 ## OPS-5 · 2026-10-06 → STILL OPEN at 2026-10-18 · The Airtable monthly API quota ran out and the bot has had no data layer for 12 days
 
 **What happened.** Airtable began refusing every API call from this workspace with

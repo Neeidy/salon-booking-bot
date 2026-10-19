@@ -109,6 +109,7 @@
 - `docs/CP6D-BUILD-PACKAGE.md`
 - `docs/DATA-MODEL.md`
 - `docs/FLOW-DIAGRAM.md`
+- `docs/MIGRATION-PLAN.md`
 - `docs/OPERATIONAL-INCIDENTS.md`
 - `docs/PHASE-6-BACKLOG.md`
 - `docs/PHASE-7-PLAN.md`
@@ -547,7 +548,34 @@
   - ## Owner-alert lane — every failure/handoff reaches a human (CP5a)
   - ## The invariants this diagram encodes (why the shapes are what they are)
 
+### `docs/MIGRATION-PLAN.md`
+  - ## 1 · Goal (one sentence)
+  - ## 2 · Scope · NOT-build
+  - ## 3 · The phase map — re-derived
+  - ## 3a · Cutover method
+  - ## 3b · Contract preservation
+  - ## 3c · Data adapter
+  - ## 3d · Schema
+  - ## 3e · Atomicity
+  - ## 3f · Injection
+  - ## 3g · Roles (least privilege)
+  - ## 3h · Network
+  - ## 3i · Secrets
+  - ## 3j · Backup
+  - ## 3k · Credential-decryption test (precondition of D2)
+  - ## 3l · Rollback per step
+  - ## 3m · n8n image pinning (D2's first step) — measured 2026-10-19
+  - ## 4 · "No new bug": QA design
+  - ## 5 · Critical-Review Targets
+  - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix
+  - ## 7 · Airtable shutdown (D6c) · gates and order
+  - ## 8 · Phase 7 premises that change (list only; re-derived after the migration)
+  - ## 9 · NOT-build (already §2) · automation-fit · D2's first spikes
+  - ## 10 · Budget and emergency exit
+  - ## 11 · Rulings (Yigitcan, 2026-10-19: "onaylıyorum", with Cowork's recommendations)
+
 ### `docs/OPERATIONAL-INCIDENTS.md`
+  - ## OPS-6 · 2026-10-19 · A process listing printed part of the tunnel credential
   - ## OPS-5 · 2026-10-06 → STILL OPEN at 2026-10-18 · The Airtable monthly API quota ran out and the bot has had no data layer for 12 days
   - ## OPS-1 · 2026-09-09 · A resync step sanitized the LIVE workflow — production broke, and the parity guard stayed GREEN
   - ## OPS-2 · 2026-09-11 · `pkill -f` matched its own shell and killed it mid-script; a server survived 2h37m
@@ -668,6 +696,7 @@
   - ### `docs/CP6D-BUILD-PACKAGE.md`
   - ### `docs/DATA-MODEL.md`
   - ### `docs/FLOW-DIAGRAM.md`
+  - ### `docs/MIGRATION-PLAN.md`
   - ### `docs/OPERATIONAL-INCIDENTS.md`
   - ### `docs/PHASE-6-BACKLOG.md`
   - ### `docs/PHASE-7-PLAN.md`
