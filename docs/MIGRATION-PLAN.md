@@ -70,7 +70,7 @@ D3 and runs on the one workflow where it is harmless.
 |---|---|---|
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
-| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p). S1 and the contract run not run. Exit gate NOT met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
+| **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
@@ -88,13 +88,17 @@ copies built and tested per workflow, swapped per store (all at once).
 **Evidence:** the shared-store split-brain above (*measured* from the dashboard → owner-actions id
 path and from the readers of `appointments`/`conversations`). n8n's public API creates workflows
 inactive and has activate/deactivate endpoints, which earlier rounds used. **Whether two active
-workflows can hold the same production webhook path: *not measured → spike S1*.**
+workflows can hold the same production webhook path: measured in S1 (2026-10-20, §3q): NO, for the same method
++ path.** The second
+activation is refused with 409 ("There is a conflict with one of the webhooks") and the workflow stays
+inactive; the first keeps serving the path.
 **Recommendation: (iii).**
 - Originals are never edited and stay as they are. Copies live on **test paths** while they are tested.
 - At cutover: deactivate the original → PUT the copy's path to the production path → activate the copy
   → measure. One workflow at a time, inside one window.
 - This order never asks two workflows to hold one path, so the design is safe **whatever S1 finds**. S1
-  still tells us whether n8n would refuse loudly if the order were broken.
+  still tells us whether n8n would refuse loudly if the order were broken: **it does (409), measured §3q**,
+  so activating the copy before deactivating the original fails visibly instead of splitting traffic.
 - **Rollback is the same steps reversed: deactivate the copy, re-activate the original.**
 - ⚠ **Honest limit of that rollback while OPS-5 lasts:** the originals run on Airtable, which is
   quota-blocked. Rolling back restores the CODE path to a known state whose data layer is down until the
@@ -771,7 +775,7 @@ WRITE nodes:
   batched). These nodes' history holds no partial failure. The ruling is therefore made against the
   consumers' code, which reads per-item error items, not against a recorded Airtable run.
 
-**Not run, because of the stop:** S1 and the contract run.
+**Not run, because of the stop:** S1 and the contract run. *(Both ran later the same day, after Q18: §3q.)*
 - **S1:** two workflows on one throwaway path.
 - **The contract run:** the Airtable-shape SQL per table through `salon_ro`. Its seed node was built into
   the S2b workflow and never triggered.
@@ -792,7 +796,7 @@ WRITE nodes:
 - **The S5 workflow was edited once (PUT) to fix the probe fault above.** S5 is on the approved list, and
   so is editing it (Q12).
 
-**D2's exit gate: NOT met.** The gate reads "every gate shown able to go red · every spike answered or its
+**D2's exit gate: NOT met at this point.** *(Superseded the same day: after Q18, S1 and the contract run, the gate is MET, §3q. The list below is the state at the S5 stop.)* The gate reads "every gate shown able to go red · every spike answered or its
 design branch chosen".
 - **Gates:** met (D2b-1).
 - **Spikes:**
@@ -812,6 +816,92 @@ design branch chosen".
     drill M7 in D4, and its REVOKE/GRANT is an operator step.
 - **Last round's declared deviations accepted (Yigitcan, 2026-10-20):** S2b (S2 re-created), the S5 PUT and
   the probe fix.
+
+## 3q · D2b-3 close-out (2026-10-20): S1 ✅, the contract run ✅, D2 CLOSED
+
+**Turnstile:** published `enabled: true` and a dummy token refused with 403, at the start and at the end.
+
+**Edge refusals now carry S6's two signals, not the status alone.** Every temporary path was hit with no
+token first, and each returned 403 with a Cloudflare Access header while the workflow's execution count
+stayed the same (0 → 0). That held for S1's path and for S2c's two triggers, on both S2c runs.
+
+**S1 ✅: two active workflows cannot hold one path (same method + path, which is what a cutover copy uses; a different method on the same path was not measured).**
+- **Setup:** two throwaway workflows, A and B, each a webhook on the same Access-covered throwaway path
+  plus a respond node with its own text. Neither uses a database credential.
+- **Activating A:** 200.
+- **Activating B with A active:** **409**, "There is a conflict with one of the webhooks". B read back
+  inactive.
+- **Owner-token request:** answered by A. A's executions went 0 → 1, B's stayed 0 → 0.
+- **Control:** A deactivated → B activated (200) → the same request was answered by B.
+- **Meaning for §3a:** the cutover order (deactivate the original, then activate the copy) is the only
+  order n8n allows. A wrong order fails loudly. No design change.
+
+**The contract run ✅** (`tests/db/contract-run.cjs`, as `salon_ro`; counts, rule names and field names only):
+- **The instrument was shown to fail on empty tables first.** With no seed it went red on all five
+  tables ("EMPTY: … measured nothing"), so a green run cannot come from reading nothing.
+- **Seed:** 2 `mig-` rows per table, one full and one sparse. The sparse row carries `''`, `NULL` and a
+  `false` checkbox where the table has such a column (`false`: appointments only; `''`: not bot_metrics).
+  - They were written through S2c, S2's workflow re-created for the seed and the prefix-guarded clean-up,
+    the same accepted pattern as S2b.
+  - **Declared:** no other workflow was created.
+- **Shaped SQL** (§3b's pattern: `NULLIF`, `jsonb_strip_nulls`, `CASE WHEN … THEN true END`,
+  `salon.at_ts`):
+  - **0 violations on all five tables.**
+  - The full row carries every field key (conversations 16/16 · appointments 12/12 · leads 7/7 ·
+    processed_messages 4/4 · bot_metrics 3/3).
+  - The sparse rows' empty values were dropped, which is shown by no null, `""` or `false` violation.
+  - Every number came out as a JSON number (`turn_count`, `lead_no` as `fields.id`, `cost_usd`).
+- **Positive control:** the same rows read through a deliberately MIS-SHAPED query (no `NULLIF`, no
+  strip, raw boolean, raw timestamps). On each table the control must catch EVERY rule class the seed can
+  trigger there, and it did:
+  - conversations, leads and processed_messages: null · `""` · field timestamp · `createdTime`;
+  - appointments: the same plus a `false` checkbox;
+  - bot_metrics: null · field timestamp · `createdTime`.
+- **The control was shown able to fail. Each of the five rules this seed can trigger was switched off in a
+  scratch copy of `shape.cjs`, and the run went red every time, naming exactly the rule removed.** The
+  checker's other three rules (number, id, top-level keys) cannot be triggered by this mis-shaped query;
+  they are shown red offline in `tests/contract/airtable-shape.test.cjs`, so "every number came out as a
+  JSON number" above rests on a rule this database run does not turn red.
+
+  | Rule removed | Red tables |
+  |---|---|
+  | null | 5 |
+  | `""` | 4 |
+  | `false` | 1 |
+  | field timestamp | 5 |
+  | `createdTime` | 5 |
+
+  The red-table counts equal the number of tables whose seed exercises that rule.
+- ⚠ **Declared script fault, fixed (pre-push audit, MEDIUM):** the first version passed the control on
+  "any violation". Its raw `createdTime` (a JS `Date` from the driver) tripped one on every table, so the
+  field rules could have been deleted with the run still green. Fixed as above. The run was REPEATED on a
+  fresh seed through a second S2c, which was created and deleted like the first. The counts before and
+  after are in the clean-up below.
+- **Limit:** this proves the SQL PATTERN on every column type the schema has, read through the `pg`
+  driver. The n8n node's own handling of the same output (jsonb parsed, ISO-ms-Z) was measured in S2. Each
+  of D3's per-node queries is still checked against its consumers when it is written.
+
+**Clean-up (measured):**
+- **Counts as `salon_ro`, for each of the two seeds:** every table 0 before, 2 per table after the seed,
+  and every table 0 after clean-up.
+- **Each prefix-guarded delete removed exactly 2 rows per table.**
+- **Four temporary workflows** (S1 A, S1 B, and S2c twice) were deleted, and each returns 404 on GET.
+- **The live instance holds 5 workflows**, and none is temporary.
+- **Both parity guards are 0.**
+
+**D2 exit gate: MET.** The gate reads "every gate shown able to go red · every spike answered or its
+design branch chosen".
+- **Gates:** `check-sql-params`, `diff-workflow-copy`, the contract checker and the sanitizer test, each
+  shown red (D2b-1). The contract checker is now also red on a mis-shaped query against the real database.
+- **Spikes, all answered or with a branch chosen:**
+  - **Answered:** S1 ✅ · S2 ✅ (corrected 2026-10-20) · S3 ✅ · S5 ✅ (branch: Q18 `independently`) · S6 ✅ ·
+    S8 ✅.
+  - **Branch chosen:** S4 (the SQL-error shape is measured; the auth-failure shape's branch is drill M7
+    in D4, ruled) · S7 (ruled by Q13) · S9 (ruled by Q4: rides on D6c's export read).
+- **Carried, not part of the gate:**
+  - Q16 (split `salon_ro`'s column access before D5);
+  - the mandatory Phase 7 alert-detail fix;
+  - M7's REVOKE/GRANT, an operator step in D4.
 
 ## 4 · "No new bug": QA design
 
@@ -1006,10 +1096,10 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 | # | Question | Smallest safe probe |
 |---|---|---|
-| S1 | Can two active workflows hold one production webhook path? | two throwaway workflows on a throwaway path, activate both, read the error · **NOT RUN: stopped at S2 on 2026-10-19 (§3o) and at S5 on 2026-10-20 (§3p, Q18)** |
-| S2 | On this instance's Postgres node: return shape for rows / 0 rows (with and without `alwaysOutputData`) / `RETURNING` / `ON CONFLICT DO NOTHING RETURNING` with 0 rows / `jsonb` parsing / `timestamptz` serialization; and which typeVersion is available | a throwaway workflow against a scratch table · **⚠ ANSWERED 2026-10-19, and one answer changes the design (§3o):**<br>· INSERT … RETURNING returns its rows (`rec`+14 ids).<br>· **A WRITE that returns 0 rows** (ON CONFLICT DO NOTHING RETURNING) gives `{success: true}` and no `id`, **with or without** `alwaysOutputData` *(corrected 2026-10-20: "NOTHING without it" was inferred from the SELECT case and never run; measured in §3p)*.<br>· **Q17 (a), measured 2026-10-20:** `ON CONFLICT … DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id` returns the EXISTING id on a conflict, 1 row, `created_at` unchanged; a fresh id is the control (§3p).<br>· A **READ** with 0 rows gives `{}` with `alwaysOutputData` (the same as Airtable) and nothing without it.<br>· The Airtable-shaped SELECT conforms: `fields` is a parsed object, `createdTime` is ISO-ms-Z, empty values are dropped.<br>· A raw `timestamptz` serializes as ISO-ms-Z; a raw `numeric` comes back as a STRING but as a number inside jsonb; booleans and null pass through.<br>· typeVersion 2.6 works.<br>· A node runs once per input item, the same as the Airtable nodes. |
+| S1 | Can two active workflows hold one production webhook path? | two throwaway workflows on a throwaway path, activate both, read the error · **✅ ANSWERED 2026-10-20 (§3q): NO.** With A active on an Access-covered throwaway path, activating B on the same method + path returned 409 "There is a conflict with one of the webhooks" and B stayed inactive; the owner-token request reached A only (A's executions 0→1, B's 0→0). Control: with A deactivated, B activated (200) and answered. The cutover order (§3a) is confirmed: a wrong order fails loudly |
+| S2 | On this instance's Postgres node: return shape for rows / 0 rows (with and without `alwaysOutputData`) / `RETURNING` / `ON CONFLICT DO NOTHING RETURNING` with 0 rows / `jsonb` parsing / `timestamptz` serialization; and which typeVersion is available | a throwaway workflow against a scratch table · **✅ ANSWERED 2026-10-19 (design branch chosen by Q17, 2026-10-20); one answer changed the design (§3o):**<br>· INSERT … RETURNING returns its rows (`rec`+14 ids).<br>· **A WRITE that returns 0 rows** (ON CONFLICT DO NOTHING RETURNING) gives `{success: true}` and no `id`, **with or without** `alwaysOutputData` *(corrected 2026-10-20: "NOTHING without it" was inferred from the SELECT case and never run; measured in §3p)*.<br>· **Q17 (a), measured 2026-10-20:** `ON CONFLICT … DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id` returns the EXISTING id on a conflict, 1 row, `created_at` unchanged; a fresh id is the control (§3p).<br>· A **READ** with 0 rows gives `{}` with `alwaysOutputData` (the same as Airtable) and nothing without it.<br>· The Airtable-shaped SELECT conforms: `fields` is a parsed object, `createdTime` is ISO-ms-Z, empty values are dropped.<br>· A raw `timestamptz` serializes as ISO-ms-Z; a raw `numeric` comes back as a STRING but as a number inside jsonb; booleans and null pass through.<br>· typeVersion 2.6 works.<br>· A node runs once per input item, the same as the Airtable nodes. |
 | S3 | `queryReplacement`: does an array expression keep comma / quote / `$2` / newline values as one parameter; what does the comma-string form do | the same, with hostile values · **✅ ANSWERED 2026-10-20 (§3p):** the array form returned 14 hostile values identical (comma, quotes, `$2`, newline, injection text, backslash, unicode, `{{ }}`, `${…}`/`$1:raw`, empty string, object → `jsonb`, `null`, number); an expression or filter inside a value is not evaluated. Control: the string form splits on commas, and with a single `$1` the value `a,b` came back as `a`, **silently truncated**. Evidence for the gate's array-only rule; no design change |
-| S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement · **PARTLY ANSWERED by S8 and S5:** under the `single` batching mode (S8's, one item) an SQL error is `{error, message}`, Airtable's keys (Airtable's live error item: `error` an object, `message` a string). *Corrected 2026-10-20:* under `independently` and `transaction` it is `{error}` alone, with no `message` (S5, §3p). Every shape satisfies the `Errored?` IFs (`!!$json.error`). The auth-failure shape is not run (it needs an extra credential, which is not on the approved list) |
+| S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement · **PARTLY ANSWERED by S8 and S5:** under the `single` batching mode (S8's, one item) an SQL error is `{error, message}`, Airtable's keys (Airtable's live error item: `error` an object, `message` a string). *Corrected 2026-10-20:* under `independently` and `transaction` it is `{error}` alone, with no `message` (S5, §3p). Every shape satisfies the `Errored?` IFs (`!!$json.error`). The auth-failure shape is not run (it needs an extra credential, which is not on the approved list). **Branch chosen (ruled 2026-10-20):** drill M7 in D4, REVOKE CONNECT on `salon_app` with the existing credential (operator step); residual in §3p |
 | S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets · **✅ ANSWERED 2026-10-20, branch chosen by Q18 (§3p):** on success every mode deletes 3 of 3 with 3 items out. When item 2 fails: `single` undoes the whole batch and emits 1 `{error, message}`; `independently` deletes items 1 and 3 and emits `{error}` with no `message`; `transaction` rolls back but reports item 1 as deleted. No mode gives the multi-item write nodes' consumers what they were written against · **Q18 ✅ ruled 2026-10-20: `independently` for the four** |
 | S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge · **✅ ANSWERED 2026-10-19:** an `owner-…` path is covered. No token → 403 from Access at the edge (a Cloudflare Access header, and no n8n execution created); the owner service token → 200 from n8n; the n8n API's service token → 403. Executions went 0 → 1: only the owner-token request reached n8n |
 | S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | **Ruled by Q13: no manual/test execution.** A declared temporary webhook trigger, only behind Access (S6 first), removed before the swap and proven absent by the diff tool |

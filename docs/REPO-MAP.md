@@ -192,6 +192,7 @@
 
 ### tests/db
 
+- `tests/db/contract-run.cjs`
 - `tests/db/ro-negatives.cjs`
 
 ### tests/fixtures/sql-params
@@ -427,6 +428,7 @@
   - ## The rule
   - ### The rule held for the NEXT bind and did nothing about the ones already up — so there is a sweep now
   - ### The policy — **root output, Yigitcan ran it 2026-09-12. NOT my measurement.**
+  - ### Stop a process by its PID, never by a pattern (Yigitcan's ruling, 2026-10-20)
   - ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
   - ### NEVER TYPE THE LITERAL — not in a file, not in a command you SHOW
   - ### Pre-flight before handing over ANY tunnel command
@@ -609,6 +611,7 @@
   - ### D2b-3 measurement plan (written now, run later; every workflow named here needs approval, Q12)
   - ## 3o · D2b-2 (operator) and D2b-3 (measurements), 2026-10-19: STOPPED at S2 on a design-changing answer
   - ## 3p · D2b-3 remainder (2026-10-20): Q17 measured, S3 ✅, STOPPED at S5 on a design-changing answer (Q18)
+  - ## 3q · D2b-3 close-out (2026-10-20): S1 ✅, the contract run ✅, D2 CLOSED
   - ## 4 · "No new bug": QA design
   - ## 5 · Critical-Review Targets
   - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix
