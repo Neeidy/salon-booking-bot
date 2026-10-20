@@ -732,11 +732,14 @@ clean-up (§3o's S2 workflow held a clean-up trigger the same way). No workflow 
 | Mode | Rows left (of 3) | Items out | Error item | What the alert builders get |
 |---|---|---|---|---|
 | `single` (the node's default) | 3: the whole batch is undone | 1 | `{error: {…}, message: "<SQL text>"}`, Airtable's keys | the SQL reason, but "failed items: 1" for the whole batch |
-| `independently` | 1: items 1 and 3 deleted | 3 | `{error: {…}}`, **no `message`, and no SQL text anywhere in the item** | `[object Object]` as the detail |
+| `independently` | 1: items 1 and 3 deleted | 3 | `{error: {…}}`, **no `message`, and no SQL text anywhere in the item** | `[object Object]` as the detail value (rendered `-object Object-`) |
 | `transaction` | 3: rolled back | 2 | `{error: {…}}`, no `message` | item 1 is reported as deleted although it was rolled back; item 3 is not reported |
 
   - **Airtable's error item, read from the live execution history** (types only, no values): `{error:
-    object, message: string}`. Three nodes in two workflows show it, with no other keys.
+    object, message: string}`. Three nodes in two workflows show it, with no other keys: `Check Processed`
+    (Main), `Read Conversation` and `Count Markers` (Drill State). **All three run `continueRegularOutput`**
+    (read from the committed exports). The input-key carry recorded in §3r belongs to
+    `continueErrorOutput`, a different mode.
   - **The alert builders read the detail as `(e.error && e.error.message) || e.message || e.error`.** These
     are `Build Owner Alert (Purge)` and `Build Owner Alert (Reminders)`. Postgres's error object has no
     `message` key.
@@ -759,7 +762,7 @@ WRITE nodes:
 - The single-item nodes are unaffected. With one item, `single` mode IS per-item, and it keeps
   Airtable's error keys.
 - **(a) `independently` for the four.** It keeps per-row progress and a true count of failed items. The
-  alert's detail line degrades to `[object Object]`; the alert still fires, with its branch and count.
+  alert's detail value degrades to `[object Object]` (rendered `-object Object-` in the owner's message, after the builders' markdown escape); the alert still fires, with its branch and count.
   The builders cannot be changed in the copy (the diff rule), so the detail fix is a Phase 7 item.
 - **(b) `single` (the default).** It keeps the SQL reason in the alert, but one bad row undoes the whole
   batch.
@@ -925,7 +928,7 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | | Ruling |
 |---|---|
 | **K-1** | D3a Drill State → D3b Owner Actions → D3c Reminders → D3d Purge, one copy each, each with its own verdict. **D3e (the Purge rehearsal) is separate, touches LIVE, and starts only on its own written go-ahead. It is NOT part of this round.** |
-| **K-2 (widened)** | **S10 runs first.** It measures the Postgres node under `continueErrorOutput`, which ALL FOUR Q18 nodes and all ten Purge/Reminders data nodes use. S4 and S5 measured `continueRegularOutput` only, so **Q18 is unproven for its own configuration.** S10 is the premise check for Q18 itself (below). |
+| **K-2 (widened)** | **S10 runs first.** It measures the Postgres node under `continueErrorOutput`, which ALL FOUR Q18 nodes and all ten Purge/Reminders data nodes use. S4 and S5 measured `continueRegularOutput` only, so **Q18 was unproven for its own configuration** until S10. S10 is the premise check for Q18 itself (below). **✅ S10 confirmed it, 2026-10-20.** |
 | **K-3** | The copies' error paths are drilled in ONE operator window at the end of D3d, using a table-level `REVOKE`, then `GRANT`. D3a–D3c's verdicts mark their error paths "pending the shared window". *Recorded risk for D4: `REVOKE CONNECT` (M7) may not cut a pooled connection; a table-level `REVOKE` is checked on every statement.* |
 | **K-4** | A schedule-triggered copy is active only during its drill minutes, because activating it for the temporary webhook also arms its schedule. The windows are :05–:50 for Reminders and away from the Purge tick. Executions are measured by mode: the copy must show **no** `trigger` execution. |
 | **K-5** | The owner's Telegram chat is a permitted recipient for drill alerts. It is Yigitcan's own chat (§6: "owner alerts from drills, as today"). The NOT-build line "no real recipient" covers customers and third parties. |
@@ -942,6 +945,35 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
   and 1 row is left.
 - **STOP condition:** any difference that changes what the four nodes' consumers receive stops the
   round, and Q18 is re-ruled before D3c.
+
+**S10 result ✅ (2026-10-20): Q18's expectation holds, so no re-ruling.** Method:
+- a temporary workflow, the S2 pattern;
+- edge refusal shown with both S6 signals on both of its paths;
+- the deletes run under `continueErrorOutput`, one branch per mode;
+- the rows left read as `salon_ro`.
+
+| Mode | Output 0 | Output 1 | Rows left (of 3) | Error item | Detail the builders build |
+|---|---|---|---|---|---|
+| `independently` | 2 items: rows 1 and 3 | 1 item | 1 (row 2) | the input's own keys plus `error` (an object); **no `message`**; no SQL text anywhere in the item | the value `[object Object]`, rendered `-object Object-` by the markdown escape; "failed items: 1" |
+| `single` | 0 | 1 item | 3: the whole batch undone | `{error, message}`, `message` a string | the SQL error text (measured: `invalid input syntax for type integer`, followed by the seeded value), "failed items: 1" |
+
+- **The detail strings were computed by running the builders' OWN statement**, extracted from the
+  committed `Build Owner Alert (Purge)` and `Build Owner Alert (Reminders)` exports and run on the
+  captured items. They were not computed from a hand copy.
+- **Airtable's error items carried the input's keys too, under `continueErrorOutput`, by inference.**
+  This is inferred from the live history of `Reminder Error (lookup)`, a downstream node that only spreads
+  `...i.json`, and not measured on an Airtable node directly. It does not contradict §3p's "no other
+  keys": the three nodes read there all run `continueRegularOutput`. The same split shows on Postgres
+  (S5 against S10, next bullet). Those items carry the trigger's own keys alongside `error` (an object) and
+  `message` (a string).
+  - So the only TOP-LEVEL-KEY difference under `independently` is the missing `message`, which is what
+    Q18 accepted.
+  - The `error` object's inner structure was not compared.
+- **The error item differs between the two `onError` modes.** Under `continueRegularOutput` (S5) the
+  `independently` error item was `{error}` alone, with none of the input's keys. Under
+  `continueErrorOutput` (S10) it carries the input's keys. A consumer's reading of one mode does not
+  transfer to the other.
+- **The mandatory Phase 7 alert-detail fix now rests on a measurement of these nodes' own configuration.**
 
 **Common to every copy:**
 - The copy is generated OFFLINE from the committed original by `scripts/build-workflow-copy.py`. Then
@@ -1341,6 +1373,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 | S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | **Ruled by Q13: no manual/test execution.** A declared temporary webhook trigger, only behind Access (S6 first), removed before the swap and proven absent by the diff tool |
 | S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n · **✅ ANSWERED 2026-10-19:** the connection by service name works and runs as `salon_app` on `salon`. Each attempt was wrapped so that a success rolls itself back, and Postgres's own messages show all five refused: CREATE TABLE "permission denied for schema salon" · DROP "must be owner of table leads" · TRUNCATE "permission denied for table leads" · ALTER "must be owner" · TEMP "permission denied to create temporary tables". CONNECT on the `postgres` database: false |
 | S9 | one Airtable record with an ABSENT field, the case no recorded fixture covers (§3b). **Ruled (Q4): rides on D6c's export read, not on D2** | none extra: read from the export |
+| S10 | Under `continueErrorOutput`, the configuration of all ten Purge/Reminders data nodes: per-item routing and the error item under `independently` and `single` (the Q18 premise check, §3r) | 3 items, item 2 failing on a row-dependent cast · **✅ ANSWERED 2026-10-20 (§3r):** `independently`: rows 1 and 3 on output 0, row 2 on output 1, 1 row left; the error item keeps the input's keys plus an `error` object, with no `message`, so the builders' detail value is `[object Object]` (rendered `-object Object-`). `single`: the whole batch undone, one `{error, message}` on output 1, detail = the SQL error text. Q18 holds as ruled |
 
 ## 10 · Budget and emergency exit
 
