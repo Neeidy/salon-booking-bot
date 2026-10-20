@@ -72,7 +72,7 @@ the audit has 9 open rows.
 
 | Bucket | Items | One-line reason |
 |---|---|---|
-| **PHASE 7** | the regression's Turnstile blocker · CRT 1a/1b/2/4/5/6/9/11/12 · `CASE-STUDY.md` · `RUNBOOK.md` · K-2 dead keys · the §9 #11 drift · the `handoffShown` twin (the parity suite stays green if one caller is deleted) · `golden-set`/`jailbreak` never run | all of them are inside the definition of "test + audit + DoD" |
+| **PHASE 7** | **MANDATORY, carried from the migration (Yigitcan's ruling, 2026-10-20; MIGRATION-PLAN §3p, Q18):** `Build Owner Alert (Purge)` and `Build Owner Alert (Reminders)` must read a Postgres error item that has no `message` key (under `independently` its detail line becomes `[object Object]` and the SQL reason is lost) · the regression's Turnstile blocker · CRT 1a/1b/2/4/5/6/9/11/12 · `CASE-STUDY.md` · `RUNBOOK.md` · K-2 dead keys · the §9 #11 drift · the `handoffShown` twin (the parity suite stays green if one caller is deleted) · `golden-set`/`jailbreak` never run | all of them are inside the definition of "test + audit + DoD" |
 | **SHIP GATE** | 11–20 (one numbered list in `ROADMAP.md`) | needs deployment or Yigitcan's hands; not build work |
 | **v2 / LATER** | `Idempotent Replay` stored reply · `messageTemplates` schema requirement · transcript loss on navigation · font subsetting · `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | improves the product but does not change whether it can be sold |
 | **DELETE** | *(empty)* | every open item belongs to a bucket or is already closed; an invented "delete" bucket would be padding |

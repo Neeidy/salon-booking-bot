@@ -228,8 +228,9 @@ transaction, if a failure occurs, all changes are rolled back". **There is no tr
 nodes.** Atomicity therefore comes only from single statements plus constraints.
 **How `RETURNING` rows come back, and what a conflict with 0 rows looks like: measured in S2 and the Q17
 probe (§3o, §3p).** `RETURNING` hands back its rows; a write that returns 0 rows gives `{success: true}`, with
-or without `alwaysOutputData`. **Batching modes under a partial failure: measured in S5 (§3p); the mode for
-the four multi-item write nodes awaits Q18.**
+or without `alwaysOutputData`. **Batching modes under a partial failure: measured in S5 (§3p). Q18 ✅ ruled 2026-10-20:
+`independently` for the four multi-item write nodes** (`Delete Old Processed`, `Scrub Recent Messages`, `Delete Old
+Leads`, `Stamp Reminded`); every other node keeps the default `single`, which with one item is per-item.
 
 **What the migration does NOT close, stated so that nobody believes it does:**
 - **CRT 1a's race:** `Check Processed` (read) → processing → `Record Processed` (write, after the
@@ -742,7 +743,11 @@ clean-up (§3o's S2 workflow held a clean-up trigger the same way). No workflow 
 - **This corrects S4:** "an SQL error is exactly `{error, message}`" holds for the `single` mode only.
   That is the mode S8 ran in, with one item.
 
-**Q18 (awaiting a ruling): the batching mode of the four multi-item WRITE nodes.**
+**Q18 ✅ ruled 2026-10-20 by Yigitcan: (a) `independently` for all four.** His reason, on record: a stalled
+batch re-sends reminders to every customer in it and lets one bad row block the leads TTL indefinitely; a
+degraded alert detail line is visible and recoverable. **The alert-detail fix is a MANDATORY Phase 7 item**
+(PHASE-7-PLAN, open-items table, PHASE 7 bucket). The question was the batching mode of the four multi-item
+WRITE nodes:
 - The nodes: `Delete Old Processed`, `Scrub Recent Messages`, `Delete Old Leads` (Purge) and `Stamp
   Reminded` (Reminders).
 - Under a partial failure, no mode reproduces what these nodes' consumers were written against. That is
@@ -803,7 +808,10 @@ design branch chosen".
     the extra credential that is not on the approved list.
   - The residual: M7 produces a refused CONNECT, not a wrong password, so the two messages may differ. The
     alert builders' detail line is the only consumer of the text.
-  - This is a proposal for Yigitcan, not applied.
+  - **Ruled 2026-10-20 (Yigitcan): accepted.** D2 may close with S4's auth-failure shape open; the branch is
+    drill M7 in D4, and its REVOKE/GRANT is an operator step.
+- **Last round's declared deviations accepted (Yigitcan, 2026-10-20):** S2b (S2 re-created), the S5 PUT and
+  the probe fix.
 
 ## 4 · "No new bug": QA design
 
@@ -1002,7 +1010,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 | S2 | On this instance's Postgres node: return shape for rows / 0 rows (with and without `alwaysOutputData`) / `RETURNING` / `ON CONFLICT DO NOTHING RETURNING` with 0 rows / `jsonb` parsing / `timestamptz` serialization; and which typeVersion is available | a throwaway workflow against a scratch table · **⚠ ANSWERED 2026-10-19, and one answer changes the design (§3o):**<br>· INSERT … RETURNING returns its rows (`rec`+14 ids).<br>· **A WRITE that returns 0 rows** (ON CONFLICT DO NOTHING RETURNING) gives `{success: true}` and no `id`, **with or without** `alwaysOutputData` *(corrected 2026-10-20: "NOTHING without it" was inferred from the SELECT case and never run; measured in §3p)*.<br>· **Q17 (a), measured 2026-10-20:** `ON CONFLICT … DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id` returns the EXISTING id on a conflict, 1 row, `created_at` unchanged; a fresh id is the control (§3p).<br>· A **READ** with 0 rows gives `{}` with `alwaysOutputData` (the same as Airtable) and nothing without it.<br>· The Airtable-shaped SELECT conforms: `fields` is a parsed object, `createdTime` is ISO-ms-Z, empty values are dropped.<br>· A raw `timestamptz` serializes as ISO-ms-Z; a raw `numeric` comes back as a STRING but as a number inside jsonb; booleans and null pass through.<br>· typeVersion 2.6 works.<br>· A node runs once per input item, the same as the Airtable nodes. |
 | S3 | `queryReplacement`: does an array expression keep comma / quote / `$2` / newline values as one parameter; what does the comma-string form do | the same, with hostile values · **✅ ANSWERED 2026-10-20 (§3p):** the array form returned 14 hostile values identical (comma, quotes, `$2`, newline, injection text, backslash, unicode, `{{ }}`, `${…}`/`$1:raw`, empty string, object → `jsonb`, `null`, number); an expression or filter inside a value is not evaluated. Control: the string form splits on commas, and with a single `$1` the value `a,b` came back as `a`, **silently truncated**. Evidence for the gate's array-only rule; no design change |
 | S4 | Error item shape under `continueRegularOutput` (auth failure, SQL error) | the same, with a wrong password and a bad SQL statement · **PARTLY ANSWERED by S8 and S5:** under the `single` batching mode (S8's, one item) an SQL error is `{error, message}`, Airtable's keys (Airtable's live error item: `error` an object, `message` a string). *Corrected 2026-10-20:* under `independently` and `transaction` it is `{error}` alone, with no `message` (S5, §3p). Every shape satisfies the `Errored?` IFs (`!!$json.error`). The auth-failure shape is not run (it needs an extra credential, which is not on the approved list) |
-| S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets · **⚠ ANSWERED 2026-10-20, and the answer needs a ruling (Q18, §3p):** on success every mode deletes 3 of 3 with 3 items out. When item 2 fails: `single` undoes the whole batch and emits 1 `{error, message}`; `independently` deletes items 1 and 3 and emits `{error}` with no `message`; `transaction` rolls back but reports item 1 as deleted. No mode gives the multi-item write nodes' consumers what they were written against |
+| S5 | Per-item parameters under each batching mode (purge deletes N rows) | 3 input items, 3 parameter sets · **✅ ANSWERED 2026-10-20, branch chosen by Q18 (§3p):** on success every mode deletes 3 of 3 with 3 items out. When item 2 fails: `single` undoes the whole batch and emits 1 `{error, message}`; `independently` deletes items 1 and 3 and emits `{error}` with no `message`; `transaction` rolls back but reports item 1 as deleted. No mode gives the multi-item write nodes' consumers what they were written against · **Q18 ✅ ruled 2026-10-20: `independently` for the four** |
 | S6 | Does the Access application cover a copy's owner path? | a credential-less request to the copy's path → refused at the edge · **✅ ANSWERED 2026-10-19:** an `owner-…` path is covered. No token → 403 from Access at the edge (a Cloudflare Access header, and no n8n execution created); the owner service token → 200 from n8n; the n8n API's service token → 403. Executions went 0 → 1: only the owner-token request reached n8n |
 | S7 | On-demand execution for schedule-triggered copies (Reminders, Purge) | **Ruled by Q13: no manual/test execution.** A declared temporary webhook trigger, only behind Access (S6 first), removed before the swap and proven absent by the diff tool |
 | S8 | n8n → Postgres by service name; the credential works; DDL is refused | a SELECT, then a `CREATE`, through n8n · **✅ ANSWERED 2026-10-19:** the connection by service name works and runs as `salon_app` on `salon`. Each attempt was wrapped so that a success rolls itself back, and Postgres's own messages show all five refused: CREATE TABLE "permission denied for schema salon" · DROP "must be owner of table leads" · TRUNCATE "permission denied for table leads" · ALTER "must be owner" · TEMP "permission denied to create temporary tables". CONNECT on the `postgres` database: false |
@@ -1084,8 +1092,7 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
 - **Q17 ✅ ruled 2026-10-20 (Yigitcan): (a).** The owner replay marker becomes `INSERT … ON CONFLICT
   (message_id) DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id`; `Record Processed` (Main) stays
   `DO NOTHING`. The premise was measured before it was recorded (§3p).
-- **Q18 (awaiting a ruling):** the batching mode of the four multi-item write nodes, where no mode
-  reproduces what their consumers expect under a partial failure (§3p). Recommendation: `independently`.
-- **Proposed, not ruled:** D2 may close with S4's auth-failure shape open, on the branch named in §3p (the
-  `Errored?` IFs hold for every measured shape, and D4's drill M7 measures the connect-time failure
-  through the existing credential).
+- **Q18 ✅ ruled 2026-10-20 (Yigitcan): (a) `independently`** for the four multi-item write nodes (§3p). The
+  alert builders' detail fix is a mandatory Phase 7 item.
+- **S4's auth-failure shape ✅ ruled 2026-10-20:** D2 may close with it open; its branch is drill M7 in D4
+  (REVOKE CONNECT on `salon_app`, existing credential, operator step), residual as stated in §3p.
