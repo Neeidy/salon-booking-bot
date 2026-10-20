@@ -1,6 +1,6 @@
 # Phase 7 — Test + Codex + DoD · PLAN v3
 
-> **⏸ 2026-10-19: ON HOLD until the Airtable → Postgres migration's cutover is accepted** (Yigitcan's ruling, [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md)). **Start condition (ruling 2026-10-20): Phase 7 starts right after D6b's acceptance, where its premises are re-checked; the 7-day soak runs in the background and does not hold it.** It was derived against Airtable's behaviour, and that cannot be assumed to still hold.
+> **⏸ ON HOLD (Yigitcan's ruling 2026-10-19, "until the migration is done"; start condition re-ruled 2026-10-20, [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md)): Phase 7 starts right after the migration's D6b acceptance, where its premises are re-checked; the 7-day soak runs in the background and does not hold it.** This plan was derived against Airtable's behaviour, and that cannot be assumed to still hold.
 >
 > **Status:** APPROVED by Yigitcan, 2026-09-17. Derived against `232321c` (181 files).
 > **This file exists because v2 did not.** The Phase 7 plan was produced once before, lived only in

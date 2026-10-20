@@ -71,7 +71,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
-| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead. Not started.** | 4 copies green · rehearsal measured in both directions |
+| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r).** | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c and D7's close wait for it. **d) Permanent off-server target.** | acceptance suite green · rollback trigger list armed · export taken before any revoke |
@@ -1275,8 +1275,27 @@ the copy is parked inactive. The Q17 race could not be reproduced on the correct
 - **State left:** the D3c copy is inactive with 0 executions, not paired, and not exported. The seed
   workflow is deleted (404), every table is 0, and both parity guards are 0.
 
-*Decision for Yigitcan:* how the Reminders copy gets the original's `binaryMode`. See the turn's report.
-Until then D3c stays stopped. D3d (Purge) is not affected by this class; D4 (Main) is.
+*Decision:* ruled 2026-10-20, (a) then (b) (see the rulings table). D3d (Purge) is not affected by this
+class; D4 (Main) is.
+
+**D3c resume, 2026-10-20: (a) tried, the setting is dropped again, now MEASURED. ⛔ Stopped for the
+operator's step (b).**
+- **The write:** one `--update` PUT to the inactive D3c copy, through the deploy helper.
+- **What was sent:** the body's settings were `{binaryMode: "separate", executionOrder: "v1"}`. This is
+  shown by rebuilding the helper's body in memory from the same live original; the helper sends exactly
+  `name`, `nodes`, `connections` and `settings`.
+- **What came back:** the API answered 200, the copy read back `active: false`, and its settings read
+  back as `{executionOrder: "v1"}`.
+- **Conclusion:** the public API drops `binaryMode` on update. This is measured: the body was rebuilt in
+  memory from the same live original, the answer was 200, and the read-back lacks the setting.
+  - **The create half rests on the same evidence:** create and update send the same body, built by the
+    same `assemble()` from the live original's settings, and the first deploy read back without it too.
+  - **Not known:** whether the editor's Workflow Settings shows this field. `--verify` will tell.
+- The helper's verify failed closed again ("workflow settings differ"). No drill ran.
+- **Next:**
+  - Yigitcan sets the setting on the copy in the editor (step (b));
+  - then `--verify` must be green before any drill;
+  - the copy goes into `PAIRS` only after that.
 
 **D3d · Processed Purge** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Purge)`)
 - **The `Find` nodes:**
@@ -1570,7 +1589,7 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 5. **Base: NOT deleted by this phase.** It stays as an exported, unreferenced archive. Deleting it is
    irreversible and a separate decision (it also holds Customers).
 
-## 8 · Phase 7 premises that change (list only; re-derived after the migration)
+## 8 · Phase 7 premises that change (list only; re-derived at D6b's acceptance, ruling 2026-10-20)
 
 - **K-5** (regression from the widget lane): the lane is unchanged, but its expectations about the
   store change.
@@ -1629,12 +1648,15 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 **Re-baselined (Yigitcan, 2026-10-20):**
 - **The work remaining from now:** D3 4 · D4 6 · D5 2 · D6 4 · D7 1 = **17 rounds**.
-- **The emergency exit sits at 1.5× that: 25 rounds from now.** "Third fix-of-a-fix" stays.
+- **The emergency exit sits at 1.5× that: 25 rounds from now** (25.5, rounded down, as the original
+  rounded 27–28.5 to 28). "Third fix-of-a-fix" stays.
+- **The per-step 2× rule reads against these re-baselined step budgets, counted from 2026-10-20** (D3: 2× 4
+  rounds). This is how the ruling is read here; Yigitcan corrects it if he meant otherwise.
 - **Reason on record:** the rounds were cut smaller on purpose, for step-by-step control, so the original
   budget's unit no longer matches. No stop so far was non-convergence.
 - The table above is kept as the original estimate.
 
-**Emergency exit (declared now, before any measurement; its round count is re-baselined above):** stop the phase if **the total passes 1.5× the
+**Emergency exit (declared at D1, before any measurement; its round counts were re-baselined on 2026-10-20, above):** stop the phase if **the total passes 1.5× the
 budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step passes 2× its own budget without meeting its exit gate.**
 - On exit: the copies are kept inactive; the originals remain the active code path; Postgres and its
   volume are kept.
