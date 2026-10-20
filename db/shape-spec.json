@@ -1,0 +1,69 @@
+{
+  "_doc": [
+    "The Airtable record shape, built in SQL (MIGRATION-PLAN §3b, §3q, §3r). ONE source for every consumer:",
+    "tests/db/contract-run.cjs reads it to check the real database, and scripts/build-workflow-copy.py reads it",
+    "to write each copy's SQL. `kinds` maps a column kind to the SQL that yields Airtable's form (an empty",
+    "string or a false checkbox becomes NULL, which jsonb_strip_nulls then omits, as Airtable omits an empty",
+    "field). `{c}` is the column. Field names are DATA-MODEL's; leads' `id` is the autonumber (§3b)."
+  ],
+  "kinds": {
+    "text": "NULLIF({c}, '')",
+    "ts": "salon.at_ts({c})",
+    "num": "{c}",
+    "bool": "CASE WHEN {c} THEN true END"
+  },
+  "tables": {
+    "conversations": [
+      ["sender_key", "text"],
+      ["stage", "text"],
+      ["slot_service", "text"],
+      ["slot_date", "text"],
+      ["slot_time", "text"],
+      ["last_updated", "ts"],
+      ["turn_count", "num"],
+      ["last_intent", "text"],
+      ["recent_messages", "text"],
+      ["gcal_event_id", "text"],
+      ["cancel_target_id", "text"],
+      ["confirm_turn", "text"],
+      ["computed_reply", "text"],
+      ["last_alert_class", "text"],
+      ["last_alert_at", "ts"],
+      ["sender_masked", "text"]
+    ],
+    "appointments": [
+      ["sender_key", "text"],
+      ["service", "text"],
+      ["start_utc", "ts"],
+      ["end_utc", "ts"],
+      ["gcal_event_id", "text"],
+      ["calendar_id", "text"],
+      ["channel", "text"],
+      ["customer_name", "text"],
+      ["status", "text"],
+      ["reminded", "bool"],
+      ["reminder_sent", "ts"],
+      ["created_at", "ts"]
+    ],
+    "leads": [
+      ["id", "num", "lead_no"],
+      ["name", "text"],
+      ["phone", "text"],
+      ["source", "text"],
+      ["message", "text"],
+      ["status", "text"],
+      ["created_at", "ts"]
+    ],
+    "processed_messages": [
+      ["message_id", "text"],
+      ["sender_key", "text"],
+      ["channel", "text"],
+      ["created_at", "ts"]
+    ],
+    "bot_metrics": [
+      ["period_key", "text"],
+      ["cost_usd", "num"],
+      ["updated_at", "ts"]
+    ]
+  }
+}

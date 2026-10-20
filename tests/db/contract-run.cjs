@@ -18,42 +18,19 @@ const path = require('node:path');
 const { Client } = require(path.join(__dirname, '..', '..', 'web', 'node_modules', 'pg'));
 const { checkRecord } = require(path.join(__dirname, '..', 'contract', 'shape.cjs'));
 
-// Airtable field name → column and kind. The names are DATA-MODEL's; `leads.id` is the autonumber (§3b).
-const TABLES = {
-  conversations: {
-    guard: "sender_key LIKE 'widget:w-mig-%'",
-    expect: ['null', 'empty', 'ts', 'createdTime'],
-    cols: [['sender_key', 'text'], ['stage', 'text'], ['slot_service', 'text'], ['slot_date', 'text'], ['slot_time', 'text'],
-      ['last_updated', 'ts'], ['turn_count', 'num'], ['last_intent', 'text'], ['recent_messages', 'text'],
-      ['gcal_event_id', 'text'], ['cancel_target_id', 'text'], ['confirm_turn', 'text'], ['computed_reply', 'text'],
-      ['last_alert_class', 'text'], ['last_alert_at', 'ts'], ['sender_masked', 'text']],
-  },
-  appointments: {
-    guard: "gcal_event_id LIKE 'mig-%'",
-    expect: ['null', 'empty', 'false', 'ts', 'createdTime'],
-    cols: [['sender_key', 'text'], ['service', 'text'], ['start_utc', 'ts'], ['end_utc', 'ts'], ['gcal_event_id', 'text'],
-      ['calendar_id', 'text'], ['channel', 'text'], ['customer_name', 'text'], ['status', 'text'], ['reminded', 'bool'],
-      ['reminder_sent', 'ts'], ['created_at', 'ts']],
-  },
-  leads: {
-    guard: "name LIKE 'mig-%'",
-    expect: ['null', 'empty', 'ts', 'createdTime'],
-    cols: [['id', 'num', 'lead_no'], ['name', 'text'], ['phone', 'text'], ['source', 'text'], ['message', 'text'],
-      ['status', 'text'], ['created_at', 'ts']],
-  },
-  processed_messages: {
-    guard: "message_id LIKE 'mig-%'",
-    expect: ['null', 'empty', 'ts', 'createdTime'],
-    cols: [['message_id', 'text'], ['sender_key', 'text'], ['channel', 'text'], ['created_at', 'ts']],
-  },
-  bot_metrics: {
-    guard: "period_key LIKE 'mig-%'",
-    expect: ['null', 'ts', 'createdTime'],
-    cols: [['period_key', 'text'], ['cost_usd', 'num'], ['updated_at', 'ts']],
-  },
+// Columns and the kind → SQL templates come from db/shape-spec.json, the ONE source the copy generator reads
+// too. What stays here is test-only: each table's prefix guard, and the rule classes the seed can trigger.
+const SPEC = require(path.join(__dirname, '..', '..', 'db', 'shape-spec.json'));
+const TEST = {
+  conversations: { guard: "sender_key LIKE 'widget:w-mig-%'", expect: ['null', 'empty', 'ts', 'createdTime'] },
+  appointments: { guard: "gcal_event_id LIKE 'mig-%'", expect: ['null', 'empty', 'false', 'ts', 'createdTime'] },
+  leads: { guard: "name LIKE 'mig-%'", expect: ['null', 'empty', 'ts', 'createdTime'] },
+  processed_messages: { guard: "message_id LIKE 'mig-%'", expect: ['null', 'empty', 'ts', 'createdTime'] },
+  bot_metrics: { guard: "period_key LIKE 'mig-%'", expect: ['null', 'ts', 'createdTime'] },
 };
+const TABLES = Object.fromEntries(Object.entries(SPEC.tables).map(([t, cols]) => [t, { ...TEST[t], cols }]));
 
-const SHAPED = { text: (c) => `NULLIF(${c}, '')`, ts: (c) => `salon.at_ts(${c})`, num: (c) => c, bool: (c) => `CASE WHEN ${c} THEN true END` };
+const SHAPED = Object.fromEntries(Object.entries(SPEC.kinds).map(([k, tpl]) => [k, (c) => tpl.split('{c}').join(c)]));
 const BROKEN = { text: (c) => c, ts: (c) => c, num: (c) => c, bool: (c) => c };
 
 function sql(table, spec, broken) {
