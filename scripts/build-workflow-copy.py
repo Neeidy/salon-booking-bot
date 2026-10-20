@@ -15,8 +15,9 @@ gated step that swaps in the real credential id.
 
 Usage: python3 scripts/build-workflow-copy.py db/copies/<workflow>.json [-o OUT.json]
        python3 scripts/build-workflow-copy.py --selftest   (every spec: diff-workflow-copy test phase green,
-                                                            check-sql-params green; a spec naming a
-                                                            non-data node is refused)
+                                                            check-sql-params green; refused: a non-data
+                                                            node, a test or temporary-trigger path outside
+                                                            owner-mig-, a "trigger" that is not a webhook)
 """
 import copy as _copy
 import glob
@@ -31,6 +32,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PG_TYPE, PG_VERSION = 'n8n-nodes-base.postgres', 2.6
 PG_CREDENTIAL = {'postgres': {'id': 'REPLACE_WITH_POSTGRES_CREDENTIAL_ID', 'name': 'Postgres account'}}
 SHAPE = re.compile(r'@@shape\((\w+)(?::([\w,]+))?\)@@')
+# Every test path sits under the Access application's owner-* scope (spike S6). The temporary trigger skips the
+# workflow's own signature check and Purge deletes, so Access is its ONLY layer: a path outside the prefix is
+# refused here, before anything can be deployed (pre-push audit, 2026-10-20).
+TEST_PATH = re.compile(r'^owner-mig-[a-z0-9-]+$')
 
 
 def load(rel):
@@ -71,9 +76,15 @@ def build(copy_spec):
     wf['name'] = copy_spec['name']
     trig = copy_spec.get('trigger')
     if trig:
+        if nodes.get(trig['node'], {}).get('type') != 'n8n-nodes-base.webhook':
+            raise ValueError(f"trigger '{trig['node']}' is not a webhook node in the original")
+        if not TEST_PATH.match(trig['test_path']):
+            raise ValueError(f"test path '{trig['test_path']}' is outside the Access-covered owner-mig- prefix")
         nodes[trig['node']]['parameters']['path'] = trig['test_path']
     temp = copy_spec.get('temp_trigger')
     if temp:
+        if not TEST_PATH.match(temp['path']):
+            raise ValueError(f"temporary trigger path '{temp['path']}' is outside the Access-covered owner-mig- prefix")
         if temp['name'] in nodes:
             raise ValueError(f"temporary trigger name '{temp['name']}' already exists in the original")
         target = nodes[temp['connect_to']]
@@ -111,16 +122,24 @@ def selftest():
         ok = ok and good
         print(f"{'✓' if good else '✗'} {os.path.basename(f)}: {len(pg)} Postgres node(s) · diff (test phase) "
               f"{'green' if not errs else errs} · check-sql-params {'green' if not sq else sq}")
-    bad = json.load(open(specs[0], encoding='utf-8'))
-    orig = load(bad['original'])
-    other = next(n['name'] for n in orig['nodes'] if n['type'] not in ('n8n-nodes-base.airtable', 'n8n-nodes-base.stickyNote'))
-    bad['nodes'] = {other: {'query': 'SELECT 1'}}
-    try:
-        build(bad)
-        print(f"✗ a spec naming the non-data node '{other}' was NOT refused")
-        ok = False
-    except ValueError as e:
-        print(f'✓ a spec naming a non-data node is refused: {e}')
+    base = json.load(open(specs[0], encoding='utf-8'))
+    orig = load(base['original'])
+    other = next(n['name'] for n in orig['nodes'] if n['type'] not in ('n8n-nodes-base.airtable', 'n8n-nodes-base.stickyNote', 'n8n-nodes-base.webhook'))
+    first_webhook = next(n['name'] for n in orig['nodes'] if n['type'] == 'n8n-nodes-base.webhook')
+    negatives = {
+        'a spec naming a non-data node': lambda s: s.update(nodes={other: {'query': 'SELECT 1'}}),
+        'a test path outside owner-mig-': lambda s: s.update(trigger={'node': first_webhook, 'test_path': 'not-owner-open'}),
+        'a temporary trigger path outside owner-mig-': lambda s: s.update(temp_trigger={'name': 'Temporary Test Trigger', 'path': 'mig-open', 'connect_to': other}),
+        'a "trigger" that is not a webhook node': lambda s: s.update(trigger={'node': other, 'test_path': 'owner-mig-x'}),
+    }
+    for label, mutate in negatives.items():
+        bad = _copy.deepcopy(base); mutate(bad)
+        try:
+            build(bad)
+            print(f'✗ {label} was NOT refused')
+            ok = False
+        except ValueError as e:
+            print(f'✓ {label} is refused: {e}')
     print('build-workflow-copy selftest:', 'OK' if ok else 'FAILED')
     return 0 if ok else 1
 
