@@ -71,7 +71,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
-| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive | 4 copies green · rehearsal measured in both directions |
+| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead. Not started.** | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **c) Soak, then the Airtable shutdown** behind the export gate (§7). **d) Permanent off-server target.** | acceptance suite green · rollback trigger list armed · export taken before any revoke |
@@ -903,6 +903,242 @@ design branch chosen".
   - the mandatory Phase 7 alert-detail fix;
   - M7's REVOKE/GRANT, an operator step in D4.
 
+## 3r · D3 plan: APPROVED 2026-10-20 (Yigitcan, plan-gate), with rulings K-1 to K-7
+
+The plan was presented in chat in the full `/plan-flow` format and built from reads of the committed
+exports and the live instance at `2c467a5`. This section is its record. **Nothing in it has been built
+yet.** Each step below ends in its own commit and verdict, and then stops for Cowork.
+
+**Measured while planning** (live, read-only, 2026-10-20):
+- Turnstile is up, and both parity guards are 0.
+- **Draft equals published in all five workflows.** This matters for D3e: activating a workflow publishes
+  its draft.
+- Reminders fired at minute :00 in 60 of its last 60 executions.
+- Purge fired at 02:00 UTC in 14 of its last 14.
+- `whatsappSendDisabled` is the literal `true` in `Load Config (Reminders)`. Cowork confirmed the
+  literal.
+- Airtable `search` defaults to `returnAll: true`. This is quoted from n8n-mcp's node database; that
+  it is the same on this instance's version was not measured.
+
+**Rulings (Yigitcan, 2026-10-20):**
+
+| | Ruling |
+|---|---|
+| **K-1** | D3a Drill State → D3b Owner Actions → D3c Reminders → D3d Purge, one copy each, each with its own verdict. **D3e (the Purge rehearsal) is separate, touches LIVE, and starts only on its own written go-ahead. It is NOT part of this round.** |
+| **K-2 (widened)** | **S10 runs first.** It measures the Postgres node under `continueErrorOutput`, which ALL FOUR Q18 nodes and all ten Purge/Reminders data nodes use. S4 and S5 measured `continueRegularOutput` only, so **Q18 is unproven for its own configuration.** S10 is the premise check for Q18 itself (below). |
+| **K-3** | The copies' error paths are drilled in ONE operator window at the end of D3d, using a table-level `REVOKE`, then `GRANT`. D3a–D3c's verdicts mark their error paths "pending the shared window". *Recorded risk for D4: `REVOKE CONNECT` (M7) may not cut a pooled connection; a table-level `REVOKE` is checked on every statement.* |
+| **K-4** | A schedule-triggered copy is active only during its drill minutes, because activating it for the temporary webhook also arms its schedule. The windows are :05–:50 for Reminders and away from the Purge tick. Executions are measured by mode: the copy must show **no** `trigger` execution. |
+| **K-5** | The owner's Telegram chat is a permitted recipient for drill alerts. It is Yigitcan's own chat (§6: "owner alerts from drills, as today"). The NOT-build line "no real recipient" covers customers and third parties. |
+| **K-6** | **Accepted as a recorded deviation.** If a row disappears between a node's Find and its write inside one run, `Stamp Reminded`, `Scrub Recent Messages`, `Delete Old Processed` and `Delete Old Leads` return `{success: true}` on Postgres, where Airtable raised an error and an alert. Unreachable as measured: no workflow deletes appointments or conversations, and the deletes run once a day. |
+| **K-7** | **(a), full verification:** the copy's scheduled run (`triggerAtHour: 4`), then the original's next scheduled run (two nights). |
+| tool | `scripts/build-workflow-copy.py` is checked by `diff-workflow-copy.py` plus ONE selftest. No separate test suite. |
+
+**S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
+- **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
+  time); `continueErrorOutput`; modes `independently` and `single`.
+- **Per mode it measures:** items on output 0, items on output 1, rows left, the error item's keys, and
+  the exact detail string `Build Owner Alert (Purge|Reminders)` would build from it.
+- **Q18 expects, under `independently`:** items 1 and 3 succeed on output 0, item 2 goes to output 1,
+  and 1 row is left.
+- **STOP condition:** any difference that changes what the four nodes' consumers receive stops the
+  round, and Q18 is re-ruled before D3c.
+
+**Common to every copy:**
+- The copy is generated OFFLINE from the committed original by `scripts/build-workflow-copy.py`. Then
+  `diff-workflow-copy.py --phase test`, `check-sql-params.py` and the contract check must be green BEFORE
+  any live write.
+- **Postgres node:** `executeQuery`, typeVersion 2.6, array `queryReplacement`. `onError` and
+  `alwaysOutputData` are exactly the original's, and the diff tool enforces it.
+- **Batching:** `independently` for the four Q18 nodes, the default `single` for every other node.
+  With one item, `single` is per-item and keeps Airtable's error keys.
+- **The shape spec moves out of `tests/db/contract-run.cjs`** into one module that the runner and the
+  generator share (contract-integrity: one source). After the move, the five mutants are re-run: all
+  five must go red, each naming its own rule.
+- The copy's export is committed as `n8n/workflow.<x>.copy.sanitized.json` with a `PAIRS` line in
+  `check-exports-parity.sh`, so a live copy cannot drift unguarded. `check-sql-params` will then count
+  more than 0 nodes for the first time.
+
+`⟨T⟩` below is table T's Airtable-shaped projection (`id`, `createdTime`, `fields`), the pattern §3q
+proved on every column type.
+
+**Flags are abbreviated below.** Every run passes `--allow` with the step's full data-node list (D3a 2 ·
+D3b 5 · D3c 2 · D3d 8, the §6 names), plus `--phase` and the trigger flag WITH its name. The temporary
+trigger is a NEW node named **`Temporary Test Trigger`**. It is not in any export yet; the diff tool's
+selftest uses its own fixture name. **Only the `owner-mig-` prefix of a test path is ever written down;
+no full test path enters a commit.**
+
+**D3a · Drill State Read**
+- **Flags:** `--allow "Read Conversation" "Count Markers"`; the webhook sits on an `owner-mig-…` test
+  path (`--trigger "Receive Drill Read"`).
+- **`Read Conversation`:**
+  - SQL: `⟨conversations⟩ WHERE id = $1`, with `[$json.record_id]`.
+  - Consumer: `Shape Drill State`.
+  - 0 rows → `{}` (S2) → NOT-FOUND. An error → `{error, message}` (S4, `single`) → STORE-ERROR, through
+    `!id && error`.
+- **`Count Markers`:**
+  - SQL: `⟨processed_messages⟩ WHERE message_id = $1`, with
+    `[$('Verify Drill Signature').first().json.messageId]`.
+  - The `WHERE` is the positive identity check Q11 asked of D3. A Postgres error item carries no `id`
+    (S5).
+
+**D3b · Owner Actions** (`--trigger "Receive Owner Action"`)
+- **`Find Target Conversation`:**
+  - SQL: `⟨conversations⟩ WHERE id = $1`.
+  - Consumer: `Validate Release Target`, which keeps rows with `id && !error`.
+- **`Check Owner Replay`:**
+  - SQL: `⟨processed_messages⟩ WHERE message_id = $1`.
+  - Consumer: `Owner Replay Seen?`. An error fails closed: `is_replay = true`.
+- **`Release Handoff Lock`:**
+  - SQL: `UPDATE salon.conversations SET stage = 'new', last_intent = '' WHERE id = $1 RETURNING ⟨…⟩`.
+  - Consumer: `Release Wrote?`, which tests `!error && !!id`.
+  - 0 rows → `{success: true}` and no `id` → the release-failure branch, the same branch an Airtable error
+    took. **Equivalent.**
+- **`Re-read Released Conversation`:**
+  - SQL: `⟨conversations⟩ WHERE id = $1`.
+  - Consumer: `Write Verified?`. `NULLIF` drops the `''`.
+- **`Record Owner Action Processed`:**
+  - SQL (Q17 (a)): `INSERT … VALUES ($1, 'owner:dashboard', 'owner', $2::timestamptz) ON CONFLICT
+    (message_id) DO UPDATE SET message_id = EXCLUDED.message_id RETURNING ⟨…⟩`.
+  - Consumer: `Marker Written?`.
+- **Measured: the alert builders never read a data node's output.** They read `Owner Replay Seen?` only.
+
+**D3c · Reminders** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Reminders)`)
+- **`Find Due Appointments`:**
+  - SQL: `⟨appointments⟩ WHERE status = 'booked' AND NOT reminded AND start_utc > $1::timestamptz AND
+    start_utc <= $2::timestamptz ORDER BY created_at, id`.
+  - Consumer: `Build Reminder Payload`, which reads `fields.service`, `fields.start_utc`,
+    `fields.sender_key`, `fields.channel` and the top-level `id`.
+  - 0 rows, with no `alwaysOutputData` → no item, as on Airtable (S2).
+  - An error → output 1 → `Reminder Error (lookup)`.
+- **`Stamp Reminded`:**
+  - SQL: `UPDATE salon.appointments SET reminder_sent = $2::timestamptz, reminded = true WHERE id = $1
+    RETURNING ⟨…⟩`, mode **`independently`**.
+  - Output 0 leads nowhere. Output 1 → `Reminder Error (stamp)`. K-6 covers its 0-row case.
+
+**D3d · Processed Purge** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Purge)`)
+- **The `Find` nodes:**
+  - `Find Old Processed`: `WHERE created_at < $1::timestamptz`. The `!= ""` guard disappears, because the
+    column is `NOT NULL`.
+  - `Find Stale Conversations`: `WHERE recent_messages <> '' AND last_updated < $1`.
+- **The write nodes:**
+  - `Delete Old Processed` and `Delete Old Leads`: `DELETE … WHERE id = $1 RETURNING id, true AS
+    deleted`, **`independently`**.
+  - `Scrub Recent Messages`: `UPDATE … SET recent_messages = '' WHERE id = $1 RETURNING ⟨…⟩`,
+    **`independently`**.
+- **`Count Leads Total`, `Find Old Leads` and `Count Leads After`:** the projection holds `created_at`
+  only, as Airtable's `fields: ["created_at"]` did, with `WHERE created_at < $1` on the last two.
+- **Consumers:**
+  - `Aggregate Leads Total` and `Leads Purge Sane?` recognise a record by its `id`.
+  - `Verify Leads Purge` reads `Delete Old Leads`' non-error items and `Count Leads After`'s `id` items.
+  - `Count Leads After` runs once per delete item, as it does today.
+
+**Q12 approval list:**
+
+| Step | Workflows created, edited or activated, and temporary triggers | When they go, and how their absence is proven |
+|---|---|---|
+| S10 | one probe workflow (the S2 pattern) | deleted at the end of S10, GET returns 404 |
+| D3a | "MIG COPY — Drill State Read" (inactive; test path; active during drills only) · a seed/clean-up workflow (the S2 pattern) | the seed workflow is deleted at the end of the step (404); the copy stays inactive until D6b |
+| D3b | the Owner Actions copy, the same way · the D3a copy re-activated for `STATE_URL` · a seed workflow | the same |
+| D3c | the Reminders copy plus its temporary trigger · a seed workflow | the same |
+| D3d | the Purge copy plus its temporary trigger · a seed workflow | the same |
+| D3e | removing the Purge copy's temporary trigger (an edit) · deactivating and re-activating the original · activating and deactivating the copy | `diff --phase swap` green (no temporary trigger; the path equals the original's) **and** the old test path returns 404 with the owner token |
+
+Every temporary path's edge refusal is measured with both S6 signals: the Access header, and no
+execution created.
+
+**Outbound safety:**
+- **D3a:** no outbound node.
+- **D3b:** 3 Telegram nodes, all to the owner's chat (K-5).
+- **D3c:** the Zernio node is behind `Send Disabled?`.
+  - **Before D3c is built, the live `whatsappSendDisabled` is re-measured; if it is not `true`, STOP.**
+  - The second layer: seed `sender_key`s are `widget:w-mig-…`, so the recipient is not a phone number.
+- **D3d:** Telegram to the owner.
+  - Today's behaviour, kept: no aged lead produces a `no_candidates` "purge-error" alert.
+  - The seed carries 1 aged lead among at least 5, so the cap is at least 1 and a clean run alerts no one.
+  - The throttle lives in each workflow's own static data.
+
+**Drills** (§6 matrix and §4.3, named here, not restated):
+- **D3a:** the state oracle: found, NOT-FOUND, the marker count and REFUSED. STORE-ERROR is in the K-3
+  window.
+- **D3b:**
+  - `run-d11.sh`: 8 cases / 13 assertions. `OWNER_ACTION_URL` and `STATE_URL` point at the copies' test
+    paths, and `TARGET_RECORD` at a seeded row. The id is read into a variable as `salon_ro` and never
+    printed (Q16). Cowork read that with `STATE_URL` set, the script does not fall back to the Airtable
+    PAT route.
+  - Plus the **Q17 race:** two concurrent requests with the same `messageId` → 1 marker row, and both on
+    the "written" path.
+- **D3c:**
+  - dedupe (one dry-run item, `reminded = true`, no second item);
+  - re-arm by the seed workflow;
+  - boundary appointments;
+  - the 120 s concurrency guard.
+- **D3d:**
+  - aged rows go and fresh ones stay;
+  - the PII scrub;
+  - the leads TTL: a delete within the cap, `leads_purge_capped` and `no_candidates`.
+- **All copies:**
+  - a hostile `messageId` inside the allowed format;
+  - the diff tool's positive controls;
+  - alerts measured from the builder's output, not from Telegram alone (the throttle can make it `[]`).
+- **The K-3 window drills every copy's error path.** The REVOKE and GRANT blocks are prepared for the
+  operator:
+  - `salon_migrator` → `SET ROLE salon_owner`;
+  - secrets by env inheritance only;
+  - guarded, each block self-verifying;
+  - the GRANT block proves that `salon_app`'s SELECT works again.
+
+**D3e · the Purge rehearsal (NOT in this round; its own go-ahead).**
+
+*Fire times:*
+- The fire times are recorded from a MEASUREMENT taken in D3d: the instance's timezone setting plus the
+  schedule's cron configuration.
+- They are not taken from the assumption that 04:00 is Vienna time.
+- The executions measured so far fired at 02:00 UTC. The European clock change on 2026-10-25 is exactly
+  the kind of assumption that measurement settles.
+
+*Order:*
+0. **A FRESH raw export of the original Purge is taken and kept OUTSIDE the repo, next to the D0
+   backups.** Also in this step:
+   - draft equals published is measured;
+   - the original's `versionId` is recorded;
+   - `diff --phase swap` must be green;
+   - the aged and fresh `mig-` rows are seeded.
+1. At a daytime slot away from the tick: **deactivate the original FIRST**, then activate the copy. Each
+   call's timestamp and the read-back `active` flags are recorded: exactly one is active.
+2. At the copy's tick, its `trigger` execution is measured:
+   - aged `mig-` rows gone and fresh ones kept (`salon_ro` counts);
+   - the leads arithmetic correct;
+   - no alert.
+3. Daytime: deactivate the copy, activate the original. Its `versionId` must equal the one recorded in
+   step 0, and exactly one is active.
+4. At the next tick, the original's `trigger` execution exists. Under OPS-5 it may be an Airtable error
+   plus an alert; it still proves the original ran.
+5. The copy is left inactive, and the clean-up runs.
+
+*If any verify fails:* deactivate the copy and re-activate the original at once (step 3). If the
+`versionId` moved, restore from the fresh raw export.
+
+*Longest window with neither active:* two sequential API calls, seconds. If the copy's activation is not
+200 within 60 s, the original is re-activated at once; the bound is about 3 minutes. The swap happens away
+from the tick, so **no tick is missed.**
+
+*Side effect:* the original's Airtable clean-up is skipped for one night. Its filter is "older than the
+cutoff", so the next run catches up.
+
+**Acceptance per copy:**
+- diff (test phase) green;
+- `check-sql-params` green with more than 0 nodes counted;
+- the contract check green;
+- the drills green;
+- the outbound checklist holds;
+- clean-up back to 0;
+- the export committed and covered by parity;
+- Turnstile measured at the start and the end.
+
+**D3 ends WITHOUT D3e:** four copies green, and every error path drilled in the K-3 window.
+
+**Automation-fit:** neither. Every step is a gated live write or a wait.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
@@ -1186,3 +1422,7 @@ budget (28 rounds)**, or **any single step passes 2× its own budget without mee
   alert builders' detail fix is a mandatory Phase 7 item.
 - **S4's auth-failure shape ✅ ruled 2026-10-20:** D2 may close with it open; its branch is drill M7 in D4
   (REVOKE CONNECT on `salon_app`, existing credential, operator step), residual as stated in §3p.
+
+**D3 plan (2026-10-20)**
+- **✅ APPROVED by Yigitcan (plan-gate), with rulings K-1 to K-7** (§3r). The round runs S10 → D3a → D3b → D3c →
+  D3d, each step committed and stopped for review. D3e needs its own written go-ahead.

@@ -612,6 +612,7 @@
   - ## 3o · D2b-2 (operator) and D2b-3 (measurements), 2026-10-19: STOPPED at S2 on a design-changing answer
   - ## 3p · D2b-3 remainder (2026-10-20): Q17 measured, S3 ✅, STOPPED at S5 on a design-changing answer (Q18)
   - ## 3q · D2b-3 close-out (2026-10-20): S1 ✅, the contract run ✅, D2 CLOSED
+  - ## 3r · D3 plan: APPROVED 2026-10-20 (Yigitcan, plan-gate), with rulings K-1 to K-7
   - ## 4 · "No new bug": QA design
   - ## 5 · Critical-Review Targets
   - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix
