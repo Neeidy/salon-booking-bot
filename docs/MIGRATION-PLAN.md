@@ -74,8 +74,8 @@ D3 and runs on the one workflow where it is harmless.
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead. Not started.** | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
-| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **c) Soak, then the Airtable shutdown** behind the export gate (§7). **d) Permanent off-server target.** | acceptance suite green · rollback trigger list armed · export taken before any revoke |
-| **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point, Phase 7 premise list handed over | DoD |
+| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c and D7's close wait for it. **d) Permanent off-server target.** | acceptance suite green · rollback trigger list armed · export taken before any revoke |
+| **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Waits for the soak. | DoD |
 
 *Why D6 carries the shutdown and not D7: the D0 rulings already attach the Airtable export gate and the
 off-server target to D6 (ARCHITECTURE-DECISIONS 2026-10-19). Moving them would contradict a recorded
@@ -939,6 +939,8 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **run-d11 bodies** | A 200 whose body carries `degraded` is a FAIL (ruling, 2026-10-20). |
 | **deploy helper** | **Committed BEFORE D3c**, with its pre-drill checks inside it, automatic and fail-closed (ruling, 2026-10-20). |
 | **race script** | Out of scope; not committed (ruling, 2026-10-20). |
+| **binaryMode (D3c)** | **(a)** one PUT through `--update`, carrying the original's settings. If the API drops the setting again: **(b)** Yigitcan sets it on the copy in the editor (Workflow Settings), then `--verify`. **(c), accepting the difference, is REJECTED:** the setting's effect is unmeasured (ruling, 2026-10-20). |
+| **settings parity** | The parity guards must compare workflow SETTINGS. This is its own small step **BEFORE D4**, not now. D3d is unaffected: Purge has no extra settings (ruling, 2026-10-20). |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
@@ -1551,6 +1553,12 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 1. **Gate 0:** the cutover has passed acceptance, and the soak has passed: **7 days with no rollback
    trigger (ruling Q9).**
+   - **The soak runs in the BACKGROUND (ruling, 2026-10-20).** Phase 7 starts right after D6b's
+     acceptance. Only D6c (these revocations) and D7's close wait for the soak.
+   - **Recorded risk:** a rollback during the soak means re-running whatever Phase 7 results exist by
+     then.
+   - **Note:** while OPS-5 lasts, Airtable is an unlikely rollback target before its quota resets
+     (unmeasured, because measuring spends quota). The D0 restore point is the real fallback.
 2. **Gate 1, the export:** every table **including Customers** is exported through the API, in Airtable's
    own record shape, to an out-of-repo directory, checksummed, and its record counts compared with the
    base. The export is copied off-server. *This is the only Airtable read the phase plans. It needs quota,
@@ -1619,8 +1627,15 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 *These are estimates. The cost report's 12–14 excluded re-verification; this budget includes it.*
 
-**Emergency exit (declared now, before any measurement):** stop the phase if **the total passes 1.5× the
-budget (28 rounds)**, or **any single step passes 2× its own budget without meeting its exit gate.**
+**Re-baselined (Yigitcan, 2026-10-20):**
+- **The work remaining from now:** D3 4 · D4 6 · D5 2 · D6 4 · D7 1 = **17 rounds**.
+- **The emergency exit sits at 1.5× that: 25 rounds from now.** "Third fix-of-a-fix" stays.
+- **Reason on record:** the rounds were cut smaller on purpose, for step-by-step control, so the original
+  budget's unit no longer matches. No stop so far was non-convergence.
+- The table above is kept as the original estimate.
+
+**Emergency exit (declared now, before any measurement; its round count is re-baselined above):** stop the phase if **the total passes 1.5× the
+budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step passes 2× its own budget without meeting its exit gate.**
 - On exit: the copies are kept inactive; the originals remain the active code path; Postgres and its
   volume are kept.
 - The proposal on the table becomes **Airtable Team**. Its price is not measured; Yigitcan reads it.
