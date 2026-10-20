@@ -14,8 +14,9 @@ FAILS when:
   · the workflow settings differ.
 Two exceptions exist, and only in the TEST phase:
   · --temp-trigger NAME: a declared temporary webhook trigger (Q13's only test route for schedule-
-    triggered copies) may exist, together with the edges that leave it. In the SWAP phase its presence is
-    a failure: it must be gone before the copy goes live;
+    triggered copies) may exist, together with the edges that leave it, and those edges must be exactly
+    what a real trigger of the original feeds (so a drill cannot enter past a kill-switch or a guard). In
+    the SWAP phase its presence is a failure: it must be gone before the copy goes live;
   · --trigger NAME: the copy's real trigger may sit on a TEST path (parameters.path). In the SWAP phase the
     path must equal the original's.
 
@@ -77,6 +78,15 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None):
             errs.append(f"node outside the data layer changed: '{name}' ({', '.join(keys)})")
     oc = _copy.deepcopy(orig.get('connections', {}))
     cc = _copy.deepcopy(cp.get('connections', {}))
+    if temp_trigger and phase == 'test' and temp_trigger in C:
+        # A temporary trigger stands in for the real one, so it must feed EXACTLY what a real trigger of the
+        # original feeds. Otherwise it could enter the flow past a kill-switch, a concurrency guard or a
+        # signature check, and the drill would test a path production never takes (found at D3c, 2026-10-20:
+        # a temp trigger wired past Reminders' kill-switch passed this tool).
+        real = [canon(oc.get(n['name'], {})) for n in orig['nodes']
+                if n.get('type') == 'n8n-nodes-base.webhook' or str(n.get('type', '')).endswith('Trigger')]
+        if canon(cc.get(temp_trigger, {})) not in real:
+            errs.append(f"temporary trigger '{temp_trigger}' does not feed what a real trigger of the original feeds")
     if temp_trigger and phase == 'test':
         cc.pop(temp_trigger, None)
     if canon(oc) != canon(cc):
@@ -112,7 +122,7 @@ def selftest():
     def with_temp(cp):
         cp['nodes'].append({'name': 'TEMP Test Trigger', 'type': 'n8n-nodes-base.webhook', 'typeVersion': 2,
                             'parameters': {'path': 'owner-test-x', 'httpMethod': 'POST'}})
-        cp['connections']['TEMP Test Trigger'] = {'main': [[{'node': data[0], 'type': 'main', 'index': 0}]]}
+        cp['connections']['TEMP Test Trigger'] = _copy.deepcopy(orig['connections'][trig])   # feeds what the real trigger feeds
         return cp
 
     other = [n['name'] for n in orig['nodes'] if n['name'] not in data and n['type'] == 'n8n-nodes-base.code'][0]
@@ -141,6 +151,8 @@ def selftest():
     cases.append(('a node with NO connections deleted', m, 'swap', False, {}))   # only the "removed" check sees it
     m = with_temp(swapped()); m['connections'].pop('TEMP Test Trigger')
     cases.append(('edge-less temp trigger left in, SWAP phase', m, 'swap', False, {'temp_trigger': 'TEMP Test Trigger'}))
+    m = with_temp(swapped()); m['connections']['TEMP Test Trigger'] = {'main': [[{'node': data[0], 'type': 'main', 'index': 0}]]}
+    cases.append(('temp trigger wired past the real entry (straight to a data node), TEST phase', m, 'test', False, {'temp_trigger': 'TEMP Test Trigger'}))
     m = swapped(); node(m, data[0])['type'] = 'n8n-nodes-base.code'; node(m, data[0])['parameters'] = {'jsCode': 'return []'}
     cases.append(('a data node turned into a Code node', m, 'swap', False, {}))
     m = swapped(); node(m, other)['parameters']['jsCode'] = 'return [$input.first()];'
