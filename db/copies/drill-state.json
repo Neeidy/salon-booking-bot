@@ -1,0 +1,16 @@
+{
+  "_doc": "D3a (MIGRATION-PLAN §3r): the Drill State Read copy. Only these two data nodes change; the webhook moves to a test path behind Access.",
+  "original": "n8n/workflow.drill-state.sanitized.json",
+  "name": "MIG COPY — Drill State Read",
+  "trigger": {"node": "Receive Drill Read", "test_path": "owner-mig-drill-state"},
+  "nodes": {
+    "Read Conversation": {
+      "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE id = $1",
+      "params": ["$json.record_id"]
+    },
+    "Count Markers": {
+      "query": "SELECT @@shape(processed_messages)@@ FROM salon.processed_messages WHERE message_id = $1",
+      "params": ["$('Verify Drill Signature').first().json.messageId"]
+    }
+  }
+}
