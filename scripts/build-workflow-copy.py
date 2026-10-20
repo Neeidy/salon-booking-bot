@@ -35,7 +35,7 @@ SHAPE = re.compile(r'@@shape\((\w+)(?::([\w,]+))?\)@@')
 # Every test path sits under the Access application's owner-* scope (spike S6). The temporary trigger skips the
 # workflow's own signature check and Purge deletes, so Access is its ONLY layer: a path outside the prefix is
 # refused here, before anything can be deployed (pre-push audit, 2026-10-20).
-TEST_PATH = re.compile(r'^owner-mig-[a-z0-9-]+$')
+TEST_PATH = re.compile(r'owner-mig-[a-z0-9-]+')        # used with fullmatch: `$` would also accept a trailing newline
 
 
 def load(rel):
@@ -78,12 +78,12 @@ def build(copy_spec):
     if trig:
         if nodes.get(trig['node'], {}).get('type') != 'n8n-nodes-base.webhook':
             raise ValueError(f"trigger '{trig['node']}' is not a webhook node in the original")
-        if not TEST_PATH.match(trig['test_path']):
+        if not TEST_PATH.fullmatch(trig['test_path']):
             raise ValueError(f"test path '{trig['test_path']}' is outside the Access-covered owner-mig- prefix")
         nodes[trig['node']]['parameters']['path'] = trig['test_path']
     temp = copy_spec.get('temp_trigger')
     if temp:
-        if not TEST_PATH.match(temp['path']):
+        if not TEST_PATH.fullmatch(temp['path']):
             raise ValueError(f"temporary trigger path '{temp['path']}' is outside the Access-covered owner-mig- prefix")
         if temp['name'] in nodes:
             raise ValueError(f"temporary trigger name '{temp['name']}' already exists in the original")
@@ -129,6 +129,7 @@ def selftest():
     negatives = {
         'a spec naming a non-data node': lambda s: s.update(nodes={other: {'query': 'SELECT 1'}}),
         'a test path outside owner-mig-': lambda s: s.update(trigger={'node': first_webhook, 'test_path': 'not-owner-open'}),
+        'a test path with a trailing newline': lambda s: s.update(trigger={'node': first_webhook, 'test_path': 'owner-mig-x\n'}),
         'a temporary trigger path outside owner-mig-': lambda s: s.update(temp_trigger={'name': 'Temporary Test Trigger', 'path': 'mig-open', 'connect_to': other}),
         'a "trigger" that is not a webhook node': lambda s: s.update(trigger={'node': other, 'test_path': 'owner-mig-x'}),
     }
