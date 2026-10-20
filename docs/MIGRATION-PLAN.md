@@ -1057,8 +1057,8 @@ a committed copy export cannot keep.)*
 - All of the copy's executions are `webhook` mode, and it was deactivated after the drills.
 
 *Export and parity:*
-- `n8n/workflow.drill-state.copy.sanitized.json` was taken from live. It equals the generated copy except
-  for ids, positions and `webhookId`, and it carries the Postgres credential placeholder.
+- `n8n/workflow.drill-state.copy.sanitized.json` was taken from live. It equals the generated copy (the
+  live-only `webhookId` is dropped, as in the other small-workflow exports), and it carries the Postgres credential placeholder.
 - A `PAIRS` line puts it under `check-exports-parity`.
 
 *Declared guard change:*
