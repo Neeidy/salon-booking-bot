@@ -145,6 +145,19 @@ def check_sanitised(comm):
     return len(comm['nodes'])
 
 
+def _is_migration_copy(wf_id, committed):
+    """True only for a workflow the PAIRS array in scripts/check-exports-parity.sh pairs with a
+    `.copy.sanitized.json` export. That array is the one place ids are already paired with exports; reading
+    it here avoids a second hand-kept list of copies, which would drift. A copy-named file with an unpaired
+    id, or a paired id on a non-copy export, is NOT a copy."""
+    rel = os.path.relpath(os.path.abspath(committed), _REPO)
+    src = open(os.path.join(_REPO, 'scripts', 'check-exports-parity.sh'), encoding='utf-8').read()
+    block = src[src.index('PAIRS=('):]
+    block = block[:block.index('\n)')]
+    pairs = set(re.findall(r'^\s*"([A-Za-z0-9]+):([^"\s]+)"', block, re.M))
+    return rel.endswith('.copy.sanitized.json') and (wf_id, rel) in pairs
+
+
 def check_published_matches_draft(live):
     """The graph that RUNS is `activeVersion`, not `nodes`. Both parity guards compare `nodes` — the DRAFT.
 
@@ -161,13 +174,19 @@ def check_published_matches_draft(live):
     """
     av = live.get('activeVersion') or {}
     pub = av.get('nodes')
-    if not isinstance(pub, list) and live.get('active') is False:
-        # An INACTIVE workflow (a migration copy waiting for its cutover, MIGRATION-PLAN §3r) has no published
-        # graph because NOTHING runs it. What activation would publish is the draft, and the draft is what the
-        # rest of this guard compares. That is a different true statement, not the absence of evidence: the
-        # branch below still refuses an ACTIVE workflow whose published graph cannot be seen.
-        print('INACTIVE — no published graph and nothing runs it; the DRAFT (what activation would publish) is compared.')
-        return
+    if live.get('active') is False:
+        # A MIGRATION COPY waits inactive for its cutover (MIGRATION-PLAN §3r): nothing runs it, n8n keeps no
+        # published graph for it, and the draft is what activation would publish, so the draft is compared.
+        # Anything ELSE that is inactive is a production workflow that stopped running, and that is RED.
+        # (The first version passed ANY inactive workflow, so an original going inactive was green everywhere:
+        # no other guard asserts that the originals are active. Cowork, 2026-10-20.)
+        if _is_migration_copy(WF, COMMITTED):
+            print('INACTIVE COPY — a migration copy (paired with a .copy export in check-exports-parity.sh) is parked; '
+                  'the DRAFT (what activation would publish) is compared.')
+            return
+        print('INACTIVE ORIGINAL — this workflow is not a paired migration copy, and it is NOT active: '
+              'a production workflow has stopped running.')
+        sys.exit(1)
     if not isinstance(pub, list):
         # ⚠ THIS USED TO PRINT "SKIPPED … the draft IS what runs" AND RETURN SUCCESS. That is certifying the
         # ABSENCE of evidence as evidence — the pattern this repo has now hit ten times — and it asserted

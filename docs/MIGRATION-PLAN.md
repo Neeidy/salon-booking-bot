@@ -1061,15 +1061,35 @@ a committed copy export cannot keep.)*
   live-only `webhookId` is dropped, as in the other small-workflow exports), and it carries the Postgres credential placeholder.
 - A `PAIRS` line puts it under `check-exports-parity`.
 
-*Declared guard change:*
+*Declared guard change, then narrowed (ruling, 2026-10-20):*
 - **The problem:** `check-content-parity.py` refused the inactive copy ("PUBLISHED GRAPH UNAVAILABLE",
   exit 2). n8n removes `activeVersion` on deactivation, and nothing runs an inactive workflow.
-- **The change, narrowed:** only when `active` is `false`, the guard says INACTIVE and compares the draft,
-  which is what activation would publish.
+- **The first fix (`4bca654`) passed ANY inactive workflow. Cowork found that this made a production
+  workflow that went inactive green everywhere:** no other guard asserts that the originals are active.
+- **Yigitcan's ruling:** the inactive pass is for migration copies ONLY, and an inactive original must go
+  red.
+- **Now:** a workflow counts as a copy only if the `PAIRS` array in `check-exports-parity.sh` pairs its id
+  with a `.copy.sanitized.json` export. That array is the single place ids are already paired with
+  exports, so no second list exists to drift. An inactive copy compares its draft. Any other inactive
+  workflow exits 1 ("INACTIVE ORIGINAL").
 - **Shown:**
-  - the real copy is green;
-  - a one-line drift in the committed copy is red;
-  - an active workflow without a published graph, and a response with no `active` key, still exit 2.
+  - live: the inactive copy is green and an active original is green;
+  - `tests/unit/content-parity-inactive.test.py` (in `check-all`) passes 6 of 6 cases:
+
+    | Case | Result |
+    |---|---|
+    | an inactive copy | pass |
+    | an inactive original | 1 |
+    | an inactive original that still shows a published graph | 1 |
+    | an active workflow without a visible published graph | 2 |
+    | a copy-named export with an unpaired id | 1 |
+    | a copy's id on a non-copy export | 1 |
+
+  - the old "any inactive passes" rule, restored as a mutant, fails four of them.
+- **⚠ At D6b the roles invert:** the originals go inactive and the copies go active. This rule is
+  revisited in D6b's own plan, not assumed to carry over.
+- **Test path in a committed copy export: accepted as a recorded deviation** (ruling, 2026-10-20). An
+  inactive copy has no listener, and the path is Access-covered and HMAC-signed.
 
 *Clean-up:*
 - 11 seed rows were deleted; counts went 0 → 11 → 0.
