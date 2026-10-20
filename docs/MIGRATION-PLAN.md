@@ -935,6 +935,10 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **K-6** | **Accepted as a recorded deviation.** If a row disappears between a node's Find and its write inside one run, `Stamp Reminded`, `Scrub Recent Messages`, `Delete Old Processed` and `Delete Old Leads` return `{success: true}` on Postgres, where Airtable raised an error and an alert. Unreachable as measured: no workflow deletes appointments or conversations, and the deletes run once a day. |
 | **K-7** | **(a), full verification:** the copy's scheduled run (`triggerAtHour: 4`), then the original's next scheduled run (two nights). |
 | tool | `scripts/build-workflow-copy.py` is checked by `diff-workflow-copy.py` plus ONE selftest. No separate test suite. |
+| **Q17 evidence (D3b)** | **ACCEPTED (Yigitcan, 2026-10-20).** The evidence is the true overlap on the pre-fix deploy, plus the race path measured identical node by node, plus S2b. The gap stays recorded, and the race is not re-tried. |
+| **run-d11 bodies** | A 200 whose body carries `degraded` is a FAIL (ruling, 2026-10-20). |
+| **deploy helper** | **Committed BEFORE D3c**, with its pre-drill checks inside it, automatic and fail-closed (ruling, 2026-10-20). |
+| **race script** | Out of scope; not committed (ruling, 2026-10-20). |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
