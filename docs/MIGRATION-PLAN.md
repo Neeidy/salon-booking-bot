@@ -1229,9 +1229,25 @@ the copy is parked inactive. The Q17 race could not be reproduced on the correct
   once outside comments, to the literal `true`, and the published `Send Disabled?` tests `=== true`. The
   draft is the same.
 - **The pre-D3c rulings are committed:**
-  - **the deploy helper**, `scripts/deploy-workflow-copy.py`, with its three automatic, fail-closed checks
-    and its selftest in `check-all`. Each check alone turns some selftest cases red and misses others, so
-    all three are needed.
+  - **the deploy helper**, `scripts/deploy-workflow-copy.py`: automatic, fail-closed checks, with its
+    selftest in `check-all`.
+    - *Corrected after the pre-push audit:* the first version said its three checks were each necessary.
+      Switching them off pairwise disproved that, and the audit also found that the original itself passed
+      as a "copy".
+    - **The helper now has four checks, measured by switching each off in a scratch copy:**
+      - **swapped** (every spec data node is Postgres on a real credential; the test path and the temporary
+        trigger are present) is indispensable: without it the original itself passes.
+      - **diff** is indispensable: without it a changed non-data node passes.
+      - **placeholders** and **not-sanitised** overlap. Either one alone still catches every placeholder
+        case, and together they are the only checks that see a placeholder inside a data node's parameters.
+        That selftest case goes red only when both are off.
+    - **"Reads back inactive"** is a separate check in `run()`, live only; the selftest does not cover it.
+    - **Before a PUT, `--update` also requires the target's data nodes to be Postgres already.** An
+      original's are Airtable, so a name collision cannot make an original look like a copy.
+    - `--update` and `--verify` refuse the original's id, and any target that is active, not named as the
+      spec, or whose data nodes are not Postgres. Shown live, read-only: an active production workflow was
+      refused as a target.
+    - Secrets travel in a 0600 header file, not in curl's argv.
   - **`run-d11` fails a degraded 200.**
 - **The copy spec `db/copies/reminders.json` passes offline:** builder selftest; diff test phase green,
   swap phase red; `check-sql-params`; the deploy helper's selftest.

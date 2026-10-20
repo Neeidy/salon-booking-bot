@@ -7,7 +7,10 @@ such a copy cannot do what its original does: at D3b its owner alerts all went u
 deployed as THE LIVE ORIGINAL plus only the generated copy's data-layer delta: the spec's data nodes (with the
 real Postgres credential swapped in), the real trigger's test path, and a declared temporary trigger.
 
-After the write it runs three checks, and exits non-zero if any is red, so no drill starts on a broken copy:
+After the write it runs these checks, and exits non-zero if any is red, so no drill starts on a broken copy:
+  0. swapped: every spec data node is a Postgres node on a real credential, the trigger is on its test path,
+     and the declared temporary trigger exists (so the original itself, or an unswapped copy, cannot pass).
+     Separately, run() fails unless the copy reads back INACTIVE (live only; the selftest does not cover it);
   1. placeholders: the live copy holds no REPLACE_WITH_* / XXXX-id token that the live original does not hold;
   2. scripts/diff-workflow-copy.py, live original vs live copy (test phase): only the data nodes, the test path
      and the temporary trigger differ;
@@ -18,6 +21,7 @@ workflow id; never a credential, a host or a secret.
 
 Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md):
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID [--update COPY_ID]
+      (--update and --verify refuse the original's id and any target that is active or not named as the spec)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --verify COPY_ID
   python3 scripts/deploy-workflow-copy.py --selftest      (offline: the checks on simulated live workflows)
 """
@@ -79,9 +83,28 @@ def check_not_sanitised(live_copy, generated):
     return []
 
 
+def check_swapped(live_copy, spec):
+    """The copy must actually BE a copy: every spec data node is a Postgres node on a real (non-placeholder)
+    credential, the trigger sits on the spec's test path, and a declared temporary trigger exists. Without this,
+    the original itself (or an unswapped copy) passed the three checks above (pre-push audit, 2026-10-20)."""
+    errs, N = [], {n['name']: n for n in live_copy['nodes']}
+    for name in spec['nodes']:
+        n = N.get(name) or {}
+        cred = ((n.get('credentials') or {}).get('postgres') or {}).get('id', '')
+        if n.get('type') != 'n8n-nodes-base.postgres' or not cred or PLACEHOLDER.search(cred):
+            errs.append(f"data node '{name}' is not a Postgres node on a real credential")
+    trig = spec.get('trigger')
+    if trig and (N.get(trig['node']) or {}).get('parameters', {}).get('path') != trig['test_path']:
+        errs.append(f"trigger '{trig['node']}' is not on the spec's test path")
+    temp = spec.get('temp_trigger')
+    if temp and temp['name'] not in N:
+        errs.append(f"the declared temporary trigger '{temp['name']}' is missing")
+    return errs
+
+
 def verify(live_orig, live_copy, generated, spec):
-    errs = check_placeholders(live_orig, live_copy) + check_diff(live_orig, live_copy, spec) \
-        + check_not_sanitised(live_copy, generated)
+    errs = check_swapped(live_copy, spec) + check_placeholders(live_orig, live_copy) \
+        + check_diff(live_orig, live_copy, spec) + check_not_sanitised(live_copy, generated)
     return errs
 
 
@@ -123,20 +146,22 @@ def api(method, path, body=None):
            'CF-Access-Client-Id': os.environ.get('CF_ACCESS_CLIENT_ID', ''),
            'CF-Access-Client-Secret': os.environ.get('CF_ACCESS_CLIENT_SECRET', '')}
     args = ['curl', '-4', '-s', '-m', '60', '-X', method, '-w', '\n%{http_code}', f'https://{_host()}/api/v1{path}']
-    for k, v in hdr.items():
-        args += ['-H', f'{k}: {v}']
-    tmp = None
-    if body is not None:
-        tmp = tempfile.NamedTemporaryFile('w', delete=False, suffix='.json')
-        json.dump(body, tmp)
-        tmp.close()
-        os.chmod(tmp.name, 0o600)
-        args += ['--data-binary', '@' + tmp.name]
+    files = []
     try:
+        # Secrets go in a 0600 header file, never on the command line (argv is readable by other local users).
+        fd, hpath = tempfile.mkstemp(suffix='.hdr'); files.append(hpath)
+        with os.fdopen(fd, 'w') as f:
+            f.write(''.join(f'{k}: {v}\n' for k, v in hdr.items()))
+        args += ['-H', '@' + hpath]
+        if body is not None:
+            fd, bpath = tempfile.mkstemp(suffix='.json'); files.append(bpath)
+            with os.fdopen(fd, 'w') as f:
+                json.dump(body, f)
+            args += ['--data-binary', '@' + bpath]
         out = subprocess.run(args, capture_output=True, text=True).stdout
     finally:
-        if tmp:
-            os.unlink(tmp.name)
+        for p in files:
+            os.unlink(p)
     raw, code = out.rsplit('\n', 1)
     try:
         return int(code), json.loads(raw)
@@ -144,11 +169,12 @@ def api(method, path, body=None):
         return int(code), raw
 
 
-def _workflow(wid):
+def _workflow(wid, meta=False):
     st, w = api('GET', f'/workflows/{wid}')
     if st != 200:
         sys.exit(f'deploy-workflow-copy: GET workflow failed [{st}]')
-    return {k: w.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
+    wf = {k: w.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
+    return (wf, {'active': w.get('active'), 'name': w.get('name')}) if meta else wf
 
 
 def _pg_credential():
@@ -163,6 +189,17 @@ def run(spec_path, original_id, update=None, verify_only=None):
     spec = json.load(open(spec_path, encoding='utf-8'))
     generated = BUILD.build(spec)
     live_orig = _workflow(original_id)
+    target = verify_only or update
+    if target:
+        if target == original_id:
+            sys.exit('deploy-workflow-copy: refused — the copy id equals the original id')
+        tw, m = _workflow(target, meta=True)
+        if m['name'] != spec['name'] or m['active'] is not False:
+            sys.exit(f"deploy-workflow-copy: refused — the target must be the INACTIVE workflow named '{spec['name']}'")
+        T = {n['name']: n for n in tw['nodes']}
+        if any((T.get(name) or {}).get('type') != 'n8n-nodes-base.postgres' for name in spec['nodes']):
+            # Name and state can collide; an original's data nodes are Airtable, a copy's are Postgres.
+            sys.exit('deploy-workflow-copy: refused — the target\'s data nodes are not Postgres, so it is not a copy')
     if verify_only:
         wid = verify_only
     else:
@@ -175,8 +212,13 @@ def run(spec_path, original_id, update=None, verify_only=None):
             wid = d.get('id') if isinstance(d, dict) else None
         if st != 200 or not wid:
             sys.exit(f'deploy-workflow-copy: write failed [{st}]')
-        print(f"deployed '{wf['name']}' ({len(wf['nodes'])} nodes) as workflow {wid} · {'updated' if update else 'created inactive'}")
-    errs = verify(live_orig, _workflow(wid), generated, spec)
+    live_copy, m = _workflow(wid, meta=True)
+    if not verify_only:
+        print(f"deployed '{wf['name']}' ({len(wf['nodes'])} nodes) as workflow {wid} · {'updated' if update else 'created'}"
+              f" · active read back: {m['active']}")
+    errs = verify(live_orig, live_copy, generated, spec)
+    if m['active'] is not False:
+        errs.append('the copy is not inactive (read back from n8n)')
     if errs:
         print('VERIFY FAILED — no drill may start on this copy:')
         for e in errs:
@@ -216,12 +258,17 @@ def selftest():
         for n in sanitized_whole['nodes']:
             if n['name'] in spec['nodes']:
                 n['credentials'] = {'postgres': {'id': 'LiveCredential01', 'name': 'Postgres account'}}
+        data_param_ph = _copy.deepcopy(clean)                 # only the two placeholder checks can see this one:
+        dn = next(n for n in data_param_ph['nodes'] if n['name'] in spec['nodes'])   # diff allows data-node parameters,
+        dn['parameters']['query'] += ' -- REPLACE_WITH_SOMETHING'                    # swapped looks at the credential only
         data_ph = _copy.deepcopy(clean)                       # the diff tool allows a data node's credentials to change
         next(n for n in data_ph['nodes'] if n['name'] in spec['nodes'])['credentials'] = \
             {'postgres': {'id': 'REPLACE_WITH_POSTGRES_CREDENTIAL_ID', 'name': 'Postgres account'}}
         cases = [('clean copy', clean, True), (f"placeholder in a non-data node ('{other}')", placeholder_copy, False),
                  (f"non-data node changed ('{other}')", drifted, False),
-                 ('a data node still carrying the credential placeholder', data_ph, False)]
+                 ('a data node still carrying the credential placeholder', data_ph, False),
+                 ('the ORIGINAL itself passed as the copy', _copy.deepcopy(live_orig), False),
+                 ("a placeholder inside a data node's parameters", data_param_ph, False)]
         if PLACEHOLDER.search(json.dumps([n for n in generated['nodes'] if n['name'] not in spec['nodes']])):
             cases.append(('the generated (sanitized) copy deployed whole', sanitized_whole, False))
         for label, live_copy, want_green in cases:
