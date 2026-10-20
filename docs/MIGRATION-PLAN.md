@@ -996,8 +996,10 @@ proved on every column type.
 **Flags are abbreviated below.** Every run passes `--allow` with the step's full data-node list (D3a 2 ·
 D3b 5 · D3c 2 · D3d 8, the §6 names), plus `--phase` and the trigger flag WITH its name. The temporary
 trigger is a NEW node named **`Temporary Test Trigger`**. It is not in any export yet; the diff tool's
-selftest uses its own fixture name. **Only the `owner-mig-` prefix of a test path is ever written down;
-no full test path enters a commit.**
+selftest uses its own fixture name. **A copy's test path is a fixed `owner-mig-<workflow>` name with no random part.** It sits in
+the committed copy spec and export, behind Access and the HMAC signature, exactly like the production paths the public
+exports already carry. *(Corrected at D3a: this sentence first promised that no full test path would enter a commit, a promise
+a committed copy export cannot keep.)*
 
 **D3a · Drill State Read**
 - **Flags:** `--allow "Read Conversation" "Count Markers"`; the webhook sits on an `owner-mig-…` test
@@ -1012,6 +1014,72 @@ no full test path enters a commit.**
     `[$('Verify Drill Signature').first().json.messageId]`.
   - The `WHERE` is the positive identity check Q11 asked of D3. A Postgres error item carries no `id`
     (S5).
+
+**D3a result ✅ (2026-10-20): the Drill State Read copy is built, drilled and parked inactive.**
+
+*Offline:*
+- **The shape spec moved to `db/shape-spec.json`:** columns plus the kind → SQL templates. The contract
+  runner and the copy generator both read it. **After the move, the five mutants were re-run on a fresh
+  seed, and all five went red, each naming its own rule:** null 5 tables · `""` 4 · `false` 1 · field
+  timestamp 5 · `createdTime` 5. The real run is green, and it is still red on empty tables.
+- **`scripts/build-workflow-copy.py` generated the copy** from the committed original and
+  `db/copies/drill-state.json`. Its one selftest is in `check-all`: every spec's copy must pass the diff
+  tool's test phase and `check-sql-params`, and a spec that names a non-data node is refused.
+- **The diff tool on the copy:** test phase green; the swap phase red, because the copy is still on its
+  test path.
+- **§4.1's positive controls were all red:** an unrelated node changed, a connection changed, a data
+  node renamed, and a data node's `onError` changed. The clean copy is green.
+- **`check-sql-params`:** 2 Postgres nodes, the first non-zero count.
+
+*Against the database (`tests/db/copy-contract.cjs`, new, as `salon_ro`; ids never printed):*
+- The copy's own two queries passed 7 of 7 cases: full row, sparse row, the `handoff` row and an absent
+  id; a marker, a sparse marker and no marker. Each case returned the expected row count with 0 contract
+  violations.
+- **Control:** the same copy with `jsonb_strip_nulls` and `NULLIF` removed was red on the sparse rows.
+
+*Live:*
+- The copy was created INACTIVE and activated only for its drills.
+- **Edge refusal on its test path, with both S6 signals:** 403 with an Access header, executions 0 → 0.
+- **Signed oracle drills, all as expected:**
+
+  | Case | Response |
+  |---|---|
+  | full row | `confirming\|book\|1` |
+  | sparse row | `new\|\|0`: the empty `last_intent` is dropped and reads as empty |
+  | the `handoff` row | `handoff\|clarify\|1` |
+  | an absent id | `NOT-FOUND\|0` |
+  | a wrong signature | 403 `REFUSED` |
+
+- **Hostile `messageId` inside the allowed class:** `mig-pm-full--`, `--mig-pm-full` and `mig.pm_full` each
+  counted 0 markers, where `mig-pm-full` counts 1, so the value was taken literally. A quote, which is
+  outside the class, was refused 403 before any query ran.
+- The drills changed no row.
+- All of the copy's executions are `webhook` mode, and it was deactivated after the drills.
+
+*Export and parity:*
+- `n8n/workflow.drill-state.copy.sanitized.json` was taken from live. It equals the generated copy except
+  for ids, positions and `webhookId`, and it carries the Postgres credential placeholder.
+- A `PAIRS` line puts it under `check-exports-parity`.
+
+*Declared guard change:*
+- **The problem:** `check-content-parity.py` refused the inactive copy ("PUBLISHED GRAPH UNAVAILABLE",
+  exit 2). n8n removes `activeVersion` on deactivation, and nothing runs an inactive workflow.
+- **The change, narrowed:** only when `active` is `false`, the guard says INACTIVE and compares the draft,
+  which is what activation would publish.
+- **Shown:**
+  - the real copy is green;
+  - a one-line drift in the committed copy is red;
+  - an active workflow without a published graph, and a response with no `active` key, still exit 2.
+
+*Clean-up:*
+- 11 seed rows were deleted; counts went 0 → 11 → 0.
+- The seed workflow returns 404.
+- **The live instance now holds 6 workflows:** the 5 originals, active, plus this copy, inactive until
+  D6b.
+- Both parity guards are 0.
+
+*Pending:*
+- **STORE-ERROR** (the copy's error path) waits for the K-3 window.
 
 **D3b · Owner Actions** (`--trigger "Receive Owner Action"`)
 - **`Find Target Conversation`:**
