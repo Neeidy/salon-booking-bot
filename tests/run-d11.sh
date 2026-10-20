@@ -40,8 +40,25 @@ if "error" in d: print("READ-FAILED"); sys.exit()   # a store ERROR is not an em
 if "fields" not in d: print("NOT-FOUND"); sys.exit()
 f=d["fields"]
 print("%s|%s|?" % (f.get("stage",""), f.get("last_intent","")))'
+# A 200 IS NOT A CLEAN PASS WHEN ITS BODY SAYS "degraded" (ruling, 2026-10-20). At D3b a copy answered every
+# successful release with {"ok":true,"degraded":"alert_undelivered"}, and this file stayed 13/13 because it read
+# codes, state and the marker count but never a body. The classifier lives here, once, so the selftest below
+# checks the same code the live run uses.
+DEGRADED_PY='
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: sys.exit(1)
+sys.exit(0 if isinstance(d,dict) and "degraded" in d else 1)'
+is_degraded() { python3 -c "$DEGRADED_PY" < "$1"; }   # is_degraded <body file> -> 0 when the body declares itself degraded
+
 if [ "${1:-}" = "--selftest-state" ]; then
   rc=0
+  tmpb="$(mktemp)"
+  for b in '{"ok":true,"degraded":"alert_undelivered"}' '{"ok":true,"degraded":"marker_unwritten"}'; do
+    printf '%s' "$b" > "$tmpb"; is_degraded "$tmpb" || { echo "✗ a degraded body was NOT caught: $b"; rc=1; }; done
+  for b in '{"ok":true}' '{"ok":false,"error":"not_locked"}' 'not json'; do
+    printf '%s' "$b" > "$tmpb"; is_degraded "$tmpb" && { echo "✗ a clean body WAS flagged degraded: $b"; rc=1; }; done
+  rm -f "$tmpb"
   for s in 'STORE-ERROR|read-conversation' 'STORE-ERROR|read-conversation+count-markers' 'READ-FAILED' '' \
            'REFUSED' '<html>error</html>' 'The requested webhook is not registered' \
            $'<html>\nNOT-FOUND|0\n</html>' $'REFUSED\nnew||1'; do
@@ -52,7 +69,7 @@ if [ "${1:-}" = "--selftest-state" ]; then
   [ "$got" = "READ-FAILED" ] || { echo "✗ direct-read parser turned a store error into '$got'"; rc=1; }
   got="$(printf '%s' '{"id":"recAAAAAAAAAAAAAA","fields":{"stage":"new"}}' | python3 -c "$PAT_PARSE")"
   [ "$got" = "new||?" ] || { echo "✗ direct-read parser misread a record as '$got'"; rc=1; }
-  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK"
+  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK · degraded-body check OK (2 caught, 3 passed)"
   exit "$rc"
 fi
 
@@ -76,17 +93,23 @@ bad()  { FAIL=$((FAIL+1)); say "$1" "✗ $2"; }
 
 sign() { printf '%s' "$1" | openssl dgst -sha256 -hmac "$SEC" -r | cut -d' ' -f1; }
 
-# post <body> <signature> [--no-token]
+# post <body> <signature> [--no-token]   (the response body lands in $LAST_BODY for not_degraded)
+LAST_BODY="$(mktemp)"; trap 'rm -f "$LAST_BODY"' EXIT
 post() {
   local body="$1" sig="$2" notok="${3:-}"
   if [ "$notok" = "--no-token" ]; then
-    curl -s -4 -o /dev/null -m 25 -w '%{http_code}' -X POST "$URL" \
+    curl -s -4 -o "$LAST_BODY" -m 25 -w '%{http_code}' -X POST "$URL" \
       -H 'Content-Type: application/json' -H "X-Owner-Signature: $sig" --data "$body"
   else
-    curl -s -4 -o /dev/null -m 25 -w '%{http_code}' -X POST "$URL" \
+    curl -s -4 -o "$LAST_BODY" -m 25 -w '%{http_code}' -X POST "$URL" \
       -H 'Content-Type: application/json' -H "X-Owner-Signature: $sig" \
       -H "CF-Access-Client-Id: $CID" -H "CF-Access-Client-Secret: $CSE" --data "$body"
   fi
+}
+
+not_degraded() { # not_degraded <case label> <code> — FAILS a 200 whose body declares itself degraded; never adds a pass
+  [ "$2" = "200" ] && is_degraded "$LAST_BODY" && bad "  ↳ $1" "200, but the body says degraded ($(head -c 80 "$LAST_BODY"))"
+  return 0
 }
 
 body_for() { # body_for <action> <sender> <messageId> <ts>
@@ -153,12 +176,14 @@ S_OK="$(sign "$B_OK")"
 
 # 1 — no service token. CONTROL for every later case.
 c1="$(post "$B_OK" "$S_OK" --no-token)"
+not_degraded "1 no service token" "$c1"
 [ "$c1" = "403" ] && ok "1 no service token" "403 (Access refused)" \
                   || bad "1 no service token" "got $c1, expected 403"
 assert_unchanged "1 no service token" "$BEFORE"
 
 # 2 — token present, signature wrong.
 c2="$(post "$B_OK" "$(sign "${B_OK}tampered")")"
+not_degraded "2 token OK, HMAC wrong" "$c2"
 [ "$c2" = "403" ] && ok "2 token OK, HMAC wrong" "403" \
                   || bad "2 token OK, HMAC wrong" "got $c2, expected 403"
 assert_unchanged "2 token OK, HMAC wrong" "$BEFORE"
@@ -166,6 +191,7 @@ assert_unchanged "2 token OK, HMAC wrong" "$BEFORE"
 # 3 — signed correctly, action outside the allow-list.
 B3="$(body_for delete_everything "$TGT" "d11-$RUN-3" "$NOW")"
 c3="$(post "$B3" "$(sign "$B3")")"
+not_degraded "3 action off the allow-list" "$c3"
 [ "$c3" = "400" ] && ok "3 action off the allow-list" "400" \
                   || bad "3 action off the allow-list" "got $c3, expected 400"
 assert_unchanged "3 action off the allow-list" "$BEFORE"
@@ -173,6 +199,7 @@ assert_unchanged "3 action off the allow-list" "$BEFORE"
 # 7 — stale ts (run before the real release so it cannot be masked by an already-released target).
 B7="$(body_for release_handoff "$TGT" "d11-$RUN-7" "$((NOW-3600))")"
 c7="$(post "$B7" "$(sign "$B7")")"
+not_degraded "7 ts older than the window" "$c7"
 [ "$c7" = "401" ] && ok "7 ts older than the window" "401" \
                   || bad "7 ts older than the window" "got $c7, expected 401"
 assert_unchanged "7 ts older than the window" "$BEFORE"
@@ -186,6 +213,7 @@ assert_unchanged "7 ts older than the window" "$BEFORE"
 S4="recZZZZZZZZZZZZZZ"
 B4="$(body_for release_handoff "$S4" "d11-$RUN-4" "$NOW")"
 c4="$(post "$B4" "$(sign "$B4")")"
+not_degraded "4 wrong target" "$c4"
 A4="$(state_of)"    # same shape as BEFORE, so the comparison below is a real one
 if { [ "$c4" = "404" ] || [ "$c4" = "409" ]; } && [ "$A4" = "$BEFORE" ]; then
   ok "4 wrong target (well-formed, nonexistent)" "$c4 and the target row is UNCHANGED"
@@ -196,6 +224,7 @@ fi
 # 4b — a MALFORMED record id must be refused by the allow-list, before any lookup, and write nothing.
 B4b="$(body_for release_handoff "recNOPE" "d11-$RUN-4b" "$NOW")"
 c4b="$(post "$B4b" "$(sign "$B4b")")"
+not_degraded "4b malformed record id" "$c4b"
 [ "$c4b" = "400" ] && ok "4b malformed record id" "400 at the allow-list, before the lookup" \
                    || bad "4b malformed record id" "got $c4b, expected 400"
 assert_unchanged "4b malformed record id" "$BEFORE"
@@ -207,8 +236,10 @@ assert_unchanged "4b malformed record id" "$BEFORE"
 # CRT #11, 2026-09-13). One complete pass writes exactly ONE dedupe marker, so the MARKER COUNT is what
 # actually discriminates. State equality is kept as a second, weaker check, not as the proof.
 c5a="$(post "$B_OK" "$S_OK")"
+not_degraded "5a the real release" "$c5a"
 AFTER1="$(state_of "d11-$RUN")"
 c5b="$(post "$B_OK" "$S_OK")"
+not_degraded "5b the replay" "$c5b"
 AFTER2="$(state_of "d11-$RUN")"
 M1="${AFTER1##*|}"; M2="${AFTER2##*|}"
 for st in "$A4" "$AFTER1" "$AFTER2"; do
