@@ -177,6 +177,7 @@
 - `scripts/check-outbound-inventory.py`
 - `scripts/check-sql-params.py`
 - `scripts/compile-intent-validator.cjs`
+- `scripts/deploy-workflow-copy.py`
 - `scripts/diff-workflow-copy.py`
 - `scripts/env-presence.sh`
 - `scripts/generate-config-types.cjs`
