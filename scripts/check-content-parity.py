@@ -161,6 +161,13 @@ def check_published_matches_draft(live):
     """
     av = live.get('activeVersion') or {}
     pub = av.get('nodes')
+    if not isinstance(pub, list) and live.get('active') is False:
+        # An INACTIVE workflow (a migration copy waiting for its cutover, MIGRATION-PLAN §3r) has no published
+        # graph because NOTHING runs it. What activation would publish is the draft, and the draft is what the
+        # rest of this guard compares. That is a different true statement, not the absence of evidence: the
+        # branch below still refuses an ACTIVE workflow whose published graph cannot be seen.
+        print('INACTIVE — no published graph and nothing runs it; the DRAFT (what activation would publish) is compared.')
+        return
     if not isinstance(pub, list):
         # ⚠ THIS USED TO PRINT "SKIPPED … the draft IS what runs" AND RETURN SUCCESS. That is certifying the
         # ABSENCE of evidence as evidence — the pattern this repo has now hit ten times — and it asserted
