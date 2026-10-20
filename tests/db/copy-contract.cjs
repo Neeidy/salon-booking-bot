@@ -35,6 +35,8 @@ function specFor(table, query) {
   const c = new Client();
   c.on('error', (e) => { console.error('copy-contract: connection error —', e.code || 'no SQLSTATE'); process.exit(2); });
   await c.connect();
+  // The env says salon_ro; the SERVER decides. Check the session's role before running anything.
+  if ((await c.query('select current_user as u')).rows[0].u !== 'salon_ro') { console.error('copy-contract: refused — the session is not salon_ro'); process.exit(2); }
   let ok = true, cases = 0;
   for (const [name, list] of Object.entries(binds)) {
     const node = copy.nodes.find((n) => n.name === name);
