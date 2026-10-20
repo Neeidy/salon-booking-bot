@@ -128,6 +128,14 @@ whose apex this same file says is NOT behind Cloudflare's proxy is a service inv
 `check-no-host-leak.sh` cannot catch this — it scans host VALUES, not service FACTS — so it is a
 discipline, like the commit-message case above, and it is written down for the same reason.*
 
+### Stop a process by its PID, never by a pattern (Yigitcan's ruling, 2026-10-20)
+On this server a process is stopped with `kill <PID>` after its PID has been read and checked; `pkill -f`,
+`pkill <name>`, `killall` and any other pattern-matched kill are not used. **Why:** a pattern matches every
+process whose command line contains it, and the one you cannot see is the one it hits. Measured
+2026-10-20: a `pkill -f` aimed at a hung script also killed the shell that ran it, because that shell's own
+command line carried the same string. On a host that also runs the production containers and other
+sessions, the same keystroke can stop something nobody meant to touch.
+
 ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
 
 ```
