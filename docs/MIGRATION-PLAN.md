@@ -1222,6 +1222,44 @@ the copy is parked inactive. The Q17 race could not be reproduced on the correct
     RETURNING ⟨…⟩`, mode **`independently`**.
   - Output 0 leads nowhere. Output 1 → `Reminder Error (stamp)`. K-6 covers its 0-row case.
 
+**D3c status ⛔ STOPPED (2026-10-20) at the deploy helper's verify, as the brief's stop rule requires. No drill ran.**
+
+*Done before the stop:*
+- **Step 0:** the live original's PUBLISHED `Load Config (Reminders)` assigns `whatsappSendDisabled` exactly
+  once outside comments, to the literal `true`, and the published `Send Disabled?` tests `=== true`. The
+  draft is the same.
+- **The pre-D3c rulings are committed:**
+  - **the deploy helper**, `scripts/deploy-workflow-copy.py`, with its three automatic, fail-closed checks
+    and its selftest in `check-all`. Each check alone turns some selftest cases red and misses others, so
+    all three are needed.
+  - **`run-d11` fails a degraded 200.**
+- **The copy spec `db/copies/reminders.json` passes offline:** builder selftest; diff test phase green,
+  swap phase red; `check-sql-params`; the deploy helper's selftest.
+  - **Positive controls red:** `Send Disabled?` forced false, the send brake flipped in `Load Config`,
+    `Stamp Reminded`'s `onError` changed.
+  - **One control first came back GREEN: a temporary trigger wired past the kill-switch.**
+    `diff-workflow-copy` allowed a temp trigger with ANY edges. Fixed: its edges must equal a real
+    trigger's edges, with a new selftest case that goes green only when the rule is switched off. Declared.
+
+*The stop:*
+- The helper created the copy INACTIVE, then its diff check failed with **"workflow settings differ"**.
+- **Measured (read-only):** the live original Reminders' settings are `{binaryMode: "separate",
+  executionOrder: "v1"}`. The copy's are `{executionOrder: "v1"}`.
+- The helper posted the live original's settings and got 200, yet `binaryMode` is absent from the copy
+  it read back. That points to the public API dropping this setting on create; the drop itself is
+  inferred, not probed.
+- **The same class is wider.** The committed exports carry only `executionOrder` for every workflow, yet
+  live Main also carries `availableInMCP`, `binaryMode`, `callerPolicy` and `timeSavedMode`.
+  `check-content-parity` does not compare settings, so this live-versus-committed difference was
+  invisible until now.
+- Purge, Owner Actions and Drill State carry only `executionOrder`, which is why D3a and D3b verified
+  clean.
+- **State left:** the D3c copy is inactive with 0 executions, not paired, and not exported. The seed
+  workflow is deleted (404), every table is 0, and both parity guards are 0.
+
+*Decision for Yigitcan:* how the Reminders copy gets the original's `binaryMode`. See the turn's report.
+Until then D3c stays stopped. D3d (Purge) is not affected by this class; D4 (Main) is.
+
 **D3d · Processed Purge** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Purge)`)
 - **The `Find` nodes:**
   - `Find Old Processed`: `WHERE created_at < $1::timestamptz`. The `!= ""` guard disappears, because the

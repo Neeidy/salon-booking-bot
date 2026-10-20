@@ -70,6 +70,7 @@
 
 - `db/copies/drill-state.json`
 - `db/copies/owner-actions.json`
+- `db/copies/reminders.json`
 
 ### db/schema
 
