@@ -24,6 +24,7 @@ PAIRS=(
   "lTyYKxqyzumH2JMz:n8n/workflow.owner-actions.sanitized.json"
   "sTn3xfa9qI6IyBNP:n8n/workflow.drill-state.sanitized.json"
   "QJcFVLIkZlc71scP:n8n/workflow.drill-state.copy.sanitized.json"   # D3a copy (MIGRATION-PLAN §3r), inactive until D6b
+  "TgXeN8HAJ2BkiJWO:n8n/workflow.owner-actions.copy.sanitized.json"   # D3b copy (MIGRATION-PLAN §3r), inactive until D6b
 )
 
 if [ -z "${N8N_API_KEY:-}" ] || [ -z "${N8N_HOST:-}" ]; then

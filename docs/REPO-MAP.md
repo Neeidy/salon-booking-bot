@@ -62,6 +62,15 @@
 - `config/client.config.example-b.json`
 - `config/client.config.example.json`
 
+### db
+
+- `db/shape-spec.json`
+
+### db/copies
+
+- `db/copies/drill-state.json`
+- `db/copies/owner-actions.json`
+
 ### db/schema
 
 - `db/schema/001_init.sql`
@@ -128,7 +137,9 @@
 ### n8n
 
 - `n8n/notes.md`
+- `n8n/workflow.drill-state.copy.sanitized.json`
 - `n8n/workflow.drill-state.sanitized.json`
+- `n8n/workflow.owner-actions.copy.sanitized.json`
 - `n8n/workflow.owner-actions.sanitized.json`
 - `n8n/workflow.purge.sanitized.json`
 - `n8n/workflow.reminders.sanitized.json`
@@ -149,6 +160,7 @@
 
 ### scripts
 
+- `scripts/build-workflow-copy.py`
 - `scripts/check-cancel-validation-parity.py`
 - `scripts/check-client-imports.cjs`
 - `scripts/check-computed-reply-coverage.py`
@@ -193,6 +205,7 @@
 ### tests/db
 
 - `tests/db/contract-run.cjs`
+- `tests/db/copy-contract.cjs`
 - `tests/db/ro-negatives.cjs`
 
 ### tests/fixtures/sql-params
@@ -219,6 +232,7 @@
 
 ### tests/unit
 
+- `tests/unit/content-parity-inactive.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
 - `tests/unit/locked-once-parity.test.cjs`
 - `tests/unit/message-id-guard.test.cjs`
@@ -674,6 +688,8 @@
   - ### .claude/commands
   - ### .claude/rules
   - ### config
+  - ### db
+  - ### db/copies
   - ### db/schema
   - ### design
   - ### design/mockups

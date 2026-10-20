@@ -1122,6 +1122,89 @@ a committed copy export cannot keep.)*
   - Consumer: `Marker Written?`.
 - **Measured: the alert builders never read a data node's output.** They read `Owner Replay Seen?` only.
 
+**D3b result ⚠ (2026-10-20): the Owner Actions copy is built, `run-d11` passes 13 of 13 against the copies, and
+the copy is parked inactive. The Q17 race could not be reproduced on the corrected copy.**
+
+*Offline:*
+- **Generated** from the committed original and `db/copies/owner-actions.json`. The marker takes the Q17
+  (a) form.
+- **The diff tool:** test phase green; swap phase red, because the copy is on its test path.
+- **The positive controls were all red:** `Marker Written?`'s condition changed, its branches swapped,
+  the marker's `onError` removed, `alwaysOutputData` added to it. The clean copy is green.
+- **`check-sql-params`:** 5 nodes; 7 across all exports now.
+
+*Against the database (`copy-contract`, as `salon_ro`):*
+- The three read nodes passed 7 of 7 cases.
+- A write node is refused by the tool.
+
+*Live, edge:* refusal with both S6 signals on the copy's test path.
+
+*Declared deploy fault, found while reading the drill's responses, and fixed:*
+- **The fault:** the copy is generated from the SANITIZED export, and the first deploy swapped in only the
+  Postgres credential. The live copy's three Telegram nodes therefore carried the placeholder chat id and
+  credential id, and every success answered `degraded: alert_undelivered`. Nothing was sent: 5 alerts were
+  undelivered.
+- **Who caught it:** not the drill's pass/fail. `run-d11.sh` checks codes, state and the marker count,
+  never the response body, so a `degraded` answer passes: the pre-fix run was 13 of 13 too. It was caught
+  by reading the bodies.
+- **The guard had it:** `check-content-parity` reports "LIVE IS SANITISED" on that copy. The fault was the
+  ORDER: the drill ran before the guard.
+- **The fix:** a copy is now deployed as the LIVE original plus only the generated copy's data-layer delta
+  (the data nodes, the trigger's test path, a temporary trigger). Before any drill, two checks must pass:
+  - no placeholder in the live copy;
+  - `diff-workflow-copy` live original vs live copy: only the data nodes differ. The D3a copy was checked
+    the same way and passed.
+- **⚠ That is a PROCEDURE, not a committed control.** The deploy helper and the race script live in the
+  session scratchpad and are not in this repo, and the two checks are run by hand before each drill.
+  Committing the deploy helper is an open item before D3c.
+- The D3b copy was corrected with one PUT (an approved edit), re-seeded, and every drill re-run.
+
+*Drills on the corrected copy:*
+- **`run-d11.sh`: 13 passed, 0 failed.** `OWNER_ACTION_URL` was the copy's test path, `STATE_URL` the D3a
+  copy, and `TARGET_RECORD` a seeded `handoff` row with a fresh `last_updated`. The pre-fix run was also
+  13 of 13.
+  - Every refusal left the row unchanged.
+  - The release wrote `stage='new'` and an empty `last_intent`.
+  - The replay kept the marker count at 1 → 1.
+  - The control (no token, 403) and the treatment (200) differ.
+- **The Q17 race: ⚠ NOT reproduced on the corrected copy.** 15 attempts were made:
+  - 3 plain pairs;
+  - 9 pairs released together by a start barrier;
+  - 3 rounds of 6 identical requests at once.
+  
+  Every time, exactly one execution reached the marker (1 marker row, the "written" path) and the others
+  were refused 409 `not_locked`, the same as the original. **None took the marker-failure path.**
+- **The one true overlap happened on the PRE-FIX deploy.** Both executions ran
+  `Record Owner Action Processed`, both took `Marker Written?`'s "written" branch, and there was 1 marker
+  row. That copy's race path (`Find Target` → `Validate` → `Check Owner Replay` → `Release` → `Re-read` →
+  marker → `Marker Written?`) was identical to the corrected one; it differed only in the Telegram nodes
+  AFTER `Marker Written?`. **Measured:** comparing node by node what the first deploy posted with the
+  corrected live copy (ids, positions and `webhookId` ignored), the only non-data nodes that differ are
+  the three Telegram nodes. The node sets and the connections are equal.
+- **Together with S2b's statement-level measurement, this is the evidence for Q17 (a) on the copy. It is
+  NOT the brief's "both on the written path" reproduced on the corrected copy, and it is recorded as that
+  gap.**
+- **Probe faults, declared:**
+  - importing the race script re-ran its top level: 6 requests to already-released rows, all 409, nothing
+    written. It is guarded now.
+  - Seed rows were re-created between rounds.
+
+*Outbound (K-5):*
+- 16 Telegram alerts were delivered to the owner's chat by the corrected copy (release successes).
+- No other recipient.
+- Every execution of both copies is in `webhook` mode.
+
+*Clean-up:*
+- `run-d11` writes its marker as `d11-<run>`, not `mig-`. This round's prefix-guarded delete therefore
+  also removed rows matching `message_id LIKE 'd11-%' AND sender_key = 'owner:dashboard' AND channel =
+  'owner'`. Declared.
+- Counts went back to 0, and 0 `d11-` rows are left.
+- The seed workflow returns 404.
+- **The live instance holds 7 workflows:** the 5 originals, active, and 2 copies, inactive.
+- Both parity guards are 0, with 7 exports paired.
+
+*Pending:* the copy's error paths (replay-check unavailable, release failed) wait for the K-3 window.
+
 **D3c · Reminders** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Reminders)`)
 - **`Find Due Appointments`:**
   - SQL: `⟨appointments⟩ WHERE status = 'booked' AND NOT reminded AND start_utc > $1::timestamptz AND
