@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # K-3 error-path window (MIGRATION-PLAN §3r). OPERATOR SCRIPT: run as root, ONCE, on the server.
+#   sudo bash k3-window.sh --check   read-only: proves the catalog path and salon_app's full grant, changes nothing
+#   sudo bash k3-window.sh           the window
 #
 # It takes salon_app's table privileges away in four declared stages, so the inactive migration copies
 # (D3a Drill State, D3b Owner Actions, D3d Purge) can have their error paths drilled against a REAL store
@@ -17,6 +19,10 @@
 # when salon_app lacks nothing, and otherwise "RESTORE FAILED — run k3-restore.sh" and exits non-zero (1, or a
 # signal's status when a signal ended the run). It does not
 # claim a restore it could not verify.
+# Every statement runs after `SET ROLE salon_owner`, the catalog checks included: salon_migrator itself has no
+# USAGE on schema salon (002_roles.sql, INHERIT FALSE), so even resolving 'salon.<table>' is denied without it.
+# Measured 2026-10-22: the first operator run stopped at the baseline check with "permission denied for schema
+# salon", before anything was revoked. The SET ROLE lives inside q() so no call can skip it.
 # Secrets: the migrator password reaches psql only by environment inheritance (PGPASSWORD + `exec -e NAME`,
 # which puts the NAME on the command line, never the value). Nothing is printed but stage names and privileges.
 set -euo pipefail
@@ -30,8 +36,9 @@ WAIT_STAGE=1200   # seconds per stage before giving up (the trap still restores)
 set -a; . "$ENV"; set +a
 [ -n "${SALON_MIGRATOR_PASSWORD:-}" ] || { echo "k3-window: SALON_MIGRATOR_PASSWORD missing from $ENV"; exit 2; }
 
-q() {   # SQL on stdin, as salon_migrator over TCP (password checked)
-  PGPASSWORD="$SALON_MIGRATOR_PASSWORD" docker compose --project-directory /root/n8n exec -T -e PGPASSWORD postgres \
+q() {   # SQL on stdin, as salon_migrator over TCP (password checked), always as salon_owner
+  { printf 'SET ROLE salon_owner;\n'; cat; } | PGPASSWORD="$SALON_MIGRATOR_PASSWORD" \
+    docker compose --project-directory /root/n8n exec -T -e PGPASSWORD postgres \
     psql -X -At -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -U salon_migrator -d salon -f -
 }
 BASE='GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA salon TO salon_app;'
@@ -43,7 +50,7 @@ MISSING="SELECT coalesce(string_agg(t || ':' || p, ' ' ORDER BY t, p), '-')
 restore() {
   local rc=$? left='?'
   trap '' INT TERM HUP             # a second Ctrl-C must not interrupt the restore itself
-  if printf 'SET ROLE salon_owner;\n%s\n' "$BASE" | q; then
+  if printf '%s\n' "$BASE" | q; then
     left="$(printf '%s\n' "$MISSING" | q)" || left='?'
   fi
   if [ "$left" = "-" ]; then
@@ -63,19 +70,29 @@ wait_for() {   # wait_for <flag> <seconds>
 }
 
 stage() {   # stage <name> <expected missing set> <REVOKE statements>
-  printf 'SET ROLE salon_owner;\nBEGIN;\n%s\n%s\nCOMMIT;\n' "$BASE" "$3" | q
+  printf 'BEGIN;\n%s\n%s\nCOMMIT;\n' "$BASE" "$3" | q
   local got; got="$(printf '%s\n' "$MISSING" | q)"
   [ "$got" = "$2" ] || { echo "k3-window: stage $1 left salon_app lacking '$got', expected '$2' — aborting"; exit 1; }
   echo "k3-window: stage $1 applied · salon_app lacks: $got · waiting for Claude ($1.done)"
   wait_for "$1.done" "$WAIT_STAGE"
 }
 
+case "${1:-}" in
+  '') ;;
+  --check)
+    base="$(printf '%s\n' "$MISSING" | q)" || { echo "k3-window --check: FAILED — the catalog check did not run (psql error above)"; exit 1; }
+    [ "$base" = "-" ] || { echo "k3-window --check: FAILED — salon_app lacks '$base' (run k3-restore.sh)"; exit 1; }
+    echo "k3-window --check: OK — the catalog check runs as salon_owner and salon_app has its full grant. Nothing changed."
+    exit 0 ;;
+  *) echo "usage: k3-window.sh [--check]"; exit 2 ;;
+esac
+
 exec 9>/root/k3-window.lock
 flock -n 9 || { echo "k3-window: another k3-window is running — not starting"; exit 1; }
 [ -d "$FLAGS" ] || { echo "k3-window: $FLAGS does not exist yet (Claude creates it when ready) — not starting"; exit 1; }
 entries="$(ls -A "$FLAGS")" || { echo "k3-window: cannot list $FLAGS — not starting"; exit 1; }
 [ -z "$entries" ] || { echo "k3-window: $FLAGS is not empty (stale flags would advance stages) — not starting"; exit 1; }
-base="$(printf '%s\n' "$MISSING" | q)" || { echo "k3-window: cannot reach Postgres as salon_migrator — not starting"; exit 1; }
+base="$(printf '%s\n' "$MISSING" | q)" || { echo "k3-window: the baseline check failed (psql error above) — not starting"; exit 1; }
 [ "$base" = "-" ] || { echo "k3-window: salon_app lacks '$base' before the window (run k3-restore.sh) — not starting"; exit 1; }
 trap restore EXIT
 echo "k3-window: baseline OK (salon_app has its full grant). Waiting for Claude's go ($FLAGS/go)."

@@ -1466,6 +1466,23 @@ wait for the K-3 window.
 **K-3 error-path window: PREPARED (2026-10-22), not run.** It covers D3a, D3b and D3d; Reminders is excluded
 (ruling (iii)).
 
+*First operator run, 2026-10-22: stopped at the baseline check, nothing revoked.*
+- The operator's prep passed (docker not in debug mode; both sha256 values matched). `k3-window.sh` then
+  printed `permission denied for schema salon` and `cannot reach Postgres as salon_migrator — not starting`.
+- **Cause (Cowork, from the script at `7836d42`):** the catalog checks ran as `salon_migrator` WITHOUT
+  `SET ROLE salon_owner`. The migrator holds `salon_owner` with `INHERIT FALSE`, and schema USAGE is granted
+  only to `salon_app` and `salon_ro` (`002_roles.sql`), so even resolving `'salon.<table>'` is denied.
+- The script exited before its EXIT trap was armed, and before any REVOKE.
+- The same defect sat in each stage's check, in the restore trap's check (it would have printed a FALSE
+  `RESTORE FAILED` after a successful grant) and in `k3-restore.sh`'s 20/20 count.
+- **Why the offline test did not see it:** its fake replaced `q()` whole, so the role context never reached
+  the store. The handover listed the real psql path as unverified, and that was the gap that failed.
+- **Fix, in the scripts only (no role or grant change):**
+  - every statement now runs after `SET ROLE salon_owner`, placed inside `q()` (in `k3-restore.sh`, `owner()`),
+    so no call can skip it;
+  - a read-only `--check` mode proves the real path before the window;
+  - `k3-restore.sh` prints its own line when a step fails (before, `set -e` ended it on psql's raw error).
+
 *Why four stages and not one:*
 - A single REVOKE breaks each copy at its FIRST data node. Several error paths sit deeper: the replay
   check, a failed release, the unwritten marker, the delete and scrub writes.
@@ -1495,13 +1512,31 @@ wait for the K-3 window.
     ignore, a second SIGINT cut the GRANT off. The committed test does not cover it.*
   - *(Corrected after the pre-push audit, M1: the first version printed RESTORED without checking, and
     said nothing when the restore itself failed.)*
-- **The window refuses to start if any of these holds:** `salon_app` is not at its full grant; Postgres
-  cannot be reached; the flag directory is missing or not empty; another run holds the lock.
+- **The window refuses to start if any of these holds:** `salon_app` is not at its full grant; the baseline
+  catalog check fails (Postgres unreachable, or a privilege error); the flag directory is missing or not
+  empty; another run holds the lock.
+- **`k3-window.sh --check`** runs only the baseline check and exits; it issues no GRANT or REVOKE and needs no
+  flag directory. The operator runs it first.
 - **Secrets:** the passwords reach psql by environment inheritance only (`PGPASSWORD` + `exec -e NAME`).
 - **The restore script** re-grants, checks 20 of 20 privileges in the catalog, and proves it by behaviour:
   it connects AS `salon_app` and SELECTs from all five tables.
-- **Offline test, committed: `tests/ops/k3-window.test.sh`, 10 of 10, with a fake privilege store.**
-  - a full run applies W1 → R1 → R2 → W2 and restores;
+- **Offline test, committed: `tests/ops/k3-window.test.sh`, 20 of 20, covering both scripts.**
+  - **How it fakes the store:** only the `docker` word of each script copy is pointed at a fake (count
+    asserted, so the real docker is never reached). `q()`, `as()` and `owner()` therefore run for real.
+  - The fake checks the exact `compose … exec … psql` argument shape, and that the password arrives by
+    environment.
+  - **It models the role boundary of `002_roles.sql`:**
+    - the session starts as the `-U` role;
+    - a statement that touches `salon.` before `SET ROLE salon_owner` fails with `permission denied for
+      schema salon`;
+    - only `salon_owner` may GRANT or REVOKE.
+  - **Red on the old scripts, green on the fixed ones:**
+    - the `7836d42` scripts fail 15 of 20, with the operator's exact message;
+    - the fixed scripts with only the `SET ROLE` removed fail 11 of 20;
+    - the cases that still pass never reach the store (root, env file, flag directory).
+  - `--check`: OK on a full grant without issuing a GRANT or REVOKE; names a missing privilege and changes
+    nothing; fails when Postgres is unreachable.
+  - a full run applies W1 → R1 → R2 → W2 and restores, with every statement run as `salon_owner`;
   - a wrong set aborts and restores;
   - a timeout restores;
   - a Ctrl-C while W1 is applied restores;
@@ -1511,11 +1546,16 @@ wait for the K-3 window.
   - a stale flag refuses;
   - Postgres unreachable refuses;
   - a missing flag directory refuses;
-  - a non-root user is refused.
+  - a non-root user is refused;
+  - `k3-restore.sh` restores to 20 of 20 and salon_app reads all five tables; a grant that does not take
+    reports 18 of 20; a denied read, an unreachable store or a missing password each fail with the script's
+    own line.
 
   It is not in `check-all`, because its waits add time.
-- **Limit:** the fake store does not exercise the real `docker compose exec … psql` call. That call is the
-  same form as the D2b-2 operator blocks.
+- **Limit:** the fake still does not exercise real psql or Postgres. *(Corrected: this line used to say the
+  call "is the same form as the D2b-2 operator blocks". The form was the same, but the role context was
+  not, and that is what failed.)* The real path is proven by the operator's `--check` run before the
+  window.
 - **Operator check before running:** docker must not be in debug mode (`docker info --format '{{.Debug}}'`
   prints `false`). A debug daemon may log exec requests, and `-e NAME` carries the value inside that
   request. *(Audit LOW; that a debug daemon logs it is an assumption, not measured.)*
