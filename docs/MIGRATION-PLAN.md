@@ -1659,6 +1659,8 @@ proof (`salon_app` SELECT on all five tables). The copies had already been deact
 guards came first, right after the window. The oracle read is replaced by `k3-restore.sh`'s `salon_app`
 SELECT proof. *That proof came in afterwards (operator statement): `k3-restore.sh` OK, catalog 20/20, `salon_app`
 SELECT on all five tables, run from a new session because the window terminal had frozen (§3r "K-3 closed").*
+*Claude's 20-of-20 confirmation after it (measured 2026-10-22, 16:47 UTC, through `salon_ro`):* `has_table_privilege`
+gives 20/20 for `salon_app`, and the missing set is empty. *The planned oracle read stays replaced (deviation above).*
 
 *Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
 from the error item and the builder's output, not from Telegram.
