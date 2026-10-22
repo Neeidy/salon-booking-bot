@@ -1480,7 +1480,9 @@ wait for the K-3 window.
 - **Fix, in the scripts only (no role or grant change):**
   - every statement now runs after `SET ROLE salon_owner`, placed inside `q()` (in `k3-restore.sh`, `owner()`),
     so no call can skip it;
-  - a read-only `--check` mode proves the real path before the window;
+  - a read-only `--check` mode proves the connection, the `SET ROLE` and the catalog read before the window.
+    It runs no GRANT or REVOKE, so the first stage is the first time those run as `salon_owner`; a failure
+    there rolls back and the trap reports it;
   - `k3-restore.sh` prints its own line when a step fails (before, `set -e` ended it on psql's raw error).
 
 *Why four stages and not one:*
@@ -1520,9 +1522,11 @@ wait for the K-3 window.
 - **Secrets:** the passwords reach psql by environment inheritance only (`PGPASSWORD` + `exec -e NAME`).
 - **The restore script** re-grants, checks 20 of 20 privileges in the catalog, and proves it by behaviour:
   it connects AS `salon_app` and SELECTs from all five tables.
-- **Offline test, committed: `tests/ops/k3-window.test.sh`, 20 of 20, covering both scripts.**
+- **Offline test, committed: `tests/ops/k3-window.test.sh`, 21 of 21, covering both scripts.**
   - **How it fakes the store:** only the `docker` word of each script copy is pointed at a fake (count
-    asserted, so the real docker is never reached). `q()`, `as()` and `owner()` therefore run for real.
+    asserted on the `docker` TOKENS outside comments; a source with two is refused at setup). A tripwire
+    `docker` first on PATH records any escape, and its silence is the last case. `q()`, `as()` and `owner()`
+    therefore run for real.
   - The fake checks the exact `compose … exec … psql` argument shape, and that the password arrives by
     environment.
   - **It models the role boundary of `002_roles.sql`:**
@@ -1531,9 +1535,11 @@ wait for the K-3 window.
       schema salon`;
     - only `salon_owner` may GRANT or REVOKE.
   - **Red on the old scripts, green on the fixed ones:**
-    - the `7836d42` scripts fail 15 of 20, with the operator's exact message;
-    - the fixed scripts with only the `SET ROLE` removed fail 11 of 20;
-    - the cases that still pass never reach the store (root, env file, flag directory).
+    - the `7836d42` scripts fail 15 of 21. In 11 of them the output is the operator's exact message; the
+      other 4 fail because `--check` did not exist yet or a message text changed;
+    - the fixed scripts with only the `SET ROLE` removed fail 11 of 21;
+    - the cases that still pass never reach a statement that touches the schema (root, env file, flag
+      directory, an unknown argument, an unreachable store).
   - `--check`: OK on a full grant without issuing a GRANT or REVOKE; names a missing privilege and changes
     nothing; fails when Postgres is unreachable.
   - a full run applies W1 → R1 → R2 → W2 and restores, with every statement run as `salon_owner`;
@@ -1554,8 +1560,8 @@ wait for the K-3 window.
   It is not in `check-all`, because its waits add time.
 - **Limit:** the fake still does not exercise real psql or Postgres. *(Corrected: this line used to say the
   call "is the same form as the D2b-2 operator blocks". The form was the same, but the role context was
-  not, and that is what failed.)* The real path is proven by the operator's `--check` run before the
-  window.
+  not, and that is what failed.)* The connection, the `SET ROLE` and the catalog read are proven by the
+  operator's `--check` run before the window.
 - **Operator check before running:** docker must not be in debug mode (`docker info --format '{{.Debug}}'`
   prints `false`). A debug daemon may log exec requests, and `-e NAME` carries the value inside that
   request. *(Audit LOW; that a debug daemon logs it is an assumption, not measured.)*

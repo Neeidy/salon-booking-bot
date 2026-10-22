@@ -3,8 +3,9 @@
 # interruption). It re-grants salon_app's full table privileges, checks the catalog, and then PROVES the grant
 # by behaviour: it connects AS salon_app over TCP and SELECTs from all five tables. Exits non-zero on any miss.
 # The grant and the catalog count run after `SET ROLE salon_owner`: salon_migrator itself has no USAGE on schema
-# salon (002_roles.sql, INHERIT FALSE), so without it even resolving 'salon.<table>' is denied (measured
-# 2026-10-22 on k3-window.sh's identical query). The proof read runs as salon_app, which has USAGE.
+# salon (002_roles.sql, INHERIT FALSE), so without it even resolving 'salon.<table>' is denied (root output,
+# operator ran it 2026-10-22: k3-window.sh's catalog check, which resolves 'salon.<table>' the same way, was
+# refused). The proof read runs as salon_app, which has USAGE.
 # Secrets reach psql only by environment inheritance; nothing but counts of checks is printed.
 set -euo pipefail
 ENV=/root/n8n/postgres-roles.env
@@ -26,8 +27,8 @@ SELECT count(*) FILTER (WHERE has_table_privilege('salon_app', 'salon.' || t, p)
   FROM unnest(ARRAY['appointments','bot_metrics','conversations','leads','processed_messages']) t,
        unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) p;
 SQL
-)" || granted='? (the catalog check failed, psql error above)'
-[ "$granted" = "20/20" ] || { echo "k3-restore: catalog shows $granted privileges — NOT restored"; exit 1; }
+)" || granted='no answer (psql error above)'
+[ "$granted" = "20/20" ] || { echo "k3-restore: the catalog check gave $granted, not 20/20 — NOT restored"; exit 1; }
 reads="$(as salon_app "$SALON_APP_PASSWORD" <<'SQL'
 SELECT (SELECT 1 FROM (SELECT count(*) FROM salon.conversations) a) + (SELECT 1 FROM (SELECT count(*) FROM salon.appointments) b)
      + (SELECT 1 FROM (SELECT count(*) FROM salon.leads) c) + (SELECT 1 FROM (SELECT count(*) FROM salon.processed_messages) d)

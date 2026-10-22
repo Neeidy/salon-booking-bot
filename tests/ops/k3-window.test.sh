@@ -13,7 +13,9 @@ set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="${K3_WINDOW_SRC:-$ROOT/db/ops/k3-window.sh}"; RSRC="${K3_RESTORE_SRC:-$ROOT/db/ops/k3-restore.sh}"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
-mkdir "$T/bin"
+mkdir "$T/bin" "$T/trip"
+# Tripwire: a `docker` found through PATH means a copy escaped the fake. It records the call and does nothing.
+printf '#!/bin/sh\ntouch %s/tripped\nexit 99\n' "$T" > "$T/trip/docker"; chmod +x "$T/trip/docker"; export PATH="$T/trip:$PATH"
 cat > "$T/fakedb.py" <<'PY'
 import sys, re, os, json
 args = sys.argv[1:]
@@ -62,11 +64,11 @@ PY
 printf '#!/bin/sh\nexec python3 %s "$@"\n' "$T/fakedb.py" > "$T/bin/docker"; chmod +x "$T/bin/docker"
 printf 'SALON_MIGRATOR_PASSWORD=fake-mig-pw\nSALON_APP_PASSWORD=fake-app-pw\n' > "$T/env"
 printf 'SALON_MIGRATOR_PASSWORD=fake-mig-pw\n' > "$T/env-noapp"
-prep() {   # prep <src> <out> [extra sed]: the copy may reach only the fake docker
+prep() {   # prep <src> <out> [extra sed]: the copy may reach only the fake docker (TOKENS counted, comments excluded)
   sed -e "s#^ENV=.*#ENV=$T/env#" -e "s#^FLAGS=.*#FLAGS=$T/flags#" -e 's#^WAIT_START=.*#WAIT_START=6#' \
       -e 's#^WAIT_STAGE=.*#WAIT_STAGE=6#' -e "s#/root/k3-window.lock#$T/lock#" -e 's#\[ "$(id -u)" = 0 \] ||#true ||#' \
       -e "s#docker compose#$T/bin/docker compose#" ${3:+-e "$3"} "$1" > "$2"
-  [ "$(grep -c 'docker compose' "$2")" = 1 ] && [ "$(grep -c "$T/bin/docker compose" "$2")" = 1 ] \
+  [ "$(grep -v '^[[:space:]]*#' "$2" | grep -ow 'docker' | wc -l)" = 1 ] && [ "$(grep -c "$T/bin/docker compose" "$2")" = 1 ] \
     || { echo "✗ setup: $2 must call docker exactly once, through the fake"; exit 1; }
 }
 prep "$SRC" "$T/t.sh"; prep "$RSRC" "$T/r.sh"; prep "$RSRC" "$T/r-noapp.sh" "s#^ENV=.*#ENV=$T/env-noapp#"
@@ -114,7 +116,7 @@ echo "— k3-restore.sh —"
 fresh; echo '["conversations:UPDATE","leads:SELECT"]' > "$T/state"; run bash "$T/r.sh"
 check "restore from a revoked state: OK 20/20 and salon_app reads all 5 tables, exit 0" '[ $rc = 0 ] && grep -q "k3-restore: OK — catalog 20/20" <<<"$out" && [ "$(cat $T/state)" = "[]" ] && grep -q "^salon_app SELECT" "$T/log"'
 fresh; echo '["conversations:UPDATE","leads:SELECT"]' > "$T/state"; run env K3_GRANT_NOOP=1 bash "$T/r.sh"
-check "a grant that does not take: NOT restored (18/20), exit 1" '[ $rc = 1 ] && grep -q "catalog shows 18/20 privileges — NOT restored" <<<"$out"'
+check "a grant that does not take: NOT restored (18/20), exit 1" '[ $rc = 1 ] && grep -q "gave 18/20, not 20/20 — NOT restored" <<<"$out"'
 fresh; run env K3_APP_DENY=1 bash "$T/r.sh"
 check "catalog 20/20 but salon_app cannot read: says so, exit 1, no OK" '[ $rc = 1 ] && grep -q "could not SELECT" <<<"$out" && ! grep -q "k3-restore: OK" <<<"$out"'
 fresh; run env K3_DOWN=1 bash "$T/r.sh"
@@ -122,5 +124,6 @@ check "Postgres unreachable: the GRANT failed, exit 1, no OK" '[ $rc = 1 ] && gr
 fresh; run bash "$T/r-noapp.sh"
 check "salon_app password missing from the env file: refuses, exit 2, nothing run" '[ $rc = 2 ] && grep -q "password is missing" <<<"$out" && [ ! -e "$T/log" ]'
 if [ "$(id -u)" != 0 ]; then out="$(bash "$RSRC" 2>&1)"; rc=$?; check "the real k3-restore.sh refuses a non-root user" '[ $rc = 2 ] && grep -q "run as root" <<<"$out"'; fi
+out=''; check "the PATH tripwire was never called (no copy reached a real docker)" '[ ! -e "$T/tripped" ]'
 echo "k3 scripts test: $pass passed, $fail failed"
 [ "$fail" = 0 ]

@@ -21,8 +21,8 @@
 # claim a restore it could not verify.
 # Every statement runs after `SET ROLE salon_owner`, the catalog checks included: salon_migrator itself has no
 # USAGE on schema salon (002_roles.sql, INHERIT FALSE), so even resolving 'salon.<table>' is denied without it.
-# Measured 2026-10-22: the first operator run stopped at the baseline check with "permission denied for schema
-# salon", before anything was revoked. The SET ROLE lives inside q() so no call can skip it.
+# Root output, operator ran it 2026-10-22: the first run stopped at the baseline check with "permission denied
+# for schema salon", before anything was revoked. The SET ROLE lives inside q() so no call can skip it.
 # Secrets: the migrator password reaches psql only by environment inheritance (PGPASSWORD + `exec -e NAME`,
 # which puts the NAME on the command line, never the value). Nothing is printed but stage names and privileges.
 set -euo pipefail
