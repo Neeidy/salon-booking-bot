@@ -1477,25 +1477,51 @@ wait for the K-3 window.
   - **W2:** INSERT and UPDATE on processed_messages.
 
 *The operator's scripts:* `db/ops/k3-window.sh` (REVOKE) and `db/ops/k3-restore.sh` (GRANT and proof).
-They are run from the reviewed commit, not from the working tree.
+- **How root gets them:** root FETCHES them from the pushed, reviewed commit through GitHub's raw URL for
+  that SHA. It compares their sha256 with the values in the hand-over and runs them from `/root`.
+- **Why:** root never runs a file from, or runs `git` inside, the unprivileged account's working tree.
+  That account is the one Claude runs as, and letting it decide what root executes would cross the "Claude
+  has no sudo" boundary (pre-push audit, M2).
 - **Every stage** restores `salon_app`'s full grant and revokes its own set in ONE transaction. It then
   checks the catalog: if `salon_app` lacks anything other than exactly that set, it aborts.
 - **A stage advances only on Claude's flag file.** The flag directory is in Claude's home, so no other
   local user can advance it.
-- **The EXIT trap restores the full grant on any exit:** end, error, timeout or Ctrl-C.
-- **The window refuses to start** unless `salon_app` is at its full grant.
+- **On any exit (end, error, timeout, Ctrl-C) the EXIT trap tries to restore the full grant, then CHECKS
+  it.**
+  - It prints `RESTORED` only when `salon_app` lacks nothing.
+  - Otherwise it prints `RESTORE FAILED — run k3-restore.sh` and exits non-zero (1, or the signal's status
+    when a signal ended the run).
+  - Further Ctrl-Cs are ignored during the restore. *That was measured by the pre-push auditor: without the
+    ignore, a second SIGINT cut the GRANT off. The committed test does not cover it.*
+  - *(Corrected after the pre-push audit, M1: the first version printed RESTORED without checking, and
+    said nothing when the restore itself failed.)*
+- **The window refuses to start if any of these holds:** `salon_app` is not at its full grant; Postgres
+  cannot be reached; the flag directory is missing or not empty; another run holds the lock.
 - **Secrets:** the passwords reach psql by environment inheritance only (`PGPASSWORD` + `exec -e NAME`).
 - **The restore script** re-grants, checks 20 of 20 privileges in the catalog, and proves it by behaviour:
   it connects AS `salon_app` and SELECTs from all five tables.
-- **Offline test, with a fake privilege store:**
+- **Offline test, committed: `tests/ops/k3-window.test.sh`, 10 of 10, with a fake privilege store.**
   - a full run applies W1 → R1 → R2 → W2 and restores;
-  - a stage that leaves the wrong set aborts and restores;
-  - a missing flag times out and restores;
+  - a wrong set aborts and restores;
+  - a timeout restores;
   - a Ctrl-C while W1 is applied restores;
-  - a non-full baseline refuses to start and changes nothing;
-  - both scripts refuse a non-root user.
+  - **the store going away during W1 gives RESTORE FAILED and exit 1, never a false RESTORED.** A mutant
+    that claims RESTORED without checking is caught.
+  - a non-full baseline refuses and changes nothing;
+  - a stale flag refuses;
+  - Postgres unreachable refuses;
+  - a missing flag directory refuses;
+  - a non-root user is refused.
+
+  It is not in `check-all`, because its waits add time.
 - **Limit:** the fake store does not exercise the real `docker compose exec … psql` call. That call is the
   same form as the D2b-2 operator blocks.
+- **Operator check before running:** docker must not be in debug mode (`docker info --format '{{.Debug}}'`
+  prints `false`). A debug daemon may log exec requests, and `-e NAME` carries the value inside that
+  request. *(Audit LOW; that a debug daemon logs it is an assumption, not measured.)*
+- **Timing (K-4):** the window opens at least an hour away from the Purge copy's schedule, 04:00
+  Europe/Vienna (02:00 UTC until 2026-10-25, 03:00 UTC after). Activating the copy arms its schedule, and an
+  unplanned run would consume the seed rows and alert the owner.
 
 *Claude's side:*
 - **Before `go`, with the full grant:**

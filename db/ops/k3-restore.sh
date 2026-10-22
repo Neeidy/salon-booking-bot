@@ -6,6 +6,7 @@
 set -euo pipefail
 ENV=/root/n8n/postgres-roles.env
 [ "$(id -u)" = 0 ] || { echo "k3-restore: run as root"; exit 2; }
+[ -r "$ENV" ] || { echo "k3-restore: $ENV not readable"; exit 2; }
 set -a; . "$ENV"; set +a
 [ -n "${SALON_MIGRATOR_PASSWORD:-}" ] && [ -n "${SALON_APP_PASSWORD:-}" ] || { echo "k3-restore: a password is missing from $ENV"; exit 2; }
 as() {   # as <role> <password>, SQL on stdin

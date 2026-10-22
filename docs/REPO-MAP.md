@@ -234,6 +234,10 @@
 - `tests/fixtures/sql-params/good-no-params.json`
 - `tests/fixtures/sql-params/good-select-two-params.json`
 
+### tests/ops
+
+- `tests/ops/k3-window.test.sh`
+
 ### tests/snippet
 
 - `tests/snippet/DRILLS.md`
@@ -719,6 +723,7 @@
   - ### tests/contract/fixtures
   - ### tests/db
   - ### tests/fixtures/sql-params
+  - ### tests/ops
   - ### tests/snippet
   - ### tests/unit
   - ### web
