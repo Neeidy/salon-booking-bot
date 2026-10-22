@@ -1107,7 +1107,8 @@ a committed copy export cannot keep.)*
 - Both parity guards are 0.
 
 *Pending:*
-- **STORE-ERROR** (the copy's error path) waits for the K-3 window.
+- **STORE-ERROR** (the copy's error path) waited for the K-3 window. *Drilled there on 2026-10-22: see the K-3
+  result.*
 
 **D3b · Owner Actions** (`--trigger "Receive Owner Action"`)
 - **`Find Target Conversation`:**
@@ -1211,7 +1212,8 @@ the copy is parked inactive. The Q17 race could not be reproduced on the correct
 - **The live instance holds 7 workflows:** the 5 originals, active, and 2 copies, inactive.
 - Both parity guards are 0, with 7 exports paired.
 
-*Pending:* the copy's error paths (replay-check unavailable, release failed) wait for the K-3 window.
+*Pending at the time:* the copy's error paths (replay-check unavailable, release failed) waited for the K-3
+window. *Drilled there on 2026-10-22: see the K-3 result.*
 
 **D3c · Reminders** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Reminders)`)
 - **`Find Due Appointments`:**
@@ -1415,7 +1417,7 @@ execution created.
   - the GRANT block proves that `salon_app`'s SELECT works again.
 
 **D3d result ✅ (2026-10-22): the Processed Purge copy is built, drilled and parked inactive.** Its error paths
-wait for the K-3 window.
+waited for the K-3 window. *Drilled there the same day: see the K-3 result.*
 
 *Offline:*
 - **Generated** from the committed original and `db/copies/purge.json`. Eight data nodes; `Delete Old
@@ -1463,7 +1465,7 @@ wait for the K-3 window.
 - D3e's swaps stay at least an hour away from that time.
 - The operator's editor observation ("Default – Europe/Vienna") agrees.
 
-**K-3 error-path window: PREPARED (2026-10-22), not run.** It covers D3a, D3b and D3d; Reminders is excluded
+**K-3 error-path window: RUN 2026-10-22, results below; `k3-restore.sh`'s proof is pending the operator.** It covers D3a, D3b and D3d; Reminders is excluded
 (ruling (iii)).
 
 *First operator run, 2026-10-22: stopped at the baseline check, nothing revoked.*
@@ -1584,6 +1586,63 @@ wait for the K-3 window.
 | R1 | `STORE-ERROR\|count-markers` | release t2 → **503** `replay_check_unavailable`, t2 unchanged | `Find Old Processed` and `Count Leads Total` errors → `Purge Error (processed / leads)`, detail = the SQL error text (`single`). The PII branch works normally |
 | R2 | `STORE-ERROR\|read-conversation` | release any id → **404** `not_found` (a store error reads as "missing", the original's design) | `Find Stale Conversations` error → `Purge Error (PII)`. The processed and leads branches work normally |
 | W2 | oracle reads normally | release t3 → **200** `{ok: true, degraded: "marker_unwritten"}`, t3 released, 0 marker rows, marker-failure alert built | — |
+
+**K-3 result (2026-10-22, scripts at `484999a`).**
+
+*How it ran:*
+- The operator's `--check` returned OK *(operator statement)*.
+- Before `go`, with the full grant:
+  - the seed was in place (t1, t2 and t3 in `handoff`, one marker, the D3d rows);
+  - D3a and D3b were active, and every test path was refused at the edge (both S6 signals);
+  - the control: the D3a oracle on t1 read `handoff|clarify|1`.
+- The D3d copy was active only for its own drill in each stage, then deactivated (K-4).
+- Each stage was confirmed from the catalog through `salon_ro`, before its drills and again after them.
+  All eight confirmations matched.
+- After `W2.done` the catalog showed `salon_app` lacking nothing: the script's own restore, read through
+  `salon_ro`.
+- *A seed defect of mine was caught before `go`.* The D3d texts had gone into `last_intent`, because the
+  column list was wrong. The snapshot showed no stale texts; the rows were cleaned by the prefix guard and
+  re-seeded with the right columns.
+
+*Measured, per stage:*
+
+| Stage | D3a | D3b | D3d |
+|---|---|---|---|
+| W1 | `handoff\|clarify\|1` (control) | 502, t1 unchanged. Execution: `Release Wrote?` output 1 → release-failure alert built and sent → `Respond Release Failed`. **The body at the edge was `error code: 502`** (finding 1) | `Delete Old Processed` 0/2, `Scrub Recent Messages` 0/2, `Delete Old Leads` 0/1, each → its `Purge Error` node. Rows unchanged. **Detail `[object Object]`, owner text `-object Object-`: Q18 confirmed on the real copy.** One alert per branch, three built, three sent |
+| R1 | `STORE-ERROR\|count-markers` | 503 `replay_check_unavailable`, t2 unchanged | `Find Old Processed` → `Purge Error (processed)` with the SQL error text. The PII branch scrubbed s1 and s2 and kept f1. Leads: both read errors reached `Purge Error (leads)`, **plus a `no_candidates` refusal** (finding 2). Builder 0 (per-branch throttle) |
+| R2 | `STORE-ERROR\|read-conversation` | 404 `not_found` | `Find Stale Conversations` → `Purge Error (PII)` with the SQL error text. Processed deleted old1 and old2; leads deleted the one aged row (6 → 5), and `Verify Leads Purge` stayed silent. Builder 0 (throttle) |
+| W2 | `handoff\|clarify\|1` | 200 `{ok: true, degraded: "marker_unwritten"}`. t3 released (`new`, empty `last_intent`), 0 marker rows, marker-failure alert built and sent | — |
+
+*Across the window:*
+- 12 copy executions (D3a 5, D3b 4, D3d 3): all in `webhook` mode, all `success`.
+- Binary items:
+  - D3a and D3d: 0;
+  - D3b: 1 per execution, from `Receive Owner Action`'s `rawBody: true`. That is the HMAC raw body, by
+    design, and the original's.
+
+*Findings, carried (not fixed here):*
+1. **Cloudflare replaces the body of an origin 502.**
+   - What the client gets is `error code: 502`, not `{ok: false, error: "release_failed"}`.
+   - 503 and 404 bodies pass through unchanged.
+   - The original's `Respond Release Failed` is the same node, so this is today's production behaviour,
+     not a copy divergence.
+   - A dashboard consumer has to key on the status code.
+2. **A read failure in the leads branch reports twice.**
+   - `Count Leads Total` and `Find Old Leads` carry `alwaysOutputData` with `continueErrorOutput`.
+   - So besides the error item on output 1, each emits an empty item on output 0. The branch carries on
+     and adds a `no_candidates` refusal next to the two real errors.
+   - Nothing is deleted (the cap refuses), but the owner would read "no candidates" during a store outage.
+   - The original carries the same settings.
+
+*Deviation (declared):* the plan's oracle read after the restore was replaced by `k3-restore.sh`'s behaviour
+proof (`salon_app` SELECT on all five tables). The copies had already been deactivated, per K-4.
+
+*Clean-up, done:*
+- the copies deactivated;
+- the rows removed by the prefix guard (2 processed, 6 conversations, 5 leads), so the tables are at 0;
+- the seed workflow deleted (GET 404);
+- the flag files removed;
+- both parity guards at 0.
 
 *After the window:*
 - the operator runs `k3-restore.sh`;
