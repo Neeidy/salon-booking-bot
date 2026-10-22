@@ -116,6 +116,12 @@ A rollback rehearsal (snapshot → trivial change → restore → publish → su
 commit that adds this file; re-rehearse if the n8n host or credential set changes.
 
 ## ⚠ API save blocked by `settings must NOT have additional properties` (2026-08-18)
+> ⚠ **Under correction (ruling 2026-10-22).** Statements in this section are contradicted or put in doubt
+> ([MIGRATION-PLAN.md](MIGRATION-PLAN.md) §3r, settings-parity rows and D3c). Contradicted by measurement: the 400
+> on extra keys, "re-adds these defaults on every save", and "MCP-exposure off". Put in doubt by a static finding
+> (a binary-capable node, resting on unmeasured `autodetect` semantics): "no binary data". The in-place correction
+> is a step of the settings-parity build, which stopped before it. Until then, read this section as history.
+
 **Symptom.** Every MCP save (`n8n_update_partial_workflow`, any op — even a one-field `patchNodeField`)
 fails with `Invalid request: request/body/settings must NOT have additional properties` (400,
 `rollbackPerformed:false`, nothing applied).

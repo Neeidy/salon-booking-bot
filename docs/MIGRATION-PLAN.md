@@ -74,7 +74,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r).** | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
-| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c and D7's close wait for it. **d) Permanent off-server target.** | acceptance suite green · rollback trigger list armed · export taken before any revoke |
+| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c and D7's close wait for it. **d) Permanent off-server target.** **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Waits for the soak. | DoD |
 
 *Why D6 carries the shutdown and not D7: the D0 rulings already attach the Airtable export gate and the
@@ -947,6 +947,8 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **The 502 body (2026-10-22)** | **Ruling:** continuing the window past the replaced 502 body was acceptable. The copy behaved as planned inside (node, alert, row unchanged), and the edge layer changes that body for the original too. |
 | **Two Phase 7 items (2026-10-22)** | **Ruling:** both are NAMED Phase 7 items, not migration regressions, because both exist in the originals ([PHASE-7-PLAN.md](PHASE-7-PLAN.md) §1, PHASE 7 bucket): (1) a release failure reaches the client as the edge's generic 502, not the `release_failed` JSON; the dashboard must decide on the status code, and where the body is replaced is measured there. (2) A leads READ error also emits a spurious `no_candidates` alert next to the real errors (`alwaysOutputData` leaves an empty item on output 0). |
 | **D3e order (2026-10-22)** | **Ruling:** D3e waits. It opens in its own round, after the settings-parity plan is approved. |
+| **settings-parity plan APPROVED (2026-10-22)** | **Ruling (Yigitcan, plan-gate), class option O1 (accept by evidence, per key), with amendments:** (i) the `binaryMode` reader search is redone at the source tag matching the running build (the version number is kept out of this public repo), with every reader listed; (ii) only T0 and the five guard mutants run now. **R1 (editor import), R2 (CLI `import:workflow`) and R3 (does a PUT preserve a present hidden setting) are NOT run; they move to D6b's plan as the O3 question.** `availableInMCP`: first measure, read-only, whether this instance's MCP server is enabled; the committed Main export takes the live value ONLY together with the ruling that follows from it. `docs/n8n-rollback.md`'s three contradicted statements are corrected in place. `staticData` and tags move to D6b's plan. Yigitcan does not remember whether Main's `availableInMCP` was turned on; there is no operator statement either way, so the measurement decides. |
+| **settings-parity build, step 1: STOPPED (2026-10-22)** | **The instance-level MCP server is ENABLED** *(the response is measured; "enabled" is read against the source tag matching the running build (the version number is kept out of this public repo), and the running build's version was confirmed equal to that tag by the L2 `security-auditor`, read in the running container on 2026-10-22).* Probe on the origin over loopback, no credential: `GET /mcp-server/http` → **401** with `WWW-Authenticate: Bearer realm="n8n MCP Server"` and the body `Unauthorized: Authorization header not sent`. `HEAD` → **401** with the same header and no body. In the source, `mcp.controller.ts` puts `getEnabledMiddleware` FIRST on both routes: GET then runs the auth middleware (`mcp-server-middleware.service.ts`), which sends that 401, and HEAD's own handler sends its 401. With the server disabled, `getEnabledMiddleware` answers both with **404** `{"message": "MCP access is disabled"}`. *Controls:* a nonexistent sibling path returns the editor page (200), so the 401 is route-specific. The public API without a key returns a different 401 (`Unauthorized`, no `WWW-Authenticate`). *The edge:* from the internet every `/mcp-server/*` path is redirected to the Cloudflare Access login (302), with or without the API service token. So an outside MCP client needs an Access identity first; that is a second layer, not the server being off. *Consequence:* Main's `availableInMCP: true` is NOT inert. The brief's stop condition applies, so steps 2–5 were not run and Main's export was not changed. *Observation, cause unknown:* Main's draft `versionId` has differed from its published `activeVersionId` since 2026-10-22 12:49 UTC; nodes are in parity, so the change is not in the nodes. |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
@@ -1942,7 +1944,13 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 
 *These are estimates. The cost report's 12–14 excluded re-verification; this budget includes it.*
 
-**Re-baselined (Yigitcan, 2026-10-20):**
+**⚠ SUPERSEDED 2026-10-22: the round-count budget (the original estimate table above and the re-baselined counts below) no longer governs (Yigitcan: the round count is not
+reliably countable).** It is kept as history. **The stop rule that replaces it:** the migration stops on
+**(a)** a third fix-of-a-fix (unchanged), **(b)** a step stopping twice on the same unresolved question, or
+**(c)** D6b's acceptance not reached by **2026-11-08**. On a stop, **Airtable Team** is put on the table.
+*Note:* the Airtable quota may reset around 2026-11-01 (unmeasured); if it does, the comparison is redone.
+
+**Re-baselined (Yigitcan, 2026-10-20; superseded 2026-10-22, above):**
 - **The work remaining from now:** D3 4 · D4 6 · D5 2 · D6 4 · D7 1 = **17 rounds**.
 - **The emergency exit sits at 1.5× that: 25 rounds from now** (25.5, rounded down, as the original
   rounded 27–28.5 to 28). "Third fix-of-a-fix" stays.
@@ -1952,12 +1960,12 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
   budget's unit no longer matches. No stop so far was non-convergence.
 - The table above is kept as the original estimate.
 
-**Emergency exit (declared at D1, before any measurement; its round counts were re-baselined on 2026-10-20, above):** stop the phase if **the total passes 1.5× the
+**Emergency exit (declared at D1, before any measurement; re-baselined 2026-10-20; its round-count triggers are SUPERSEDED by the 2026-10-22 stop rule above, and the on-exit steps below still hold):** stop the phase if **the total passes 1.5× the
 budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step passes 2× its own budget without meeting its exit gate.**
 - On exit: the copies are kept inactive; the originals remain the active code path; Postgres and its
   volume are kept.
 - The proposal on the table becomes **Airtable Team**. Its price is not measured; Yigitcan reads it.
-- "Third fix-of-a-fix" (the brief's stop rule) also stops a step regardless of budget.
+- "Third fix-of-a-fix" (the brief's stop rule) also stops a step regardless of budget (now stop rule (a) above).
 
 ## 11 · Rulings (Yigitcan, 2026-10-19: "onaylıyorum", with Cowork's recommendations)
 
