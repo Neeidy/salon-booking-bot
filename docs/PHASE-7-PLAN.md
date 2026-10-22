@@ -11,6 +11,16 @@
 
 ## Ship-gate #17 — MOVED to the end-of-phase security pass (Yigitcan's ruling, 2026-10-18)
 
+**The final security pass: what it carries (list consolidated 2026-10-22).**
+1. **Ship-gate #17** (below).
+2. **Main's `availableInMCP: true` with the instance MCP server enabled** (measured 2026-10-22). It is an
+   accepted exposure behind Cloudflare Access at the edge and MCP bearer auth at the origin (ruling; MIGRATION-PLAN
+   §3r "MCP exposure"). The pass decides whether it stays.
+3. **Q16:** split `salon_ro`'s column access (speed plan 2026-10-22; it was "before D5").
+4. **D6d:** a permanent off-server backup target (speed plan 2026-10-22).
+5. Backups of a secret file fall outside the deny scope (MIGRATION-PLAN §3n), and the root-only-file item in
+   [OPERATIONAL-INCIDENTS.md](OPERATIONAL-INCIDENTS.md) (already recorded as joining this pass).
+
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays
 OPEN on the ship gate — the row is not deleted, only its position changed.

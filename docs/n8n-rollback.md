@@ -116,31 +116,43 @@ A rollback rehearsal (snapshot → trivial change → restore → publish → su
 commit that adds this file; re-rehearse if the n8n host or credential set changes.
 
 ## ⚠ API save blocked by `settings must NOT have additional properties` (2026-08-18)
-> ⚠ **Under correction (ruling 2026-10-22).** Statements in this section are contradicted or put in doubt
-> ([MIGRATION-PLAN.md](MIGRATION-PLAN.md) §3r, settings-parity rows and D3c). Contradicted by measurement: the 400
-> on extra keys, "re-adds these defaults on every save", and "MCP-exposure off". Put in doubt by a static finding
-> (a binary-capable node, resting on unmeasured `autodetect` semantics): "no binary data". The in-place correction
-> is a step of the settings-parity build, which stopped before it. Until then, read this section as history.
+> **Corrected in place 2026-10-22** (settings-parity, [MIGRATION-PLAN.md](MIGRATION-PLAN.md) §3r). The symptom
+> below is what the instance's version did on 2026-08-18. Three statements were wrong by today's measurements and
+> are rewritten where they stood: the cause, "re-adds these defaults", and the behaviour impact.
 
 **Symptom.** Every MCP save (`n8n_update_partial_workflow`, any op — even a one-field `patchNodeField`)
 fails with `Invalid request: request/body/settings must NOT have additional properties` (400,
 `rollbackPerformed:false`, nothing applied).
 
-**Cause.** This n8n instance stores UI-added workflow-settings keys the **public API PUT schema rejects**:
-`binaryMode`, `availableInMCP`, `timeSavedMode`, `callerPolicy` (alongside the allowed `executionOrder`).
-The MCP tool reads the workflow back and re-sends those keys verbatim → the API rejects the body. n8n
-**re-adds these defaults server-side on every save**, so the MCP path stays broken permanently (and a UI
-save re-adds them too). This is not credential/permission related.
+**Cause, as it stood on 2026-08-18.** The instance stored workflow-settings keys that the public API's settings
+schema of that version did not list: `binaryMode`, `availableInMCP`, `timeSavedMode`, `callerPolicy` (beside
+`executionOrder`). The MCP tool re-sent them verbatim and the API answered 400. This is not credential or
+permission related.
+
+**Today (measured 2026-10-22):** the instance's own OpenAPI spec lists all four keys. `binaryMode` (and
+`credentialResolverId`) are "derived, internal" and **ignored** on create and update: a PUT carrying `binaryMode`
+returns 200 and the value is dropped (D3c). `callerPolicy` and `timeSavedMode` are **kept** on create (T0).
+*Corrected:* this section used to say n8n "re-adds these defaults server-side on every save". It does not: a
+workflow created through the API with `settings: {}` reads back `{}` (T0), three originals carry no extra key, and
+Reminders carries only `binaryMode`. The source explains where `binaryMode` comes from: the editor's settings
+dialog turns an undefined `binaryMode` into `"separate"` when it saves.
 
 **Fix — save via the raw public API with a cleaned settings body (MCP cannot do this):**
 `GET /api/v1/workflows/{id}` → build `{name, nodes, connections, settings:{executionOrder:"v1"}}`
 (drop every other top-level key AND the 4 extra settings keys) → `PUT /api/v1/workflows/{id}`.
-The API accepts the clean body and re-adds the 4 defaults itself; the request succeeds (HTTP 200). Auth =
+The request succeeded (HTTP 200). *Corrected:* it was written that the API "re-adds the 4 defaults itself".
+Whether a PUT that omits a stored key PRESERVES it is **not measured**. That is route R3, moved to D6b's plan;
+Main's history is deliberately not used as evidence for it. Auth =
 `X-N8N-API-KEY` + a browser `User-Agent` (Cloudflare 1010), same as `scripts/check-live-parity.py`. Verify
 after: node count unchanged, `active:true`, node params byte-faithful vs the pre-PUT GET, suite 12/12.
 
 **Operating note.** The editor stays **closed** (relaxed-model). While this instance behaves this way, all
 live edits go through the raw-API PUT, not MCP `n8n_update_partial_workflow`. (A future n8n-mcp that strips
-unknown settings before PUT would restore the MCP path.) Behaviour impact of dropping the 4 keys: **none for
-this bot** — no binary data, not called as a sub-workflow, MCP-exposure off, `timeSavedMode` is a metrics
-display toggle. Original values snapshotted in `n8n/.snapshots/substep3-workflow-settings.local.json`.
+unknown settings before PUT would restore the MCP path.) Behaviour impact of a missing key, *corrected 2026-10-22*:
+`binaryMode` absent behaves as `"separate"` (every reader at the running build's source tag, listed in
+MIGRATION-PLAN §3r) · `callerPolicy` absent is its documented default, and no workflow here has an Execute
+Workflow node · `timeSavedMode` is a metrics setting · **`availableInMCP` is NOT inert:** Main carries `true` and
+the instance-level MCP server is enabled (measured). It is recorded as an accepted exposure behind Access at the
+edge and MCP bearer auth at the origin, and it is on the final security pass list. *The old sentence said "no
+binary data" and "MCP-exposure off".* The second was false. The first is in doubt: the Zernio HTTP node runs on
+the default response format, which can emit binary (a static finding; D3c). Original values snapshotted in `n8n/.snapshots/substep3-workflow-settings.local.json`.

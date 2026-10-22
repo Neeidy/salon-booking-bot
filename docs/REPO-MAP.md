@@ -193,6 +193,7 @@
 - `scripts/package.json`
 - `scripts/repo-map.sh`
 - `scripts/secret-scan.sh`
+- `scripts/settings_parity.py`
 
 ### tests
 
@@ -251,6 +252,7 @@
 - `tests/unit/message-id-guard.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
+- `tests/unit/settings-parity.test.py`
 - `tests/unit/validate-intent.test.cjs`
 
 ### web

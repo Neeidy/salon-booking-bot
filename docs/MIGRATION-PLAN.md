@@ -74,8 +74,8 @@ D3 and runs on the one workflow where it is harmless.
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r).** | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
-| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c and D7's close wait for it. **d) Permanent off-server target.** **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
-| **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Waits for the soak. | DoD |
+| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
+| **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
 
 *Why D6 carries the shutdown and not D7: the D0 rulings already attach the Airtable export gate and the
 off-server target to D6 (ARCHITECTURE-DECISIONS 2026-10-19). Moving them would contradict a recorded
@@ -570,6 +570,8 @@ covering its backups (the D2a gap). Measured from a subagent once the file exist
     - a verification role for Claude with only non-PII columns and counts.
   - That changes Q6's security model, so it is **proposed, not applied**.
   - Recommendation: split before D5. Until then, D2b-3 uses only counts and shapes through `salon_ro`.
+  - *Re-ruled 2026-10-22 (speed plan):* the split moves to the final security pass, not before D5. Until
+    then the same rule holds: Claude reads only counts and shapes through `salon_ro`.
 - **Q15: how Claude reaches Postgres as `salon_ro` in D2b-3.** There is no client on the host (no psql,
   no driver). Recommendation: the `pg` package, pinned, as a dashboard dependency, because D5 needs it
   anyway. The alternative is read-only probes through temporary workflows only.
@@ -902,7 +904,7 @@ design branch chosen".
   - **Branch chosen:** S4 (the SQL-error shape is measured; the auth-failure shape's branch is drill M7
     in D4, ruled) · S7 (ruled by Q13) · S9 (ruled by Q4: rides on D6c's export read).
 - **Carried, not part of the gate:**
-  - Q16 (split `salon_ro`'s column access before D5);
+  - Q16 (split `salon_ro`'s column access before D5) *(moved to the final security pass, speed plan 2026-10-22)*;
   - the mandatory Phase 7 alert-detail fix;
   - M7's REVOKE/GRANT, an operator step in D4.
 
@@ -933,7 +935,7 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **K-4** | A schedule-triggered copy is active only during its drill minutes, because activating it for the temporary webhook also arms its schedule. The windows are :05–:50 for Reminders and away from the Purge tick. Executions are measured by mode: the copy must show **no** `trigger` execution. |
 | **K-5** | The owner's Telegram chat is a permitted recipient for drill alerts. It is Yigitcan's own chat (§6: "owner alerts from drills, as today"). The NOT-build line "no real recipient" covers customers and third parties. |
 | **K-6** | **Accepted as a recorded deviation.** If a row disappears between a node's Find and its write inside one run, `Stamp Reminded`, `Scrub Recent Messages`, `Delete Old Processed` and `Delete Old Leads` return `{success: true}` on Postgres, where Airtable raised an error and an alert. Unreachable as measured: no workflow deletes appointments or conversations, and the deletes run once a day. |
-| **K-7** | **(a), full verification:** the copy's scheduled run (`triggerAtHour: 4`), then the original's next scheduled run (two nights). |
+| **K-7** | **(b), daytime only (re-ruled 2026-10-22, speed plan; it was (a)).** *The first ruling was (a), full verification: the copy's scheduled run (`triggerAtHour: 4`), then the original's next scheduled run (two nights).* Now the rehearsal swaps and swaps back in daytime and measures `active` and `versionId`. **Recorded gap:** the copy never fires in trigger mode before the cutover. Its trigger node is identical to the original's, which the diff tool shows. |
 | tool | `scripts/build-workflow-copy.py` is checked by `diff-workflow-copy.py` plus ONE selftest. No separate test suite. |
 | **Q17 evidence (D3b)** | **ACCEPTED (Yigitcan, 2026-10-20).** The evidence is the true overlap on the pre-fix deploy, plus the race path measured identical node by node, plus S2b. The gap stays recorded, and the race is not re-tried. |
 | **run-d11 bodies** | A 200 whose body carries `degraded` is a FAIL (ruling, 2026-10-20). |
@@ -949,6 +951,9 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **D3e order (2026-10-22)** | **Ruling:** D3e waits. It opens in its own round, after the settings-parity plan is approved. |
 | **settings-parity plan APPROVED (2026-10-22)** | **Ruling (Yigitcan, plan-gate), class option O1 (accept by evidence, per key), with amendments:** (i) the `binaryMode` reader search is redone at the source tag matching the running build (the version number is kept out of this public repo), with every reader listed; (ii) only T0 and the five guard mutants run now. **R1 (editor import), R2 (CLI `import:workflow`) and R3 (does a PUT preserve a present hidden setting) are NOT run; they move to D6b's plan as the O3 question.** `availableInMCP`: first measure, read-only, whether this instance's MCP server is enabled; the committed Main export takes the live value ONLY together with the ruling that follows from it. `docs/n8n-rollback.md`'s three contradicted statements are corrected in place. `staticData` and tags move to D6b's plan. Yigitcan does not remember whether Main's `availableInMCP` was turned on; there is no operator statement either way, so the measurement decides. |
 | **settings-parity build, step 1: STOPPED (2026-10-22)** | **The instance-level MCP server is ENABLED** *(the response is measured; "enabled" is read against the source tag matching the running build (the version number is kept out of this public repo), and the running build's version was confirmed equal to that tag by the L2 `security-auditor`, read in the running container on 2026-10-22).* Probe on the origin over loopback, no credential: `GET /mcp-server/http` → **401** with `WWW-Authenticate: Bearer realm="n8n MCP Server"` and the body `Unauthorized: Authorization header not sent`. `HEAD` → **401** with the same header and no body. In the source, `mcp.controller.ts` puts `getEnabledMiddleware` FIRST on both routes: GET then runs the auth middleware (`mcp-server-middleware.service.ts`), which sends that 401, and HEAD's own handler sends its 401. With the server disabled, `getEnabledMiddleware` answers both with **404** `{"message": "MCP access is disabled"}`. *Controls:* a nonexistent sibling path returns the editor page (200), so the 401 is route-specific. The public API without a key returns a different 401 (`Unauthorized`, no `WWW-Authenticate`). *The edge:* from the internet every `/mcp-server/*` path is redirected to the Cloudflare Access login (302), with or without the API service token. So an outside MCP client needs an Access identity first; that is a second layer, not the server being off. *Consequence:* Main's `availableInMCP: true` is NOT inert. The brief's stop condition applies, so steps 2–5 were not run and Main's export was not changed. *Observation, cause unknown:* Main's draft `versionId` has differed from its published `activeVersionId` since 2026-10-22 12:49 UTC; nodes are in parity, so the change is not in the nodes. |
+| **MCP exposure (2026-10-22)** | **Ruling (Yigitcan):** the instance MCP server STAYS ENABLED. Main's `availableInMCP: true` is recorded as an accepted EXPOSURE, behind two layers (Cloudflare Access at the edge, MCP bearer auth at the origin), and moves to the final security pass ([PHASE-7-PLAN.md](PHASE-7-PLAN.md), security pass list). Main's committed export takes the live value WITH this ruling. A copy's absent `availableInMCP` (that is, `false`, narrower) goes into the copy's allowlist with this ruling as its reference; at the cutover Main becomes less exposed, recorded as accepted. *For D4:* the T0 probe did not send `availableInMCP`, so whether the API keeps it on create is not measured. The D4 plan decides how the Main copy ends up without it. |
+| **Speed plan (2026-10-22)** | **Ruling (Yigitcan):** (1) the 7-day soak runs in the background and gates ONLY D6c's revocations; nothing else waits on it (D7's close no longer does). (2) **D3e is a DAYTIME-only rehearsal: K-7 changes from (a) to (b)** (D3e section). (3) Reminders' K-3 error-path drills fold into D4's M7 operator window: one window, not two. (4) Q16 (splitting `salon_ro`'s column access) and D6d (the permanent off-server target) move to the final security pass. **Unchanged and NOT cut:** the nightly `pg_dump` plus one restore test before the cutover · the Turnstile window protocol · Airtable is not deleted · drills and gates on every copy. |
+| **settings-parity build result (2026-10-22)** | Run after the MCP ruling. **Main's draft vs published:** of 191 nodes, 174 differ ONLY in `position` and 17 are identical; connections, description and `nodeGroups` are equal; `name` is set on the draft and `null` on the published version record. Settings, pinData, meta, `staticData` and tags are not versioned, so they have no draft/published pair. *Declared reading:* a canvas re-layout, behaviour-neutral, so not a stop (the brief's "touches nodes" is read as "changes behaviour"). **`binaryMode` readers at the source tag** (a stream scan of the tagged source archive, 23,717 files, 34 non-test files mention it): every reader treats an absent value as `"separate"`. Core helpers default the parameter to `SEPARATE`; the engine, data proxy, Set, Form and ExtractFromFile compare against `COMBINED` only; the editor uses `?? DEFAULT_SETTINGS.binaryMode` (`SEPARATE`); the editor's settings dialog writes `"separate"` when the value is undefined (which is likely how Main and Reminders got it); the public DTO strips the key on create and update. The `binaryMode` in `ai-utilities` and `nodes-langchain` is an unrelated node parameter. **T0** (throwaway, 404 after): `settings: {}` reads back `{}`, so no default is added; the non-default values keep `callerPolicy` and `timeSavedMode` and drop `binaryMode`. **The guard:** `scripts/settings_parity.py`, used by `check-content-parity.py` (committed vs live; a paired copy vs its original through the copy spec's allowlist), by the diff tool and by the deploy helper's verify. The Main and Reminders exports now carry their live settings; before the refresh, the new guard was red on both (Main 4 keys, Reminders 1). The Reminders spec allowlists `binaryMode`'s absence. The six mutants are red (`tests/unit/settings-parity.test.py`, in `check-all`), and two live mutants on the real guard exit 1. `docs/n8n-rollback.md` is corrected in place. |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
@@ -1667,7 +1672,15 @@ gives 20/20 for `salon_app`, and the missing set is empty. *The planned oracle r
 *Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
 from the error item and the builder's output, not from Telegram.
 
-**D3e · the Purge rehearsal (NOT in this round; its own go-ahead).**
+**D3e · the Purge rehearsal (NOT in this round; its own go-ahead). DAYTIME ONLY since 2026-10-22 (K-7 (b)): the
+night-tick steps 2 and 4 below are superseded by the order in the box that follows.**
+
+> **Order as re-ruled (2026-10-22):** (0) a fresh raw export of the original Purge, kept outside the repo · draft
+> equals published measured · the original's `versionId` recorded · `diff --phase swap` green. (1) In daytime,
+> away from 04:00 Vienna: deactivate the original → activate the copy → measure (exactly one active, read back).
+> (2) Deactivate the copy → re-activate the original → measure `active` and that the `versionId` equals step 0's.
+> No night runs. **Gap, recorded:** the copy never fires in trigger mode before the cutover; its trigger node is
+> identical to the original's (diff tool).
 
 *Fire times:*
 - The fire times are recorded from a MEASUREMENT taken in D3d: the instance's timezone setting plus the
@@ -1771,7 +1784,7 @@ cutoff", so the next run catches up.
 | M4 | Network exposure | 3 | `ss -ltn` has no wildcard 5432; external probe times out |
 | M5 | **Spend-meter continuity: the LLM brake on the new store** | **2** | seed `bot_metrics` at ≥ cap → the LLM node MUST-NOT-RUN · break the read (revoke SELECT for one drill) → fail-open **plus** a `spend_meter_unavailable` alert, never silent |
 | M6 | Idempotency on Postgres | 4 | same `message_id` twice → one booking, one processed row; residual race documented (§3e) |
-| M7 | Store-outage visibility | 5 | revoke `salon_app` CONNECT for one drill → Main returns infra-unavailable (5xx + flag) and alerts the owner; the brain MUST-NOT-RUN |
+| M7 | Store-outage visibility | 5 | revoke `salon_app` CONNECT for one drill → Main returns infra-unavailable (5xx + flag) and alerts the owner; the brain MUST-NOT-RUN. **The same operator window also runs Reminders' K-3 error-path drills** (speed plan, 2026-10-22: one window, not two) |
 | M8 | Backup restorability of the new store | 1 | §3j restore test green; flipped-byte dump red |
 | M9 | DB secrets never in repo or transcript | 3 | host-leak + secret-scan green; the new deny rule measured from a subagent |
 | M10 | Airtable shutdown ordering | 1+2 | export exists, is checksummed and restore-readable BEFORE the first revoke (§7) |
@@ -1871,7 +1884,8 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 1. **Gate 0:** the cutover has passed acceptance, and the soak has passed: **7 days with no rollback
    trigger (ruling Q9).**
    - **The soak runs in the BACKGROUND (ruling, 2026-10-20).** Phase 7 starts right after D6b's
-     acceptance. Only D6c (these revocations) and D7's close wait for the soak.
+     acceptance. Only D6c (these revocations) waits for the soak (speed plan 2026-10-22; D7's close used
+     to wait too).
    - **Recorded risk:** a rollback during the soak means re-running whatever Phase 7 results exist by
      then.
    - **Note:** while OPS-5 lasts, Airtable is an unlikely rollback target before its quota resets
@@ -1949,6 +1963,8 @@ reliably countable).** It is kept as history. **The stop rule that replaces it:*
 **(a)** a third fix-of-a-fix (unchanged), **(b)** a step stopping twice on the same unresolved question, or
 **(c)** D6b's acceptance not reached by **2026-11-08**. On a stop, **Airtable Team** is put on the table.
 *Note:* the Airtable quota may reset around 2026-11-01 (unmeasured); if it does, the comparison is redone.
+**Speed plan (same day, §3r):** nothing waits on the soak except D6c's revocations · D3e is daytime-only ·
+Reminders' K-3 drills ride in D4's M7 window · Q16 and D6d move to the final security pass.
 
 **Re-baselined (Yigitcan, 2026-10-20; superseded 2026-10-22, above):**
 - **The work remaining from now:** D3 4 · D4 6 · D5 2 · D6 4 · D7 1 = **17 rounds**.
