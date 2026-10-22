@@ -1297,6 +1297,49 @@ operator's step (b).**
   - then `--verify` must be green before any drill;
   - the copy goes into `PAIRS` only after that.
 
+**D3c, 2026-10-22: (b) dead, ruling (A) "decide by measurement", and step 1 STOPPED on a binary-capable
+node.**
+- **Operator statement (Yigitcan, 2026-10-22), not verified by Claude:** the copy's Workflow Settings
+  screen in the editor has NO binary-mode field. The fields shown are:
+  - Execution Logic, Error Workflow, Timezone;
+  - the four save options, two redact options;
+  - Timeout, Available in MCP, Estimated time saved.
+
+  Nothing was changed or saved.
+- **So neither route tried so far can set `binaryMode`:** the API drops it (measured), and the editor's
+  Settings screen has no field (operator). *This is an inference about those two routes only.* An editor
+  JSON import or paste, and the CLI's `import:workflow`, were not tried. Cowork found no n8n documentation page
+  for a per-workflow `binaryMode`, so its effect is unknown.
+- **Also an operator statement, recorded only:** the copy's Timezone shows "Default – Europe/Vienna". D3d
+  still measures the Purge schedule's timezone, as §3r requires.
+- **Ruling (A), Yigitcan, 2026-10-22:** decide by measurement whether binary data can occur in Reminders,
+  instead of setting the field.
+- **Step 1, measured read-only:**
+  - **(c) positive control:** the scanner (it counts node output items with a non-empty `binary`) finds 1
+    in a fixture execution that carries binary, and 0 in one that does not.
+  - **(b) history:** 335 retained executions of the original, 2026-10-08 → 2026-10-22, all `trigger`
+    mode. **0 output items carry binary. But all 335 took the OPS-5 lookup-error path.**
+    `Build Reminder Payload`, the dry-run, the Zernio node and `Stamp Reminded` never ran in that window.
+    This zero therefore says nothing about the send path; it describes what the history covers.
+  - **(a) static:** no Code node references `binary`, and the Telegram node is `sendMessage` with no file
+    field. **But `Send Reminder (Zernio Template)` is an HTTP Request node whose options hold only
+    `timeout`.** Its response format is therefore the default, `autodetect` (quoted from n8n-mcp's node
+    database; that this matches the instance's version was not measured). With `autodetect`, a response
+    that is neither JSON nor text comes out as a FILE, i.e. binary. *That behaviour is n8n's documented
+    autodetect semantics, also not measured on this instance.* **That is a binary-capable node, a
+    stop condition of the brief.**
+  - **What keeps it from running today:** the measured send brake. `whatsappSendDisabled` is literal
+    `true` in the published graph, so the node sits on the branch that never runs.
+  - The history shows the node ran 0 times in that window, **but because of OPS-5, not because of the
+    brake.** Every execution left at the lookup error before reaching `Send Disabled?`, so the brake
+    itself was never exercised there.
+- **⛔ Stopped before step 2.** No allowance was added, nothing live changed, and the D3c copy stays
+  inactive and unpaired.
+- **Decision for Yigitcan:** see the turn's report.
+- **For D4 (step 4 of the brief, recorded now):** Main's four extra settings (`availableInMCP`,
+  `binaryMode`, `callerPolicy`, `timeSavedMode`) each get their OWN measurement in the settings-parity
+  step. There is no blanket allowance.
+
 **D3d · Processed Purge** (`--temp-trigger "Temporary Test Trigger"` → `Load Config (Purge)`)
 - **The `Find` nodes:**
   - `Find Old Processed`: `WHERE created_at < $1::timestamptz`. The `!= ""` guard disappears, because the
