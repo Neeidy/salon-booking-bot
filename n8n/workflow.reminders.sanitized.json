@@ -622,6 +622,7 @@
     }
   },
   "settings": {
+    "binaryMode": "separate",
     "executionOrder": "v1"
   }
 }

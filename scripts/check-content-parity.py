@@ -21,7 +21,7 @@
 #
 # USAGE:  N8N_API_URL=... N8N_API_KEY=... python3 scripts/check-content-parity.py [committed_path]
 # Exit 0 = parity OK, 1 = DRIFT (prints node + field), 2 = fetch/config error. Runs at every close gate.
-import os, sys, json, re, urllib.request
+import os, sys, json, re, urllib.request, importlib.util
 
 WF = os.environ.get('N8N_WORKFLOW_ID', 'SL142I47mK6SAz6p')
 API = os.environ.get('N8N_API_URL')
@@ -151,11 +151,38 @@ def _is_migration_copy(wf_id, committed):
     it here avoids a second hand-kept list of copies, which would drift. A copy-named file with an unpaired
     id, or a paired id on a non-copy export, is NOT a copy."""
     rel = os.path.relpath(os.path.abspath(committed), _REPO)
+    return rel.endswith('.copy.sanitized.json') and (wf_id, rel) in _pairs()
+
+
+def _pairs():
     src = open(os.path.join(_REPO, 'scripts', 'check-exports-parity.sh'), encoding='utf-8').read()
     block = src[src.index('PAIRS=('):]
     block = block[:block.index('\n)')]
-    pairs = set(re.findall(r'^\s*"([A-Za-z0-9]+):([^"\s]+)"', block, re.M))
-    return rel.endswith('.copy.sanitized.json') and (wf_id, rel) in pairs
+    return set(re.findall(r'^\s*"([A-Za-z0-9]+):([^"\s]+)"', block, re.M))
+
+
+def _settings_parity():
+    spec = importlib.util.spec_from_file_location('settings_parity', os.path.join(_REPO, 'scripts', 'settings_parity.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_copy_settings(live, committed, fetch, sp):
+    """A paired copy's live settings against its ORIGINAL's live settings, through the copy spec's allowlist
+    (MIGRATION-PLAN §3r, settings-parity, O1). The spec is found by name (workflow.<x>.copy.sanitized.json ->
+    db/copies/<x>.json), the original's id through PAIRS, so no second list of ids exists."""
+    rel = os.path.relpath(os.path.abspath(committed), _REPO)
+    m = re.fullmatch(r'n8n/workflow\.([a-z0-9-]+)\.copy\.sanitized\.json', rel)
+    spec_path = os.path.join(_REPO, 'db', 'copies', f'{m.group(1)}.json') if m else None
+    if not spec_path or not os.path.exists(spec_path):
+        return [f'settings: no copy spec found for {rel}']
+    spec = json.load(open(spec_path, encoding='utf-8'))
+    ids = sorted(i for i, p in _pairs() if p == spec['original'])
+    if len(ids) != 1:
+        return [f"settings: the original {spec['original']} is paired with {len(ids)} ids in PAIRS, expected 1"]
+    orig = fetch(ids[0])
+    return sp.copy_vs_original(orig.get('settings'), live.get('settings'), spec.get('settings_allow', {}))
 
 
 def check_published_matches_draft(live):
@@ -561,9 +588,11 @@ def main():
         print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow '
               '(parity half NOT run)')
         sys.exit(2)
-    req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows/{WF}',
-        headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
-    live = json.load(urllib.request.urlopen(req, timeout=30))
+    def fetch(wf_id):
+        req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows/{wf_id}',
+            headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
+        return json.load(urllib.request.urlopen(req, timeout=30))
+    live = fetch(WF)
     comm = json.load(open(COMMITTED, encoding='utf-8'))
 
     # ORDER MATTERS, and it was wrong (code-reviewer, round 4). `check_published_matches_draft` exits 2 on a
@@ -578,7 +607,13 @@ def main():
     lby = {n['name']: n for n in live['nodes'] if n['type'] != STICKY}
     cby = {n['name']: n for n in comm['nodes'] if n['type'] != STICKY}
 
-    fails = []
+    # SETTINGS are not versioned and were compared nowhere: Main and Reminders carried keys live that their
+    # committed exports did not, with this guard green (MIGRATION-PLAN §3r, settings-parity).
+    sp = _settings_parity()
+    fails = sp.committed_vs_live(comm.get('settings'), live.get('settings'))
+    is_copy = _is_migration_copy(WF, COMMITTED)
+    if is_copy:
+        fails += check_copy_settings(live, COMMITTED, fetch, sp)
     only_l = sorted(set(lby) - set(cby))
     only_c = sorted(set(cby) - set(lby))
     if only_l:
@@ -616,6 +651,8 @@ def main():
     # guard was stricter than it is.
     print(f'content parity OK — {len(lby)} executable nodes match live after the documented normalization '
           '(sanitize placeholders + n8n serialization noise normalized; sticky notes excluded)')
+    print('settings parity OK — the committed settings equal the live settings'
+          + ('; the copy\'s live settings equal its original\'s, except allowlisted absences' if is_copy else ''))
     sys.exit(0)
 
 

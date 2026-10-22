@@ -2,6 +2,7 @@
   "_doc": "D3c (MIGRATION-PLAN §3r): the Reminders copy. Two data nodes change; Stamp Reminded batches `independently` (Q18). The hourly schedule stays; a declared temporary webhook trigger (Q13) feeds Load Config for drills and is removed before any swap.",
   "original": "n8n/workflow.reminders.sanitized.json",
   "name": "MIG COPY — Reminders",
+  "settings_allow": {"binaryMode": {"covers": "absent", "ruling": "MIGRATION-PLAN §3r settings-parity (O1, 2026-10-22): the public API ignores binaryMode on create and update; every reader at the running build's source tag treats an absent binaryMode as \"separate\""}},
   "temp_trigger": {"name": "Temporary Test Trigger", "path": "owner-mig-reminders", "connect_to": "Load Config (Reminders)"},
   "nodes": {
     "Find Due Appointments": {

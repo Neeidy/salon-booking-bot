@@ -35,6 +35,15 @@ IGNORED = {'id', 'position', 'webhookId'}            # n8n assigns these per wor
 ALLOWED_ON_DATA_NODE = {'type', 'typeVersion', 'parameters', 'credentials'}
 
 
+def _settings_parity():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'settings_parity', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings_parity.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def canon(o):
     return json.dumps(o, sort_keys=True)
 
@@ -43,7 +52,7 @@ def strip(node, drop=()):
     return {k: v for k, v in node.items() if k not in IGNORED and k not in drop}
 
 
-def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None):
+def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, settings_allow=None):
     errs = []
     O = {n['name']: n for n in orig['nodes']}
     C = {n['name']: n for n in cp['nodes']}
@@ -92,8 +101,11 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None):
     if canon(oc) != canon(cc):
         diff = sorted(k for k in set(oc) | set(cc) if canon(oc.get(k)) != canon(cc.get(k)))
         errs.append(f"connections differ (from: {', '.join(diff)})")
-    if canon(orig.get('settings')) != canon(cp.get('settings')):
-        errs.append('workflow settings differ')
+    if settings_allow is None:              # offline: two committed files, strict equality
+        if canon(orig.get('settings')) != canon(cp.get('settings')):
+            errs.append('workflow settings differ')
+    else:                                   # live (deploy helper): the copy spec's allowlist, absences only
+        errs += _settings_parity().copy_vs_original(orig.get('settings'), cp.get('settings'), settings_allow)
     if cp.get('pinData'):
         errs.append('the copy carries pinData (pinned data changes what a node returns)')
     return errs
@@ -161,11 +173,20 @@ def selftest():
     cases.append(('the copy carries pinData', m, 'swap', False, {}))
     m = swapped(); m['settings'] = dict(m.get('settings') or {}, executionOrder='v0')
     cases.append(('workflow settings changed', m, 'swap', False, {}))
+    o2 = dict(orig.get('settings') or {}, binaryMode='separate')
+    AB = {'binaryMode': {'covers': 'absent', 'ruling': 'selftest'}}
+    m = swapped(); m['settings'] = {k: v for k, v in o2.items() if k != 'binaryMode'}
+    cases.append(('settings: allowlisted key absent on the copy (live mode)', m, 'swap', True, {'settings_allow': AB, '_orig_settings': o2}))
+    m = swapped(); m['settings'] = dict(o2, binaryMode='combined')
+    cases.append(('settings: allowlisted key with a DIFFERENT value (live mode)', m, 'swap', False, {'settings_allow': AB, '_orig_settings': o2}))
+    m = swapped(); m['settings'] = {k: v for k, v in o2.items() if k != 'binaryMode'}
+    cases.append(('settings: key absent and NOT allowlisted (live mode)', m, 'swap', False, {'settings_allow': {}, '_orig_settings': o2}))
 
     ok = True
     for label, cp, phase, expect_pass, kw in cases:
         kw = dict(kw); allow = set(data) | ({kw.pop('allow_extra')} if 'allow_extra' in kw else set())
-        errs = compare(orig, cp, allow, phase, **kw)
+        o = dict(orig, settings=kw.pop('_orig_settings')) if '_orig_settings' in kw else orig
+        errs = compare(o, cp, allow, phase, **kw)
         good = (not errs) == expect_pass
         ok &= good
         print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0]}")

@@ -68,7 +68,8 @@ def check_placeholders(live_orig, live_copy):
 def check_diff(live_orig, live_copy, spec):
     return DIFF.compare(live_orig, live_copy, set(spec['nodes']), phase='test',
                         temp_trigger=(spec.get('temp_trigger') or {}).get('name'),
-                        trigger=(spec.get('trigger') or {}).get('node'))
+                        trigger=(spec.get('trigger') or {}).get('node'),
+                        settings_allow=spec.get('settings_allow', {}))
 
 
 def check_not_sanitised(live_copy, generated):
@@ -264,11 +265,18 @@ def selftest():
         data_ph = _copy.deepcopy(clean)                       # the diff tool allows a data node's credentials to change
         next(n for n in data_ph['nodes'] if n['name'] in spec['nodes'])['credentials'] = \
             {'postgres': {'id': 'REPLACE_WITH_POSTGRES_CREDENTIAL_ID', 'name': 'Postgres account'}}
-        cases = [('clean copy', clean, True), (f"placeholder in a non-data node ('{other}')", placeholder_copy, False),
+        no_order = _copy.deepcopy(clean)                     # a key the API might drop that NO ruling allows
+        no_order['settings'] = {k: v for k, v in (no_order.get('settings') or {}).items() if k != 'executionOrder'}
+        cases = [('clean copy', clean, True), ('settings: executionOrder missing on the copy', no_order, False), (f"placeholder in a non-data node ('{other}')", placeholder_copy, False),
                  (f"non-data node changed ('{other}')", drifted, False),
                  ('a data node still carrying the credential placeholder', data_ph, False),
                  ('the ORIGINAL itself passed as the copy', _copy.deepcopy(live_orig), False),
                  ("a placeholder inside a data node's parameters", data_param_ph, False)]
+        for key in spec.get('settings_allow', {}):           # the API-dropped case each allowlist entry exists for
+            dropped = _copy.deepcopy(clean); dropped['settings'] = {k: v for k, v in (dropped.get('settings') or {}).items() if k != key}
+            cases.append((f"settings: allowlisted '{key}' absent on the copy", dropped, True))
+            other_val = _copy.deepcopy(clean); other_val['settings'] = dict(other_val.get('settings') or {}, **{key: '__different__'})
+            cases.append((f"settings: allowlisted '{key}' with a different value", other_val, False))
         if PLACEHOLDER.search(json.dumps([n for n in generated['nodes'] if n['name'] not in spec['nodes']])):
             cases.append(('the generated (sanitized) copy deployed whole', sanitized_whole, False))
         for label, live_copy, want_green in cases:
