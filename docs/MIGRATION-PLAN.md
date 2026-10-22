@@ -71,7 +71,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D0** ✅ | Restore point (tag `pre-migration`, out-of-repo backup, two copies, restore-tested) | closed 2026-10-19 |
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
-| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r).** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* | 4 copies green · rehearsal measured in both directions |
+| **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
@@ -1018,10 +1018,12 @@ proved on every column type.
 
 **Flags are abbreviated below.** Every run passes `--allow` with the step's full data-node list (D3a 2 ·
 D3b 5 · D3c 2 · D3d 8, the §6 names), plus `--phase` and the trigger flag WITH its name. The temporary
-trigger is a NEW node named **`Temporary Test Trigger`**. It is not in any export yet; the diff tool's
-selftest uses its own fixture name. **A copy's test path is a fixed `owner-mig-<workflow>` name with no random part.** It sits in
+trigger is a NEW node named **`Temporary Test Trigger`**. *(Corrected 2026-10-22: it is in the D3c Reminders copy's
+export, kept there for D4's M7 window; the D3d Purge copy's was removed for D3e.)* The diff tool's selftest uses its
+own fixture name. **A copy's test path is a fixed `owner-mig-<workflow>` name with no random part.** It sits in
 the committed copy spec and export, behind Access and the HMAC signature, exactly like the production paths the public
-exports already carry. *(Corrected at D3a: this sentence first promised that no full test path would enter a commit, a promise
+exports already carry. *(Corrected 2026-10-22: that holds for a moved REAL trigger. A temporary trigger feeds `Load
+Config` directly, with no signature node in front, so Access is its only layer (Q13, S6).)* *(Corrected at D3a: this sentence first promised that no full test path would enter a commit, a promise
 a committed copy export cannot keep.)*
 
 **D3a · Drill State Read**
@@ -1462,9 +1464,10 @@ paths ride in D4's M7 window (speed plan).
     guarded against import now.
   - **All 8 executions:** `webhook` mode, `success`, 0 binary items; no `trigger`-mode execution.
 - **Clean-up:** 6 seed rows removed by the prefix guard, so the tables are at 0; the seed workflow deleted (404);
-  the copy inactive.
+  the copy inactive. **It keeps its temporary trigger** (`owner-mig-reminders`, behind Access) for D4's M7 window;
+  the trigger is removed before any swap (Q13).
 
-**D3e result ✅ (2026-10-22, the daytime form; approved by the brief).** It ran at 20:16–20:17 UTC (22:16 Vienna),
+**D3e result ✅ (2026-10-22, the daytime form; approved by Yigitcan, ruling 2026-10-22).** It ran at 20:16–20:17 UTC (22:16 Vienna),
 about six hours away from the 04:00 tick. *Declared reading:* "daytime" was read as "no night tick, at least an
 hour from 04:00 Vienna", which is the brief's operational condition, not as a clock range.
 - **Step 0:**
@@ -1731,7 +1734,7 @@ gives 20/20 for `salon_app`, and the missing set is empty. *The planned oracle r
 *Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
 from the error item and the builder's output, not from Telegram.
 
-**D3e · the Purge rehearsal (NOT in this round; its own go-ahead). DAYTIME ONLY since 2026-10-22 (K-7 (b)): the
+**D3e · the Purge rehearsal: ✅ DONE 2026-10-22 in its daytime form ("D3e result" in §3r). DAYTIME ONLY since 2026-10-22 (K-7 (b)): the
 night-tick steps 2 and 4 below are superseded by the order in the box that follows.**
 
 > **Order as re-ruled (2026-10-22):** (0) a fresh raw export of the original Purge, kept outside the repo · draft
