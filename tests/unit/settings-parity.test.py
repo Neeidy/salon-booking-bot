@@ -29,8 +29,12 @@ cases = [
     ('mutant 4: an allowlist entry without a ruling',
      SP.copy_vs_original(MAIN, without(MAIN, 'binaryMode'), {'binaryMode': {'covers': 'absent'}}), True),
     ('mutant 5: a new key appears live (redactionPolicy)', SP.committed_vs_live(MAIN, dict(MAIN, redactionPolicy='none')), True),
+    # The copy LACKS the key here, so only the "covers absent only" rule can turn this red (an earlier version gave
+    # the copy a different value, which the value check caught instead: the rule itself was never measured).
     ('mutant 6: an availableInMCP allowlist entry that is not "absent"',
-     SP.copy_vs_original(MAIN, dict(MAIN, availableInMCP=False), {'availableInMCP': {'covers': 'false', 'ruling': 'test ruling'}}), True),
+     SP.copy_vs_original(MAIN, without(MAIN, 'availableInMCP'), {'availableInMCP': {'covers': 'false', 'ruling': 'test ruling'}}), True),
+    ('extra: a key in the committed export that is not live', SP.committed_vs_live(dict(MAIN, stale='x'), MAIN), True),
+    ('extra: live settings that are not an object', SP.committed_vs_live({}, ['not', 'a', 'dict']), True),
     ('extra: a key missing on the copy and not allowlisted (executionOrder)',
      SP.copy_vs_original(MAIN, without(MAIN, 'executionOrder'), ALLOW), True),
     ('extra: a key on the copy that the original lacks', SP.copy_vs_original(without(MAIN, 'timeSavedMode'), MAIN, {}), True),

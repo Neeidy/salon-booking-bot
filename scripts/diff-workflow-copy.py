@@ -11,7 +11,9 @@ FAILS when:
   · an --allow node differs in anything other than type, typeVersion, parameters or credentials
     (its onError and alwaysOutputData must stay exactly as they were: they ARE the error branches);
   · the connection graph differs;
-  · the workflow settings differ.
+  · the workflow settings differ. Offline (two committed files) this is strict equality. In live mode (the
+    deploy helper passes the copy spec's `settings_allow`) a key the spec allowlists may be ABSENT on the copy,
+    and nothing else (scripts/settings_parity.py; MIGRATION-PLAN §3r, settings-parity).
 Two exceptions exist, and only in the TEST phase:
   · --temp-trigger NAME: a declared temporary webhook trigger (Q13's only test route for schedule-
     triggered copies) may exist, together with the edges that leave it, and those edges must be exactly

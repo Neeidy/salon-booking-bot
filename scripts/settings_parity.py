@@ -16,8 +16,13 @@ blanket allowance and no "any value" entry: a copy carrying a DIFFERENT value fo
 """
 
 
-def _s(settings):
-    return settings if isinstance(settings, dict) else {}
+def _s(settings, side, errs):
+    if settings is None:
+        return {}
+    if not isinstance(settings, dict):           # fail loud: an unexpected shape must not compare as "empty"
+        errs.append(f'settings: the {side} settings are not an object ({type(settings).__name__})')
+        return {}
+    return settings
 
 
 def check_allowlist(allow):
@@ -34,8 +39,8 @@ def check_allowlist(allow):
 
 
 def committed_vs_live(committed, live):
-    c, l = _s(committed), _s(live)
     errs = []
+    c, l = _s(committed, 'committed', errs), _s(live, 'live', errs)
     for key in sorted(set(c) | set(l)):
         if key not in l:
             errs.append(f"settings: '{key}' is in the committed export but not live (committed={c[key]!r})")
@@ -47,8 +52,8 @@ def committed_vs_live(committed, live):
 
 
 def copy_vs_original(original, copy, allow):
-    o, c = _s(original), _s(copy)
     errs = check_allowlist(allow)
+    o, c = _s(original, 'original', errs), _s(copy, 'copy', errs)
     for key in sorted(set(o) | set(c)):
         if key in o and key in c:
             if o[key] != c[key]:
