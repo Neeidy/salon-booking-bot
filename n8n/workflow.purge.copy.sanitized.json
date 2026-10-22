@@ -511,22 +511,6 @@
         "height": 160,
         "content": "## leads TTL — the branch the public deploy is GATED on\nA stranger can type a real phone number into the public demo's lead capture (`dryRun=false`, D-11) and `leads` had no expiry at all. Cutoff comes from `leadsRetentionDays` in config — **absent = delete nothing and alert**.\n\n⚠ **The CANDIDATE CAP is the load-bearing node**, not the delete: `min(200, 20% of the table)`. Without it one wrong cutoff costs the table; with it, one Telegram message.\n⚠ **CORRECTED BY A DRILL (exec 2764).** This note first said rows with an EMPTY `created_at` \"never match and never expire\". The OPPOSITE is true: Airtable sorts a blank below any string, so `{created_at} < cutoff` MATCHED all 3 blank rows and they would have been deleted on every run. The filter now carries `{created_at} != \"\"`, and blank rows are REPORTED rather than deleted — their age is unknown, and deleting a row of unknown age is the irreversible choice. Who owns them is an OPEN item."
       }
-    },
-    {
-      "id": "22bddc51-6adc-5288-aeb0-c8211586473a",
-      "name": "Temporary Test Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        -60,
-        200
-      ],
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "owner-mig-purge",
-        "responseMode": "onReceived",
-        "options": {}
-      }
     }
   ],
   "connections": {
@@ -846,17 +830,6 @@
         [
           {
             "node": "Build Owner Alert (Purge)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Temporary Test Trigger": {
-      "main": [
-        [
-          {
-            "node": "Load Config (Purge)",
             "type": "main",
             "index": 0
           }
