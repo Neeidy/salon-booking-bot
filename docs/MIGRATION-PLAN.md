@@ -1414,6 +1414,113 @@ execution created.
   - guarded, each block self-verifying;
   - the GRANT block proves that `salon_app`'s SELECT works again.
 
+**D3d result ✅ (2026-10-22): the Processed Purge copy is built, drilled and parked inactive.** Its error paths
+wait for the K-3 window.
+
+*Offline:*
+- **Generated** from the committed original and `db/copies/purge.json`. Eight data nodes; `Delete Old
+  Processed`, `Scrub Recent Messages` and `Delete Old Leads` batch `independently` (Q18). The temporary
+  trigger feeds `Load Config (Purge)`, which is what the real schedule feeds.
+- **The diff tool:** test phase green; swap phase red, because the temporary trigger is present.
+- **Positive controls, all red:** the lead cap raised, the purge cutoff shortened, `Delete Old Leads`'
+  `onError` changed, the temporary trigger wired past `Load Config`.
+- **`check-sql-params`:** 8 nodes; 15 across 8 exports now.
+
+*Live:*
+- **Deployed through `deploy-workflow-copy.py`; verify green.** Purge carries no extra settings, as
+  measured, so the hidden-settings class does not touch it.
+- **`copy-contract`:** 7 of 7 read cases.
+- **Edge refusal:** both S6 signals.
+- **Seed:**
+  - 2 aged and 2 fresh `processed_messages`;
+  - 2 stale conversations with text, 1 fresh, and 2 stale with an empty or NULL `recent_messages`;
+  - 5 fresh leads and 1 aged, so the total is 6 and the cap is `floor(6 × 0.2) = 1`.
+- **Three runs, through the temporary trigger:**
+
+  | Run | Result |
+  |---|---|
+  | R1, clean | The 2 aged `processed` rows deleted, the fresh kept. The 2 stale conversations scrubbed; the fresh one and the empty/NULL ones untouched. The aged lead deleted, within the cap. `Count Leads After` gave `{}`, and `Verify Leads Purge` returned nothing: the arithmetic held, and no alert was sent. |
+  | R2, nothing left | `no_candidates`. ONE owner alert was delivered ("branch: leads"), the original's current behaviour. |
+  | R3, 3 aged leads added | `leads_purge_capped` (candidates 3, cap 1, total 8). No lead deleted. The alert was throttled: the builder returned `[]` within 30 minutes. |
+
+- **Every run:** 0 binary items, `webhook` mode only. The copy was deactivated afterwards.
+
+*Export, parity, clean-up:*
+- `n8n/workflow.purge.copy.sanitized.json` is in `PAIRS`. Both parity guards are green, with 8 exports.
+- The prefix-guarded delete removed 2 + 5 + 8 rows, and the tables are 0.
+- The seed workflow returns 404.
+- The Reminders copy is unchanged: inactive, unpaired, 0 executions.
+
+**D3e fire times: MEASURED, read-only (2026-10-22).**
+- **The setup:** the original Purge has no workflow-level timezone; its settings are `executionOrder` only.
+  The published trigger is `scheduleTrigger` v1.3 with `{interval: [{field: days, triggerAtHour: 4}]}`.
+- **What the trigger itself reports, in its own output, in all 14 retained executions (2026-10-09 →
+  2026-10-22):** `Timezone: "Europe/Vienna (UTC+02:00)"` and `Hour: "04"`. Every one of them started at
+  02:00 UTC.
+- **So the copy fires at 04:00 Europe/Vienna:**
+  - **02:00 UTC** until the clock change;
+  - **03:00 UTC from 2026-10-25** (an inference from the zone name; not yet observed after the change).
+- D3e's swaps stay at least an hour away from that time.
+- The operator's editor observation ("Default – Europe/Vienna") agrees.
+
+**K-3 error-path window: PREPARED (2026-10-22), not run.** It covers D3a, D3b and D3d; Reminders is excluded
+(ruling (iii)).
+
+*Why four stages and not one:*
+- A single REVOKE breaks each copy at its FIRST data node. Several error paths sit deeper: the replay
+  check, a failed release, the unwritten marker, the delete and scrub writes.
+- One operator window therefore runs four declared privilege stages, in an order that keeps rows to work
+  on:
+  - **W1:** UPDATE on conversations and DELETE on processed_messages and leads are revoked.
+  - **R1:** SELECT on processed_messages and leads.
+  - **R2:** SELECT on conversations.
+  - **W2:** INSERT and UPDATE on processed_messages.
+
+*The operator's scripts:* `db/ops/k3-window.sh` (REVOKE) and `db/ops/k3-restore.sh` (GRANT and proof).
+They are run from the reviewed commit, not from the working tree.
+- **Every stage** restores `salon_app`'s full grant and revokes its own set in ONE transaction. It then
+  checks the catalog: if `salon_app` lacks anything other than exactly that set, it aborts.
+- **A stage advances only on Claude's flag file.** The flag directory is in Claude's home, so no other
+  local user can advance it.
+- **The EXIT trap restores the full grant on any exit:** end, error, timeout or Ctrl-C.
+- **The window refuses to start** unless `salon_app` is at its full grant.
+- **Secrets:** the passwords reach psql by environment inheritance only (`PGPASSWORD` + `exec -e NAME`).
+- **The restore script** re-grants, checks 20 of 20 privileges in the catalog, and proves it by behaviour:
+  it connects AS `salon_app` and SELECTs from all five tables.
+- **Offline test, with a fake privilege store:**
+  - a full run applies W1 → R1 → R2 → W2 and restores;
+  - a stage that leaves the wrong set aborts and restores;
+  - a missing flag times out and restores;
+  - a Ctrl-C while W1 is applied restores;
+  - a non-full baseline refuses to start and changes nothing;
+  - both scripts refuse a non-root user.
+- **Limit:** the fake store does not exercise the real `docker compose exec … psql` call. That call is the
+  same form as the D2b-2 operator blocks.
+
+*Claude's side:*
+- **Before `go`, with the full grant:**
+  - seed: three fresh `handoff` targets t1, t2 and t3; a marker; the D3d seed rows;
+  - activate the three copies;
+  - the control: the D3a oracle on t1 reads normally.
+- **Each stage is confirmed from the catalog through `salon_ro`** (it can read `has_table_privilege` for
+  `salon_app`; measured) before its drills, and again after them. A drill run in the wrong state does not
+  count.
+
+| Stage | D3a (Drill State) | D3b (Owner Actions) | D3d (Purge) |
+|---|---|---|---|
+| W1 | oracle on t1 reads normally (the control: reads still work) | release t1 → **502** `release_failed`, release-failure alert built, t1 unchanged | **Delete Old Processed**, **Scrub Recent Messages** and **Delete Old Leads** go to output 1 → `Purge Error (processed / PII / leads)`. The detail VALUE is `[object Object]` (Q18, now on the real copy). Rows unchanged |
+| R1 | `STORE-ERROR\|count-markers` | release t2 → **503** `replay_check_unavailable`, t2 unchanged | `Find Old Processed` and `Count Leads Total` errors → `Purge Error (processed / leads)`, detail = the SQL error text (`single`). The PII branch works normally |
+| R2 | `STORE-ERROR\|read-conversation` | release any id → **404** `not_found` (a store error reads as "missing", the original's design) | `Find Stale Conversations` error → `Purge Error (PII)`. The processed and leads branches work normally |
+| W2 | oracle reads normally | release t3 → **200** `{ok: true, degraded: "marker_unwritten"}`, t3 released, 0 marker rows, marker-failure alert built | — |
+
+*After the window:*
+- the operator runs `k3-restore.sh`;
+- Claude confirms 20 of 20 privileges through `salon_ro`, and an oracle read works;
+- then the clean-up, the copies deactivated, and the parity guards.
+
+*Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
+from the error item and the builder's output, not from Telegram.
+
 **D3e · the Purge rehearsal (NOT in this round; its own go-ahead).**
 
 *Fire times:*
