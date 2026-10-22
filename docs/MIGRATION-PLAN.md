@@ -943,6 +943,10 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **settings parity** | The parity guards must compare workflow SETTINGS. This is its own small step **BEFORE D4**, not now. D3d is unaffected: Purge has no extra settings (ruling, 2026-10-20). |
 | **hidden settings (iii)** | **Ruling (Yigitcan, 2026-10-22): (iii).** Settings an API-created copy loses are a CLASS: 1 on Reminders, 4 on Main including `callerPolicy`. The class is decided ONCE, in the settings-parity step before D4, not per workflow now. Options (i) and (ii) are not applied. **Reason on record:** one mechanism for the class; and (i)'s brake coupling would only hold at deploy time, not at the moment CP4d-2 opens the brake. |
 | **settings-parity, first task** | On a THROWAWAY workflow (not a copy), measure which route, if any, preserves a hidden setting: an editor JSON import, or the CLI's `import:workflow`. Then make one class decision for Reminders and Main. **D3c's remaining work resumes after it:** `--verify`, `PAIRS`, the drills, and its error paths in a second, small K-3 window. The Reminders copy stays as it is: inactive, unpaired, 0 executions. |
+| **K-3 closed (2026-10-22)** | **Ruling (Yigitcan):** K-3 is CLOSED for D3a, D3b and D3d, on the window's results (the K-3 result below) and the operator's closing evidence. *Operator statements, not Claude's measurements:* the window terminal froze after `baseline OK … Waiting for Claude's go` and showed no later line, so the `RESTORED` line was NOT seen. From a new session: no `k3-window` process running · `~/k3-flags` empty · `k3-window.sh --check` OK · `k3-restore.sh` OK (catalog 20/20, `salon_app` SELECT on all five tables). *Claude's measurement:* after `W2.done` the catalog read through `salon_ro` showed `salon_app` lacking nothing. Why the terminal stopped printing is not known. |
+| **The 502 body (2026-10-22)** | **Ruling:** continuing the window past the replaced 502 body was acceptable. The copy behaved as planned inside (node, alert, row unchanged), and the edge layer changes that body for the original too. |
+| **Two Phase 7 items (2026-10-22)** | **Ruling:** both are NAMED Phase 7 items, not migration regressions, because both exist in the originals ([PHASE-7-PLAN.md](PHASE-7-PLAN.md) §1, PHASE 7 bucket): (1) a release failure reaches the client as the edge's generic 502, not the `release_failed` JSON; the dashboard must decide on the status code, and where the body is replaced is measured there. (2) A leads READ error also emits a spurious `no_candidates` alert next to the real errors (`alwaysOutputData` leaves an empty item on output 0). |
+| **D3e order (2026-10-22)** | **Ruling:** D3e waits. It opens in its own round, after the settings-parity plan is approved. |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
@@ -1465,7 +1469,7 @@ waited for the K-3 window. *Drilled there the same day: see the K-3 result.*
 - D3e's swaps stay at least an hour away from that time.
 - The operator's editor observation ("Default – Europe/Vienna") agrees.
 
-**K-3 error-path window: RUN 2026-10-22, results below; `k3-restore.sh`'s proof is pending the operator.** It covers D3a, D3b and D3d; Reminders is excluded
+**K-3 error-path window: RUN 2026-10-22 and CLOSED (ruling, see §3r "K-3 closed"), results below.** It covers D3a, D3b and D3d; Reminders is excluded
 (ruling (iii)).
 
 *First operator run, 2026-10-22: stopped at the baseline check, nothing revoked.*
@@ -1653,7 +1657,8 @@ proof (`salon_app` SELECT on all five tables). The copies had already been deact
 
 *As run on 2026-10-22 (corrected here, see the deviation above):* the clean-up, the deactivation and the parity
 guards came first, right after the window. The oracle read is replaced by `k3-restore.sh`'s `salon_app`
-SELECT proof, which is still pending the operator, together with Claude's 20-of-20 confirmation after it.
+SELECT proof. *That proof came in afterwards (operator statement): `k3-restore.sh` OK, catalog 20/20, `salon_app`
+SELECT on all five tables, run from a new session because the window terminal had frozen (§3r "K-3 closed").*
 
 *Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
 from the error item and the builder's output, not from Telegram.
