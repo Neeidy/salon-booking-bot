@@ -1621,11 +1621,13 @@ waited for the K-3 window. *Drilled there the same day: see the K-3 result.*
     design, and the original's.
 
 *Findings, carried (not fixed here):*
-1. **Cloudflare replaces the body of an origin 502.**
-   - What the client gets is `error code: 502`, not `{ok: false, error: "release_failed"}`.
+1. **The body of an origin 502 is replaced on the way to the client.**
+   - What the client gets is `error code: 502`, not `{ok: false, error: "release_failed"}`. *Observed at the
+     edge.* The replacement is attributed to Cloudflare's edge, but that was not measured at the origin, and
+     the tunnel in between is also a candidate.
    - 503 and 404 bodies pass through unchanged.
-   - The original's `Respond Release Failed` is the same node, so this is today's production behaviour,
-     not a copy divergence.
+   - The original's `Respond Release Failed` is the same node (502 in both exports). So the original is
+     affected by construction, not by measurement: this is a shared behaviour, not a copy divergence.
    - A dashboard consumer has to key on the status code.
 2. **A read failure in the leads branch reports twice.**
    - `Count Leads Total` and `Find Old Leads` carry `alwaysOutputData` with `continueErrorOutput`.
@@ -1644,10 +1646,14 @@ proof (`salon_app` SELECT on all five tables). The copies had already been deact
 - the flag files removed;
 - both parity guards at 0.
 
-*After the window:*
+*After the window, as planned:*
 - the operator runs `k3-restore.sh`;
 - Claude confirms 20 of 20 privileges through `salon_ro`, and an oracle read works;
 - then the clean-up, the copies deactivated, and the parity guards.
+
+*As run on 2026-10-22 (corrected here, see the deviation above):* the clean-up, the deactivation and the parity
+guards came first, right after the window. The oracle read is replaced by `k3-restore.sh`'s `salon_app`
+SELECT proof, which is still pending the operator, together with Claude's 20-of-20 confirmation after it.
 
 *Owner alerts (K-5):* Purge alerts are throttled per branch for 30 minutes, so after W1 they are measured
 from the error item and the builder's output, not from Telegram.
