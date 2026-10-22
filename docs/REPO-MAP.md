@@ -150,6 +150,7 @@
 - `n8n/workflow.owner-actions.sanitized.json`
 - `n8n/workflow.purge.copy.sanitized.json`
 - `n8n/workflow.purge.sanitized.json`
+- `n8n/workflow.reminders.copy.sanitized.json`
 - `n8n/workflow.reminders.sanitized.json`
 - `n8n/workflow.sanitized.json`
 
