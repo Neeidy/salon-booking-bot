@@ -941,6 +941,8 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **race script** | Out of scope; not committed (ruling, 2026-10-20). |
 | **binaryMode (D3c)** | **(a)** one PUT through `--update`, carrying the original's settings. If the API drops the setting again: **(b)** Yigitcan sets it on the copy in the editor (Workflow Settings), then `--verify`. **(c), accepting the difference, is REJECTED:** the setting's effect is unmeasured (ruling, 2026-10-20). |
 | **settings parity** | The parity guards must compare workflow SETTINGS. This is its own small step **BEFORE D4**, not now. D3d is unaffected: Purge has no extra settings (ruling, 2026-10-20). |
+| **hidden settings (iii)** | **Ruling (Yigitcan, 2026-10-22): (iii).** Settings an API-created copy loses are a CLASS: 1 on Reminders, 4 on Main including `callerPolicy`. The class is decided ONCE, in the settings-parity step before D4, not per workflow now. Options (i) and (ii) are not applied. **Reason on record:** one mechanism for the class; and (i)'s brake coupling would only hold at deploy time, not at the moment CP4d-2 opens the brake. |
+| **settings-parity, first task** | On a THROWAWAY workflow (not a copy), measure which route, if any, preserves a hidden setting: an editor JSON import, or the CLI's `import:workflow`. Then make one class decision for Reminders and Main. **D3c's remaining work resumes after it:** `--verify`, `PAIRS`, the drills, and its error paths in a second, small K-3 window. The Reminders copy stays as it is: inactive, unpaired, 0 executions. |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
 - **Setup:** 3 items; item 2 fails on a row-dependent cast (the S5 lesson: a constant is folded at plan
