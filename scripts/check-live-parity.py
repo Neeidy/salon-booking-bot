@@ -11,13 +11,19 @@
 #
 # USAGE:
 #   N8N_API_URL="https://<n8n-host>" N8N_API_KEY="<key>" python3 scripts/check-live-parity.py [workflow_id]
-#   workflow_id defaults to $N8N_WORKFLOW_ID or the main workflow id below.
+#   workflow_id defaults to $N8N_WORKFLOW_ID, else to THE ACTIVE WORKFLOW LISTENING ON `barber-inbound` — the
+#   production bot, whichever of Main's pair holds it (MIGRATION-PLAN §3t, decision 9): the original before the
+#   cutover, the copy after it. The committed file is then that workflow's own PAIRS export (SANITIZED_PATH wins).
+#   It used to default to Main original's id, which after the cutover would compare an inactive workflow.
 # Host + key come from env only — nothing sensitive is hardcoded (this is a public template).
 # Exit 0 = parity OK, 1 = DRIFT (or error). Run at every refactor step's close gate.
 import os, sys, json, urllib.request
 
-MAIN_ID = 'SL142I47mK6SAz6p'
-WF  = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('N8N_WORKFLOW_ID', MAIN_ID)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pair_roles  # noqa: E402
+
+PROD_PATH = 'barber-inbound'
+WF  = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('N8N_WORKFLOW_ID')
 API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
 COMMITTED = os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
@@ -47,17 +53,29 @@ def summarize(nodes, conns):
 
 
 def main():
+    global WF, COMMITTED
     if not (API and KEY):
         sys.exit('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow')
-
-    cw = json.load(open(COMMITTED, encoding='utf-8'))
-    c_count, c_names, c_pairs = summarize(cw['nodes'], cw.get('connections', {}))
 
     # A browser-like User-Agent is required: the n8n host sits behind Cloudflare, whose
     # browser-integrity check (Error 1010) rejects default library UAs. This is not auth —
     # the API key still authenticates; the UA only clears the bot fingerprint.
     UA = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
           '(KHTML, like Gecko) Chrome/125.0 Safari/537.36')
+    if not WF:
+        req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows?active=true&limit=250',
+                                     headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
+        listed = json.load(urllib.request.urlopen(req, timeout=30)).get('data') or []
+        try:
+            WF, own = pair_roles.holder(listed, PROD_PATH, pair_roles.load()[0])
+        except ValueError as e:
+            print(f'NO SINGLE PRODUCTION HOLDER — {e}.')
+            sys.exit(1)
+        COMMITTED = os.environ.get('SANITIZED_PATH', own)
+        print(f"target: the active holder of '{PROD_PATH}' ({WF[:4]}…), compared with {COMMITTED}")
+
+    cw = json.load(open(COMMITTED, encoding='utf-8'))
+    c_count, c_names, c_pairs = summarize(cw['nodes'], cw.get('connections', {}))
     req = urllib.request.Request(
         f'{API.rstrip("/")}/api/v1/workflows/{WF}',
         headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS},

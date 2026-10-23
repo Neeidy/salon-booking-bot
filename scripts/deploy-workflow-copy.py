@@ -21,11 +21,16 @@ workflow id; never a credential, a host or a secret.
 
 Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md):
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID [--update COPY_ID]
-      (--update, --verify and --turnstile refuse the original's id and any target that is active or not named as the spec)
+      (--update, --verify, --turnstile and --swap refuse the original's id and any target that is active or not named as the spec)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --verify COPY_ID
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --turnstile off|on COPY_ID
       (the Turnstile window on an INACTIVE copy: one literal in its Load Config; 'off' checks that nothing else
        differs, 'on' runs the full verify. Settings the spec allowlists are never sent, on any write.)
+  python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --swap COPY_ID
+      (D6b's cutover write, MIGRATION-PLAN §3a/§3t: refused unless the original AND the copy both read back
+       INACTIVE. The copy's trigger moves to the original's live path and its temporary trigger is removed; the
+       swap-phase checks run on that content BEFORE the write and again on the live copy after it. It never
+       activates anything: the operator's next step does, one workflow at a time.)
   python3 scripts/deploy-workflow-copy.py --selftest      (offline: the checks on simulated live workflows)
 """
 import contextlib
@@ -175,6 +180,47 @@ def turnstile_check(live_orig, live_copy, generated, spec, state):
     return verify(live_orig, restored, generated, spec)
 
 
+# ── the SWAP (D6b, MIGRATION-PLAN §3a, §3t) ─────────────────────────────────────────────────────────────────
+# §3a: deactivate the original → put the copy on the production path → activate the copy → measure. This is the
+# middle step only. Its content comes from the LIVE copy (already verified, real credentials, Load Config as live),
+# with exactly two changes: the trigger takes the ORIGINAL's live path (read, never hard-coded), and the declared
+# temporary trigger is removed (Q13: it must be gone at the swap, proven by the diff tool's swap phase).
+def swap_patch(live_copy, live_orig, spec):
+    out = _copy.deepcopy(live_copy)
+    trig, temp = spec.get('trigger') or {}, (spec.get('temp_trigger') or {}).get('name')
+    if trig:
+        prod = next(n for n in live_orig['nodes'] if n['name'] == trig['node'])['parameters']['path']
+        next(n for n in out['nodes'] if n['name'] == trig['node'])['parameters']['path'] = prod
+    if temp:
+        out['nodes'] = [n for n in out['nodes'] if n['name'] != temp]
+        (out.get('connections') or {}).pop(temp, None)
+    out['settings'] = {k: v for k, v in (out.get('settings') or {}).items() if k not in (spec.get('settings_allow') or {})}
+    return out
+
+
+def swap_check(live_orig, live_copy, generated, spec):
+    """The swap phase: only the data nodes may differ from the original (the trigger on the original's path, no
+    temporary trigger: the diff tool's swap phase reds both), each data node a Postgres node on a REAL credential
+    (the diff tool allows a data node's credentials to change, so it cannot see a placeholder there), and no
+    placeholder the original lacks (the diff tool also allows a data node's PARAMETERS to change).
+    *Declared:* verify()'s not-sanitised check was in this list first and its mutant SURVIVED: in the swap phase every
+    non-data node must equal the live original, so a sanitised copy is already red in the diff. It was removed rather
+    than kept as a check that measures nothing (the same call as the Turnstile window's textual comparison).
+    `generated` stays in the signature so the swap and verify checks are called alike."""
+    errs, N = [], {n['name']: n for n in live_copy['nodes']}
+    for name in spec['nodes']:
+        n = N.get(name) or {}
+        cred = ((n.get('credentials') or {}).get('postgres') or {}).get('id', '')
+        if n.get('type') != 'n8n-nodes-base.postgres' or not cred or PLACEHOLDER.search(cred):
+            errs.append(f"data node '{name}' is not a Postgres node on a real credential")
+    errs += check_placeholders(live_orig, live_copy)
+    errs += DIFF.compare(live_orig, live_copy, set(spec['nodes']), phase='swap',
+                         temp_trigger=(spec.get('temp_trigger') or {}).get('name'),
+                         trigger=(spec.get('trigger') or {}).get('node'),
+                         settings_allow=spec.get('settings_allow', {}))
+    return errs
+
+
 # ── n8n API (the real curl: urllib is refused at the edge) ───────────────────────────────────────────────────
 def _host():
     h = os.environ.get('N8N_HOST')
@@ -230,15 +276,15 @@ def _pg_credential():
     return {'id': pg[0]['id'], 'name': pg[0]['name']}
 
 
-def run(spec_path, original_id, update=None, verify_only=None, turnstile=None):
+def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, swap=None):
     # One target per run. With --turnstile beside --update/--verify the guards below checked ONE id and the PUT went
     # to the OTHER, unchecked: the production original's id would have taken the copy (pre-push audit, 2026-10-23).
-    if sum(x is not None for x in (update, verify_only, turnstile)) > 1:
-        sys.exit('deploy-workflow-copy: refused — --update, --verify and --turnstile are exclusive (one target per run)')
+    if sum(x is not None for x in (update, verify_only, turnstile, swap)) > 1:
+        sys.exit('deploy-workflow-copy: refused — --update, --verify, --turnstile and --swap are exclusive (one target per run)')
     spec = json.load(open(spec_path, encoding='utf-8'))
     generated = BUILD.build(spec)
-    live_orig = _workflow(original_id)
-    target = verify_only or update or (turnstile or (None, None))[1]
+    live_orig, om = _workflow(original_id, meta=True)
+    target = verify_only or update or swap or (turnstile or (None, None))[1]
     if target:
         if target == original_id:
             sys.exit('deploy-workflow-copy: refused — the copy id equals the original id')
@@ -249,6 +295,36 @@ def run(spec_path, original_id, update=None, verify_only=None, turnstile=None):
         if any((T.get(name) or {}).get('type') != 'n8n-nodes-base.postgres' for name in spec['nodes']):
             # Name and state can collide; an original's data nodes are Airtable, a copy's are Postgres.
             sys.exit('deploy-workflow-copy: refused — the target\'s data nodes are not Postgres, so it is not a copy')
+    if swap:
+        assert swap == target, 'the swap write must go to the id the guards above checked'
+        if om['active'] is not False:
+            # Two active workflows cannot hold one path (S1: the second activation is refused with 409), but the
+            # copy is not activated here; the point is ORDER: §3a deactivates the original first, and this write is
+            # only safe after that step has happened and been read back.
+            sys.exit('deploy-workflow-copy: refused — the original is not INACTIVE; deactivate it first (§3a)')
+        wf = swap_patch(tw, live_orig, spec)
+        errs = swap_check(live_orig, wf, generated, spec)
+        if errs:
+            print('SWAP REFUSED before any write — the swap-phase content is not clean:')
+            for e in errs:
+                print('  - ' + e)
+            return 1
+        st, d = api('PUT', f'/workflows/{swap}', wf)
+        if st != 200:
+            sys.exit(f'deploy-workflow-copy: swap write failed [{st}]')
+        live_copy, m = _workflow(swap, meta=True)
+        errs = swap_check(live_orig, live_copy, generated, spec)
+        if m['active'] is not False:
+            errs.append('the copy is not inactive (read back from n8n)')
+        if errs:
+            print('SWAP CHECK FAILED after the write — do not activate this copy:')
+            for e in errs:
+                print('  - ' + e)
+            return 1
+        trig = (spec.get('trigger') or {}).get('node')
+        print(f"swap written · swap phase green · {'trigger on the original' + chr(39) + 's live path' if trig else 'no webhook trigger moved'}"
+              f" · temporary trigger absent · original and copy both inactive (nothing activated)")
+        return 0
     if turnstile:
         state, wid = turnstile
         assert wid == target, 'the Turnstile write must go to the id the guards above checked'
@@ -387,6 +463,37 @@ def selftest():
             print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
         if PLACEHOLDER.search(json.dumps([n for n in generated['nodes'] if n['name'] not in spec['nodes']])):
             cases.append(('the generated (sanitized) copy deployed whole', sanitized_whole, False))
+        # The SWAP (D6b): the clean deployed copy, patched for the swap, must be green in the swap phase, and every
+        # way of getting the swap content wrong must be red.
+        swapped = swap_patch(clean, live_orig, spec)
+        sw_cases = [('swap: the clean copy, patched', swapped, True),
+                    ('swap: the deployed copy NOT patched (test path / temporary trigger)', clean, not (spec.get('trigger') or spec.get('temp_trigger'))),
+                    ('swap: the original itself passed as the copy', _copy.deepcopy(live_orig), False)]
+        sw_other = _copy.deepcopy(swapped); next(n for n in sw_other['nodes'] if n['name'] == other)['parameters']['_probe'] = 'changed'
+        sw_cases.append((f"swap: a non-data node changed ('{other}')", sw_other, False))
+        sw_ph = _copy.deepcopy(swapped)
+        next(n for n in sw_ph['nodes'] if n['name'] in spec['nodes'])['credentials'] = \
+            {'postgres': {'id': 'REPLACE_WITH_POSTGRES_CREDENTIAL_ID', 'name': 'Postgres account'}}
+        sw_cases.append(('swap: a data node on the credential placeholder', sw_ph, False))
+        sw_qph = _copy.deepcopy(swapped)                      # only the placeholder check can see this one
+        next(n for n in sw_qph['nodes'] if n['name'] in spec['nodes'])['parameters']['query'] += ' -- REPLACE_WITH_SOMETHING'
+        sw_cases.append(("swap: a placeholder inside a data node's parameters", sw_qph, False))
+        if spec.get('temp_trigger') and spec['temp_trigger']['name'] in {n['name'] for n in clean['nodes']}:
+            kept = _copy.deepcopy(swapped)
+            kept['nodes'].append(next(n for n in clean['nodes'] if n['name'] == spec['temp_trigger']['name']))
+            kept['connections'][spec['temp_trigger']['name']] = clean['connections'][spec['temp_trigger']['name']]
+            sw_cases.append(('swap: the temporary trigger left in', kept, False))
+        if spec.get('trigger'):
+            stay = _copy.deepcopy(swapped)
+            next(n for n in stay['nodes'] if n['name'] == spec['trigger']['node'])['parameters']['path'] = spec['trigger']['test_path']
+            sw_cases.append(('swap: the trigger left on its test path', stay, False))
+        if len(TS_LITERAL.findall(lcode)) == 1:
+            sw_cases.append(('swap: the Turnstile literal still lowered', swap_patch(turnstile_patch(clean, 'off'), live_orig, spec), False))
+        for label, wf, want_green in sw_cases:
+            errs = swap_check(live_orig, wf, generated, spec)
+            good = (not errs) == want_green
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
         for label, live_copy, want_green in cases:
             errs = verify(live_orig, live_copy, generated, spec)
             good = (not errs) == want_green
@@ -412,6 +519,57 @@ def selftest():
             good = rc == 2 and not calls and ('--turnstile' not in flags or rrc == 'refused')
             ok = ok and good
             print(f"{'✓' if good else '✗'} {' '.join(f for f in flags if f.startswith('--'))} together: main() exit {rc}, run() {rrc if '--turnstile' in flags else '—'}, API calls {len(calls)}")
+        for other_flag in (['--update', 'C1'], ['--verify', 'C1'], ['--turnstile', 'on', 'C1']):
+            calls.clear()
+            rc = main(['deploy', specs[0], '--original-id', 'O1', '--swap', 'C1', *other_flag])
+            try:
+                run(specs[0], 'O1', swap='C1', **({'update': 'C1'} if other_flag[0] == '--update' else {'verify_only': 'C1'} if other_flag[0] == '--verify' else {'turnstile': ('on', 'C1')}))
+                rrc = 'not refused'
+            except SystemExit:
+                rrc = 'refused'
+            good = rc == 2 and rrc == 'refused' and not calls
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} --swap with {other_flag[0]}: main() exit {rc}, run() {rrc}, API calls {len(calls)}")
+        # --swap's ORDER guard, on a simulated instance: the original and the copy must both read back inactive,
+        # and the one PUT goes to the copy's id. (Spec: Main; its copy simulated as the clean deployed copy.)
+        mspec_path = os.path.join(ROOT, 'db', 'copies', 'main.json')
+        mspec = json.load(open(mspec_path, encoding='utf-8'))
+        mgen = BUILD.build(mspec)
+        morig = _simulated_live(json.load(open(os.path.join(ROOT, mspec['original']), encoding='utf-8')))
+        mcopy = assemble(mgen, morig, mspec, {'id': 'LiveCredential01', 'name': 'Postgres account'})
+        dirty = _copy.deepcopy(mcopy)                     # a placeholder in a non-data node: refused BEFORE the PUT
+        next(n for n in dirty['nodes'] if n['name'] == 'Normalize Inbound')['parameters']['_probe'] = 'REPLACE_WITH_OWNER_TELEGRAM_CHAT_ID'
+        for label, o_active, c_active, want, copy_wf, drop in (
+                ('original still ACTIVE', True, False, 'refused', mcopy, False),
+                ('copy ACTIVE', False, True, 'refused', mcopy, False),
+                ('both inactive', False, False, 'written', mcopy, False),
+                ('the copy carries a placeholder (pre-write check)', False, False, 'rc 1', dirty, False),
+                ('n8n drops the path change on write (post-write check)', False, False, 'rc 1', mcopy, True)):
+            db = {'O1': dict(morig, active=o_active, name='Salon Booking Bot — Main'), 'C1': dict(copy_wf, active=c_active)}
+            calls.clear()
+            def fake(method, path, body=None, db=db, drop=drop):
+                calls.append((method, path))
+                wid = path.rsplit('/', 1)[-1]
+                if method == 'PUT':
+                    db[wid] = dict(_copy.deepcopy(body), active=db[wid]['active'], name=db[wid]['name'])
+                    if drop:                                 # the API answers 200 but keeps the old trigger path
+                        next(n for n in db[wid]['nodes'] if n['name'] == mspec['trigger']['node'])['parameters']['path'] = mspec['trigger']['test_path']
+                return 200, db[wid]
+            api = fake
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = run(mspec_path, 'O1', swap='C1')
+                got = 'written' if rc == 0 else f'rc {rc}'
+            except SystemExit:
+                got = 'refused'
+            puts = [c for c in calls if c[0] == 'PUT']
+            good = got == want and (puts == [('PUT', '/workflows/C1')] if (want == 'written' or drop) else not puts)
+            if want == 'written':
+                trig = next(n for n in db['C1']['nodes'] if n['name'] == mspec['trigger']['node'])['parameters']['path']
+                good = good and trig == next(n for n in morig['nodes'] if n['name'] == mspec['trigger']['node'])['parameters']['path']
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} --swap, {label}: {got} · PUTs {puts}")
+            api = lambda *a, **k: calls.append(a) or (599, {})
     finally:
         api = real_api
     print('deploy-workflow-copy selftest:', 'OK' if ok else 'FAILED')
@@ -425,8 +583,8 @@ def main(argv):
         print(__doc__)
         return 2
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
-    if sum(k in argv for k in ('--update', '--verify', '--turnstile')) > 1:
-        print('deploy-workflow-copy: refused — --update, --verify and --turnstile are exclusive (one target per run)')
+    if sum(k in argv for k in ('--update', '--verify', '--turnstile', '--swap')) > 1:
+        print('deploy-workflow-copy: refused — --update, --verify, --turnstile and --swap are exclusive (one target per run)')
         return 2
     ts = None
     if '--turnstile' in argv:
@@ -435,7 +593,8 @@ def main(argv):
         if len(ts) != 2 or ts[0] not in ('off', 'on'):
             print('usage: … --turnstile off|on COPY_ID')
             return 2
-    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'), turnstile=ts)
+    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'), turnstile=ts,
+               swap=opt('--swap'))
 
 
 if __name__ == '__main__':

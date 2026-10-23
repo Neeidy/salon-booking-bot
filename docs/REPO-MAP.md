@@ -189,6 +189,7 @@
 - `scripts/check-live-parity.py`
 - `scripts/check-no-host-leak.sh`
 - `scripts/check-outbound-inventory.py`
+- `scripts/check-pair-roles.py`
 - `scripts/check-sql-params.py`
 - `scripts/compile-intent-validator.cjs`
 - `scripts/deploy-workflow-copy.py`
@@ -197,6 +198,7 @@
 - `scripts/generate-config-types.cjs`
 - `scripts/package-lock.json`
 - `scripts/package.json`
+- `scripts/pair_roles.py`
 - `scripts/repo-map.sh`
 - `scripts/secret-scan.sh`
 - `scripts/settings_parity.py`
@@ -260,8 +262,10 @@
 
 - `tests/unit/content-parity-inactive.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
+- `tests/unit/live-parity-target.test.py`
 - `tests/unit/locked-once-parity.test.cjs`
 - `tests/unit/message-id-guard.test.cjs`
+- `tests/unit/pair-roles.test.py`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
 - `tests/unit/settings-parity.test.py`

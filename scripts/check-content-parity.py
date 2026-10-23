@@ -161,6 +161,13 @@ def _pairs():
     return set(re.findall(r'^\s*"([A-Za-z0-9]+):([^"\s]+)"', block, re.M))
 
 
+def _pair_roles():
+    spec = importlib.util.spec_from_file_location('pair_roles', os.path.join(_REPO, 'scripts', 'pair_roles.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _settings_parity():
     spec = importlib.util.spec_from_file_location('settings_parity', os.path.join(_REPO, 'scripts', 'settings_parity.py'))
     mod = importlib.util.module_from_spec(spec)
@@ -207,12 +214,20 @@ def check_published_matches_draft(live):
         # Anything ELSE that is inactive is a production workflow that stopped running, and that is RED.
         # (The first version passed ANY inactive workflow, so an original going inactive was green everywhere:
         # no other guard asserts that the originals are active. Cowork, 2026-10-20.)
-        if _is_migration_copy(WF, COMMITTED):
-            print('INACTIVE COPY — a migration copy (paired with a .copy export in check-exports-parity.sh) is parked; '
-                  'the DRAFT (what activation would publish) is compared.')
+        # Since D6b's plan (MIGRATION-PLAN §3t, decision 9) WHICH side may be parked is DECLARED, in the ROLES array of
+        # check-exports-parity.sh: a copy before its pair is cut over, the original after. scripts/pair_roles.py holds
+        # the rule; the pair-level half (exactly one active per pair) is scripts/check-pair-roles.py.
+        try:
+            allowed, why = _pair_roles().may_be_inactive(WF, _pair_roles().load()[1])
+        except ValueError as e:
+            print(f'INACTIVE — and the ROLES declaration cannot be read ({e}): RED.')
+            sys.exit(1)
+        kind = 'COPY' if _is_migration_copy(WF, COMMITTED) else 'ORIGINAL'
+        rel = os.path.relpath(os.path.abspath(COMMITTED), _REPO)
+        if allowed and (WF, rel) in _pairs():
+            print(f'INACTIVE {kind} — {why}; the DRAFT (what activation would publish) is compared.')
             return
-        print('INACTIVE ORIGINAL — this workflow is not a paired migration copy, and it is NOT active: '
-              'a production workflow has stopped running.')
+        print(f'INACTIVE {kind} — {why}: it is NOT active, so a production role has stopped running.')
         sys.exit(1)
     if not isinstance(pub, list):
         # ⚠ THIS USED TO PRINT "SKIPPED … the draft IS what runs" AND RETURN SUCCESS. That is certifying the
