@@ -72,7 +72,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* | 4 copies green · rehearsal measured in both directions |
-| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b waits for D4-5 (the calendar).** | diff + contract + drills green; Turnstile window protocol on the COPY |
+| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window) next.** | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
@@ -1830,7 +1830,7 @@ calendar calls are HTTP nodes · the calendar id in `Load Config` is a group cal
 | **D4-2** | **Accepted, as an extension of K-6.** A 0-row UPDATE on `Update Appointment Cancelled`, `Update Appointment (Reschedule)` or `Record Alert Class` returns `{success: true}` on output 0 on Postgres, where Airtable raised an error and an alert. It needs the row to vanish inside one run, and no workflow deletes appointments or conversations. |
 | **D4-3** | **Measure first, rule after.** Whether a `single`-batching Postgres error item under `continueErrorOutput` carries the input's keys is measured in M7-T3 (`Save State` fails). Its consumers (`Send Error Response`, `Lead Unavailable Reply`, `Booking State-Unsaved Reply`) spread `$json` into the owner alert; the customer reply does not depend on it. |
 | **D4-4** | **SET every mapped column, `created_at` included (1:1).** On Postgres one `created_at` column serves both Airtable's `createdTime` and its `created_at` field; nothing reads an appointment's `createdTime` (searched: one code comment). |
-| **D4-5** | **NOT cleared.** Whether the calendar in `Load Config` holds no real bookings is unconfirmed. **It gates D4b: every calendar-writing drill (G1–G3, G12) waits for it.** D4a is unaffected. |
+| **D4-5** | **NOT cleared** at approval: whether the calendar in `Load Config` holds no real bookings was unconfirmed, and it gated every calendar-writing drill (G1–G3, G12). D4a was unaffected. *Cleared 2026-10-23 by Yigitcan with a canary ("Salon Bookings" is a separate calendar; D4b result below).* |
 | **D4-6** | **Yes.** The drill spend row (`bot_metrics`, the current UTC month: no `mig-` prefix is possible, the key IS the month) is deleted at the end by that one key, a declared exception to the prefix guard, and its total is reported. The drills stop if the month's row passes **1.00 USD**. |
 | **D4-7** | **Yes.** `testing.md` rule plus `scripts/check-import-safe.py`, in `check-all`, and run over a window's own scripts before the window. |
 | **D4-8** | **Yes, constrained.** The termination targets ONLY `usename = 'salon_app' AND datname = 'salon'`; the superuser performs exactly two kinds of statement (GRANT/REVOKE CONNECT, that termination); the offline test proves that no other statement can run as superuser; `--check` runs first; writing `~/m7-flags` is approved for the window. **Cowork reads the script before the operator runs it.** |
@@ -1907,6 +1907,70 @@ calendar calls are HTTP nodes · the calendar id in `Load Config` is a group cal
 - **`scripts/check-import-safe.py` + the `testing.md` rule (D4-7):** in `check-all` (selftest + `scripts/` and
   `tests/`: 13 files, 4 live-capable, 0 faults). Two top-level lines in the deploy helper carry the `# import-safe:`
   reason (offline siblings). On the scratch scripts: the D3c drill script with its guard is green; without it, red.
+
+**D4b · the Main copy's live drills ✅ (2026-10-23).** Everything ran on the copy's test path through the owner
+service token, widget channel only, the copy activated per drill block and deactivated after each one.
+- **Start:** `check-import-safe` green over the window's own scripts · Main's `versionId`/`activeVersionId` recorded
+  privately (compared again at the end; not written into the repo) · Main Turnstile 403 · every table 0.
+  *Declared:* the brief asked for the check "over the scratchpad"; it was red on 84 faults, all in the earlier rounds'
+  scripts, so those were moved into an archive folder there (reversible), and the check ran green over what remained.
+- **Copy:** created inactive by the deploy helper, verify green. Live settings: `callerPolicy`, `executionOrder`,
+  `timeSavedMode`, equal to Main's; `availableInMCP` and `binaryMode` absent (D4-1).
+- **Seeded contract (completes D4a's method):** the seed workflow (S2 pattern; its four paths each refused at the edge
+  without a token) wrote fake `mig-` rows; the 8 reads, taken from the LIVE copy, ran against the real tables as
+  `salon_ro`: 24/24 green; cleaned back to 0.
+- **Turnstile window on the copy (§4.5):** before it, the copy's literal `true` · E, a request with no token → 403 at
+  the edge with the Access header, execution count unchanged · owner token + dummy Turnstile token → 403
+  `turnstile_failed`, no data or LLM node run. `--turnstile off` at 20:23:03 UTC, `on` at 20:51:53 UTC (about 29
+  minutes; the copy was inactive between drill blocks). After `on`: literal `true`, full verify green, E refused again,
+  the dummy token 403 with no data node. Main: 403 at the start and the end.
+- **D4-5 cleared by a canary.** Yigitcan: "Salon Bookings" is a separate calendar with no entries this week (operator
+  screenshot). **G1** booked Mon 26 Oct 15:00 Vienna, after the 25 Oct DST change: `start_utc` 14:00 UTC (+01:00),
+  `Book Appointment` → `Verify Slot` → `Write Appointment` → `Save State (Post-Write)`. The round stopped there;
+  Yigitcan confirmed the event in "Salon Bookings" *(operator statement, not API-verified)*.
+- **G2, the canary's removal:** cancelled through the flow ("Cancel your…" → "…is cancelled"). (i) `Delete Booking
+  Event` 204 · (ii) the same slot asked again: the copy's own `Get Calendar Busy` returned 0 busy intervals for the
+  whole day · (iii) the row is `cancelled`. `Build Cancel-Aborted State` did not run.
+- **G12, the same slot rebooked after the cancel (observed path):** Google answered **409 `duplicate`**, because the
+  deterministic event id stays reserved by the cancelled event → `Get For Reconcile` 200 with status `cancelled` →
+  `Verify Reconcile` false → `Build Reconcile-Handoff State`: handoff and an owner alert, no new event, the row stays
+  `cancelled`. `Write Appointment`'s `ON CONFLICT` branch was therefore NOT reached. The path is calendar-side and the
+  topology is the original's. *Product observation, not a migration difference:* a customer who cancels and then
+  rebooks the exact same slot and service is handed to a human.
+- **G3:** booked A (27 Oct) → moved to B (28 Oct): "Moved", the row points at B with `reminded` false, `Delete Old
+  Event (Reschedule)` 204, no orphan state → B cancelled (204, row `cancelled`).
+- **G4–G11:** `tests/run-regression.sh` against the copy's path with the D4-9 variables: **28/28**. Its bookings use the
+  suite's own date (24 Oct, before the DST change; the DST case is G1's). From the execution data: `Capture Lead` once,
+  `Lead Unavailable Reply` never · alerts went through `Find Conversation Row` → `Record Alert Class` · the duplicate
+  `messageId` stopped at `Check Processed` with no `Extract Intent` · the invalid payload's 400 ran no data node · the
+  handoff lock ran no LLM.
+- **H1:** 4 in-class hostile `messageId`s (`--`, `.`, `_`, `:=+/`) → 200, each stored literally in its own
+  `processed_messages` row; 5 out-of-class (quote, comma, space, `;`, newline) → 400, no data node. **H2:** 4 in-class
+  `sessionId`s → 4 separate conversations; 7 out-of-class (the same five, `%`, 81 characters) → 400, no data node.
+- **M5a:** the month's `bot_metrics` row set to 10.00 → `Spend Gate` output 1, `Extract Intent` not run, a
+  deterministic handoff reply, a `spend_cap` alert. The measured total was written back afterwards.
+- **Output shapes from the execution data (the plan's write-shape criterion):** every output item of the 17 Postgres
+  nodes across the copy's 85 executions, checked with `tests/contract/shape.cjs` (field types from
+  `db/shape-spec.json`): **0 violations**. Each of the 17 produced records at least once, and the five 0-row paths gave
+  `{}` (`Load State`, `Check Processed`, `Find Booking`, `Find Booking (Reschedule)`, `Read Spend`). Control: four
+  mutated outputs are red, each on its own rule (top-level keys, a null field, `createdTime`, a numeric string).
+  *Declared:* a scratch script, not committed; the rules it calls are the committed ones.
+- **External effects:** calendar events created 8 = deleted 8 (counted from the execution data, ids never printed).
+  Final sweep: every drill day read through the copy's `Get Calendar Busy`: 0 busy intervals, 0 drill slots busy.
+  Positive control for that read: during the suite, two `Get Reschedule Busy` reads saw 1 busy interval while a drill
+  booking stood. `Send WhatsApp (Zernio)` ran 0 times. LLM spend **0.169342 USD** (round stop 1.00). Owner alerts went
+  to Yigitcan's chat (K-5).
+- **Observation, the same in the original:** on a session's FIRST turn an alert's `Find Conversation Row` runs before
+  `Save State` creates the row, returns 0 items, and `Record Alert Class` does not run, so that alert's throttle is not
+  recorded (seen on a pre-hours date alert and on M5a). The original's node has the same flags (no
+  `alwaysOutputData`, `continueErrorOutput`) and the same order.
+- **Export and pairing:** `n8n/workflow.main.copy.sanitized.json` is the generated copy with the live copy's settings;
+  `PAIRS` 10/10; `check-sql-params` counts 34 Postgres nodes in 10 exports. Controls on the new pair: the export with
+  its Turnstile literal flipped → red (`Load Config` drift); with `availableInMCP` added → red (settings).
+- **Clean-up:** the prefix-guarded delete (32 conversations, 6 appointments, 67 processed messages, 1 lead) and the
+  declared single-key delete of the month's row (D4-6; it held 0.169342) → every table 0; seed workflow 404. **End
+  state:** 5 originals active, 5 copies inactive and paired; Main's version ids unchanged; Main Turnstile 403.
+- **Not in D4b:** M5b, M7, T3 and the Reminders error paths (D4c). D4-3 stays open until M7-T3.
 
 ## 4 · "No new bug": QA design
 
@@ -2223,5 +2287,5 @@ budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step
   D3d, each step committed and stopped for review. D3e needs its own written go-ahead.
 
 **D4 plan (2026-10-23)**
-- **✅ APPROVED by Yigitcan (plan-gate), with rulings D4-1 to D4-9** (§3s). D4-5 (the calendar) is NOT cleared and
-  gates D4b. D4 runs D4a → D4b → D4c, each step committed and stopped for review.
+- **✅ APPROVED by Yigitcan (plan-gate), with rulings D4-1 to D4-9** (§3s). D4 runs D4a → D4b → D4c, each step
+  committed and stopped for review. D4-5 (the calendar) gated D4b and was cleared on 2026-10-23 with a canary.
