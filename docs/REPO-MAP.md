@@ -79,6 +79,7 @@
 - `db/ops/k3-restore.sh`
 - `db/ops/k3-window.sh`
 - `db/ops/m7-window.sh`
+- `db/ops/pg-backup.sh`
 
 ### db/schema
 
@@ -248,6 +249,7 @@
 
 - `tests/ops/k3-window.test.sh`
 - `tests/ops/m7-window.test.sh`
+- `tests/ops/pg-backup.test.sh`
 
 ### tests/snippet
 
