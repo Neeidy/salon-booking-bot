@@ -72,7 +72,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* | 4 copies green · rehearsal measured in both directions |
-| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ CLOSED 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window): script approved by Cowork, window prepared.** | diff + contract + drills green; Turnstile window protocol on the COPY |
+| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ CLOSED 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window) ✅ run 2026-10-23, ⏸ stopped for the D4-3 ruling.** | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
@@ -1976,6 +1976,51 @@ service token, widget channel only, the copy activated per drill block and deact
   items). **For D4c:** Cowork read `db/ops/m7-window.sh` at `426446a` line by line and approved it as written
   (sha256 `61b0b80f5f02a9fd9e923b2b119d9bbaa094948a304f0e2a02185a285f1cd4ba`); writing `~/m7-flags` during the window and
   activating the Main and Reminders copies for the M7 drills are approved (Reminders per K-4, minutes :05–:50).
+
+**D4c · the M7 window ✅ run 2026-10-23; ⏸ STOPPED for the D4-3 ruling.** The operator: `--check` OK, baseline OK
+*(operator statement)*. Two more approvals for this window (Yigitcan, in writing): the seed workflow "MIG SEED — D4c"
+with T1's fake due row and the clean-up, and two `--turnstile` PUTs on the inactive Main copy. Claude wrote the flags;
+before every stage the script's state was confirmed from the catalog through `salon_ro` (CONNECT and the 20 table
+privileges). Timeline (UTC): `go` 21:30:19 · C1.done 21:30:56 · T1.done 21:33:20 · T2.done 21:33:51 · T3.done 21:34:42
+· the catalog back at full access right after.
+- **Before `go`:** the seed workflow's three paths refused at the edge; T1's due row written (`booked`, not reminded,
+  starting 3 hours ahead). **Session-count positive control:** right after the seed request, `salon_ro` counted 1
+  `salon_app` session, so its count is not blind. The Main copy's Turnstile literal off at 21:30:12.
+- **C1 (CONNECT revoked, sessions terminated; catalog `f -`, 0 sessions):**
+  - Main copy: 503 `state_unavailable`; `Extract Intent` not run; a `state_unavailable` owner alert. **S4's
+    auth-failure shape, measured:** the error item is `{error, message}`, `message` = `permission denied for database
+    "salon"`, `error.description` = "User does not have CONNECT privilege.".
+  - Reminders copy (inside K-4's minutes): `Find Due Appointments` → output 1 → `Reminder Error (lookup)` → owner
+    alert, whose detail shows the real reason.
+- **T1 (UPDATE on `appointments` revoked):** Reminders: `Find Due` found the due row → `Send Disabled?` → dry-run →
+  `Stamp Reminded` output 1 → `Reminder Error (stamp)` → owner alert. The row stayed unstamped (`reminded` false, no
+  `reminder_sent`). The alert's detail reads `-object Object-`: the Phase 7 mandatory item (S10, Q18) reproduced on a
+  real failure.
+- **T2 = M5b (SELECT on `bot_metrics` revoked):** `Read Spend` emitted `{}` on output 0 (its `alwaysOutputData`) and
+  the error on output 1; `Spend Gate` read `{}` as no spend and failed OPEN: the LLM ran and the customer got the
+  normal answer; one `spend_meter_unavailable` owner alert. **Also measured:** `Record LLM Spend` failed too, because
+  `INSERT … RETURNING` and `ON CONFLICT DO UPDATE` need SELECT, so that turn's cost was not counted. The meter
+  under-counts during a read outage, visibly (the alert).
+- **T3 (INSERT and UPDATE on `conversations` revoked), D4-3's measurement:** `Save State` → output 1 → `Send Error
+  Response`: 503 `state_unavailable`. **The error item under `single` + `continueErrorOutput` carries ONLY `{error,
+  message}`, not the input's keys** (the SQL reason is in `message`). That is the shape recorded for Airtable's error
+  item on 2026-08-16 (exec 84, decision log), so the store swap does not change it. **What it does downstream (the
+  same in the original):** `Build Owner Alert` takes the class from the reply node (`state_unavailable`) but finds no
+  `state` or `sender_key`, so the alert reads `sender: unknown`, `channel: unknown`, `stage: unknown` (C1's alert,
+  read), and its throttle key is `state_unavailable:unknown`, shared by EVERY customer. T3's alert was suppressed by
+  C1's, 4 minutes earlier (the key read from the copy's throttle state). **Ruling D4-3 is Yigitcan's.**
+- **After:** the Main copy's Turnstile literal on at 21:36:09 (about 6 minutes off; the copy inactive between drill
+  blocks), full verify green; activated once: no token → 403 at the edge, executions unchanged; dummy token → 403
+  `turnstile_failed`, no data or LLM node. Main: 403, version ids unchanged. Clean-up: the prefix-guarded delete (1
+  conversation, 1 appointment, 1 processed message) and the D4-6 single-key delete of the month's row (it held
+  0.00249 USD, T3's turn; T2's was never counted) → every table 0; seed workflow 404. 5 originals active, 5 copies
+  inactive and paired. The operator's own `--restore` output and the script's C1 line (sessions seen/terminated)
+  are the operator's to report.
+- **Declared:** the drill script's error-text helper read the message from the wrong place in C1 (it printed `None`);
+  it was fixed and the C1 text re-read from the same executions. The flag files stay in `~/m7-flags` (the script
+  refuses a non-empty directory, so they cannot advance a later window).
+- **D3c's error paths:** lookup (C1) and stamp (T1) drilled; `Reminder Error (send)` stays unreachable while sends are
+  disabled, as in the original (recorded gap).
 
 ## 4 · "No new bug": QA design
 
