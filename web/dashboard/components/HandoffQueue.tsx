@@ -12,7 +12,7 @@
  * — and it covers both "no alert was ever raised" and "an alert was raised and never arrived". Those
  * rows sort FIRST. See lib/alertState.ts, where the three states and their wording live together.
  */
-import type { Page } from '../lib/airtable.ts';
+import type { Page } from '../lib/store.ts';
 import type { HandoffRow } from '../lib/types.ts';
 import { alertState, alertLabel, triageRank } from '../lib/alertState.ts';
 import { maskFreeText, maskSenderKey, assertMasked } from '../lib/mask.ts';
@@ -62,9 +62,9 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
   // generic crash page instead of appointments, leads and spend. It was measured against the shape
   // the engine writes (`whatsapp:+43…`) at a time when the Airtable formula truncated a phone-shaped
   // sender from the wrong end. THAT FORMULA HAS SINCE BEEN CORRECTED and verified over a 100-row
-  // sample (airtable.ts). The catch stays anyway: it is not a workaround for one known defect, it is
-  // the rule that a value which fails the render-time check is never rendered — and the formula lives
-  // in Airtable, outside this repo, where nothing here can stop it changing again.
+  // sample. The catch stays anyway: it is not a workaround for one known defect, it is the rule that a
+  // value which fails the render-time check is never rendered. Since D5 the mask is a generated column in
+  // db/schema/001_init.sql, and a schema change can alter it as easily as an Airtable edit could.
   //
   // A rejected value must not be rendered AND must not be silent, so the row survives with its sender
   // replaced and the count is shown. `code-style.md`: fail loud, never swallow — but failing loud is a
@@ -78,12 +78,12 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
   // row costs a correctly-masked value nothing and closes the lane that mattered.
   //
   // `flagged` is now a real signal rather than a crash counter: a value the formula masked properly
-  // re-masks to ITSELF, so any difference means Airtable handed us more than a mask. That is the
+  // re-masks to ITSELF, so any difference means the store handed us more than a mask. That is the
   // condition worth telling the owner about, and it is detectable without trusting `assertMasked`.
   // ⚠ TWO DIFFERENT EVENTS USED TO INCREMENT ONE COUNTER, so a single bad row in a one-row queue
   // reported "2 rows" and described both events with the sentence that fitted only one of them
   // (`code-reviewer`, third pass). They are counted separately now because they mean different things:
-  // `remasked` = Airtable handed us more than a mask, and we fixed it here (the row is still shown);
+  // `remasked` = the store handed us more than a mask, and we fixed it here (the row is still shown);
   // `withheld` = even our own output failed the check, so the row is shown WITHOUT its sender.
   let remaskedCount = 0;
   let withheld = 0;
@@ -108,7 +108,7 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
       <div className="q-head">
         <h2 id="queue-h">Waiting for you</h2>
         {page.truncated && (
-          // Not decoration. Airtable's page size caps at 100 and the budget allows one request, so a
+          // Not decoration. The read is capped at 100 rows (store.ts, one extra fetched to know), so a
           // long queue cannot be shown whole. Saying "the first 100 of more" is the difference between
           // a short list and a false one.
           <span className="tech">showing the first {rows.length} — there are more</span>
@@ -145,13 +145,13 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
 
       {remaskedCount > 0 && (
         // This counter should read zero. ⚠ It used to add "or a row predates the fix", which cannot
-        // happen: `sender_masked` is a FORMULA field — Airtable recomputes it on every read, so it has
-        // no history and no old rows. What a non-zero value actually means is that the formula in
-        // Airtable no longer masks every channel it receives (`code-reviewer`, third pass).
+        // happen: `sender_masked` is a STORED generated column, recomputed whenever a row is written and for
+        // every row when the schema changes, so no row carries an older formula's value. What a non-zero value
+        // actually means is that the column no longer masks every channel it receives (`code-reviewer`, third pass).
         <p className="tech">
-          {remaskedCount} row{remaskedCount === 1 ? '' : 's'}: the sender stored by Airtable carried
+          {remaskedCount} row{remaskedCount === 1 ? '' : 's'}: the stored sender carried
           more than a mask and was re-masked here before being shown. Expected to be none — the
-          `sender_masked` formula needs a branch for the channel these rows arrived on.
+          `sender_masked` column needs a branch for the channel these rows arrived on.
         </p>
       )}
       {withheld > 0 && (

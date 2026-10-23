@@ -8,7 +8,7 @@
  * ordinary Tuesday; "no bookings ever" means the shop has not started. Showing the same sentence for
  * both tells a new owner their system is broken.
  */
-import type { Page } from '../lib/airtable.ts';
+import type { Page } from '../lib/store.ts';
 import type { Appointment } from '../lib/types.ts';
 import { maskName, assertMasked } from '../lib/mask.ts';
 import { shopConfig } from '../lib/shopConfig.ts';
@@ -32,9 +32,9 @@ export function AppointmentsPanel({ page }: { page: Page<Appointment> }) {
   const now = Date.now();
   const dated = page.rows.filter((r) => Number.isFinite(Date.parse(r.start_utc ?? '')));
   // A row with no start time cannot be placed on any screen. It is EXCLUDED from the lists and
-  // COUNTED below rather than dropped in silence — measured 2026-09-12, these are Airtable UI
-  // artefacts (completely empty rows), not broken writes, but a count the owner can see is how
-  // anyone would notice if that ever stopped being true.
+  // COUNTED below rather than dropped in silence. Measured 2026-09-12 on Airtable, these were UI
+  // artefacts (completely empty rows). On Postgres `start_utc` is NOT NULL, so the count should read
+  // zero; it stays, because a count the owner can see is how anyone would notice if that stopped being true.
   const undated = page.rows.length - dated.length;
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: TZ });

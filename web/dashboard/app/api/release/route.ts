@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   const messageId = typeof p.messageId === 'string' ? p.messageId.trim() : '';
   // Shape-check here as well as in the engine. Two independent checks of one precondition is not
   // duplication when they sit on opposite sides of a network boundary: this one keeps a malformed click
-  // from spending an Airtable call, the engine's keeps a forged request from writing.
+  // from spending an engine call, the engine's keeps a forged request from writing.
   if (!recordId || !messageId) {
     return Response.json({ ok: false, reason: 'bad_request' }, { status: 400 });
   }

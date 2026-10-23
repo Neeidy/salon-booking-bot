@@ -57,7 +57,7 @@
  *      the first cut tested only the prefix, so the commoner form passed as third-party). Bans the
  *      CLASS, so the next server-only module is caught before anyone adds it to a list.
  *   C. Named third-party specifiers (BANNED_SPECIFIERS) that are server-only by contract and resolve
- *      into node_modules, where neither A nor B can see them — `next/headers`, `server-only`.
+ *      into node_modules, where neither A nor B can see them — `next/headers`, `server-only`, `pg`.
  *
  * WHAT THIS GATE DOES NOT SEE, stated rather than left to be inferred:
  *   - The walk STOPS at genuinely third-party packages (a workspace package symlinked into
@@ -126,14 +126,16 @@ const WORKSPACE_DIRS = ['web/shared', 'web/site', 'web/snippet', 'web/dashboard'
  * disappears costs the whole subtree's coverage. Opposite policies, opposite failure costs.
  */
 const BANNED_FILES = {
-  // Added CP 6d-1. The PAT can READ; this one can WRITE to the live conversation store, so it is the
+  // Added CP 6d-1. The database credential can READ; this one can WRITE to the live conversation store, so it is the
   // more dangerous of the two and is listed first in importance if not in order.
   'web/dashboard/lib/ownerAction.ts':
     'holds OWNER_HMAC_SECRET, which authorises the owner write path. In a browser bundle the signature '
     + 'becomes decorative and anyone could forge a release for any conversation',
-  'web/dashboard/lib/airtable.ts':
-    'it holds the Airtable PAT, read from process.env. CRT #10\'s first line — "the PAT never reaches '
-    + 'a browser" — is true exactly as long as this file is unreachable from client code',
+  // D5 (MIGRATION-PLAN §3t): replaced `web/dashboard/lib/airtable.ts`, which held the Airtable PAT.
+  'web/dashboard/lib/store.ts':
+    'it holds the dashboard\'s database credential (salon_ro, from PG* env vars) and the pg driver. CRT #10\'s '
+    + 'first line — "the credential never reaches a browser" — is true exactly as long as this file is '
+    + 'unreachable from client code',
   // F6 (security-auditor, 2026-09-11): banning only `loadConfig.ts` banned the DOOR and left the
   // PAYLOAD open. `web/site/lib/config.ts` imports this JSON directly and nine components import
   // that — so adding 'use client' to any one of them would put the whole client config (calendar id,
@@ -236,6 +238,11 @@ const BANNED_SPECIFIERS = {
   'server-only':
     'its entire purpose is to throw when it reaches a client bundle; if it is reachable from a ' +
     'client root, something server-only came with it',
+  // D5 (MIGRATION-PLAN §3t): the Postgres driver. `store.ts` is banned by path (class A), but a client file
+  // importing the driver DIRECTLY would never touch store.ts, and the walk stops at node_modules.
+  'pg':
+    'the Postgres driver; it connects with credentials from process.env. Imported by client code, the read '
+    + 'path would leave the server and every CRT #10 claim with it',
 };
 
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);

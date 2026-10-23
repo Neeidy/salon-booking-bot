@@ -73,7 +73,7 @@ test('triage puts the rows nobody can prove were delivered at the TOP', () => {
 });
 
 test('a delivered-but-throttled event still renders as notified — the known limit, pinned', () => {
-  // Inside the window a second event is suppressed and nothing in Airtable records it. The label must
+  // Inside the window a second event is suppressed and nothing in the store records it. The label must
   // therefore not claim the owner knows about the LATEST event — only when the last delivery was.
   // This is the module's honest boundary, asserted so nobody "improves" the wording back.
   const s = alertState('handoff_lock', T(0), T(20));

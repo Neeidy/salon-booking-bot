@@ -2,10 +2,10 @@
  * The ONE place that reads. Every panel below is a SERVER component and receives a slice as a plain
  * prop — no panel fetches, and there is no per-row request anywhere on this page.
  *
- * WHY THAT IS A HARD RULE AND NOT A PREFERENCE: Airtable allows 5 requests/second per base and the
- * BOT SHARES THAT BUDGET. An overrun costs a 30-second penalty applied base-wide, so a dashboard that
- * fans out per row would knock the production bot over — the owner refreshing a page would stop
- * customers from booking. Four reads, once, here.
+ * WHY THAT IS A HARD RULE AND NOT A PREFERENCE: the BOT SHARES THE STORE. On Airtable that meant a
+ * base-wide 5 requests/second with a 30-second penalty on overrun; on Postgres (since D5) it means the
+ * cluster's connections and its work, which `store.ts` bounds with a pool of four. A dashboard that fans
+ * out per row competes with customers booking. Four reads, once, here.
  *
  * ⚠ EVERY COMPONENT ON THIS PAGE IS A SERVER COMPONENT, INCLUDING THE HANDOFF QUEUE, AND THAT IS A
  * SECURITY PROPERTY RATHER THAN AN ARCHITECTURE PREFERENCE. Next serialises a CLIENT component's props
@@ -20,7 +20,7 @@
  * client child, nothing fails. The rule is written here, in the file where it would be broken.
  */
 import { readAppointments, readLeads, readHandoffQueue, readSpend, resetBudget, budgetUsed,
-  BUDGET_PER_PAGE, AirtableError, ConfigError } from '../lib/airtable.ts';
+  BUDGET_PER_PAGE, StoreError, ConfigError } from '../lib/store.ts';
 import { AppointmentsPanel } from '../components/AppointmentsPanel.tsx';
 import { LeadsPanel } from '../components/LeadsPanel.tsx';
 import { HandoffQueue } from '../components/HandoffQueue.tsx';
@@ -44,16 +44,16 @@ export default async function DashboardPage() {
   } catch (e) {
     // D19/D20. A dashboard that renders empty panels on a failed read tells the owner their shop had
     // no bookings, which is the worst available lie. Fail VISIBLY instead.
-    const rateLimited = e instanceof AirtableError && e.status === 429;
-    // A missing PAT or a malformed base id throws BEFORE any request, so "the service did not answer"
+    const busy = e instanceof StoreError && e.busy;
+    // A missing credential or a role that can write throws BEFORE any read, so "the service did not answer"
     // would name a service we never called and point the operator at the wrong thing entirely.
     const misconfigured = e instanceof ConfigError;
-    // A11: `String(e)` put an arbitrary internal message on the page — a fetch TypeError can carry
-    // the request URL, which carries the base id. The full error goes to the server log; the page gets
+    // A11: `String(e)` put an arbitrary internal message on the page — a driver message can carry
+    // the database host. The full error goes to the server log; the page gets
     // a shape, not a payload.
     console.error('[dashboard] read failed:', e);
-    const detail = e instanceof AirtableError ? `HTTP ${e.status}` : (e instanceof Error ? e.name : 'unknown error');
-    return <Unavailable rateLimited={rateLimited} misconfigured={misconfigured} detail={detail} />;
+    const detail = e instanceof StoreError ? `${e.table}: ${e.code}` : (e instanceof Error ? e.name : 'unknown error');
+    return <Unavailable busy={busy} misconfigured={misconfigured} detail={detail} />;
   }
 
   const used = budgetUsed();
@@ -73,7 +73,7 @@ export default async function DashboardPage() {
             <span className="tech">
               {/* A8: this said "of 4" as a literal while BUDGET_PER_PAGE was exported and unused —
                   one number, two copies, the shape contract-integrity.md exists for. */}
-              {used} of {BUDGET_PER_PAGE} Airtable reads · one bulk read per table · no auto-refresh
+              {used} of {BUDGET_PER_PAGE} database reads · one read per panel · no auto-refresh
             </span>
           </div>
         </div>

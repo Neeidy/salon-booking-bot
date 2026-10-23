@@ -1,13 +1,13 @@
 /**
- * The ONLY module that touches `OWNER_HMAC_SECRET` — the same discipline `airtable.ts` applies to the PAT,
- * for a sharper reason: the PAT can read, this secret can WRITE.
+ * The ONLY module that touches `OWNER_HMAC_SECRET` — the same discipline `store.ts` applies to the database
+ * credential, for a sharper reason: that credential can only read, this secret can WRITE.
  *
  * WHY A SECRET AT ALL, WHEN THE PATH IS ALREADY BEHIND CLOUDFLARE ACCESS. Two layers answer two different
  * questions. Access answers *which machine* (measured in CP 6d-0: unauthenticated 403, service-token
  * through). The HMAC answers *which request*. If the service token ever leaks — it lives in a file on a
  * server, like every credential that has ever leaked — the signature is the only thing standing between a
  * stranger and `conversations.stage`. `ARCH-DEC:147` requires both and names the alternative it rejects:
- * the dashboard writing Airtable directly, which bypasses every guard built in CRT #8, CRT #3 and CP5e.
+ * the dashboard writing the store directly, which bypasses every guard built in CRT #8, CRT #3 and CP5e.
  *
  * ⚠ NO `NEXT_PUBLIC_` PREFIX, EVER. That prefix inlines the value into the browser bundle. An HMAC secret
  * a visitor can read makes the signature decorative — anyone could forge a release for any conversation.
@@ -16,10 +16,10 @@
  * and `check-client-imports.cjs` walks imports without being able to tell a server action apart from
  * ordinary code. Choosing the route handler keeps that gate meaningful instead of teaching it to lie.
  *
- * ⚠ THE TARGET IS AN AIRTABLE RECORD ID, NOT A `sender_key`, and that was a correction made before any
+ * ⚠ THE TARGET IS A RECORD ID, NOT A `sender_key`, and that was a correction made before any
  * of this ran. The first draft addressed the conversation by `sender_key` — which the dashboard DOES NOT
  * HAVE and must not have: E2 says a field that is not displayed is not fetched, and a full widget
- * `sender_key` is a BEARER CREDENTIAL (`security-secrets.md`), so `airtable.ts` deliberately fetches only
+ * `sender_key` is a BEARER CREDENTIAL (`security-secrets.md`), so `store.ts` deliberately fetches only
  * the masked form. Addressing by record id costs nothing, is already on every row, and cannot be replayed
  * into the widget lane the way a stolen `sender_key` can. The rule caught the design, not the other way
  * round.
@@ -37,7 +37,7 @@ if (typeof globalThis === 'object' && 'window' in globalThis && 'document' in gl
   );
 }
 
-/** A configuration fault, distinct from a transport fault — the same split `airtable.ts` draws. */
+/** A configuration fault, distinct from a transport fault — the same split `store.ts` draws. */
 export class OwnerConfigError extends Error {
   constructor(message: string) { super(message); this.name = 'OwnerConfigError'; }
 }

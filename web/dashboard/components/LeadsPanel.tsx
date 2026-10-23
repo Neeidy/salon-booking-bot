@@ -5,7 +5,7 @@
  * message on the owner's own phone and not enough to dial it from a screenshot — which is the threat
  * that actually applies to a back-office screen someone photographs to send a colleague.
  */
-import type { Page } from '../lib/airtable.ts';
+import type { Page } from '../lib/store.ts';
 import type { Lead } from '../lib/types.ts';
 import { maskName, maskPhone, assertMasked } from '../lib/mask.ts';
 

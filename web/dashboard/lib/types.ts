@@ -1,17 +1,15 @@
 /**
  * The shapes the dashboard reads. These mirror `docs/DATA-MODEL.md`, and they are DELIBERATELY
- * narrower than the tables: a field absent here is a field `airtable.ts` does not request, which is
+ * narrower than the tables: a field absent here is a field `store.ts` does not select, which is
  * the point (E2 — data not fetched cannot leak).
  *
  * ⚠ These are hand-written, and that makes them a second truth against `docs/DATA-MODEL.md`. The
  * repo's own `contract-integrity.md` says a hand-mirrored contract needs a drift guard committed in
- * the same change. There is none yet: Airtable's schema is not a committed JSON schema, so the
- * generator pattern used for `client.config.types.ts` does not apply as-is. The honest form of the
- * guard is a check that every name here exists in the base's schema — reachable through the
- * `schema.bases:read` scope the PAT already has. NAMED, not built (docs/ROADMAP.md).
+ * the same change. There is none yet. Since D5 the schema IS committed (`db/schema/001_init.sql`), so the honest form of the
+ * guard is a check that every name here is a column of its table there. NAMED, not built (docs/ROADMAP.md).
  */
 
-/** Every value Airtable returns carries its record id; it is PII-adjacent and never rendered. */
+/** Every row carries its record id (`rec` + 14); it is PII-adjacent and never rendered. */
 interface Row { id: string }
 
 export interface Appointment extends Row {
@@ -39,9 +37,9 @@ export interface Lead extends Row {
 
 export interface HandoffRow extends Row {
   /**
-   * The Airtable FORMULA field, not the raw key. `sender_key` itself is a bearer credential on the
-   * widget lane (`security-secrets.md`) and is deliberately never fetched. The formula's earlier
-   * defect — and its fix — are recorded in `airtable.ts`.
+   * The generated `sender_masked` column, not the raw key. `sender_key` itself is a bearer credential on the
+   * widget lane (`security-secrets.md`) and is deliberately never fetched. The Airtable formula's
+   * earlier defect, and its fix, are recorded in `store.ts` and `mask.ts`.
    */
   sender_masked?: string;
   stage?: string;

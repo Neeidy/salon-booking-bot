@@ -300,7 +300,6 @@
 
 ### web/dashboard/lib
 
-- `web/dashboard/lib/airtable.ts`
 - `web/dashboard/lib/alertState.test.ts`
 - `web/dashboard/lib/alertState.ts`
 - `web/dashboard/lib/mask.test.ts`
@@ -308,6 +307,8 @@
 - `web/dashboard/lib/ownerAction.test.ts`
 - `web/dashboard/lib/ownerAction.ts`
 - `web/dashboard/lib/shopConfig.ts`
+- `web/dashboard/lib/store.test.ts`
+- `web/dashboard/lib/store.ts`
 - `web/dashboard/lib/types.ts`
 
 ### web/shared

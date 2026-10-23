@@ -3,11 +3,11 @@
  * D11 — the two-step release, built to the behaviour SCREEN-INVENTORY §454 and the design mockup declare:
  * `release-btn` → `confirming` → yes/no, "no accidental clicks".
  *
- * WHY TWO STEPS FOR A REVERSIBLE WRITE: it is reversible in Airtable and NOT reversible for the customer —
+ * WHY TWO STEPS FOR A REVERSIBLE WRITE: it is reversible in the store and NOT reversible for the customer —
  * releasing a conversation hands it back to the bot mid-handoff, and whatever the human was about to say
  * is replaced by an automated reply. The confirm is about the person on the other end, not the row.
  *
- * ⚠ ITS PROPS ARE AN AIRTABLE RECORD ID AND AN ALREADY-MASKED LABEL. No `sender_key`, masked or not, and
+ * ⚠ ITS PROPS ARE A RECORD ID (`rec` + 14, kept by the migration, Q3) AND AN ALREADY-MASKED LABEL. No `sender_key`, masked or not, and
  * no message text. That matters because `check-client-imports.cjs` would catch a server-only IMPORT here
  * and would NOT catch a PII PROP — props land in the RSC payload, in the page source, with no gate firing
  * (CRT #10b). The bound is kept by hand, here, in writing, because nothing else keeps it.

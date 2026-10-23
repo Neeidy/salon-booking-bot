@@ -5,7 +5,7 @@
  * SUCCEEDS** (Codex #5). So an empty value does not mean "no alert was needed". It means one of two
  * things, and they are not the same thing:
  *
- *   | Airtable                                   | What it actually means                    |
+ *   | Stored (`conversations`)                   | What it actually means                    |
  *   |--------------------------------------------|-------------------------------------------|
  *   | `stage=handoff` + class PRESENT             | the owner WAS told, and when              |
  *   | `stage=handoff` + class EMPTY               | the alert was never produced, OR it was   |

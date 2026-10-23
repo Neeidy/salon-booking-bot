@@ -8,9 +8,9 @@
  *
  * ⚠ The switches are NOT read live. They are hard-coded literals inside the n8n `Load Config` node,
  * so nothing here can query them, and showing them from a copy would be a second truth that drifts
- * the day someone edits the node. What this panel shows is spend, which IS in Airtable.
+ * the day someone edits the node. What this panel shows is spend, which IS in the store (`bot_metrics`).
  */
-import type { Page } from '../lib/airtable.ts';
+import type { Page } from '../lib/store.ts';
 import type { SpendRow } from '../lib/types.ts';
 import { shopConfig } from '../lib/shopConfig.ts';
 
