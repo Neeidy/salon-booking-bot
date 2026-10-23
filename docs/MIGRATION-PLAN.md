@@ -72,7 +72,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D1** | This plan | Yigitcan's written "approved" |
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* | 4 copies green · rehearsal measured in both directions |
-| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape | diff + contract + drills green; Turnstile window protocol on the COPY |
+| **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b waits for D4-5 (the calendar).** | diff + contract + drills green; Turnstile window protocol on the COPY |
 | **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
@@ -205,7 +205,9 @@ Five tables. **Customers is NOT created.** Every table has
 | `bot_metrics` | period_key text NOT NULL · cost_usd numeric(12,6) NOT NULL DEFAULT 0 · updated_at timestamptz | **UNIQUE (period_key)**, from `Record LLM Spend` upsert `['period_key']` |
 
 - **The stage CHECK turns a silent new value into a visible error.** In D2, every `stage` value Main can
-  write is listed, so the CHECK does not reject a value the flow legitimately produces. *Not yet measured.*
+  write is listed, so the CHECK does not reject a value the flow legitimately produces. *Measured statically at D4
+  planning (2026-10-23, §3s): every stage literal Main writes (9) is in the list; every other write passes the stored
+  value back. Owner Actions writes only 'new'.*
 - **`sender_masked`:** the Airtable formula's two measured defects are fixed (ROADMAP, 592 rows). A
   generated column keeps the dashboard's field. Its expression is derived in D2 from the fixed formula's
   described behaviour. `HandoffQueue` already re-masks as a fallback, so a mismatch fails safe, never
@@ -226,7 +228,7 @@ Five tables. **Customers is NOT created.** Every table has
 | `Record Owner Action Processed` (owner replay marker) | **Q17 (a), ruled 2026-10-20:** `INSERT … ON CONFLICT (message_id) DO UPDATE SET message_id = EXCLUDED.message_id RETURNING id`. On a conflict the no-op update returns the EXISTING row's id, so `Marker Written?` (`!$json.error && !!$json.id`) takes the "written" path as on Airtable (the returned id is measured, §3p; the IF's routing follows from its expression and was not run). *Not `DO NOTHING`: that returns `{success: true}` and no id, with or without `alwaysOutputData`, and routes the race to "marker failure".* | duplicate replay markers (one row where Airtable made two) |
 | `Save State` / `Save State (Post-Write)` (upsert) | `INSERT … ON CONFLICT (sender_key) DO UPDATE` | two first-contact rows for one sender: impossible |
 | `Write Appointment` (upsert) | `INSERT … ON CONFLICT (gcal_event_id) DO UPDATE` | duplicate mirror rows for one event |
-| `Record LLM Spend` (upsert) | `INSERT … ON CONFLICT (period_key) DO UPDATE SET cost_usd = EXCLUDED.cost_usd` (1:1, absolute) | duplicate period rows |
+| `Record LLM Spend` (upsert) | `INSERT … ON CONFLICT (period_key) DO UPDATE SET cost_usd = EXCLUDED.cost_usd, updated_at = EXCLUDED.updated_at` (1:1, absolute; both mapped columns, D4-4) | duplicate period rows |
 
 **Quoted** (n8n-mcp's bundled node database, node version 2.7; see §3f): the node's batching modes are "Single Query: A single query for all incoming items" ·
 "Independent: Execute one query per incoming item of the run" · "Transaction: Execute all queries in a
@@ -954,9 +956,9 @@ yet.** Each step below ends in its own commit and verdict, and then stops for Co
 | **D3e order (2026-10-22)** | **Ruling:** D3e waits. It opens in its own round, after the settings-parity plan is approved. |
 | **settings-parity plan APPROVED (2026-10-22)** | **Ruling (Yigitcan, plan-gate), class option O1 (accept by evidence, per key), with amendments:** (i) the `binaryMode` reader search is redone at the source tag matching the running build (the version number is kept out of this public repo), with every reader listed; (ii) only T0 and the five guard mutants run now. **R1 (editor import), R2 (CLI `import:workflow`) and R3 (does a PUT preserve a present hidden setting) are NOT run; they move to D6b's plan as the O3 question.** `availableInMCP`: first measure, read-only, whether this instance's MCP server is enabled; the committed Main export takes the live value ONLY together with the ruling that follows from it. `docs/n8n-rollback.md`'s three contradicted statements are corrected in place. `staticData` and tags move to D6b's plan. Yigitcan does not remember whether Main's `availableInMCP` was turned on; there is no operator statement either way, so the measurement decides. |
 | **settings-parity build, step 1: STOPPED (2026-10-22)** | **The instance-level MCP server is ENABLED** *(the response is measured; "enabled" is read against the source tag matching the running build (the version number is kept out of this public repo), and the running build's version was confirmed equal to that tag by the L2 `security-auditor`, read in the running container on 2026-10-22).* Probe on the origin over loopback, no credential: `GET /mcp-server/http` → **401** with `WWW-Authenticate: Bearer realm="n8n MCP Server"` and the body `Unauthorized: Authorization header not sent`. `HEAD` → **401** with the same header and no body. In the source, `mcp.controller.ts` puts `getEnabledMiddleware` FIRST on both routes: GET then runs the auth middleware (`mcp-server-middleware.service.ts`), which sends that 401, and HEAD's own handler sends its 401. With the server disabled, `getEnabledMiddleware` answers both with **404** `{"message": "MCP access is disabled"}`. *Controls:* a nonexistent sibling path returns the editor page (200), so the 401 is route-specific. The public API without a key returns a different 401 (`Unauthorized`, no `WWW-Authenticate`). *The edge:* from the internet every `/mcp-server/*` path is redirected to the Cloudflare Access login (302), with or without the API service token. So an outside MCP client needs an Access identity first; that is a second layer, not the server being off. *Consequence:* Main's `availableInMCP: true` is NOT inert. The brief's stop condition applies, so steps 2–5 were not run and Main's export was not changed. *Observation, cause unknown:* Main's draft `versionId` has differed from its published `activeVersionId` since 2026-10-22 12:49 UTC; nodes are in parity, so the change is not in the nodes. |
-| **MCP exposure (2026-10-22)** | **Ruling (Yigitcan):** the instance MCP server STAYS ENABLED. Main's `availableInMCP: true` is recorded as an accepted EXPOSURE, behind two layers (Cloudflare Access at the edge, MCP bearer auth at the origin), and moves to the final security pass ([PHASE-7-PLAN.md](PHASE-7-PLAN.md), security pass list). Main's committed export takes the live value WITH this ruling. A copy's absent `availableInMCP` (that is, `false`, narrower) goes into the copy's allowlist with this ruling as its reference; at the cutover Main becomes less exposed, recorded as accepted. *For D4:* the T0 probe did not send `availableInMCP`, so whether the API keeps it on create is not measured. The D4 plan decides how the Main copy ends up without it. |
+| **MCP exposure (2026-10-22)** | **Ruling (Yigitcan):** the instance MCP server STAYS ENABLED. Main's `availableInMCP: true` is recorded as an accepted EXPOSURE, behind two layers (Cloudflare Access at the edge, MCP bearer auth at the origin), and moves to the final security pass ([PHASE-7-PLAN.md](PHASE-7-PLAN.md), security pass list). Main's committed export takes the live value WITH this ruling. A copy's absent `availableInMCP` (that is, `false`, narrower) goes into the copy's allowlist with this ruling as its reference; at the cutover Main becomes less exposed, recorded as accepted. *For D4:* the T0 probe did not send `availableInMCP`, so whether the API keeps it on create is not measured. The D4 plan decides how the Main copy ends up without it. *Decided 2026-10-23 (D4-1, §3s): the deploy helper never sends an allowlisted key, and the guard reds one present on a copy.* |
 | **Speed plan (2026-10-22)** | **Ruling (Yigitcan):** (1) the 7-day soak runs in the background and gates ONLY D6c's revocations; nothing else waits on it (D7's close no longer does). (2) **D3e is a DAYTIME-only rehearsal: K-7 changes from (a) to (b)** (D3e section). (3) Reminders' K-3 error-path drills fold into D4's M7 operator window: one window, not two. (4) Q16 (splitting `salon_ro`'s column access) and D6d (the permanent off-server target) move to the final security pass. **Unchanged and NOT cut:** the nightly `pg_dump` plus one restore test before the cutover · the Turnstile window protocol · Airtable is not deleted · drills and gates on every copy. |
-| **settings-parity build result (2026-10-22)** | Run after the MCP ruling. **Main's draft vs published:** of 191 nodes, 174 differ ONLY in `position` and 17 are identical; connections, description and `nodeGroups` are equal; `name` is set on the draft and `null` on the published version record. Settings, pinData, meta, `staticData` and tags are not versioned, so they have no draft/published pair. *Declared reading:* a canvas re-layout, behaviour-neutral, so not a stop (the brief's "touches nodes" is read as "changes behaviour"). **`binaryMode` readers at the source tag** (a stream scan of the tagged source archive, 23,717 files, 34 non-test files mention it): every reader treats an absent value as `"separate"`. Core helpers default the parameter to `SEPARATE`; the engine, data proxy, Set, Form and ExtractFromFile compare against `COMBINED` only; the editor uses `?? DEFAULT_SETTINGS.binaryMode` (`SEPARATE`); the editor's settings dialog writes `"separate"` when the value is undefined (which is likely how Main and Reminders got it); the public DTO strips the key on create and update. The `binaryMode` in `ai-utilities` and `nodes-langchain` is an unrelated node parameter. **T0** (throwaway, 404 after): `settings: {}` reads back `{}`, so no default is added; the non-default values keep `callerPolicy` and `timeSavedMode` and drop `binaryMode`. **The guard:** `scripts/settings_parity.py`, used by `check-content-parity.py` (committed vs live; a paired copy vs its original through the copy spec's allowlist), by the diff tool and by the deploy helper's verify. The Main and Reminders exports now carry their live settings; before the refresh, the new guard was red on both (Main 4 keys, Reminders 1). The Reminders spec allowlists `binaryMode`'s absence. The six mutants are red (`tests/unit/settings-parity.test.py`, 13 cases, in `check-all`), and two live mutants on the real guard exit 1. *The pre-push audit found two mutants of the rules that the first test version did not kill:* the "covers absent only" check disabled (mutant 6 had been red for a different reason), and the "committed but not live" branch disabled (no case). Both are killed now, shown by running each mutated module against the test. Settings that are not an object now fail loud instead of comparing as empty. `docs/n8n-rollback.md` is corrected in place. |
+| **settings-parity build result (2026-10-22)** | Run after the MCP ruling. **Main's draft vs published:** of 191 nodes, 174 differ ONLY in `position` and 17 are identical; connections, description and `nodeGroups` are equal; `name` is set on the draft and `null` on the published version record. Settings, pinData, meta, `staticData` and tags are not versioned, so they have no draft/published pair. *Declared reading:* a canvas re-layout, behaviour-neutral, so not a stop (the brief's "touches nodes" is read as "changes behaviour"). **`binaryMode` readers at the source tag** (a stream scan of the tagged source archive, 23,717 files, 34 non-test files mention it): every reader treats an absent value as `"separate"`. Core helpers default the parameter to `SEPARATE`; the engine, data proxy, Set, Form and ExtractFromFile compare against `COMBINED` only; the editor uses `?? DEFAULT_SETTINGS.binaryMode` (`SEPARATE`); the editor's settings dialog writes `"separate"` when the value is undefined (which is likely how Main and Reminders got it); the public DTO strips the key on create and update. The `binaryMode` in `ai-utilities` and `nodes-langchain` is an unrelated node parameter. **T0** (throwaway, 404 after): `settings: {}` reads back `{}`, so no default is added; the non-default values keep `callerPolicy` and `timeSavedMode` and drop `binaryMode`. **The guard:** `scripts/settings_parity.py`, used by `check-content-parity.py` (committed vs live; a paired copy vs its original through the copy spec's allowlist), by the diff tool and by the deploy helper's verify. The Main and Reminders exports now carry their live settings; before the refresh, the new guard was red on both (Main 4 keys, Reminders 1). The Reminders spec allowlists `binaryMode`'s absence. The six mutants are red (`tests/unit/settings-parity.test.py`, 13 cases, in `check-all`; *extended 2026-10-23 by D4-1 to 15 cases and eight mutants, an allowlisted key PRESENT on a copy now being red, §3s*), and two live mutants on the real guard exit 1. *The pre-push audit found two mutants of the rules that the first test version did not kill:* the "covers absent only" check disabled (mutant 6 had been red for a different reason), and the "committed but not live" branch disabled (no case). Both are killed now, shown by running each mutated module against the test. Settings that are not an object now fail loud instead of comparing as empty. `docs/n8n-rollback.md` is corrected in place. |
 | **Main draft reading (2026-10-22)** | **Ruling (Yigitcan):** the reading of Main's draft diff is ACCEPTED: position-only changes plus a `null` name on the published version record are behaviour-neutral. The brief's stop wording "touches nodes" was Cowork's and too broad; the intent was "changes behaviour". **D3e approved** in its daytime form, together with writing the fresh raw export of the original Purge outside the repo, next to the D0 backups. |
 
 **S10, the Q18 premise check** (the S2 pattern, a temporary workflow on the approved list):
@@ -1795,6 +1797,103 @@ cutoff", so the next run catches up.
 
 **Automation-fit:** neither. Every step is a gated live write or a wait.
 
+## 3s · D4 plan: APPROVED 2026-10-23 (Yigitcan, plan-gate), with rulings D4-1 to D4-9
+
+The plan was presented in chat in the full `/plan-flow` format, built from reads of the committed export and the
+live instance at `8843aff` (read-only, no commit). This section records the approval, the rulings and each step's
+result. **D4 runs in three steps, each committed and stopped for review:** D4a (offline build) → D4b (the copy's
+live drills) → D4c (the M7 operator window).
+
+**Read by Cowork from the committed Main export @`8843aff`, recorded with the approval:** Main has exactly ONE trigger,
+the webhook `barber-inbound`, so moving it to the copy's test path moves BOTH lanes (widget and whatsapp) · the
+calendar calls are HTTP nodes · the calendar id in `Load Config` is a group calendar.
+
+**Measured while planning (2026-10-23, read-only):**
+- Main: active · `versionId` and `activeVersionId` unchanged since the settings-parity round (the values are kept out
+  of the repo) · draft equals published apart from node positions. 5 originals active, 4 copies inactive, every table 0.
+- Database `salon` is owned by `postgres` (`pg_database.datdba`, read through `salon_ro`), so `salon_owner` cannot
+  REVOKE CONNECT on it (§3r K-3's recorded risk, now with its mechanism).
+- No `salon_app` session was open in `pg_stat_activity`. *Not evidence yet:* that read was not shown able to see
+  another role's sessions; M7 measures it with a positive control.
+- The stage CHECK: every stage literal Main writes (9) is in the list (§3d); the rest is the stored value passed back.
+- `Validate Payload` bounds `senderId` to `^[A-Za-z0-9:+._-]{3,80}$`, so no quote or comma reaches a formula.
+- The deploy helper sent the live original's settings as they were, `availableInMCP: true` included, and the
+  settings guard passed an EQUAL value on a copy. So a Main copy would have been created exactly as exposed as Main
+  with every guard green. *Whether the API keeps `availableInMCP` on create is not measured;* the instance's API spec
+  lists it as an ordinary setting ("Defaults to false"), not as derived like `binaryMode`.
+
+**Rulings (Yigitcan, 2026-10-23):**
+
+| | Ruling |
+|---|---|
+| **D4-1** | **Yes.** A key a copy spec allowlists must be ABSENT on the copy: present is red, whatever its value. The deploy helper never sends an allowlisted key. Main's copy allowlists `binaryMode` and `availableInMCP`. |
+| **D4-2** | **Accepted, as an extension of K-6.** A 0-row UPDATE on `Update Appointment Cancelled`, `Update Appointment (Reschedule)` or `Record Alert Class` returns `{success: true}` on output 0 on Postgres, where Airtable raised an error and an alert. It needs the row to vanish inside one run, and no workflow deletes appointments or conversations. |
+| **D4-3** | **Measure first, rule after.** Whether a `single`-batching Postgres error item under `continueErrorOutput` carries the input's keys is measured in M7-T3 (`Save State` fails). Its consumers (`Send Error Response`, `Lead Unavailable Reply`, `Booking State-Unsaved Reply`) spread `$json` into the owner alert; the customer reply does not depend on it. |
+| **D4-4** | **SET every mapped column, `created_at` included (1:1).** On Postgres one `created_at` column serves both Airtable's `createdTime` and its `created_at` field; nothing reads an appointment's `createdTime` (searched: one code comment). |
+| **D4-5** | **NOT cleared.** Whether the calendar in `Load Config` holds no real bookings is unconfirmed. **It gates D4b: every calendar-writing drill (G1–G3, G12) waits for it.** D4a is unaffected. |
+| **D4-6** | **Yes.** The drill spend row (`bot_metrics`, the current UTC month: no `mig-` prefix is possible, the key IS the month) is deleted at the end by that one key, a declared exception to the prefix guard, and its total is reported. The drills stop if the month's row passes **1.00 USD**. |
+| **D4-7** | **Yes.** `testing.md` rule plus `scripts/check-import-safe.py`, in `check-all`, and run over a window's own scripts before the window. |
+| **D4-8** | **Yes, constrained.** The termination targets ONLY `usename = 'salon_app' AND datname = 'salon'`; the superuser performs exactly two kinds of statement (GRANT/REVOKE CONNECT, that termination); the offline test proves that no other statement can run as superuser; `--check` runs first; writing `~/m7-flags` is approved for the window. **Cowork reads the script before the operator runs it.** |
+| **D4-9** | **Yes.** `tests/run-regression.sh` gains optional env vars; unset, they leave every request as it was. |
+
+**D4a · offline build ✅ (2026-10-23).** Nothing live was written, activated or called; the only live reads were
+`salon_ro` contract reads, and Turnstile at the start and the end (403 both times).
+- **`db/copies/main.json`:** 17 queries, the trigger on `owner-mig-main`, `settings_allow` `binaryMode` +
+  `availableInMCP`. Every node keeps `single` batching (one item each). Upserts SET exactly the mapped columns
+  (D4-4); `Record Processed` stays `DO NOTHING` (Q17); the three multi-row reads order by `created_at, id`.
+  *Declared:* `last_intent`'s parameter carries `?? null`, so an undefined value binds as NULL instead of relying on
+  how the driver formats `undefined`.
+- **Generated copy:** diff test phase **green**; swap phase **red** (the trigger is on its test path); §4.1's positive
+  controls each **red** (an unrelated node · a connection · a renamed data node · a data node's `onError` · its
+  `alwaysOutputData` · the Turnstile literal in `Load Config`); `check-sql-params` counts **17** Postgres nodes;
+  `build-workflow-copy --selftest` green with the new spec.
+- **The 8 read queries, as `salon_ro` (`tests/db/copy-contract.cjs`, 32 cases, all green):**
+  - *Declared method change:* the tables are empty and D4a may not write, and `salon_ro` can neither INSERT nor
+    create a temp table. So each query ran twice: **(i) its exact text against the real table**, 0 rows, which
+    proves the text, the privileges and the parameter types and measures no shape; **(ii) against fake fixture
+    rows** (`tests/db/fixtures/main-reads.json`, all `mig-d4`): the runner's new fixture mode swaps only the
+    `FROM salon.<table>` source for `jsonb_populate_recordset(NULL::salon.<table>, …)`, the table's own row type,
+    and keeps the copy's projection, WHERE, ORDER BY and parameters.
+  - Fixture results: full and sparse rows found 1 each, other senders and a cancelled row excluded (the booking
+    reads return 2 of 4), misses 0, **0 violations**.
+  - **Control:** the same copy with `jsonb_strip_nulls`, `NULLIF` and the boolean `CASE` removed is **red on all 8
+    nodes** (empty strings, null, `false`, a non-ISO timestamp).
+  - **The seeded real-table run of the same queries is D4b's**, through the seed workflow it already plans.
+- **Settings guard (D4-1):** `copy_vs_original` reds an allowlisted key PRESENT on a copy. `tests/unit/settings-parity.test.py`
+  now has 15 cases and each red case must name the rule it trips. *Found while doing it:* after the rule change,
+  mutant 3 and the `executionOrder` case went red for the WRONG reason (the copy still carried `availableInMCP`); both
+  were fixed to isolate their own rule. Against the OLD rule the new mutants 7 and 8 (an equal value on the copy) are
+  green, so the test measures the change.
+- **Deploy helper:** `assemble()` drops every allowlisted key from the request. `--turnstile off|on COPY_ID` writes
+  the ONE Turnstile literal in an INACTIVE copy's `Load Config` (refused unless exactly one literal exists, it is in
+  the opposite state, and the target is the inactive, named, Postgres copy). After `off`, the copy with that literal
+  put back in memory must pass the full verify; after `on`, the full verify. Selftest: green on every spec, with new
+  cases (an allowlisted key kept with the original's value → red · a second literal or another node changed with
+  the lowered gate → red · `on`-check while still off → red · off twice, on while on, two literals → refused).
+  - **Mutants:** `assemble()` keeping the keys → selftest red (Main's and Reminders' clean copies); the `off` check
+    returning green → red. *Declared:* a second, textual `Load Config` comparison in the `off` check was written
+    first; its mutant SURVIVED, because the verify already reds every other difference, so it was removed.
+- **`db/ops/m7-window.sh`** (operator script) and **`tests/ops/m7-window.test.sh`** (offline, 27 checks, green):
+  stages C1 (REVOKE CONNECT + terminate `salon_app`'s sessions in `salon`) · T1 (`appointments` UPDATE) · T2
+  (`bot_metrics` SELECT) · T3 (`conversations` INSERT, UPDATE); `--check`; `--restore`; the k3 pattern otherwise
+  (lock, flags, a trap that restores and checks, stage-by-stage catalog checks).
+  - **The D4-8 boundary, proven offline three ways:** across every scenario the superuser received only the three
+    allowed statements · the code names the `postgres` role in one call, inside `superuser()`, which takes a keyword
+    mapped by a `case` and passes no stdin · the function run in isolation sends GRANT CONNECT only when SQL is piped
+    at it, and refuses unknown keywords. `--check` proves the superuser path with the GRANT itself, a no-op while the
+    grant stands, and sends nothing when the state is not baseline. The mutant results are in the D4a report.
+  - *Not measured:* how the superuser authenticates (the container's local socket, no password). The operator's
+    `--check` decides it.
+  - *Declared:* like `k3-window.test.sh`, the test is not in `check-all` (it waits on real flag timeouts).
+- **`tests/run-regression.sh`:** `CURL_HEADER_FILE`, `SESSION_PREFIX`, `MESSAGE_PREFIX` and **`LEAD_MARKER`**.
+  *Declared:* `LEAD_MARKER` is a fourth variable beyond the three the plan named; the plan's own mock-data rule needs
+  it, because a `leads` row carries no sender or message id for the prefix guard. With a fake `curl` and a fixed
+  clock, the 46 requests are byte-identical to the old harness with no variable set; with all four set, 46 of 46
+  carry the header file and the prefixes.
+- **`scripts/check-import-safe.py` + the `testing.md` rule (D4-7):** in `check-all` (selftest + `scripts/` and
+  `tests/`: 13 files, 4 live-capable, 0 faults). Two top-level lines in the deploy helper carry the `# import-safe:`
+  reason (offline siblings). On the scratch scripts: the D3c drill script with its guard is green; without it, red.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
@@ -2108,3 +2207,7 @@ budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step
 **D3 plan (2026-10-20)**
 - **✅ APPROVED by Yigitcan (plan-gate), with rulings K-1 to K-7** (§3r). The round runs S10 → D3a → D3b → D3c →
   D3d, each step committed and stopped for review. D3e needs its own written go-ahead.
+
+**D4 plan (2026-10-23)**
+- **✅ APPROVED by Yigitcan (plan-gate), with rulings D4-1 to D4-9** (§3s). D4-5 (the calendar) is NOT cleared and
+  gates D4b. D4 runs D4a → D4b → D4c, each step committed and stopped for review.
