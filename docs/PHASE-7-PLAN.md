@@ -20,6 +20,9 @@
 4. **D6d:** a permanent off-server backup target (speed plan 2026-10-22).
 5. Backups of a secret file fall outside the deny scope (MIGRATION-PLAN §3n), and the root-only-file item in
    [OPERATIONAL-INCIDENTS.md](OPERATIONAL-INCIDENTS.md) (already recorded as joining this pass).
+6. **The dashboard logs the full read error server-side** (`web/dashboard/app/page.tsx`, `console.error`): a driver message
+   can carry the database host. It reaches neither the repo nor the page (which shows only `table: code`), but it reaches
+   the local log (Yigitcan's ruling, 2026-10-23; MIGRATION-PLAN §3t).
 
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays

@@ -2046,7 +2046,7 @@ built and proven before the cutover, and the dashboard's live switch happens ins
 has an `errorWorkflow` setting or an `executeWorkflow` node, so nothing but this repo's own guards refers to a workflow
 id · only Main carries tags (two) · the copies' `staticData` holds drill throttle keys and Reminders' run guard;
 Main's original holds 253 throttle keys · the dashboard is not running (no listener) and its env file exists · the
-existing nightly backup job runs as an unprivileged user with a retention window, so it reaches Postgres through
+existing nightly backup job runs as a non-root user with a retention window, so it reaches Postgres through
 `docker exec` rather than the compose project · the parity
 guard reds every inactive original (`INACTIVE ORIGINAL`), so it reds all five after the cutover unless told otherwise
 · `check-live-parity` defaults to Main original's id · the deploy helper has no swap mode.
@@ -2151,6 +2151,52 @@ was written or activated; the only live reads were `salon_ro` reads and n8n GETs
     accept it (no action at the cutover).
   - *Observation:* Main original's throttle keys include WhatsApp sender keys, i.e. phone numbers, in n8n's own
     database; they stay with the inactive original and are not moved. Not a migration difference.
+
+**Rulings after round 1 (Yigitcan, 2026-10-23):** the history rewrite is approved (as R-1) · **#11 CLOSED:** the two
+Schedule Trigger state keys are n8n's own trigger state, identical on original and copy, so nothing is lost by not moving
+them; `staticData` is not moved · `page.tsx` logging the full error server-side goes to the final security pass list.
+
+**Round 1's commits, rewritten before the push (approved).** Round 1's first audit found three LOW operational-inventory
+lines (the nightly job's time, the compose directory's ownership, an env file's mode, a docker-group membership, the
+dump directory, a realistic container name); the fix commit corrected the tree, and the re-audit noted that the lines
+were still in two earlier UNPUSHED commits. The six local commits were rebuilt with plumbing (as R-1) so that the lines
+appear in no commit, the test's run-time stamp was neutralised, and the D6b message now states the measured mutant count.
+Old → new: `1d04216` → `c3635c6` · `ed07fd8` → `cb6fd92` · `24bc29a` → `c3f7d6e` · `e83024b` → `f63d2c2` · `6457463` →
+`a622aa8` · `e897192` folded in (its content is in the commits above). The new head's tree equals the old head's except
+the declared stamp and the removal of a parenthetical the corrected message made false. Checked before the branch moved:
+in the new range no commit adds any of the inventory strings (`git log -S`), while the same search finds them in the old
+commits (its positive control); each new commit differs from its old one only in the three affected files. Pushed as a
+fast-forward from `4b5ee73`. *Corrected here after the push audit (A1):* the sentence on the nightly job said
+"unprivileged"; a user who can run docker is effectively root-equivalent, so it now says "non-root".
+
+**Round 2 · D5's live check ✅ (2026-10-24).** The seed workflow ("MIG SEED — D5", two Access-covered paths, each refused
+at the edge without a token) wrote 102 conversations (101 at `handoff`, one not), 3 appointments and 2 leads, all `mig-d5`
+with distinct markers in the fields E2 keeps out. The dashboard ran from `main`'s code (`a622aa8`, fresh `next build`) on
+a loopback test port with Claude's `salon_ro` env only (no API key or Access token in its process), and was read raw and
+through headless Chromium:
+- **D5-1:** the four panels render the seeded rows: the queue shows exactly 100 rows with "showing the first 100 — there are
+  more", newest first within the unconfirmed-first ordering; masked senders (`widget:w-mig-…`); "notification NOT
+  confirmed" on the rows with no alert class; appointments with the masked customer, Vienna times and "reminded"; leads with
+  the masked name and phone, the sparse row as dashes; the header "4 of 4 database reads". **The spend panel shows its
+  honest empty state** ("this period not recorded yet"). *Declared:* no current-month `bot_metrics` row was seeded,
+  because its key is the month itself and its clean-up would need the single-key delete approved for D4 only; the spend
+  read's shape was proven on fixture rows in round 1.
+- **D5-2 (E2):** none of the seven markers (the full sender suffix, the event-id, reply and cancel-target markers, the full
+  customer and lead names, the full phone) appears in the raw HTML, the RSC payload or the DOM.
+- **CRT #10, claim 1:** the client chunks of the build that served carry none of the credential-path strings; the server
+  chunks carry them (positive control). **Claim 2:** through the dashboard's own env and driver, as `salon_ro`, INSERT,
+  UPDATE, DELETE, TRUNCATE and CREATE each return `42501` (inside rolled-back transactions); the page itself rendered, so the
+  module's write check passed. **Claim 3:** round 1's offline proof; the L3 (Codex) review is pending. **Claim 4:**
+  `check-deploy-separation` in `check-all`.
+- **D5-5:** with a deliberately wrong password the page says "could not load … did not answer" and names the privilege
+  check; with no `PG*` env it says "not configured"; neither shows a seeded value.
+- *Probe faults, declared:* three of the probe's text needles matched nothing (the masked-sender form, the spend panel's
+  wording, the header counter's markup); the saved DOM showed each rendered correctly, and the probe's needles were wrong.
+- *Declared:* the release button was NOT clicked: Next loads the dashboard's own env file, whose release URL still points at
+  the ORIGINAL Owner Actions (Airtable), so a click would be §3's split brain. Release end to end is D6b's.
+- The three servers were stopped by their own process groups (started for this purpose); no listener remains.
+- **State left for D6a:** the seed rows stay in place (the restore test needs data, decision 4); the seed workflow is
+  inactive. Clean-up follows the operator's D6a result.
 
 ## 4 · "No new bug": QA design
 
