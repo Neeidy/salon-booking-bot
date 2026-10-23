@@ -37,3 +37,14 @@ checkpoint behind, so the next session resumed from a state that no longer exist
 Test artifacts live in [`tests/`](../../tests/): `golden-set.md` (happy) + `jailbreak-cases.md` (adversarial).
 
 **Why:** a booking bot that double-books or leaks a jailbreak is worse than no bot — these cases are the product.
+
+## A script that makes live calls does nothing on import (ruling D4-7, 2026-10-23)
+**Its body sits under `if __name__ == '__main__':`** — every activation, request, seed or wait. At the top level
+it may only import, define, and set constants. **Why:** twice in the migration a live-probe script ran its body
+when it was imported: the D3b race script, and the D3c drill script, imported to reuse one function, which ran a
+second, unplanned drill pass inside a K-4 window (MIGRATION-PLAN §3r, D3c result). Both lived in the session
+scratchpad, which no repo guard can see.
+**Checked by** `scripts/check-import-safe.py`: in `check-all` over `scripts/` and `tests/`, and **before every live
+window over the scripts that window will run** (pass their paths; a named script's own directory is read too, so a
+drill script counts as live through the helper it imports). A line that must stay at the top level carries
+`# import-safe: <reason>`. Python only; Node scripts are not covered.

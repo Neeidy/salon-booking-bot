@@ -10,6 +10,14 @@
  * names, row counts and rule violations only (Q16's interim rule). Only SELECT nodes are run; a write node
  * is refused (salon_ro could not run it anyway, and this tool must not pretend it checked one).
  *
+ * FIXTURE MODE (D4a, 2026-10-23): a binding may carry `"fixture": [ {<a full row of the table>}, … ]`. The node's
+ * query then runs with its `FROM salon.<table>` source replaced by `jsonb_populate_recordset(NULL::salon.<table>,
+ * $N)` over those rows — the table's own row type, so every column keeps its real type — and nothing else in the
+ * query changes: projection, WHERE, ORDER BY and parameters are the copy's own. It exists for a round that may not
+ * write: salon_ro can neither INSERT nor create a temp table, so with empty tables the real-table run can only
+ * return 0 rows, which proves the text runs and measures no shape. Fixture rows are fake and may be committed.
+ * Each case prints which source it read: (real table) or (fixture rows).
+ *
  * Run:  set -a; . <the read-only env file>; set +a; node tests/db/copy-contract.cjs <copy.json> <bindings.json>
  */
 const path = require('node:path');
@@ -39,18 +47,26 @@ function specFor(table, query) {
   if ((await c.query('select current_user as u')).rows[0].u !== 'salon_ro') { console.error('copy-contract: refused — the session is not salon_ro'); process.exit(2); }
   let ok = true, cases = 0;
   for (const [name, list] of Object.entries(binds)) {
+    if (name.startsWith('_')) continue;   // a `_doc` key documents the bindings file
     const node = copy.nodes.find((n) => n.name === name);
     const q = node && node.type === 'n8n-nodes-base.postgres' ? node.parameters.query : null;
     if (!q || !/^\s*SELECT\b/i.test(q)) { console.log(`✗ ${name}: not a SELECT Postgres node in the copy — refused`); ok = false; continue; }
     const table = (q.match(/FROM salon\.(\w+)/) || [])[1];
     for (const b of list) {
       cases += 1;
-      let rows, err = null;
-      try { rows = (await c.query(q, b.params)).rows; } catch (e) { err = e.code || 'ERR'; }
+      let rows, err = null, run = q, params = b.params, src = 'real table';
+      if (b.fixture) {
+        const from = `FROM salon.${table}`;
+        if (q.split(from).length !== 2) { console.log(`✗ ${name}: fixture mode needs exactly one '${from}' — refused`); ok = false; continue; }
+        run = q.replace(from, `FROM jsonb_populate_recordset(NULL::salon.${table}, $${b.params.length + 1}::jsonb) AS ${table}`);
+        params = [...b.params, JSON.stringify(b.fixture)];
+        src = 'fixture rows';
+      }
+      try { rows = (await c.query(run, params)).rows; } catch (e) { err = e.code || 'ERR'; }
       const v = rows ? rows.flatMap((r) => checkRecord(r, specFor(table, q))) : [];
       const pass = !err && rows.length === b.rows && v.length === 0;
       ok = ok && pass;
-      console.log(`${pass ? '✓' : '✗'} ${name.padEnd(30)} expected ${b.rows} row(s), got ${err ? 'ERROR ' + err : rows.length}` +
+      console.log(`${pass ? '✓' : '✗'} ${name.padEnd(30)} (${src}) expected ${b.rows} row(s), got ${err ? 'ERROR ' + err : rows.length}` +
         ` · violations ${v.length}${v.length ? ': ' + [...new Set(v)].join(' | ') : ''}`);
     }
   }

@@ -1,0 +1,1243 @@
+{
+ "_doc": "D4a (MIGRATION-PLAN §3s): the Main copy's eight read nodes. Every value is fake (mig-d4). A case with \"fixture\" reads those rows through the table's own row type; a case without one reads the REAL table, which is empty in D4a, so it proves only that the exact text runs as salon_ro with these parameter types. The seeded real-table run is D4b's.",
+ "Load State": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Re-read Cancel State": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Find Conversation Row": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4cf0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "stage": "cancel_confirming",
+     "slot_service": "haircut",
+     "slot_date": "2026-10-26",
+     "slot_time": "14:00",
+     "last_updated": "2026-10-23T10:00:00.123Z",
+     "turn_count": 3,
+     "last_intent": "cancel",
+     "recent_messages": "mig-d4 hello\nmig-d4 cancel",
+     "gcal_event_id": "6d69672d64342d66616b65",
+     "cancel_target_id": "recMIGd4af0000000",
+     "confirm_turn": "3",
+     "computed_reply": "Cancel your Haircut?",
+     "last_alert_class": "handoff",
+     "last_alert_at": "2026-10-23T10:00:01.000Z",
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:00:00.000Z"
+    },
+    {
+     "id": "recMIGd4cs0000000",
+     "sender_key": "widget:w-mig-d4-sparse",
+     "stage": "new",
+     "slot_service": "",
+     "slot_date": "",
+     "slot_time": "",
+     "last_updated": "2026-10-23T11:00:00Z",
+     "turn_count": 0,
+     "last_intent": null,
+     "recent_messages": "",
+     "gcal_event_id": "",
+     "cancel_target_id": "",
+     "confirm_turn": "",
+     "computed_reply": "",
+     "last_alert_class": null,
+     "last_alert_at": null,
+     "sender_masked": "widget:w-mig-d4…",
+     "created_at": "2026-10-22T09:30:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Find Booking": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 2,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Find Booking (Reschedule)": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 2,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Find Old Booking (Reschedule)": [
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 2,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-other"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-sparse"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4af0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6166",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:00:00Z"
+    },
+    {
+     "id": "recMIGd4as0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6173",
+     "calendar_id": "",
+     "channel": "",
+     "customer_name": "",
+     "status": "booked",
+     "reminded": false,
+     "reminder_sent": null,
+     "created_at": "2026-10-22T09:05:00Z"
+    },
+    {
+     "id": "recMIGd4ax0000000",
+     "sender_key": "widget:w-mig-d4-full",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d6178",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "cancelled",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:10:00Z"
+    },
+    {
+     "id": "recMIGd4ao0000000",
+     "sender_key": "widget:w-mig-d4-other",
+     "service": "Haircut",
+     "start_utc": "2026-10-26T13:00:00Z",
+     "end_utc": "2026-10-26T13:30:00Z",
+     "gcal_event_id": "6d69672d64342d616f",
+     "calendar_id": "mig-d4-calendar",
+     "channel": "widget",
+     "customer_name": "mig-d4 Test",
+     "status": "booked",
+     "reminded": true,
+     "reminder_sent": "2026-10-25T13:00:00Z",
+     "created_at": "2026-10-22T09:15:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "widget:w-mig-d4-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Check Processed": [
+  {
+   "params": [
+    "mig-d4-pm-full"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4pf0000000",
+     "message_id": "mig-d4-pm-full",
+     "sender_key": "widget:w-mig-d4-full",
+     "channel": "widget",
+     "created_at": "2026-10-23T10:00:00Z"
+    },
+    {
+     "id": "recMIGd4ps0000000",
+     "message_id": "mig-d4-pm-sparse",
+     "sender_key": "",
+     "channel": "",
+     "created_at": "2026-10-23T10:01:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "mig-d4-pm-sparse"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4pf0000000",
+     "message_id": "mig-d4-pm-full",
+     "sender_key": "widget:w-mig-d4-full",
+     "channel": "widget",
+     "created_at": "2026-10-23T10:00:00Z"
+    },
+    {
+     "id": "recMIGd4ps0000000",
+     "message_id": "mig-d4-pm-sparse",
+     "sender_key": "",
+     "channel": "",
+     "created_at": "2026-10-23T10:01:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "mig-d4-pm-full--"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4pf0000000",
+     "message_id": "mig-d4-pm-full",
+     "sender_key": "widget:w-mig-d4-full",
+     "channel": "widget",
+     "created_at": "2026-10-23T10:00:00Z"
+    },
+    {
+     "id": "recMIGd4ps0000000",
+     "message_id": "mig-d4-pm-sparse",
+     "sender_key": "",
+     "channel": "",
+     "created_at": "2026-10-23T10:01:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "mig-d4-pm-full"
+   ],
+   "rows": 0
+  }
+ ],
+ "Read Spend": [
+  {
+   "params": [
+    "2026-10"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4bf0000000",
+     "period_key": "2026-10",
+     "cost_usd": 0.123456,
+     "updated_at": "2026-10-23T10:00:00Z",
+     "created_at": "2026-10-01T00:00:00Z"
+    },
+    {
+     "id": "recMIGd4bs0000000",
+     "period_key": "2026-09",
+     "cost_usd": 0,
+     "updated_at": null,
+     "created_at": "2026-09-01T00:00:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "2026-09"
+   ],
+   "rows": 1,
+   "fixture": [
+    {
+     "id": "recMIGd4bf0000000",
+     "period_key": "2026-10",
+     "cost_usd": 0.123456,
+     "updated_at": "2026-10-23T10:00:00Z",
+     "created_at": "2026-10-01T00:00:00Z"
+    },
+    {
+     "id": "recMIGd4bs0000000",
+     "period_key": "2026-09",
+     "cost_usd": 0,
+     "updated_at": null,
+     "created_at": "2026-09-01T00:00:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "2026-11"
+   ],
+   "rows": 0,
+   "fixture": [
+    {
+     "id": "recMIGd4bf0000000",
+     "period_key": "2026-10",
+     "cost_usd": 0.123456,
+     "updated_at": "2026-10-23T10:00:00Z",
+     "created_at": "2026-10-01T00:00:00Z"
+    },
+    {
+     "id": "recMIGd4bs0000000",
+     "period_key": "2026-09",
+     "cost_usd": 0,
+     "updated_at": null,
+     "created_at": "2026-09-01T00:00:00Z"
+    }
+   ]
+  },
+  {
+   "params": [
+    "2026-10"
+   ],
+   "rows": 0
+  }
+ ]
+}

@@ -7,12 +7,14 @@ callers: check-content-parity.py (committed vs live, and a paired copy vs its or
 deploy helper's verify (a copy vs its original).
 
   committed_vs_live(committed, live)       the committed export must carry exactly the live settings.
-  copy_vs_original(original, copy, allow)  a copy carries its original's settings; the only exception is a key
-                                           its spec allowlists, and then ONLY that key's absence on the copy.
+  copy_vs_original(original, copy, allow)  a copy carries its original's settings, except the keys its spec
+                                           allowlists: those must be ABSENT on the copy (D4-1, 2026-10-23).
   check_allowlist(allow)                   every entry covers "absent" and nothing else, and names its ruling.
 
 An allowlist entry is {"<key>": {"covers": "absent", "ruling": "<where the ruling is recorded>"}}. There is no
-blanket allowance and no "any value" entry: a copy carrying a DIFFERENT value for an allowlisted key is red.
+blanket allowance and no "any value" entry. An allowlisted key PRESENT on the copy is red whatever its value: an
+equal value used to pass, so a copy created with Main's `availableInMCP: true` would have been exactly as exposed as
+Main with this guard green (D4 plan, 2026-10-23). The allowlist names what a copy LACKS, never what it may carry.
 """
 
 
@@ -54,12 +56,15 @@ def committed_vs_live(committed, live):
 def copy_vs_original(original, copy, allow):
     errs = check_allowlist(allow)
     o, c = _s(original, 'original', errs), _s(copy, 'copy', errs)
+    allowed = allow if isinstance(allow, dict) else {}
     for key in sorted(set(o) | set(c)):
-        if key in o and key in c:
+        if key in c and key in allowed:
+            errs.append(f"settings: '{key}' is allowlisted as absent but present on the copy (copy={c[key]!r})")
+        elif key in o and key in c:
             if o[key] != c[key]:
                 errs.append(f"settings: '{key}' differs on the copy (original={o[key]!r} copy={c[key]!r})")
         elif key in o:
-            if key not in (allow if isinstance(allow, dict) else {}):
+            if key not in allowed:
                 errs.append(f"settings: '{key}' is missing on the copy and not allowlisted (original={o[key]!r})")
         else:
             errs.append(f"settings: '{key}' is on the copy but not on the original (copy={c[key]!r})")

@@ -1,0 +1,89 @@
+{
+  "_doc": "D4 (MIGRATION-PLAN §3s): the Main copy. Seventeen data nodes change; every one receives a single item, so all keep the default `single` batching (Q18 covers only the four multi-item writes). Upserts SET exactly the columns the Airtable node mapped, `created_at` included (D4-4). `Record Processed` stays DO NOTHING (Q17). The one webhook moves to a test path behind Access; both lanes (widget, whatsapp) move with it. `availableInMCP` and `binaryMode` are created ABSENT on the copy (D4-1).",
+  "original": "n8n/workflow.sanitized.json",
+  "name": "MIG COPY — Main",
+  "trigger": {
+    "node": "Receive Inbound Message",
+    "test_path": "owner-mig-main"
+  },
+  "settings_allow": {
+    "binaryMode": {
+      "covers": "absent",
+      "ruling": "MIGRATION-PLAN §3r settings-parity (O1, 2026-10-22): the public API ignores binaryMode on create and update; every reader at the running build's source tag treats an absent binaryMode as \"separate\""
+    },
+    "availableInMCP": {
+      "covers": "absent",
+      "ruling": "MIGRATION-PLAN §3r MCP exposure (2026-10-22) and D4-1 (2026-10-23): a copy's absent availableInMCP is false, i.e. narrower than Main's accepted exposure; the deploy helper strips it from the request"
+    }
+  },
+  "nodes": {
+    "Load State": {
+      "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE sender_key = $1",
+      "params": ["$json.sender_key"]
+    },
+    "Save State": {
+      "query": "INSERT INTO salon.conversations (sender_key, stage, turn_count, last_updated, last_intent, slot_service, slot_date, slot_time, gcal_event_id, cancel_target_id, confirm_turn, computed_reply, recent_messages) VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (sender_key) DO UPDATE SET stage = EXCLUDED.stage, turn_count = EXCLUDED.turn_count, last_updated = EXCLUDED.last_updated, last_intent = EXCLUDED.last_intent, slot_service = EXCLUDED.slot_service, slot_date = EXCLUDED.slot_date, slot_time = EXCLUDED.slot_time, gcal_event_id = EXCLUDED.gcal_event_id, cancel_target_id = EXCLUDED.cancel_target_id, confirm_turn = EXCLUDED.confirm_turn, computed_reply = EXCLUDED.computed_reply, recent_messages = EXCLUDED.recent_messages RETURNING @@shape(conversations)@@",
+      "params": ["$json.sender_key", "$json.state.stage", "$json.state.turn_count + 1", "$now.toUTC().toISO()", "$json.state.last_intent ?? null", "$json.state.slots.serviceId || ''", "$json.state.slots.date || ''", "$json.state.slots.time || ''", "$json.gcal_event_id || ''", "$json.state.cancel_target_id || ''", "$json.state.confirm_turn || ''", "$json.computed_reply || ''", "$json.state.recent_messages || ''"]
+    },
+    "Capture Lead": {
+      "query": "INSERT INTO salon.leads (name, phone, source, message, status, created_at) VALUES ($1, $2, $3, $4, 'new', $5::timestamptz) RETURNING @@shape(leads)@@",
+      "params": ["($json.slots || {}).customerName || ''", "$json.channel === 'whatsapp' ? ($json.sender_key || '').split(':').slice(1).join(':') : ''", "$json.channel", "$json.text", "$now.toUTC().toISO()"]
+    },
+    "Write Appointment": {
+      "query": "INSERT INTO salon.appointments (sender_key, service, start_utc, end_utc, gcal_event_id, channel, customer_name, status, created_at, calendar_id) VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, $7, 'booked', $8::timestamptz, $9) ON CONFLICT (gcal_event_id) DO UPDATE SET sender_key = EXCLUDED.sender_key, service = EXCLUDED.service, start_utc = EXCLUDED.start_utc, end_utc = EXCLUDED.end_utc, channel = EXCLUDED.channel, customer_name = EXCLUDED.customer_name, status = EXCLUDED.status, created_at = EXCLUDED.created_at, calendar_id = EXCLUDED.calendar_id RETURNING @@shape(appointments)@@",
+      "params": ["$('Build Event Request').first().json.sender_key", "$('Build Event Request').first().json.booking.serviceName", "$('Build Event Request').first().json.booking.startUTC", "$('Build Event Request').first().json.booking.endUTC", "$json.gcal_event_id", "$('Build Event Request').first().json.channel", "$('Build Event Request').first().json.booking.customerName || ''", "$now.toUTC().toISO()", "$('Build Event Request').first().json.booking.calId"]
+    },
+    "Check Processed": {
+      "query": "SELECT @@shape(processed_messages)@@ FROM salon.processed_messages WHERE message_id = $1",
+      "params": ["$json.message_id"]
+    },
+    "Record Processed": {
+      "query": "INSERT INTO salon.processed_messages (message_id, sender_key, channel, created_at) VALUES ($1, $2, $3, $4::timestamptz) ON CONFLICT (message_id) DO NOTHING RETURNING @@shape(processed_messages)@@",
+      "params": ["$('Normalize Inbound').first().json.message_id", "$('Normalize Inbound').first().json.sender_key", "$('Normalize Inbound').first().json.channel", "$now.toUTC().toISO()"]
+    },
+    "Save State (Post-Write)": {
+      "query": "INSERT INTO salon.conversations (sender_key, stage, turn_count, last_updated, last_intent, slot_service, slot_date, slot_time, gcal_event_id, cancel_target_id, confirm_turn, computed_reply, recent_messages) VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (sender_key) DO UPDATE SET stage = EXCLUDED.stage, turn_count = EXCLUDED.turn_count, last_updated = EXCLUDED.last_updated, last_intent = EXCLUDED.last_intent, slot_service = EXCLUDED.slot_service, slot_date = EXCLUDED.slot_date, slot_time = EXCLUDED.slot_time, gcal_event_id = EXCLUDED.gcal_event_id, cancel_target_id = EXCLUDED.cancel_target_id, confirm_turn = EXCLUDED.confirm_turn, computed_reply = EXCLUDED.computed_reply, recent_messages = EXCLUDED.recent_messages RETURNING @@shape(conversations)@@",
+      "params": ["$json.sender_key", "$json.state.stage", "$json.state.turn_count + 1", "$now.toUTC().toISO()", "$json.state.last_intent ?? null", "$json.state.slots.serviceId || ''", "$json.state.slots.date || ''", "$json.state.slots.time || ''", "$json.gcal_event_id || ''", "$json.state.cancel_target_id || ''", "$json.state.confirm_turn || ''", "$json.computed_reply || ''", "$json.state.recent_messages || ''"]
+    },
+    "Find Booking": {
+      "query": "SELECT @@shape(appointments)@@ FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+      "params": ["$json.sender_key"]
+    },
+    "Update Appointment Cancelled": {
+      "query": "UPDATE salon.appointments SET status = 'cancelled' WHERE id = $1 RETURNING @@shape(appointments)@@",
+      "params": ["$json._cancel_target.recordId"]
+    },
+    "Re-read Cancel State": {
+      "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE sender_key = $1",
+      "params": ["$json.sender_key"]
+    },
+    "Find Booking (Reschedule)": {
+      "query": "SELECT @@shape(appointments)@@ FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+      "params": ["$json.sender_key"]
+    },
+    "Find Old Booking (Reschedule)": {
+      "query": "SELECT @@shape(appointments)@@ FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+      "params": ["$('Validate Intent').first().json.sender_key"]
+    },
+    "Update Appointment (Reschedule)": {
+      "query": "UPDATE salon.appointments SET gcal_event_id = $2, start_utc = $3::timestamptz, end_utc = $4::timestamptz, calendar_id = $5, reminded = false WHERE id = $1 RETURNING @@shape(appointments)@@",
+      "params": ["$json._reschedule_target.recordId", "$json.booking.eventId", "$json.booking.startUTC", "$json.booking.endUTC", "$json.booking.calId"]
+    },
+    "Read Spend": {
+      "query": "SELECT @@shape(bot_metrics)@@ FROM salon.bot_metrics WHERE period_key = $1",
+      "params": ["$now.toUTC().toFormat('yyyy-MM')"]
+    },
+    "Record LLM Spend": {
+      "query": "INSERT INTO salon.bot_metrics (period_key, cost_usd, updated_at) VALUES ($1, $2, $3::timestamptz) ON CONFLICT (period_key) DO UPDATE SET cost_usd = EXCLUDED.cost_usd, updated_at = EXCLUDED.updated_at RETURNING @@shape(bot_metrics)@@",
+      "params": ["$json.period_key", "$json.cost_usd", "$json.updated_at"]
+    },
+    "Find Conversation Row": {
+      "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE sender_key = $1",
+      "params": ["$json._alert_sender"]
+    },
+    "Record Alert Class": {
+      "query": "UPDATE salon.conversations SET last_alert_class = $2, last_alert_at = $3::timestamptz WHERE id = $1 RETURNING @@shape(conversations)@@",
+      "params": ["$json.id", "$('Alert Context').first().json._alert_class", "$('Alert Context').first().json._alert_at"]
+    }
+  }
+}

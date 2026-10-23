@@ -8,8 +8,17 @@
 #         (production webhook = no arming. For the draft/-test webhook you must arm before EACH call,
 #          so this harness is intended for the published production webhook.)
 #         The host is NOT hardcoded — this is a public, reusable template; pass your own host via env.
+# Optional env (MIGRATION-PLAN §3s, ruling D4-9). Unset, each one leaves the requests exactly as before:
+#   CURL_HEADER_FILE  a file of extra request headers, passed as `curl -H @file` (e.g. the Access service-token
+#                     headers a copy's test path needs). Header VALUES stay in that file, never on the command line.
+#   SESSION_PREFIX    prepended to every sessionId (e.g. `w-mig-d4-`, so every row is under the clean-up prefix)
+#   MESSAGE_PREFIX    prepended to every messageId (e.g. `mig-d4-`)
+#   LEAD_MARKER       prepended to the lead scenario's text, so its leads row (which carries no sender or message
+#                     id) can still be found by the prefix-guarded clean-up
 set -u
 URL="${WEBHOOK_URL:?set WEBHOOK_URL to your published webhook, e.g. https://<n8n-host>/webhook/barber-inbound}"
+HDR=(); [ -n "${CURL_HEADER_FILE:-}" ] && HDR=(-H "@$CURL_HEADER_FILE")
+SP="${SESSION_PREFIX:-}"; MP="${MESSAGE_PREFIX:-}"; LM="${LEAD_MARKER:-}"
 RUN="$(date +%s)"               # unique tag so messageIds never collide with a previous run
 PASS=0; FAIL=0; N=0
 
@@ -27,8 +36,8 @@ PACE="${PACE:-4}"
 # `channels.widget.turnstile.enabled` is flipped false in the live `Load Config` for a drill window. So "the
 # suite passes" means "the suite passes with the gate down". A real-token path is open in ROADMAP.
 fire() { # session text msgid  -> echoes reply body (then paces to respect the rate-limit)
-  curl -sS -X POST "$URL" -H 'Content-Type: application/json' \
-    -d "{\"channel\":\"widget\",\"sessionId\":\"$1\",\"text\":\"$2\",\"messageId\":\"$3\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}"
+  curl -sS -X POST "$URL" -H 'Content-Type: application/json' ${HDR[@]+"${HDR[@]}"} \
+    -d "{\"channel\":\"widget\",\"sessionId\":\"$SP$1\",\"text\":\"$2\",\"messageId\":\"$MP$3\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}"
   sleep "$PACE"
 }
 assert() { # name reply needle
@@ -84,7 +93,7 @@ assert "16 faq price"    "$(fire "$F" "what are your prices?" "$F-1")" "Haircut 
 
 echo "== lead =="
 L="reg-lead-$RUN"
-assert "17 lead"         "$(fire "$L" "Do you do hair coloring? I'm interested" "$L-1")" "got your details"   # exit-specific: leadCaptured only; message reliably classifies capture_lead (verified live)
+assert "17 lead"         "$(fire "$L" "${LM}Do you do hair coloring? I'm interested" "$L-1")" "got your details"   # exit-specific: leadCaptured only; message reliably classifies capture_lead (verified live)
 
 echo "== handoff (explicit request -> intent-handoff) =="
 H="reg-ho-$RUN"
@@ -116,8 +125,8 @@ fire "$I" "what are your prices?" "$MID" >/dev/null      # 1st: processed
 assert "3 idempotent 2nd ignored" "$(fire "$I" "what are your prices?" "$MID")" "duplicate_ignored"
 
 echo "== invalid payload -> 400 (Validate Payload reject) =="
-BAD="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' \
-       -d "{\"channel\":\"widget\",\"sessionId\":\"regbad-$RUN\",\"text\":\"hi\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}")"   # valid Turnstile + no messageId -> Validate rejects 400 (Turnstile runs FIRST, so a token is needed to reach Validate; a real no-token bot gets 403 turnstile_failed instead)
+BAD="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$URL" -H 'Content-Type: application/json' ${HDR[@]+"${HDR[@]}"} \
+       -d "{\"channel\":\"widget\",\"sessionId\":\"${SP}regbad-$RUN\",\"text\":\"hi\",\"turnstileToken\":\"XXXX.DUMMY.TOKEN.XXXX\"}")"   # valid Turnstile + no messageId -> Validate rejects 400 (Turnstile runs FIRST, so a token is needed to reach Validate; a real no-token bot gets 403 turnstile_failed instead)
 sleep "$PACE"   # the one non-fire request — pace it too (see PACE note at top)
 N=$((N+1)); if [ "$BAD" = "400" ]; then PASS=$((PASS+1)); echo "PASS  20 invalid payload 400"
 else FAIL=$((FAIL+1)); echo "FAIL  20 invalid payload (got HTTP $BAD, want 400)"; fi

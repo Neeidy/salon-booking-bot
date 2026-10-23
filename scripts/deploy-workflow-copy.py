@@ -21,8 +21,11 @@ workflow id; never a credential, a host or a secret.
 
 Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md):
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID [--update COPY_ID]
-      (--update and --verify refuse the original's id and any target that is active or not named as the spec)
+      (--update, --verify and --turnstile refuse the original's id and any target that is active or not named as the spec)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --verify COPY_ID
+  python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --turnstile off|on COPY_ID
+      (the Turnstile window on an INACTIVE copy: one literal in its Load Config; 'off' checks that nothing else
+       differs, 'on' runs the full verify. Settings the spec allowlists are never sent, on any write.)
   python3 scripts/deploy-workflow-copy.py --selftest      (offline: the checks on simulated live workflows)
 """
 import contextlib
@@ -55,8 +58,8 @@ def _module(path, name):
     return mod
 
 
-BUILD = _module('scripts/build-workflow-copy.py', 'build_workflow_copy')
-DIFF = _module('scripts/diff-workflow-copy.py', 'diff_workflow_copy')
+BUILD = _module('scripts/build-workflow-copy.py', 'build_workflow_copy')   # import-safe: an offline sibling, itself guarded
+DIFF = _module('scripts/diff-workflow-copy.py', 'diff_workflow_copy')      # import-safe: an offline sibling, itself guarded
 
 
 # ── the three checks (pure: no network) ──────────────────────────────────────────────────────────────────────
@@ -127,8 +130,49 @@ def assemble(generated, live_orig, spec, pg_credential):
         if n['type'] == 'n8n-nodes-base.webhook':
             n['webhookId'] = str(uuid.uuid4())
         nodes.append(n)
-    return {'name': generated['name'], 'nodes': nodes, 'connections': generated['connections'],
-            'settings': live_orig.get('settings') or generated.get('settings') or {}}
+    # Keys the spec allowlists as ABSENT are never sent: the guard now reds a copy that carries one (D4-1), and
+    # sending Main's `availableInMCP: true` would create the copy exactly as exposed as Main.
+    allow = spec.get('settings_allow') or {}
+    settings = {k: v for k, v in (live_orig.get('settings') or generated.get('settings') or {}).items() if k not in allow}
+    return {'name': generated['name'], 'nodes': nodes, 'connections': generated['connections'], 'settings': settings}
+
+
+# ── the Turnstile window on a COPY (MIGRATION-PLAN §4.5, D4 plan §6) ─────────────────────────────────────────
+# The copy carries Main's Turnstile gate, so drills with a dummy token need it lowered ON THE COPY ONLY. The change
+# is ONE literal in the copy's Load Config; nothing else may move, and the copy must be inactive while it is
+# written (a PUT to an active workflow publishes at once). Restoring it must leave the copy verify-green again.
+TS_NODE = 'Load Config'
+TS_LITERAL = re.compile(r'turnstile\s*:\s*\{\s*enabled\s*:\s*(true|false)\s*\}')
+
+
+def turnstile_patch(wf, state):
+    """Return a copy of wf with the one Turnstile literal set to `state` ('off' or 'on'). Refuses (ValueError)
+    unless Load Config holds exactly ONE such literal and it is currently in the opposite state."""
+    want, have = ('false', 'true') if state == 'off' else ('true', 'false')
+    out = _copy.deepcopy(wf)
+    node = next((n for n in out['nodes'] if n['name'] == TS_NODE), None)
+    code = ((node or {}).get('parameters') or {}).get('jsCode', '')
+    found = TS_LITERAL.findall(code)
+    if len(found) != 1:
+        raise ValueError(f"'{TS_NODE}' holds {len(found)} Turnstile literal(s), not exactly one — refused")
+    if found[0] != have:
+        raise ValueError(f'the Turnstile literal is already {found[0]!r}, so turning it {state} changes nothing — refused')
+    node['parameters']['jsCode'] = TS_LITERAL.sub(lambda m: m.group(0).replace(have, want), code, count=1)
+    return out
+
+
+def turnstile_check(live_orig, live_copy, generated, spec, state):
+    """After a window write. 'on': the full verify (the copy is a plain copy again). 'off': the copy with that ONE
+    literal put back in memory must pass the full verify, so nothing else can ride along with the lowered gate. (A
+    second, textual comparison of the two Load Configs was written first; its mutant survived, because this verify
+    already reds every other difference, so it was removed rather than kept as a check that measures nothing.)"""
+    if state == 'on':
+        return verify(live_orig, live_copy, generated, spec)
+    try:
+        restored = turnstile_patch(live_copy, 'on')
+    except ValueError as e:
+        return [f'turnstile off: {e}']
+    return verify(live_orig, restored, generated, spec)
 
 
 # ── n8n API (the real curl: urllib is refused at the edge) ───────────────────────────────────────────────────
@@ -186,11 +230,11 @@ def _pg_credential():
     return {'id': pg[0]['id'], 'name': pg[0]['name']}
 
 
-def run(spec_path, original_id, update=None, verify_only=None):
+def run(spec_path, original_id, update=None, verify_only=None, turnstile=None):
     spec = json.load(open(spec_path, encoding='utf-8'))
     generated = BUILD.build(spec)
     live_orig = _workflow(original_id)
-    target = verify_only or update
+    target = verify_only or update or (turnstile or (None, None))[1]
     if target:
         if target == original_id:
             sys.exit('deploy-workflow-copy: refused — the copy id equals the original id')
@@ -201,6 +245,28 @@ def run(spec_path, original_id, update=None, verify_only=None):
         if any((T.get(name) or {}).get('type') != 'n8n-nodes-base.postgres' for name in spec['nodes']):
             # Name and state can collide; an original's data nodes are Airtable, a copy's are Postgres.
             sys.exit('deploy-workflow-copy: refused — the target\'s data nodes are not Postgres, so it is not a copy')
+    if turnstile:
+        state, wid = turnstile
+        try:
+            wf = turnstile_patch(tw, state)
+        except ValueError as e:
+            sys.exit(f'deploy-workflow-copy: {e}')
+        wf['settings'] = {k: v for k, v in (wf.get('settings') or {}).items() if k not in (spec.get('settings_allow') or {})}
+        st, d = api('PUT', f'/workflows/{wid}', wf)
+        if st != 200:
+            sys.exit(f'deploy-workflow-copy: Turnstile write failed [{st}]')
+        live_copy, m = _workflow(wid, meta=True)
+        errs = turnstile_check(live_orig, live_copy, generated, spec, state)
+        if m['active'] is not False:
+            errs.append('the copy is not inactive (read back from n8n)')
+        if errs:
+            print(f'TURNSTILE {state.upper()} CHECK FAILED — no drill may start on this copy:')
+            for e in errs:
+                print('  - ' + e)
+            return 1
+        print(f"turnstile {state} on the copy · check OK — {'only the one literal differs' if state == 'off' else 'verify green'}"
+              f" · active read back: {m['active']}")
+        return 0
     if verify_only:
         wid = verify_only
     else:
@@ -272,11 +338,48 @@ def selftest():
                  ('a data node still carrying the credential placeholder', data_ph, False),
                  ('the ORIGINAL itself passed as the copy', _copy.deepcopy(live_orig), False),
                  ("a placeholder inside a data node's parameters", data_param_ph, False)]
-        for key in spec.get('settings_allow', {}):           # the API-dropped case each allowlist entry exists for
-            dropped = _copy.deepcopy(clean); dropped['settings'] = {k: v for k, v in (dropped.get('settings') or {}).items() if k != key}
-            cases.append((f"settings: allowlisted '{key}' absent on the copy", dropped, True))
+        for key in spec.get('settings_allow', {}):           # the clean copy is assemble()'s output, so it LACKS each key
+            if key in (clean.get('settings') or {}):
+                cases.append((f"assemble() sent the allowlisted '{key}'", clean, False))
+            kept = _copy.deepcopy(clean)                       # what the helper produced before D4-1, if the original has it
+            if key in (live_orig.get('settings') or {}):
+                kept['settings'] = dict(kept.get('settings') or {}, **{key: live_orig['settings'][key]})
+                cases.append((f"settings: allowlisted '{key}' kept with the original's value", kept, False))
             other_val = _copy.deepcopy(clean); other_val['settings'] = dict(other_val.get('settings') or {}, **{key: '__different__'})
             cases.append((f"settings: allowlisted '{key}' with a different value", other_val, False))
+        lcode = next((n for n in live_orig['nodes'] if n['name'] == TS_NODE), {}).get('parameters', {}).get('jsCode', '')
+        ts_cases = []
+        if len(TS_LITERAL.findall(lcode)) == 1:               # the copies that carry a Turnstile gate (Main)
+            off = turnstile_patch(clean, 'off')
+            ts_cases.append(('turnstile off: only the one literal changed', off, 'off', True))
+            rider = _copy.deepcopy(off)                        # something else slips in with the lowered gate
+            rn = next(n for n in rider['nodes'] if n['name'] == TS_NODE)
+            rn['parameters']['jsCode'] = rn['parameters']['jsCode'].replace('enabled: true', 'enabled: false', 1)
+            ts_cases.append(('turnstile off: a second literal changed with it', rider, 'off', False))
+            ride2 = _copy.deepcopy(off)
+            next(n for n in ride2['nodes'] if n['name'] == other)['parameters']['_probe'] = 'changed'
+            ts_cases.append((f"turnstile off: another node ('{other}') changed with it", ride2, 'off', False))
+            ts_cases.append(('turnstile on: restored copy', turnstile_patch(off, 'on'), 'on', True))
+            ts_cases.append(("turnstile 'on' check while the literal is still off", off, 'on', False))
+            for label, wf, st_ in (('turnstile off twice', off, 'off'), ('turnstile on while already on', clean, 'on')):
+                try:
+                    turnstile_patch(wf, st_)
+                    print(f'✗ {os.path.basename(f)} · {label}: NOT refused'); ok = False
+                except ValueError as e:
+                    print(f'✓ {os.path.basename(f)} · {label}: refused — {e}')
+            two = _copy.deepcopy(clean)
+            tn = next(n for n in two['nodes'] if n['name'] == TS_NODE)
+            tn['parameters']['jsCode'] += '\n// turnstile: { enabled: true }'
+            try:
+                turnstile_patch(two, 'off')
+                print(f'✗ {os.path.basename(f)} · two Turnstile literals: NOT refused'); ok = False
+            except ValueError as e:
+                print(f'✓ {os.path.basename(f)} · two Turnstile literals: refused — {e}')
+        for label, wf, st_, want_green in ts_cases:
+            errs = turnstile_check(live_orig, wf, generated, spec, st_)
+            good = (not errs) == want_green
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
         if PLACEHOLDER.search(json.dumps([n for n in generated['nodes'] if n['name'] not in spec['nodes']])):
             cases.append(('the generated (sanitized) copy deployed whole', sanitized_whole, False))
         for label, live_copy, want_green in cases:
@@ -295,7 +398,14 @@ def main(argv):
         print(__doc__)
         return 2
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
-    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'))
+    ts = None
+    if '--turnstile' in argv:
+        i = argv.index('--turnstile')
+        ts = tuple(argv[i + 1:i + 3])
+        if len(ts) != 2 or ts[0] not in ('off', 'on'):
+            print('usage: … --turnstile off|on COPY_ID')
+            return 2
+    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'), turnstile=ts)
 
 
 if __name__ == '__main__':
