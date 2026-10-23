@@ -27,6 +27,7 @@ PAIRS=(
   "TgXeN8HAJ2BkiJWO:n8n/workflow.owner-actions.copy.sanitized.json"   # D3b copy (MIGRATION-PLAN §3r), inactive until D6b
   "snVOpMe3dn52LVp4:n8n/workflow.purge.copy.sanitized.json"   # D3d copy (MIGRATION-PLAN §3r), inactive until D3e/D6b
   "whpyb2MZKzViQGr8:n8n/workflow.reminders.copy.sanitized.json"   # D3c copy (MIGRATION-PLAN §3r), inactive except during D4's M7 window, until D6b
+  "GyvhZH79DxC1LpTx:n8n/workflow.main.copy.sanitized.json"   # D4b copy (MIGRATION-PLAN §3s), inactive except during D4 drill blocks, until D6b
 )
 
 if [ -z "${N8N_API_KEY:-}" ] || [ -z "${N8N_HOST:-}" ]; then

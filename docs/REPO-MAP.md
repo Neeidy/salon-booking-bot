@@ -148,6 +148,7 @@
 - `n8n/notes.md`
 - `n8n/workflow.drill-state.copy.sanitized.json`
 - `n8n/workflow.drill-state.sanitized.json`
+- `n8n/workflow.main.copy.sanitized.json`
 - `n8n/workflow.owner-actions.copy.sanitized.json`
 - `n8n/workflow.owner-actions.sanitized.json`
 - `n8n/workflow.purge.copy.sanitized.json`
