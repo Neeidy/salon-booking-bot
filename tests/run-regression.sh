@@ -11,6 +11,8 @@
 # Optional env (MIGRATION-PLAN §3s, ruling D4-9). Unset, each one leaves the requests exactly as before:
 #   CURL_HEADER_FILE  a file of extra request headers, passed as `curl -H @file` (e.g. the Access service-token
 #                     headers a copy's test path needs). Header VALUES stay in that file, never on the command line.
+#                     It holds a secret: keep it OUTSIDE the repo (e.g. the session scratchpad), mode 0600, and
+#                     delete it after the run.
 #   SESSION_PREFIX    prepended to every sessionId (e.g. `w-mig-d4-`, so every row is under the clean-up prefix)
 #   MESSAGE_PREFIX    prepended to every messageId (e.g. `mig-d4-`)
 #   LEAD_MARKER       prepended to the lead scenario's text, so its leads row (which carries no sender or message

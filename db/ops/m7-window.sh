@@ -138,12 +138,18 @@ trap on_exit EXIT
 echo "m7-window: baseline OK (CONNECT granted, full table grant). Waiting for Claude's go ($FLAGS/go)."
 wait_for go "$WAIT_START"
 
+# The "open now: 0" check below is read by salon_migrator. Its positive control: what salon_migrator saw BEFORE must
+# not be fewer than what the superuser then terminated, or salon_migrator cannot see salon_app's sessions and its 0
+# means nothing (pre-push audit, 2026-10-23). With no session open at all the control is not exercised, and it says so.
+seen="$(printf '%s\n' "$SESSIONS" | mig)"
 superuser revoke
 killed="$(superuser terminate)"
+[ "$seen" -ge "$killed" ] || { echo "m7-window: salon_migrator saw $seen salon_app session(s) but $killed were terminated — its session count is blind, aborting"; exit 1; }
 left="$(printf '%s\n' "$SESSIONS" | mig)"
 got="$(state)"
 [ "$got" = "f -" ] && [ "$left" = 0 ] || { echo "m7-window: stage C1 left '$got' with $left salon_app session(s), expected 'f -' and 0 — aborting"; exit 1; }
-echo "m7-window: stage C1 applied · CONNECT revoked · salon_app sessions terminated: $killed · open now: 0 · waiting for Claude (C1.done)"
+[ "$killed" -gt 0 ] && vis="the count's visibility shown" || vis="no session was open, so the count's visibility is NOT shown"
+echo "m7-window: stage C1 applied · CONNECT revoked · salon_app sessions seen: $seen, terminated: $killed, open now: 0 ($vis) · waiting for Claude (C1.done)"
 wait_for C1.done "$WAIT_STAGE"
 superuser grant
 table_stage T1 'appointments:UPDATE' 'REVOKE UPDATE ON salon.appointments FROM salon_app;'

@@ -69,6 +69,7 @@
 ### db/copies
 
 - `db/copies/drill-state.json`
+- `db/copies/main.json`
 - `db/copies/owner-actions.json`
 - `db/copies/purge.json`
 - `db/copies/reminders.json`
@@ -77,6 +78,7 @@
 
 - `db/ops/k3-restore.sh`
 - `db/ops/k3-window.sh`
+- `db/ops/m7-window.sh`
 
 ### db/schema
 
@@ -180,6 +182,7 @@
 - `scripts/check-font-provenance.sh`
 - `scripts/check-hero-engine-text.cjs`
 - `scripts/check-hook-drift.sh`
+- `scripts/check-import-safe.py`
 - `scripts/check-listeners.sh`
 - `scripts/check-live-parity.py`
 - `scripts/check-no-host-leak.sh`
@@ -219,6 +222,10 @@
 - `tests/db/copy-contract.cjs`
 - `tests/db/ro-negatives.cjs`
 
+### tests/db/fixtures
+
+- `tests/db/fixtures/main-reads.json`
+
 ### tests/fixtures/sql-params
 
 - `tests/fixtures/sql-params/bad-expression-in-query.json`
@@ -239,6 +246,7 @@
 ### tests/ops
 
 - `tests/ops/k3-window.test.sh`
+- `tests/ops/m7-window.test.sh`
 
 ### tests/snippet
 
@@ -726,6 +734,7 @@
   - ### tests/contract
   - ### tests/contract/fixtures
   - ### tests/db
+  - ### tests/db/fixtures
   - ### tests/fixtures/sql-params
   - ### tests/ops
   - ### tests/snippet

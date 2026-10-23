@@ -84,7 +84,7 @@ for n, stmt in enumerate([x.strip() for x in sys.stdin.read().split(';') if x.st
     if os.environ.get('M7_SABOTAGE') and stmt.startswith('REVOKE') and 'ON salon.' in stmt: miss.add('leads:SELECT')
     if 'has_table_privilege' in stmt: out.append(' '.join(sorted(miss)) or '-')
     if 'has_database_privilege' in stmt: out.append('t' if st['connect'] else 'f')
-    if stmt.startswith('SELECT count(*) FROM pg_stat_activity'): out.append(str(st['sessions']))
+    if stmt.startswith('SELECT count(*) FROM pg_stat_activity'): out.append('0' if os.environ.get('M7_MIG_BLIND') else str(st['sessions']))
 st['missing'] = sorted(miss)
 json.dump(st, open(stp, 'w'))
 print('\n'.join(out), end='\n' if out else '')
@@ -128,12 +128,18 @@ echo "— m7-window.sh, the window —"
 fresh; ( sleep 1; touch "$T/flags/go"; for s in C1 T1 T2 T3; do sleep 1; touch "$T/flags/$s.done"; done ) &
 run bash "$T/t.sh"; wait
 check "full run: C1 T1 T2 T3 in order, then RESTORED, exit 0, state t - and no session left" '[ $rc = 0 ] && [ "$(grep -o "stage [A-Z0-9]* applied" <<<"$out" | tr "\n" " ")" = "stage C1 applied stage T1 applied stage T2 applied stage T3 applied " ] && grep -q "RESTORED" <<<"$out" && [ "$(st)" = "t - 0" ]'
-check "C1 reported the 2 sessions it terminated and 0 open" 'grep -q "sessions terminated: 2 · open now: 0" <<<"$out"'
+check "C1 reported 2 sessions seen, 2 terminated, 0 open, visibility shown" 'grep -q "sessions seen: 2, terminated: 2, open now: 0 (the count.s visibility shown)" <<<"$out"'
 check "the superuser received exactly: REVOKE CONNECT, the termination, GRANT CONNECT (after C1), GRANT CONNECT (the trap)" '[ "$(cat $T/sulog)" = "$(printf "%s\n%s\n%s\n%s" "$SU_REVOKE" "$SU_TERM" "$SU_GRANT" "$SU_GRANT")" ]'
 check "every table GRANT/REVOKE ran as salon_owner; every other migrator statement is a SELECT check" '[ "$(grep -c "^salon_owner REVOKE" "$T/log")" = 3 ] && ! grep -q "^salon_migrator \(GRANT\|REVOKE\)" "$T/log"'
 fresh; ( sleep 1; touch "$T/flags/go" ) &
 run env M7_TERMINATE_NOOP=1 bash "$T/t.sh"; wait
 check "a termination that leaves a session open: C1 aborts naming it, exit 1, RESTORED (CONNECT granted again)" '[ $rc = 1 ] && grep -q "stage C1 left .f -. with 2 salon_app session" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
+fresh; ( sleep 1; touch "$T/flags/go" ) &
+run env M7_MIG_BLIND=1 bash "$T/t.sh"; wait
+check "salon_migrator blind to salon_app's sessions (saw 0, 2 terminated): C1 aborts, exit 1, RESTORED" '[ $rc = 1 ] && grep -q "its session count is blind" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
+fresh; setstate '{"missing": [], "connect": true, "sessions": 0}'; ( sleep 1; touch "$T/flags/go"; sleep 1; touch "$T/flags/C1.done" ) &
+run timeout 6 bash "$T/t.sh"; wait
+check "no session open at C1: it proceeds and says the visibility is NOT shown" 'grep -q "visibility is NOT shown" <<<"$out"'
 fresh; ( sleep 1; touch "$T/flags/go"; sleep 1; touch "$T/flags/C1.done" ) &
 run env M7_SABOTAGE=1 bash "$T/t.sh"; wait
 check "a table stage that leaves the wrong set aborts, exit 1, RESTORED" '[ $rc = 1 ] && grep -q "stage T1 left" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
@@ -141,7 +147,7 @@ fresh; ( sleep 1; touch "$T/flags/go" ) &
 run bash "$T/t.sh"; wait
 check "no C1 flag: timeout, exit 1, RESTORED with CONNECT granted" '[ $rc = 1 ] && grep -q "within 6 s" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
 fresh; ( sleep 1; touch "$T/flags/go" ) & run timeout -s INT 8 bash "$T/t.sh"; wait
-check "Ctrl-C while C1 is applied: RESTORED, CONNECT granted" 'grep -q "stage C1 applied" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
+check "Ctrl-C while C1 is applied: RESTORED, CONNECT granted (and not via the flag timeout)" 'grep -q "stage C1 applied" <<<"$out" && ! grep -q "within" <<<"$out" && grep -q "RESTORED" <<<"$out" && [ "$(st | cut -c1-3)" = "t -" ]'
 fresh; ( sleep 1; touch "$T/flags/go"; sleep 3; touch "$T/down" ) &
 run env M7_DOWN_AFTER="$T/down" bash "$T/t.sh"; wait
 check "the store goes away during C1: RESTORE FAILED, exit 1 (never a false RESTORED)" '[ $rc = 1 ] && grep -q "RESTORE FAILED" <<<"$out" && ! grep -q "RESTORED —" <<<"$out"'

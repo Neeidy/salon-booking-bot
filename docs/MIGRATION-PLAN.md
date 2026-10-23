@@ -1873,15 +1873,20 @@ calendar calls are HTTP nodes · the calendar id in `Load Config` is a group cal
   - **Mutants:** `assemble()` keeping the keys → selftest red (Main's and Reminders' clean copies); the `off` check
     returning green → red. *Declared:* a second, textual `Load Config` comparison in the `off` check was written
     first; its mutant SURVIVED, because the verify already reds every other difference, so it was removed.
-- **`db/ops/m7-window.sh`** (operator script) and **`tests/ops/m7-window.test.sh`** (offline, 27 checks, green):
+- **`db/ops/m7-window.sh`** (operator script) and **`tests/ops/m7-window.test.sh`** (offline, 29 checks, green):
   stages C1 (REVOKE CONNECT + terminate `salon_app`'s sessions in `salon`) · T1 (`appointments` UPDATE) · T2
-  (`bot_metrics` SELECT) · T3 (`conversations` INSERT, UPDATE); `--check`; `--restore`; the k3 pattern otherwise
+  (`bot_metrics` SELECT) · T3 (`conversations` INSERT, UPDATE); `--check`; `--restore`; C1's positive control (what
+  `salon_migrator` saw before must not be fewer than what the superuser terminated, or its "0 open" is blind and C1
+  aborts; with no session open it says the control was not exercised); the k3 pattern otherwise
   (lock, flags, a trap that restores and checks, stage-by-stage catalog checks).
   - **The D4-8 boundary, proven offline three ways:** across every scenario the superuser received only the three
     allowed statements · the code names the `postgres` role in one call, inside `superuser()`, which takes a keyword
     mapped by a `case` and passes no stdin · the function run in isolation sends GRANT CONNECT only when SQL is piped
     at it, and refuses unknown keywords. `--check` proves the superuser path with the GRANT itself, a no-op while the
-    grant stands, and sends nothing when the state is not baseline. The mutant results are in the D4a report.
+    grant stands, and sends nothing when the state is not baseline.
+  - **Mutants, each red against the test:** stdin passed through `superuser()` · an extra superuser statement · no
+    termination · a check run as the superuser · `--check` granting before it checks · a termination without
+    `datname` · the termination before the REVOKE · C1's visibility control removed (8 of 8).
   - *Not measured:* how the superuser authenticates (the container's local socket, no password). The operator's
     `--check` decides it.
   - *Declared:* like `k3-window.test.sh`, the test is not in `check-all` (it waits on real flag timeouts).
@@ -1890,6 +1895,15 @@ calendar calls are HTTP nodes · the calendar id in `Load Config` is a group cal
   it, because a `leads` row carries no sender or message id for the prefix guard. With a fake `curl` and a fixed
   clock, the 46 requests are byte-identical to the old harness with no variable set; with all four set, 46 of 46
   carry the header file and the prefixes.
+- **Pre-push audit follow-ups (declared, `security-auditor`, push PASS):**
+  - **HIGH, fixed:** with `--turnstile` beside `--update` or `--verify`, the guards checked one id and the PUT went
+    to the OTHER, unchecked one; the auditor's stub run sent the copy's content to the original's id. The three write
+    modes are now exclusive (refused in `main()` and again in `run()`, before any API call), and the Turnstile PUT
+    asserts it targets the checked id. Selftest: the three pairs refused with 0 API calls; each of the two guards,
+    removed alone, turns the selftest red.
+  - **LOW, fixed:** C1's "0 open" had no positive control (above) · the Ctrl-C case now also asserts it did not exit
+    through the flag timeout · the harness says where the header file must live (outside the repo, 0600, deleted
+    after) · Main's version ids are no longer written here.
 - **`scripts/check-import-safe.py` + the `testing.md` rule (D4-7):** in `check-all` (selftest + `scripts/` and
   `tests/`: 13 files, 4 live-capable, 0 faults). Two top-level lines in the deploy helper carry the `# import-safe:`
   reason (offline siblings). On the scratch scripts: the D3c drill script with its guard is green; without it, red.

@@ -231,6 +231,10 @@ def _pg_credential():
 
 
 def run(spec_path, original_id, update=None, verify_only=None, turnstile=None):
+    # One target per run. With --turnstile beside --update/--verify the guards below checked ONE id and the PUT went
+    # to the OTHER, unchecked: the production original's id would have taken the copy (pre-push audit, 2026-10-23).
+    if sum(x is not None for x in (update, verify_only, turnstile)) > 1:
+        sys.exit('deploy-workflow-copy: refused — --update, --verify and --turnstile are exclusive (one target per run)')
     spec = json.load(open(spec_path, encoding='utf-8'))
     generated = BUILD.build(spec)
     live_orig = _workflow(original_id)
@@ -247,6 +251,7 @@ def run(spec_path, original_id, update=None, verify_only=None, turnstile=None):
             sys.exit('deploy-workflow-copy: refused — the target\'s data nodes are not Postgres, so it is not a copy')
     if turnstile:
         state, wid = turnstile
+        assert wid == target, 'the Turnstile write must go to the id the guards above checked'
         try:
             wf = turnstile_patch(tw, state)
         except ValueError as e:
@@ -387,6 +392,28 @@ def selftest():
             good = (not errs) == want_green
             ok = ok and good
             print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
+    # The target selection in main()/run(): every pair of write modes is refused BEFORE any API call.
+    global api
+    real_api, calls = api, []
+    api = lambda *a, **k: calls.append(a) or (599, {})
+    try:
+        for flags in (['--update', 'C1', '--turnstile', 'off', 'O1'], ['--verify', 'C1', '--turnstile', 'on', 'O1'],
+                      ['--update', 'C1', '--verify', 'C1']):
+            argv = ['deploy', specs[0], '--original-id', 'O1', *flags]
+            try:
+                rc = main(argv)
+            except SystemExit:
+                rc = 'SystemExit (main() did not refuse first)'
+            try:
+                run(specs[0], 'O1', **{'update': 'C1', 'turnstile': ('off', 'O1')}) if '--turnstile' in flags else None
+                rrc = 'not refused'
+            except SystemExit:
+                rrc = 'refused'
+            good = rc == 2 and not calls and ('--turnstile' not in flags or rrc == 'refused')
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} {' '.join(f for f in flags if f.startswith('--'))} together: main() exit {rc}, run() {rrc if '--turnstile' in flags else '—'}, API calls {len(calls)}")
+    finally:
+        api = real_api
     print('deploy-workflow-copy selftest:', 'OK' if ok else 'FAILED')
     return 0 if ok else 1
 
@@ -398,6 +425,9 @@ def main(argv):
         print(__doc__)
         return 2
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
+    if sum(k in argv for k in ('--update', '--verify', '--turnstile')) > 1:
+        print('deploy-workflow-copy: refused — --update, --verify and --turnstile are exclusive (one target per run)')
+        return 2
     ts = None
     if '--turnstile' in argv:
         i = argv.index('--turnstile')
