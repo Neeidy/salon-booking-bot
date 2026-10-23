@@ -653,6 +653,7 @@
   - ## 3q · D2b-3 close-out (2026-10-20): S1 ✅, the contract run ✅, D2 CLOSED
   - ## 3r · D3 plan: APPROVED 2026-10-20 (Yigitcan, plan-gate), with rulings K-1 to K-7
   - ## 3s · D4 plan: APPROVED 2026-10-23 (Yigitcan, plan-gate), with rulings D4-1 to D4-9
+  - ## 3t · D5 + D6a + D6b plan: APPROVED 2026-10-23 (Yigitcan, plan-gate), decisions 1–14 with three amendments
   - ## 4 · "No new bug": QA design
   - ## 5 · Critical-Review Targets
   - ## 6 · Skeleton (node level) · integrations · mock data · acceptance · drill matrix

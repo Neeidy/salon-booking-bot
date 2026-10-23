@@ -73,7 +73,7 @@ D3 and runs on the one workflow where it is harmless.
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* *Status 2026-10-23: ✅ D3 fully closed; D3c's error paths were drilled in D4's M7 window.* | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ CLOSED 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window) ✅ 2026-10-23. D4-3 ruled (a). ✅ D4 CLOSED 2026-10-23.** | diff + contract + drills green; Turnstile window protocol on the COPY |
-| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example` | CRT #10's boundary re-proven against Postgres |
+| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example`. **Plan (with D6a and D6b) APPROVED 2026-10-23, §3t; built offline first, its live check in round 2, the dashboard's live switch inside D6b.** | CRT #10's boundary re-proven against Postgres |
 | **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
 
@@ -405,6 +405,9 @@ tunnel target and its env handling inside a data-layer phase, which is scope cre
   (the job already uses the container pattern) → `pg_restore --list` non-empty → **restore into a
   scratch database, compare row counts per table, drop the scratch database.** A dump that has never
   been restored proves nothing.
+  *Corrected 2026-10-23 (decision 3, §3t): the restore goes into a `--network none` throwaway container started from
+  the running Postgres image, not into a scratch database in the live cluster; the comparison is per-table counts plus
+  an ordered md5, and both the dump and the restore check run nightly (decision 5).*
 - **Negative control:** a dump with a flipped byte must fail `pg_restore`, and the checksum must go red
   (D0's lessons: `integrity_check` and `bundle verify` both checked less than assumed).
 - **The nightly job lives outside the repo**, so editing it needs Yigitcan's approval
@@ -2032,6 +2035,47 @@ privileges). Timeline (UTC): `go` 21:30:19 · C1.done 21:30:56 · T1.done 21:33:
   fails the read and the write together, as on Airtable. **✅ D4 CLOSED. ✅ D3 fully closed** (the Reminders error
   paths were drilled in M7).
 
+## 3t · D5 + D6a + D6b plan: APPROVED 2026-10-23 (Yigitcan, plan-gate), decisions 1–14 with three amendments
+
+The plan was presented in chat in the full plan-gate format, from reads of `4b5ee73` and the live instance only
+(read-only). **Its main finding:** if the dashboard read Postgres live during D5, its release button would hand a
+Postgres id to the ORIGINAL Owner Actions, which still runs on Airtable: the split brain §3 measured. So D5's code is
+built and proven before the cutover, and the dashboard's live switch happens inside D6b's window.
+
+**Measured while planning (read-only):** 5 originals active, 5 copies inactive and paired, every table 0 · no export
+has an `errorWorkflow` setting or an `executeWorkflow` node, so nothing but this repo's own guards refers to a workflow
+id · only Main carries tags (two) · the copies' `staticData` holds drill throttle keys and Reminders' run guard;
+Main's original holds 253 throttle keys · the dashboard is not running (no listener) and its env file exists · the
+existing nightly backup job runs as an unprivileged user with a retention window, so it reaches Postgres through
+`docker exec` rather than the compose project · the parity
+guard reds every inactive original (`INACTIVE ORIGINAL`), so it reds all five after the cutover unless told otherwise
+· `check-live-parity` defaults to Main original's id · the deploy helper has no swap mode.
+
+**Decisions (Yigitcan, 2026-10-23):**
+
+| # | Decision |
+|---|---|
+| 1 | D5's code lands on `main` with ONE path (`airtable.ts` removed, no store switch); the dashboard stays stopped until D6b. |
+| 2 | The dashboard's env takes the standard `PG*` names with `salon_ro`; its Airtable lines stay until D6c (the rollback path). |
+| 3 | D6a restores into a `--network none` throwaway container from the running image, not into a scratch database in the live cluster (§3j corrected in place). |
+| 4 | D6a's restore test runs on seeded `mig-` rows (empty tables prove only the schema); the seed workflow needs its own approval. |
+| 5 | Both the dump and the restore check run nightly. |
+| 6 | D6b's order: Purge → Reminders (minutes :05–:50) → Drill State → Owner Actions → dashboard → Main; at least 30 minutes after the last copy drill; at least an hour from the Purge tick. |
+| 7 | **Amended:** NO second full suite on the production path (the same copy passed 28/28 in D4b, and the swap diff proves only the path differs). Acceptance on the production path is a routing smoke only: one booking and its cancel through the flow, in a Turnstile window of at most 10 minutes, measured both ways. |
+| 8 | With Airtable quota-blocked, roll back immediately only on a SAFETY trigger (a double booking, a PII or secret leak, Turnstile not restorable, a red parity guard, an outbound send); on a functional red, stop and report, and Yigitcan decides. |
+| 9 | After the cutover the guards take a DECLARED role inversion: exactly one active per pair; both active red; both inactive red; an inactive original green only under the declaration; `check-live-parity` targets the active holder of `barber-inbound`. |
+| 10 | O3: no. The approved §3a method stays (separate ids); R1–R3 are not run. |
+| 11 | **Amended:** `staticData` is not moved, PROVIDED Main original's 253 keys are listed by CLASS (name pattern → what it is → its expiry) and every class is shown to expire. A class that does not expire is a STOP. |
+| 12 | **Amended:** Main's tags move to D7, after acceptance, not in the cutover window. |
+| 13 | Purge's first trigger-mode tick is a soak item, not an acceptance gate. |
+| 14 | §6's acceptance item 5 is corrected in place: the permanent off-server copy is D6d, in the final security pass. |
+
+**Schedule (Yigitcan, 2026-10-23):** the TARGET is the migration done and Phase 7 resumed by **Monday 2026-10-26,
+night**. The stop rule's 2026-11-08 stays as the emergency exit, not the target. **Three rounds:** (1) every offline
+build (D5's store module and tools, D6a's backup script and its test, D6b's swap mode, guard inversion and the
+`staticData` class list); (2) D5's live check, D6a's operator block and the L3 (Codex) review of `store.ts`, in
+parallel; (3) D6b's window and acceptance, then Phase 7.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
@@ -2154,7 +2198,8 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 2. M1–M10 green, each with its red direction shown.
 3. CRTs #8, #10 and #11 re-proven.
 4. A nightly `pg_dump` exists and has been restore-tested.
-5. A permanent off-server copy exists.
+5. ~~A permanent off-server copy exists.~~ *Corrected 2026-10-23 (decision 14, §3t): this is D6d, moved to the final
+   security pass by the 2026-10-22 speed plan; it is not a D6 acceptance item.*
 6. The Airtable export has been taken before the revocations.
 7. The D0 restore levels have been rehearsed: credential decryption (D2) and re-activate-the-original
    (D3 Purge).
@@ -2349,3 +2394,8 @@ budget (28 rounds; from 2026-10-20: 25 rounds from then)**, or **any single step
 **D4 plan (2026-10-23)**
 - **✅ APPROVED by Yigitcan (plan-gate), with rulings D4-1 to D4-9** (§3s). D4 runs D4a → D4b → D4c, each step
   committed and stopped for review. D4-5 (the calendar) gated D4b and was cleared on 2026-10-23 with a canary.
+
+**D5 + D6a + D6b plan (2026-10-23)**
+- **✅ APPROVED by Yigitcan (plan-gate), decisions 1–14 with amendments to #7, #11 and #12** (§3t). Target: done and
+  Phase 7 resumed by 2026-10-26 night; 2026-11-08 stays the emergency exit. Three rounds: offline builds → live checks
+  + D6a operator block + Codex → D6b window and acceptance.
