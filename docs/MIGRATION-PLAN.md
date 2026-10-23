@@ -2076,6 +2076,82 @@ build (D5's store module and tools, D6a's backup script and its test, D6b's swap
 `staticData` class list); (2) D5's live check, D6a's operator block and the L3 (Codex) review of `store.ts`, in
 parallel; (3) D6b's window and acceptance, then Phase 7.
 
+**Round 1 · the offline builds ✅ (2026-10-24), one open item: #11's Schedule Trigger keys (ruling below).** Nothing live
+was written or activated; the only live reads were `salon_ro` reads and n8n GETs. Turnstile 403 at the start and the end.
+- **D5 (`web/dashboard/lib/store.ts`, replacing `airtable.ts`; one path).** Four constant, parameterless reads; `sender_key`,
+  `gcal_event_id`, `computed_reply` and `cancel_target_id` are never selected; each panel's column list is exactly the
+  displayed set; `LIMIT 101` gives the truncation flag; the Airtable shape the panels were written against; a pool of four
+  with a 10 s statement timeout; before its first read the module asks whether the connected role can write any salon
+  table and refuses if it can.
+  - `lib/store.test.ts` (9 tests, in `check-all` through the dashboard's own `check`). **Ten mutants, all red.** *Found by
+    a mutant:* the first "not a proxy" test checked `Function.length`, which does not count a parameter with a default
+    value, so a read that let its caller pick the table passed; the test now reads the source, and the mutant is red.
+  - **As `salon_ro` (live read):** (i) the four statements on the real (empty) tables run; (ii) on fake `mig-` rows of
+    each table's own row type: the filters keep the right rows, the truncation works at 101, **0 shape violations**, and
+    `salon_ro` holds 0 write privileges. Control: the same statements without `jsonb_strip_nulls`/`NULLIF`/`CASE` are red
+    on appointments, leads and handoff. *Corrected by that control:* the first comment said a missing `::float8` would
+    make the spend panel show nothing; inside `jsonb_build_object` a `numeric` is already a JSON number, so the cast is a
+    guard against a future raw select, and the comment and test now say so.
+  - **The browser boundary (CRT #10, claim 1):** `next build` (offline) puts none of `PGPASSWORD`, `PGHOST`, `salon_ro`,
+    the driver, the SQL or the PII column names in the client chunks; the server chunks carry them (the search's positive
+    control). `check-client-imports` bans `store.ts` and the `pg` driver for client code; a client file importing either is
+    red, the driver by its own rule.
+  - **`tests/run-d11.sh`:** the direct route reads Postgres as `salon_ro` and now COUNTS the replay markers; its parser
+    still turns every failure into `READ-FAILED`. Live: a missing record → `NOT-FOUND|0`; a deliberately wrong password →
+    `28P01` → `READ-FAILED`; a parser mutant that reads an error as not-found is red.
+  - `.env.example` gains the dashboard's `PG*` names; the Airtable names stay until D6c. *Declared:* the deny rule blocks
+    reading `.env.example` by path and `git diff -- .env.example`; neither was routed around: the content came from
+    `git show HEAD:.env.example` (pushed, public, placeholder-only) and the file was only written.
+  - The sanitizer test now also plants a real-looking id on one Postgres node of the Main copy export: caught, by name.
+  - *Declared:* the `next build` output (`.next/`, gitignored) is left in place; deleting it is an `rm -rf`.
+- **D6a (`db/ops/pg-backup.sh` + `tests/ops/pg-backup.test.sh`).** One snapshot for the dump AND its per-table counts and
+  ordered md5s (`pg_export_snapshot` + `pg_dump --snapshot`), so a write between the dump and the count cannot raise a false
+  alarm; sha256 and stats beside the dump, mode 600; `pg_restore --list` must show five tables; a full restore into a
+  throwaway container from the running image with no network, removed on exit; restored stats must equal the dump-time
+  ones; 14-day retention on its own files only; `--verify FILE` re-checks any dump. No password anywhere.
+  - The offline test (24 checks, in `check-all`) runs the script against a fake docker that records every argv. **Twelve
+    mutants, all red.** *Found by the test:* a failure inside `ct="$(container)"` printed its reason into the variable, so
+    the log would have shown no reason; `die` writes to stderr now.
+  - **As `salon_ro`:** the stats statement runs on the real tables; on fake rows its md5 is the same for the rows in any
+    order and differs when one field changes.
+  - **Not measured yet (round 2, the operator's block):** real `pg_dump`/`pg_restore`, the throwaway's start, and a
+    flipped byte meeting the real `pg_restore`. The nightly job is NOT edited in this round.
+- **D6b, the swap mode (`deploy-workflow-copy.py --swap COPY_ID`).** Refused unless the original and the copy both read
+  back inactive; the copy's trigger takes the original's LIVE path (read, never typed); its temporary trigger is removed;
+  the swap-phase checks run on that content before the write and on the live copy after it; nothing is activated.
+  Selftest: per spec, the clean swap is green and an unswapped copy, the original passed as the copy, a changed non-data
+  node, a credential placeholder, a placeholder inside a data node's query, a temporary trigger left in, a trigger left on
+  its test path and a lowered Turnstile are red; on a simulated instance the order guard, the pre-write check, the
+  post-write check (the API "dropping" the path change) and the exclusivity hold. **Of twelve mutants, eleven are red;**
+  the twelfth removed verify()'s not-sanitised check from the swap checks and SURVIVED, because in the swap phase every
+  non-data node must equal the live original, so the check was removed rather than kept.
+- **D6b, the declared role inversion.** `ROLES` in `check-exports-parity.sh` (all five `original` today) and
+  `scripts/pair_roles.py` hold the rules: exactly one active per pair, the declared one; content parity lets a workflow be
+  inactive only when ROLES declares its pair's other side live, and only against its own PAIRS export;
+  `check-live-parity` compares the ONE active holder of `barber-inbound` against that workflow's own export.
+  `pair-roles.test.py` (26 checks; thirteen mutants red, re-run with Python's bytecode cache off after the first run
+  reused a stale compiled mutant), the inactive-rule test with the declaration flipped (10 cases), and a
+  `live-parity-target` test against a loopback stand-in for the API (before, after, two holders); five wiring mutants red.
+  **Live (read-only):** exports parity 10/10, 5 pairs hold their declared roles, live parity on the resolved holder (Main
+  original) OK.
+- **#11, `staticData` by class (live originals, read-only; no key's sender part and no value printed).**
+  - **Main, 253 `ownerAlerts` keys in 16 classes** (17 class/sender-kind groups: `handoff` 165, `handoff_lock` 38, five
+    `date_*` classes 37, and nine smaller ones, including `state_unavailable` with an `unknown` sender and with a widget
+    sender, and `zernio_send_failed` with WhatsApp senders): every
+    value is a timestamp, every key is far outside the 30-minute window (the youngest about four days old). The reader
+    (`Build Owner Alert`) throttles only while the value is a number AND younger than the window, so **every class
+    expires**.
+  - **Purge and Reminders:** their `ownerAlerts` keys (class:branch) expire the same way; Reminders' `reminderRunAt` is
+    read only within 120 s (it was 32 minutes old).
+  - **⏸ Two keys of another kind: `node:Purge Schedule` and `node:Reminder Schedule`**, the Schedule Trigger node's own
+    state (read by n8n's core, not by this repo's code): `{"recurrenceRules": [null], "recurrenceRuleSignatures": [null]}`,
+    **identical on the originals and on their copies** (the copies wrote their own when they were activated in D3/D4). It
+    is not a time window, so "shown to expire" does not apply in the form decision #11 asked; what holds is that nothing
+    differs and nothing would be lost. **Per #11 this is a STOP for that item: ruling needed.** The recommendation is to
+    accept it (no action at the cutover).
+  - *Observation:* Main original's throttle keys include WhatsApp sender keys, i.e. phone numbers, in n8n's own
+    database; they stay with the inactive original and are not moved. Not a migration difference.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
