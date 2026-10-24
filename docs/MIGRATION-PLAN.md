@@ -2406,6 +2406,31 @@ with its own env file, `run-d11` on the production paths, the race drill and the
 - **Rulings recorded with this round** (Yigitcan, 2026-10-24, in the Round 3c brief): `storeError`'s unfiltered code on
   the page and the Purge time in public files join the final security pass (PHASE-7-PLAN items 10 and 11).
 
+**K-6 after the cutover · the dashboard's route, measured (2026-10-24).** Read-only, from the server, after the
+dashboard started listening again. **Ruling (Yigitcan): the route STAYS** — the Phase 6 design, the owner's only path
+that does not need SSH. *Correcting a premise:* the brief that opened this check assumed that with no known dashboard
+hostname the dashboard was not reachable from the internet; that was an unmeasured inference and it was wrong, and the
+check stopped on it as instructed before anything else was done.
+- **The listener:** `127.0.0.1:3210` only; no wildcard bind.
+- **The connector:** the tunnel runs as a root host service with no private network namespace, so it CAN reach the
+  host's loopback; what decides reachability is its ingress.
+- **The ingress it has loaded**, read from the connector's own local metrics server (identity shown: its metric family
+  is present and it reports four edge connections; the journal was tried first and returns nothing to this user, so it
+  is not a source): six rules, **one targets the dashboard's port under a dashboard hostname**; the positive control,
+  n8n's webhook origin rule, is found; the last rule is a catch-all status. No hostname or rule text was printed or kept
+  (the saved copy was deleted after parsing).
+- **Session-less requests to that hostname:** `/`, `/api/release` and a static asset each answer **302 to the Access
+  login**, with no dashboard content in the body.
+- **The Access policy** (Cloudflare API, GET only, with the token already on the server; the token sits in a 0600 header
+  file, never on a command line): the application covering the dashboard hostname is self-hosted with ONE policy,
+  decision **allow**, include type **email** with **one** address named, no require or exclude, no `everyone`, no
+  bypass, no login-method-only rule; application session **730 h**. No application with a wildcard host pattern exists
+  (8 applications, all exact hosts), so none can widen it. **Positive control:** the application on n8n's `owner-*`
+  paths reads as decision `non_identity` with include type `service_token`, which is the Service Auth S6 measured.
+- *Observation, not ruled:* a 730-hour session is long for a page that shows customer data.
+- **Cleanup (approved):** the two env-file backups of Round 3b/3c (they held secrets) and the operator's scratch
+  directory holding the 003 file are deleted and shown absent; the dashboard's env file itself is in place.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
