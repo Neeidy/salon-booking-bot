@@ -5,23 +5,29 @@
  * CRT #10 is four claims, and this file is where three of them are either true or false:
  *   1. the credential never reaches a browser — it is read from process.env here and nowhere else, and the
  *                                                runtime guard below throws in a browser bundle;
- *   2. the credential is READ-ONLY              — `salon_ro` holds SELECT only (db/schema/002_roles.sql), and this
- *                                                module CHECKS it at runtime: before its first read it asks the
- *                                                database whether the connected role can write any salon table,
- *                                                and refuses to read if it can (`ensureReadOnly`);
+ *   2. the credential is READ-ONLY              — `salon_ro` is granted SELECT only on the salon tables
+ *                                                (db/schema/002_roles.sql). What THIS module adds is narrower, and
+ *                                                it is a table-privilege check, not a proof: see `WRITE_CHECK` and
+ *                                                the list of what it does not see, below;
  *   3. this is NOT a general proxy              — see below, it is the whole design of this file;
  *   4. no dashboard/PII code ships to Vercel    — that is `web/`'s two-app split, not this file.
  *
  * WHY IT IS NOT A PROXY, stated as a rule and not as an intention: **no exported function takes a table, a
  * filter, a column list, a sort or a record id from its caller.** There are exactly four reads, each one a
  * constant SQL string in `SQL` below, each with NO bound parameter: the only inputs are the clock, read by the
- * database itself. `lib/store.test.ts` proves it from this file's own text: every read is parameterless, every
- * `.query(` call passes a member of `SQL` and nothing else, and no statement carries a `$n` placeholder.
+ * database itself. `lib/store.test.ts` CHECKS this from the file's own text, and a text check is not a proof: it
+ * catches the spellings it looks for (a read that grows a parameter, a `.query(` that takes something other than
+ * a module constant, a `$n` placeholder) and nothing else. Codex CRT #10 F4 wrote twelve mutants that turn this
+ * module into a proxy and keep every test green (`p['query']`, `.query (`, code hidden between comment-looking
+ * strings, an aliased export). A behaviour-based test, a mocked driver recording what is actually sent, is a
+ * named Phase 7 item; until it exists, the rule above holds because the code is short enough to read.
  *
  * COLUMN SELECTION IS A SECURITY CONTROL, NOT AN OPTIMISATION (Yigitcan's addition E2). The rule is unchanged
  * from the Airtable version: **a field that is DISPLAYED is fetched; a field that is not displayed is not
- * fetched; and no PII crosses a client-component boundary.** Non-PII context columns may be fetched without
- * being drawn (`end_utc`, `reminder_sent`, `created_at`, `stage`). Deliberately never selected, and asserted by
+ * fetched; and no PII crosses a client-component boundary.** ⚠ The middle clause is NOT met today: five non-PII
+ * context columns are fetched and never drawn (appointments' `end_utc`, `reminder_sent`, `created_at`; leads'
+ * `created_at`; the queue's `stage`), and an earlier version of this paragraph permitted that in the same breath
+ * as stating the rule (Codex CRT #10 F7). Trimming them is a named Phase 7 item. Deliberately never selected, and asserted by
  * the test: `sender_key` (a BEARER credential on the widget lane), `gcal_event_id` (a hex ENCODING of the
  * sender key, `security-secrets.md`), `computed_reply`, `cancel_target_id`. The handoff queue reads
  * `sender_masked`, now a STORED generated column (db/schema/001_init.sql) computed by the corrected formula
@@ -98,10 +104,30 @@ export const SQL = Object.freeze({
 });
 
 /**
- * Asked once per process, before the first read: can the connected role write ANY salon table? Read-only is
- * claim 2 of CRT #10, and a configuration can break it silently (a `PGUSER` pointed at the app role reads
- * exactly the same rows). So the module measures it instead of trusting the env, and refuses to read if the
- * answer is not "no".
+ * WHAT THIS IS, exactly: a TABLE-privilege check. It asks `has_table_privilege` for INSERT, UPDATE, DELETE and
+ * TRUNCATE on the five salon tables, for `current_user`, the role of the ONE pooled connection that happens to
+ * run it. `has_table_privilege` counts privileges held directly, through PUBLIC, through ownership, and through
+ * membership in a role whose privileges are INHERITED; a superuser answers true everywhere (Codex's inherited-
+ * grant and superuser controls both came back non-zero). Any true answer refuses every read. It exists because
+ * a configuration can break claim 2 silently: a `PGUSER` pointed at the app role reads exactly the same rows,
+ * and this check catches that case.
+ *
+ * WHAT IT DOES NOT SEE (Codex CRT #10 F1, most of it measured in a scratch database built from the two schema
+ * files; the rest follows from what the function asks), so a zero here does NOT mean the credential cannot write:
+ *   - column-level grants (`GRANT UPDATE (name) ON salon.leads` leaves every table-level answer false);
+ *   - roles the login can `SET ROLE` into without inheriting them (membership with INHERIT FALSE);
+ *   - functions: the built-in large-object writers (`lo_create`, `lo_from_bytea` among them), which PUBLIC may
+ *     execute by default, and any SECURITY DEFINER function that writes on its owner's behalf;
+ *   - sequences (`setval`, `nextval`), tables outside these five, and every other schema;
+ *   - schema CREATE and database TEMPORARY;
+ *   - ownership whose DML was revoked (an owner can grant it straight back);
+ *   - BYPASSRLS (it grants no DML itself, but it voids any row policy).
+ * The large-object writers are closed at the DATABASE, not here: db/schema/003_revoke_large_object_writes.sql
+ * revokes their EXECUTE from PUBLIC, the operator applies it, and its before/after measurement belongs in
+ * docs/MIGRATION-PLAN.md §3t. This SQL is deliberately NOT broadened now (ruling 2026-10-24).
+ *
+ * ⚠ It runs ONCE per process and a pass is cached (`readOnly` below): a grant made after the first render is
+ * never re-asked (Codex F2). Deferred to the final security pass.
  */
 const WRITE_CHECK = `SELECT current_user AS role, count(*)::int AS writable
     FROM unnest(ARRAY['appointments', 'bot_metrics', 'conversations', 'leads', 'processed_messages']) t,
@@ -155,8 +181,25 @@ function getPool(): pg.Pool {
   }
   // `pg` reads PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD itself; nothing here copies the password.
   // max 4: one connection per read of a render, and no more, because the bot's role shares the cluster.
-  pool ??= new pg.Pool({ max: 4, statement_timeout: 10_000, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 30_000 });
+  if (!pool) {
+    pool = new pg.Pool({ max: 4, statement_timeout: 10_000, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 30_000 });
+    // An IDLE pooled connection that fails (a database restart, a dropped link) makes pg emit 'error' on the
+    // pool, outside every read's try/catch. With no listener that is an unhandled 'error' event and it takes the
+    // dashboard process down (Codex CRT #10 F3). pg has already discarded that client, so the next read opens a
+    // fresh one; all that is left to do here is make the failure visible. Only the CLASS is logged, never the
+    // message or the object: a pg/libpq message can carry the host, the user or the database name.
+    // Attached once, at construction: `getPool` runs on every read.
+    pool.on('error', (e) => {
+      console.error(`store: an idle database connection failed (${errorClass(e)}); pg discarded it, the next read reconnects`);
+    });
+  }
   return pool;
+}
+
+/** A SQLSTATE (`57P01`) or a Node errno code (`ECONNRESET`), else 'unknown'. Safe to log: a code, never text. */
+function errorClass(e: unknown): string {
+  const code = (e && typeof e === 'object' && 'code' in e) ? e.code : undefined;
+  return typeof code === 'string' && (/^[0-9A-Z]{5}$/.test(code) || /^E[A-Z0-9_]+$/.test(code)) ? code : 'unknown';
 }
 
 function storeError(table: string, e: unknown): StoreError {
