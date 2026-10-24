@@ -2223,6 +2223,29 @@ through headless Chromium:
 - *Declared (auditor INFO I-1):* the round-1 rewrite paragraph said "three LOW lines" while listing six items; it now says
   three findings covering six items.
 
+**Round 3a · TODO-1 fixed: a swap-phase Turnstile window, and every window checks before it writes (2026-10-24).**
+D6b's acceptance needs the Turnstile window ON THE SWAPPED Main copy (decision 7), and the deploy helper's `--turnstile`
+could not do it: its check required the TEST phase (trigger on the test path, temporary trigger present), so on a swapped
+copy it was red in both directions (measured offline), and it PUT first and checked after, so a red copy was already
+written with its gate lowered when the check said so.
+- **New mode `--turnstile-swapped off|on COPY_ID`** (a separate flag, not phase detection: on the production holder the
+  operator NAMES the phase and the check MEASURES it; a copy in the other phase is refused before any write, in both
+  directions). It checks the patched content in memory against the swap phase BEFORE the PUT ('off': the copy with the
+  one literal put back must pass `swap_check`, so nothing can ride along with the lowered gate; 'on': the copy as is),
+  refuses an ACTIVE target, and after the PUT re-reads and re-checks the live copy and its inactive state.
+- **The test-phase `--turnstile` now checks before it writes too** (the same defect class), accepting exactly what it did.
+- Exclusive with every other write mode in both `main()` and `run()`, refused before any API call.
+- Selftest 125 ✓ / 0 ✗ (24 new lines; the 100 earlier ones unchanged in result). **Fifteen mutants, all red**, among them:
+  the PUT moved ahead of the pre-check (each phase), the swap mode checking with the test phase, phase selection inverted,
+  an active target accepted, the 'off' check not restoring the literal, exclusivity removed (main, run), the pre- or
+  post-check removed. One mutant (the post-check skipped in the test phase only) first SURVIVED because no case covered
+  it; the case was added and it is red. An independent mutant run by the LEAD (the PUT ahead of the pre-check, both
+  phases) is red.
+- The scratchpad D6b driver uses the new mode; its #11 flag is removed (#11 closed).
+- *Open, for a ruling:* the new mode does not require the ORIGINAL to be inactive (the brief did not ask for it). After a
+  rollback (original active, copy swapped and inactive) it could still write the copy; activating it would then be refused
+  by n8n (409), but an order guard like `--swap`'s is a small addition.
+
 ## 4 · "No new bug": QA design
 
 1. **Mechanical diff — `scripts/diff-workflow-copy.py <original> <copy> --allow <node names>`.**
