@@ -34,7 +34,14 @@ Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md
        'on' as is; before the write and again after it.
        *Why a separate flag and not phase detection:* a swapped copy is the PRODUCTION holder, so lowering its gate is
        a production act. The operator names the phase, the check measures it, and the run proceeds only when both
-       agree; a copy that is not in the named phase is refused before any write, in either direction.)
+       agree; a copy that is not in the named phase is refused before any write, in either direction.
+       *ORDER guard (ruling 2026-10-24), 'off' and 'on' alike, before the content check and before any write:* the
+       swap must be DECLARED, i.e. scripts/check-exports-parity.sh's ROLES (read through scripts/pair_roles.py, the one
+       parser) holds a line for exactly this original and this copy with LIVE = copy; and the original must read back
+       INACTIVE from n8n. A swapped-shaped copy is not yet a production holder: it becomes one when the swap is declared
+       in a commit and the original is parked, and only then is lowering its gate a legitimate production act rather
+       than a window opened on a workflow nobody has handed production to. The test-phase --turnstile reads neither:
+       there the original is active and ROLES says original, and that is correct.)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --swap COPY_ID
       (D6b's cutover write, MIGRATION-PLAN §3a/§3t: refused unless the original AND the copy both read back
        INACTIVE. The copy's trigger moves to the original's live path and its temporary trigger is removed; the
@@ -193,6 +200,27 @@ def turnstile_check(live_orig, live_copy, generated, spec, state, phase='test'):
     return check(live_orig, restored, generated, spec)
 
 
+ROLES_FILE = None   # None = pair_roles' own default, the committed check-exports-parity.sh; the selftest points it at a fixture
+
+
+def check_swap_declared(original_id, copy_id, original_active):
+    """--turnstile-swapped's ORDER guard (ruling 2026-10-24): the reason the window is refused, or None.
+    (1) the swap is DECLARED: a ROLES line for exactly this pair, LIVE = copy; (2) the original is PARKED: read back
+    inactive. ROLES is read through pair_roles, so there is one parser; a declaration it cannot read declares nothing."""
+    try:
+        _, roles = _module('scripts/pair_roles.py', 'pair_roles').load(ROLES_FILE)
+    except (ValueError, OSError) as e:
+        return f'ROLES does not read, so nothing is declared ({e})'
+    role = next((r for r in roles if r['orig'] == original_id and r['copy'] == copy_id), None)
+    if role is None:
+        return 'ROLES has no line for this original and this copy, so the swap is not declared'
+    if role['live'] != 'copy':
+        return f"ROLES declares the {role['live']} live, so the swap is not declared (flip the pair to copy first)"
+    if original_active is not False:
+        return 'the original is not INACTIVE; park it first (§3a), its copy is not the production holder yet'
+    return None
+
+
 # ── the SWAP (D6b, MIGRATION-PLAN §3a, §3t) ─────────────────────────────────────────────────────────────────
 # §3a: deactivate the original → put the copy on the production path → activate the copy → measure. This is the
 # middle step only. Its content comes from the LIVE copy (already verified, real credentials, Load Config as live),
@@ -345,6 +373,12 @@ def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, s
         phase = 'swap' if turnstile_swapped else 'test'
         state, wid = window
         assert wid == target, 'the Turnstile write must go to the id the guards above checked'
+        if turnstile_swapped:
+            # The ORDER guard: lowering a swapped copy's gate is a production act only once the swap is declared and
+            # the original parked. Before the content check, so a refusal here never depends on what the copy holds.
+            why = check_swap_declared(original_id, wid, om['active'])
+            if why:
+                sys.exit(f'deploy-workflow-copy: refused before any write — {why}')
         try:
             wf = turnstile_patch(tw, state)
         except ValueError as e:
@@ -549,9 +583,18 @@ def selftest():
             ok = ok and good
             print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
     # The target selection in main()/run(): every pair of write modes is refused BEFORE any API call.
-    global api
-    real_api, calls = api, []
+    global api, ROLES_FILE
+    real_api, calls, real_roles, fixtures = api, [], ROLES_FILE, []
     api = lambda *a, **k: calls.append(a) or (599, {})
+
+    def roles_fixture(line):
+        """A check-exports-parity.sh-shaped file with fake ids, so no case depends on what the committed ROLES says."""
+        pairs = (('O1', 'workflow'), ('O2', 'workflow.reminders'), ('C1', 'workflow.main.copy'), ('C2', 'workflow.reminders.copy'))
+        with tempfile.NamedTemporaryFile('w', suffix='.sh', delete=False) as t:
+            t.write('PAIRS=(\n' + ''.join(f'  "{i}:n8n/{p}.sanitized.json"\n' for i, p in pairs) + ')\n\n'
+                    f'ROLES=(\n  "{line}"\n)\n')
+        fixtures.append(t.name)
+        return t.name
     try:
         for flags in (['--update', 'C1', '--turnstile', 'off', 'O1'], ['--verify', 'C1', '--turnstile', 'on', 'O1'],
                       ['--update', 'C1', '--verify', 'C1']):
@@ -639,6 +682,7 @@ def selftest():
         msw = swap_patch(mcopy, morig, mspec)
         msw_off, mcopy_off = turnstile_patch(msw, 'off'), turnstile_patch(mcopy, 'off')
         TS, TT = 'turnstile_swapped', 'turnstile'
+        ROLES_FILE = roles_fixture('O1:C1:copy')          # the swap declared, as the ORDER guard requires
         for label, mode, state, copy_wf, c_active, mangle, want in (
                 ('swapped copy, off', TS, 'off', msw, False, None, 'written'),
                 ('swapped copy, on (restored)', TS, 'on', msw_off, False, None, 'written'),
@@ -679,8 +723,45 @@ def selftest():
             ok = ok and good
             print(f"{'✓' if good else '✗'} --{mode.replace('_', '-')} {state}, {label}: {got} · PUTs {puts}")
             api = lambda *a, **k: calls.append(a) or (599, {})
+        # --turnstile-swapped's ORDER guard (ruling 2026-10-24): refused, with no PUT, unless ROLES declares exactly this
+        # pair with the copy live AND the original reads back inactive. The test-phase --turnstile reads neither, so it
+        # writes with the original ACTIVE and ROLES saying original (the test phase as it really is) or silent.
+        for label, mode, state, copy_wf, roles_line, o_active, want in (
+                ('ROLES declares the copy, original inactive', TS, 'off', msw, 'O1:C1:copy', False, 'written'),
+                ('ROLES still declares the original', TS, 'off', msw, 'O1:C1:original', False, 'refused'),
+                ('ROLES still declares the original (restore)', TS, 'on', msw_off, 'O1:C1:original', False, 'refused'),
+                ('ROLES has no line for this pair', TS, 'off', msw, 'O2:C2:copy', False, 'refused'),
+                ('ROLES does not read (the pair written the wrong way round)', TS, 'off', msw, 'C1:O1:copy', False, 'refused'),
+                ('the original still ACTIVE (ROLES declares the copy)', TS, 'off', msw, 'O1:C1:copy', True, 'refused'),
+                ('the original still ACTIVE (restore)', TS, 'on', msw_off, 'O1:C1:copy', True, 'refused'),
+                ('test phase: ROLES declares the original, original ACTIVE', TT, 'off', mcopy, 'O1:C1:original', True, 'written'),
+                ('test phase: ROLES has no line for this pair', TT, 'off', mcopy, 'O2:C2:copy', True, 'written')):
+            ROLES_FILE = roles_fixture(roles_line)
+            db = {'O1': dict(morig, active=o_active, name='Salon Booking Bot — Main'), 'C1': dict(copy_wf, active=False)}
+            calls.clear()
+            def fake(method, path, body=None, db=db):
+                calls.append((method, path))
+                wid = path.rsplit('/', 1)[-1]
+                if method == 'PUT':
+                    db[wid] = dict(_copy.deepcopy(body), active=db[wid]['active'], name=db[wid]['name'])
+                return 200, db[wid]
+            api = fake
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = run(mspec_path, 'O1', **{mode: (state, 'C1')})
+                got = 'written' if rc == 0 else f'rc {rc}'
+            except SystemExit as e:
+                got, why = 'refused', str(e.code)
+            puts = [c for c in calls if c[0] == 'PUT']
+            good = got == want and (puts == [('PUT', '/workflows/C1')] if want == 'written' else not puts)
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} --{mode.replace('_', '-')} {state}, ORDER guard, {label}: {got}"
+                  f"{' (' + why.split('— ', 1)[-1][:120] + ')' if got == 'refused' else ''} · PUTs {puts}")
+            api = lambda *a, **k: calls.append(a) or (599, {})
     finally:
-        api = real_api
+        api, ROLES_FILE = real_api, real_roles
+        for p in fixtures:
+            os.unlink(p)
     print('deploy-workflow-copy selftest:', 'OK' if ok else 'FAILED')
     return 0 if ok else 1
 
