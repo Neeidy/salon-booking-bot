@@ -16,9 +16,9 @@ def check(label, cond):
     ok = ok and bool(cond)
     print(f"{'✓' if cond else '✗'} {label}")
 
-# ── the real declaration reads, and says `original` for all five today ──
+# ── the real declaration reads, and since D6b's cutover (MIGRATION-PLAN §3t, Round 3c) says `copy` for all five ──
 pairs, roles = pr.load()
-check('the committed ROLES reads: 5 pairs, every one declared original', len(roles) == 5 and {r['live'] for r in roles} == {'original'})
+check('the committed ROLES reads: 5 pairs, every one declared copy (cut over)', len(roles) == 5 and {r['live'] for r in roles} == {'copy'})
 check('every ROLES id has a PAIRS line, originals on plain exports, copies on .copy exports',
       all(not pairs[r['orig']].endswith('.copy.sanitized.json') and pairs[r['copy']].endswith('.copy.sanitized.json') for r in roles))
 

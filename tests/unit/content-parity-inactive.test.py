@@ -36,6 +36,15 @@ def run(wf, committed, live):
         return f'exit {e.code}'
 
 
+# These six cases are the rule as it stood BEFORE the cutover, so the declaration is pinned to `original` for every
+# pair here instead of read from the committed file (which says `copy` since D6b, Round 3c). The flipped cases below
+# hand in their own declaration the same way.
+import types
+real_pr = m._pair_roles()
+pairs_d, roles_d = real_pr.load()
+m._pair_roles = lambda: types.SimpleNamespace(may_be_inactive=real_pr.may_be_inactive,
+                                              load=lambda: (pairs_d, [dict(r, live='original') for r in roles_d]))
+
 CASES = [
     ('an inactive paired copy', copy, {'active': False, 'nodes': []}, 'pass'),
     ('an inactive original', orig, {'active': False, 'nodes': []}, 'exit 1'),
@@ -53,15 +62,12 @@ for label, (wf, committed), live, want in CASES:
 # The DECLARED role inversion (MIGRATION-PLAN §3t, decision 9): the same guard, with the ROLES declaration flipped
 # for the pair under test, as D6b's commit will flip it. The guard reads ROLES through _pair_roles(), so the flipped
 # declaration is handed in there; the real file is not touched.
-import types
-real_pr = m._pair_roles()
-pairs_d, roles_d = real_pr.load()
 role = next(r for r in roles_d if pairs_d[r['copy']] == copy[1])
 o_pair = (role['orig'], pairs_d[role['orig']])
 
 
 def with_roles(live_side):
-    flipped = [dict(r, live=live_side) if r is role else r for r in roles_d]
+    flipped = [dict(r, live=live_side) if r is role else dict(r, live='original') for r in roles_d]
     fake = types.SimpleNamespace(may_be_inactive=real_pr.may_be_inactive, load=lambda: (pairs_d, flipped))
     m._pair_roles = lambda: fake
 

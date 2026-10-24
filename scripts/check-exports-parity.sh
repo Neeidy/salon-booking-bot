@@ -35,11 +35,11 @@ PAIRS=(
 # that commit is the DECLARATION the guards read (scripts/pair_roles.py holds the rules): exactly one of each pair is
 # active, it is the declared one, and an inactive workflow is green only when ROLES declares the OTHER one live.
 ROLES=(
-  "SL142I47mK6SAz6p:GyvhZH79DxC1LpTx:original"   # Main
-  "EHsn2WocYqB2bYi1:whpyb2MZKzViQGr8:original"   # Reminders
-  "sdXropaqnNaOvIvs:snVOpMe3dn52LVp4:original"   # Processed Purge
-  "lTyYKxqyzumH2JMz:TgXeN8HAJ2BkiJWO:original"   # Owner Actions
-  "sTn3xfa9qI6IyBNP:QJcFVLIkZlc71scP:original"   # Drill State Read
+  "SL142I47mK6SAz6p:GyvhZH79DxC1LpTx:copy"   # Main
+  "EHsn2WocYqB2bYi1:whpyb2MZKzViQGr8:copy"   # Reminders
+  "sdXropaqnNaOvIvs:snVOpMe3dn52LVp4:copy"   # Processed Purge
+  "lTyYKxqyzumH2JMz:TgXeN8HAJ2BkiJWO:copy"   # Owner Actions
+  "sTn3xfa9qI6IyBNP:QJcFVLIkZlc71scP:copy"   # Drill State Read
 )
 
 if [ -z "${N8N_API_KEY:-}" ] || [ -z "${N8N_HOST:-}" ]; then

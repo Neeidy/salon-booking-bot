@@ -351,22 +351,6 @@
         1792,
         544
       ]
-    },
-    {
-      "id": "8993ea1d-da96-5075-9fcb-bb923da16606",
-      "name": "Temporary Test Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        4,
-        680
-      ],
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "owner-mig-reminders",
-        "responseMode": "onReceived",
-        "options": {}
-      }
     }
   ],
   "connections": {
@@ -570,17 +554,6 @@
         [
           {
             "node": "Build Owner Alert (Reminders)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Temporary Test Trigger": {
-      "main": [
-        [
-          {
-            "node": "Load Config (Reminders)",
             "type": "main",
             "index": 0
           }
