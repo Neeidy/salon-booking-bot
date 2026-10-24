@@ -21,11 +21,20 @@ workflow id; never a credential, a host or a secret.
 
 Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md):
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID [--update COPY_ID]
-      (--update, --verify, --turnstile and --swap refuse the original's id and any target that is active or not named as the spec)
+      (--update, --verify, --turnstile, --turnstile-swapped and --swap refuse the original's id and any target that
+       is active or not named as the spec; they are exclusive, one target per run)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --verify COPY_ID
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --turnstile off|on COPY_ID
-      (the Turnstile window on an INACTIVE copy: one literal in its Load Config; 'off' checks that nothing else
-       differs, 'on' runs the full verify. Settings the spec allowlists are never sent, on any write.)
+      (the Turnstile window on an INACTIVE copy in the TEST phase: one literal in its Load Config; 'off' checks that
+       nothing else differs, 'on' runs the full verify. The check runs on the patched content BEFORE the write (red:
+       no write) and again on the live copy after it. Settings the spec allowlists are never sent, on any write.)
+  python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --turnstile-swapped off|on COPY_ID
+      (the same window on an INACTIVE copy in the SWAP phase, i.e. after --swap: trigger on the original's live path,
+       no temporary trigger. Judged by swap_check instead of verify: 'off' with the one literal put back in memory,
+       'on' as is; before the write and again after it.
+       *Why a separate flag and not phase detection:* a swapped copy is the PRODUCTION holder, so lowering its gate is
+       a production act. The operator names the phase, the check measures it, and the run proceeds only when both
+       agree; a copy that is not in the named phase is refused before any write, in either direction.)
   python3 scripts/deploy-workflow-copy.py db/copies/<x>.json --original-id ID --swap COPY_ID
       (D6b's cutover write, MIGRATION-PLAN §3a/§3t: refused unless the original AND the copy both read back
        INACTIVE. The copy's trigger moves to the original's live path and its temporary trigger is removed; the
@@ -166,18 +175,22 @@ def turnstile_patch(wf, state):
     return out
 
 
-def turnstile_check(live_orig, live_copy, generated, spec, state):
-    """After a window write. 'on': the full verify (the copy is a plain copy again). 'off': the copy with that ONE
-    literal put back in memory must pass the full verify, so nothing else can ride along with the lowered gate. (A
-    second, textual comparison of the two Load Configs was written first; its mutant survived, because this verify
-    already reds every other difference, so it was removed rather than kept as a check that measures nothing.)"""
+def turnstile_check(live_orig, live_copy, generated, spec, state, phase='test'):
+    """Before AND after a window write. 'on': the phase's full check (the copy is a plain copy of that phase again).
+    'off': the copy with that ONE literal put back in memory must pass the phase's full check, so nothing else can
+    ride along with the lowered gate. (A second, textual comparison of the two Load Configs was written first; its
+    mutant survived, because this check already reds every other difference, so it was removed rather than kept as a
+    check that measures nothing.)
+    `phase` picks the check: 'test' = verify() (trigger on the test path, temporary trigger present), 'swap' =
+    swap_check() (trigger on the original's live path, no temporary trigger). Each reds the other phase's copy."""
+    check = {'test': verify, 'swap': swap_check}[phase]
     if state == 'on':
-        return verify(live_orig, live_copy, generated, spec)
+        return check(live_orig, live_copy, generated, spec)
     try:
         restored = turnstile_patch(live_copy, 'on')
     except ValueError as e:
         return [f'turnstile off: {e}']
-    return verify(live_orig, restored, generated, spec)
+    return check(live_orig, restored, generated, spec)
 
 
 # ── the SWAP (D6b, MIGRATION-PLAN §3a, §3t) ─────────────────────────────────────────────────────────────────
@@ -276,15 +289,17 @@ def _pg_credential():
     return {'id': pg[0]['id'], 'name': pg[0]['name']}
 
 
-def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, swap=None):
+def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, swap=None, turnstile_swapped=None):
     # One target per run. With --turnstile beside --update/--verify the guards below checked ONE id and the PUT went
     # to the OTHER, unchecked: the production original's id would have taken the copy (pre-push audit, 2026-10-23).
-    if sum(x is not None for x in (update, verify_only, turnstile, swap)) > 1:
-        sys.exit('deploy-workflow-copy: refused — --update, --verify, --turnstile and --swap are exclusive (one target per run)')
+    if sum(x is not None for x in (update, verify_only, turnstile, swap, turnstile_swapped)) > 1:
+        sys.exit('deploy-workflow-copy: refused — --update, --verify, --turnstile, --turnstile-swapped and --swap are '
+                 'exclusive (one target per run)')
     spec = json.load(open(spec_path, encoding='utf-8'))
     generated = BUILD.build(spec)
     live_orig, om = _workflow(original_id, meta=True)
-    target = verify_only or update or swap or (turnstile or (None, None))[1]
+    window = turnstile or turnstile_swapped
+    target = verify_only or update or swap or (window or (None, None))[1]
     if target:
         if target == original_id:
             sys.exit('deploy-workflow-copy: refused — the copy id equals the original id')
@@ -325,27 +340,39 @@ def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, s
         print(f"swap written · swap phase green · {'trigger on the original' + chr(39) + 's live path' if trig else 'no webhook trigger moved'}"
               f" · temporary trigger absent · original and copy both inactive (nothing activated)")
         return 0
-    if turnstile:
-        state, wid = turnstile
+    if window:
+        # The phase is NAMED by the flag and MEASURED by the check; a copy in the other phase is red before the write.
+        phase = 'swap' if turnstile_swapped else 'test'
+        state, wid = window
         assert wid == target, 'the Turnstile write must go to the id the guards above checked'
         try:
             wf = turnstile_patch(tw, state)
         except ValueError as e:
             sys.exit(f'deploy-workflow-copy: {e}')
         wf['settings'] = {k: v for k, v in (wf.get('settings') or {}).items() if k not in (spec.get('settings_allow') or {})}
-        st, d = api('PUT', f'/workflows/{wid}', wf)
-        if st != 200:
-            sys.exit(f'deploy-workflow-copy: Turnstile write failed [{st}]')
-        live_copy, m = _workflow(wid, meta=True)
-        errs = turnstile_check(live_orig, live_copy, generated, spec, state)
-        if m['active'] is not False:
-            errs.append('the copy is not inactive (read back from n8n)')
+        # Check BEFORE the write. The first version PUT first and checked after, so a red copy (or a copy in the
+        # wrong phase) was already written with its gate lowered by the time the check said so.
+        errs = turnstile_check(live_orig, wf, generated, spec, state, phase)
         if errs:
-            print(f'TURNSTILE {state.upper()} CHECK FAILED — no drill may start on this copy:')
+            print(f'TURNSTILE {state.upper()} REFUSED before any write — the {phase}-phase content is not clean:')
             for e in errs:
                 print('  - ' + e)
             return 1
-        print(f"turnstile {state} on the copy · check OK — {'only the one literal differs' if state == 'off' else 'verify green'}"
+        st, d = api('PUT', f'/workflows/{wid}', wf)
+        if st != 200:
+            sys.exit(f'deploy-workflow-copy: Turnstile write failed [{st}]')
+        # And AFTER it, on what n8n actually holds: a 200 does not prove the write landed as sent.
+        live_copy, m = _workflow(wid, meta=True)
+        errs = turnstile_check(live_orig, live_copy, generated, spec, state, phase)
+        if m['active'] is not False:
+            errs.append('the copy is not inactive (read back from n8n)')
+        if errs:
+            print(f'TURNSTILE {state.upper()} CHECK FAILED after the write — no drill may start on this copy:')
+            for e in errs:
+                print('  - ' + e)
+            return 1
+        print(f"turnstile {state} on the copy ({phase} phase) · check OK before and after the write — "
+              f"{'only the one literal differs' if state == 'off' else phase + '-phase check green'}"
               f" · active read back: {m['active']}")
         return 0
     if verify_only:
@@ -489,6 +516,28 @@ def selftest():
             sw_cases.append(('swap: the trigger left on its test path', stay, False))
         if len(TS_LITERAL.findall(lcode)) == 1:
             sw_cases.append(('swap: the Turnstile literal still lowered', swap_patch(turnstile_patch(clean, 'off'), live_orig, spec), False))
+            # The Turnstile window on the SWAPPED copy (D6b smoke): the swap-phase check, and each phase reds the other.
+            sw_off = turnstile_patch(swapped, 'off')
+            sw_rider = _copy.deepcopy(sw_off)
+            rn = next(n for n in sw_rider['nodes'] if n['name'] == TS_NODE)
+            rn['parameters']['jsCode'] = rn['parameters']['jsCode'].replace('enabled: true', 'enabled: false', 1)
+            sw_ride2 = _copy.deepcopy(sw_off)
+            next(n for n in sw_ride2['nodes'] if n['name'] == other)['parameters']['_probe'] = 'changed'
+            tsw_cases = [('turnstile-swapped off: only the one literal changed', sw_off, 'off', True, 'swap'),
+                         ('turnstile-swapped off: a second literal changed with it', sw_rider, 'off', False, 'swap'),
+                         (f"turnstile-swapped off: another node ('{other}') changed with it", sw_ride2, 'off', False, 'swap'),
+                         ('turnstile-swapped on: restored copy', turnstile_patch(sw_off, 'on'), 'on', True, 'swap'),
+                         ("turnstile-swapped 'on' check while the literal is still off", sw_off, 'on', False, 'swap'),
+                         ('turnstile-swapped off on the UNSWAPPED copy (wrong phase)', turnstile_patch(clean, 'off'), 'off', False, 'swap'),
+                         ('turnstile (test phase) off on the SWAPPED copy (wrong phase)', sw_off, 'off', False, 'test'),
+                         ('turnstile (test phase) on on the SWAPPED copy (wrong phase)', swapped, 'on', False, 'test')]
+        else:
+            tsw_cases = []
+        for label, wf, st_, want_green, phase in tsw_cases:
+            errs = turnstile_check(live_orig, wf, generated, spec, st_, phase)
+            good = (not errs) == want_green
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} {os.path.basename(f)} · {label}: {'green' if not errs else 'red — ' + errs[0][:90]}")
         for label, wf, want_green in sw_cases:
             errs = swap_check(live_orig, wf, generated, spec)
             good = (not errs) == want_green
@@ -530,6 +579,21 @@ def selftest():
             good = rc == 2 and rrc == 'refused' and not calls
             ok = ok and good
             print(f"{'✓' if good else '✗'} --swap with {other_flag[0]}: main() exit {rc}, run() {rrc}, API calls {len(calls)}")
+        for other_flag, kw in ((['--update', 'C1'], {'update': 'C1'}), (['--verify', 'C1'], {'verify_only': 'C1'}),
+                               (['--swap', 'C1'], {'swap': 'C1'}), (['--turnstile', 'on', 'C1'], {'turnstile': ('on', 'C1')})):
+            calls.clear()
+            try:
+                rc = main(['deploy', specs[0], '--original-id', 'O1', '--turnstile-swapped', 'off', 'C1', *other_flag])
+            except SystemExit:
+                rc = 'SystemExit (main() did not refuse first)'
+            try:
+                run(specs[0], 'O1', turnstile_swapped=('off', 'C1'), **kw)
+                rrc = 'not refused'
+            except SystemExit:
+                rrc = 'refused'
+            good = rc == 2 and rrc == 'refused' and not calls
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} --turnstile-swapped with {other_flag[0]}: main() exit {rc}, run() {rrc}, API calls {len(calls)}")
         # --swap's ORDER guard, on a simulated instance: the original and the copy must both read back inactive,
         # and the one PUT goes to the copy's id. (Spec: Main; its copy simulated as the clean deployed copy.)
         mspec_path = os.path.join(ROOT, 'db', 'copies', 'main.json')
@@ -570,6 +634,51 @@ def selftest():
             ok = ok and good
             print(f"{'✓' if good else '✗'} --swap, {label}: {got} · PUTs {puts}")
             api = lambda *a, **k: calls.append(a) or (599, {})
+        # The Turnstile window through run(), both phases (Main): checked BEFORE the write (red → no PUT) and again on
+        # the read-back after it; an ACTIVE target is refused before anything. The original is inactive, as after --swap.
+        msw = swap_patch(mcopy, morig, mspec)
+        msw_off, mcopy_off = turnstile_patch(msw, 'off'), turnstile_patch(mcopy, 'off')
+        TS, TT = 'turnstile_swapped', 'turnstile'
+        for label, mode, state, copy_wf, c_active, mangle, want in (
+                ('swapped copy, off', TS, 'off', msw, False, None, 'written'),
+                ('swapped copy, on (restored)', TS, 'on', msw_off, False, None, 'written'),
+                ('swapped copy ACTIVE', TS, 'off', msw, True, None, 'refused'),
+                ('swapped copy with a placeholder (pre-write check)', TS, 'off', swap_patch(dirty, morig, mspec), False, None, 'rc 1'),
+                ('an UNSWAPPED copy (wrong phase, pre-write check)', TS, 'off', mcopy, False, None, 'rc 1'),
+                ('n8n keeps the old literal on write (post-write check)', TS, 'off', msw, False, 'keep', 'rc 1'),
+                ('the copy reads back ACTIVE after the write (post-write check)', TS, 'off', msw, False, 'activate', 'rc 1'),
+                ('unswapped copy, off', TT, 'off', mcopy, False, None, 'written'),
+                ('unswapped copy, on (restored)', TT, 'on', mcopy_off, False, None, 'written'),
+                ('unswapped copy ACTIVE', TT, 'off', mcopy, True, None, 'refused'),
+                ('unswapped copy with a placeholder (pre-write check)', TT, 'off', dirty, False, None, 'rc 1'),
+                ('n8n keeps the old literal on write (post-write check)', TT, 'off', mcopy, False, 'keep', 'rc 1'),
+                ('the SWAPPED copy (wrong phase, pre-write check)', TT, 'off', msw, False, None, 'rc 1')):
+            db = {'O1': dict(morig, active=False, name='Salon Booking Bot — Main'), 'C1': dict(copy_wf, active=c_active)}
+            calls.clear()
+            def fake(method, path, body=None, db=db, mangle=mangle):
+                calls.append((method, path))
+                wid = path.rsplit('/', 1)[-1]
+                if method == 'PUT' and mangle != 'keep':      # 'keep': the API answers 200 and stores nothing
+                    db[wid] = dict(_copy.deepcopy(body), active=db[wid]['active'], name=db[wid]['name'])
+                if method == 'PUT' and mangle == 'activate':
+                    db[wid]['active'] = True
+                return 200, db[wid]
+            api = fake
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = run(mspec_path, 'O1', **{mode: (state, 'C1')})
+                got = 'written' if rc == 0 else f'rc {rc}'
+            except SystemExit:
+                got = 'refused'
+            puts = [c for c in calls if c[0] == 'PUT']
+            wrote = want == 'written' or mangle is not None
+            good = got == want and (puts == [('PUT', '/workflows/C1')] if wrote else not puts)
+            if want == 'written':
+                lit = TS_LITERAL.findall(next(n for n in db['C1']['nodes'] if n['name'] == TS_NODE)['parameters']['jsCode'])
+                good = good and lit == (['false'] if state == 'off' else ['true'])
+            ok = ok and good
+            print(f"{'✓' if good else '✗'} --{mode.replace('_', '-')} {state}, {label}: {got} · PUTs {puts}")
+            api = lambda *a, **k: calls.append(a) or (599, {})
     finally:
         api = real_api
     print('deploy-workflow-copy selftest:', 'OK' if ok else 'FAILED')
@@ -583,18 +692,20 @@ def main(argv):
         print(__doc__)
         return 2
     opt = lambda k: argv[argv.index(k) + 1] if k in argv else None
-    if sum(k in argv for k in ('--update', '--verify', '--turnstile', '--swap')) > 1:
-        print('deploy-workflow-copy: refused — --update, --verify, --turnstile and --swap are exclusive (one target per run)')
+    if sum(k in argv for k in ('--update', '--verify', '--turnstile', '--swap', '--turnstile-swapped')) > 1:
+        print('deploy-workflow-copy: refused — --update, --verify, --turnstile, --turnstile-swapped and --swap are '
+              'exclusive (one target per run)')
         return 2
-    ts = None
-    if '--turnstile' in argv:
-        i = argv.index('--turnstile')
-        ts = tuple(argv[i + 1:i + 3])
-        if len(ts) != 2 or ts[0] not in ('off', 'on'):
-            print('usage: … --turnstile off|on COPY_ID')
-            return 2
-    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'), turnstile=ts,
-               swap=opt('--swap'))
+    windows = {}
+    for flag in ('--turnstile', '--turnstile-swapped'):
+        if flag in argv:
+            i = argv.index(flag)
+            windows[flag] = tuple(argv[i + 1:i + 3])
+            if len(windows[flag]) != 2 or windows[flag][0] not in ('off', 'on'):
+                print(f'usage: … {flag} off|on COPY_ID')
+                return 2
+    return run(argv[1], opt('--original-id'), update=opt('--update'), verify_only=opt('--verify'),
+               turnstile=windows.get('--turnstile'), swap=opt('--swap'), turnstile_swapped=windows.get('--turnstile-swapped'))
 
 
 if __name__ == '__main__':
