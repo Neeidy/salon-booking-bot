@@ -73,8 +73,8 @@ D3 and runs on the one workflow where it is harmless.
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* *Status 2026-10-23: ✅ D3 fully closed; D3c's error paths were drilled in D4's M7 window.* | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ CLOSED 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window) ✅ 2026-10-23. D4-3 ruled (a). ✅ D4 CLOSED 2026-10-23.** | diff + contract + drills green; Turnstile window protocol on the COPY |
-| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example`. **Plan (with D6a and D6b) APPROVED 2026-10-23, §3t; built offline first, its live check in round 2, the dashboard's live switch inside D6b.** | CRT #10's boundary re-proven against Postgres |
-| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
+| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example`. **Plan (with D6a and D6b) APPROVED 2026-10-23, §3t; built offline first; live check ✅ 2026-10-24 (round 2); the dashboard's live switch inside D6b; Codex on `store.ts` pending.** | CRT #10's boundary re-proven against Postgres |
+| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **✅ D6a CLOSED 2026-10-24** (operator run: restore equal on 107 rows, both negatives red; the nightly call added, §3t). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
 
 *Why D6 carries the shutdown and not D7: the D0 rulings already attach the Airtable export gate and the
@@ -2157,8 +2157,8 @@ Schedule Trigger state keys are n8n's own trigger state, identical on original a
 them; `staticData` is not moved · `page.tsx` logging the full error server-side goes to the final security pass list.
 
 **Round 1's commits, rewritten before the push (approved).** Round 1's first audit found three LOW operational-inventory
-lines (the nightly job's time, the compose directory's ownership, an env file's mode, a docker-group membership, the
-dump directory, a realistic container name); the fix commit corrected the tree, and the re-audit noted that the lines
+findings, covering six items (the nightly job's time, the compose directory's ownership, an env file's mode, a
+docker-group membership, the dump directory, a realistic container name); the fix commit corrected the tree, and the re-audit noted that the lines
 were still in two earlier UNPUSHED commits. The six local commits were rebuilt with plumbing (as R-1) so that the lines
 appear in no commit, the test's run-time stamp was neutralised, and the D6b message now states the measured mutant count.
 Old → new: `1d04216` → `c3635c6` · `ed07fd8` → `cb6fd92` · `24bc29a` → `c3f7d6e` · `e83024b` → `f63d2c2` · `6457463` →
@@ -2197,6 +2197,31 @@ through headless Chromium:
 - The three servers were stopped by their own process groups (started for this purpose); no listener remains.
 - **State left for D6a:** the seed rows stay in place (the restore test needs data, decision 4); the seed workflow is
   inactive. Clean-up follows the operator's D6a result.
+
+**Round 3a · D6a closed, the seed cleaned, the nightly call added (2026-10-24).**
+- **D6a's operator run** *(operator statements, screenshots to Cowork; not Claude's measurements)*: the server's repo at
+  `59009e7` with a clean tree and `sha256sum -c` OK for `db/ops/pg-backup.sh` · `dump written (20K) from one snapshot` ·
+  `verify OK — checksum, 5 tables in the TOC, full restore into a throwaway, stats equal (107 rows)` (107 = the D5 seed's
+  102 + 3 + 2 rows, so the restore was compared on real data, decision 4) · **negative a** (a byte flipped AFTER the
+  checksum was written): `FAILED at verify: checksum`, exit 1 · **negative b** (a byte flipped BEFORE, checksum rewritten
+  to match): `FAILED at verify: the dump's table of contents lists 4 of 5 tables' data`, exit 1, i.e. the real
+  `pg_restore` refused the corrupt archive · the test files removed. Cowork read the script line by line first (the live
+  database is only read: one REPEATABLE READ snapshot, pg_dump, the stats; the restore happens only in the network-less
+  throwaway; no secret). **✅ D6a CLOSED (Yigitcan, 2026-10-24): M8 met.**
+- **Seed clean-up:** every seeded row was under the clean-up prefix (rows outside it: 0 in every table); the
+  prefix-guarded delete removed 102 conversations, 3 appointments and 2 leads; every table 0; the seed workflow 404.
+- **The nightly call (approved, outside the repo):** checked first that the existing nightly job is the backup user's own
+  scheduled job (no system-wide entry), that this user may use the container runtime (its group and the socket's
+  permissions), and that the job's own log shows last night's run completing every container step. The script was backed
+  up with its mode, ONE line was added after the existing database step (the call to `db/ops/pg-backup.sh` with the
+  job's backup directory, its output to the job's log, its failure through the job's own `die`), the diff showed exactly
+  that line, and `bash -n` parses the script; mode and owner unchanged. It was NOT run by hand: its first real run is the
+  next nightly one, and reading that run's log is a soak item. *Residual, stated:* the job calls the script from the
+  repo's working tree, so an uncommitted edit present at that hour is what runs.
+- **A2 (ruling):** the throttle keys left in the inactive Main original's `staticData` (WhatsApp senders, i.e. phone
+  numbers) join the final security pass list.
+- *Declared (auditor INFO I-1):* the round-1 rewrite paragraph said "three LOW lines" while listing six items; it now says
+  three findings covering six items.
 
 ## 4 · "No new bug": QA design
 

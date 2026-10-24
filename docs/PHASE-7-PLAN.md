@@ -23,6 +23,9 @@
 6. **The dashboard logs the full read error server-side** (`web/dashboard/app/page.tsx`, `console.error`): a driver message
    can carry the database host. It reaches neither the repo nor the page (which shows only `table: code`), but it reaches
    the local log (Yigitcan's ruling, 2026-10-23; MIGRATION-PLAN §3t).
+7. **WhatsApp senders (phone numbers) in the inactive Main original's `staticData`**: its owner-alert throttle keys are
+   `class:sender`, kept by n8n indefinitely; no purge reaches them, and they stay with the original after the cutover
+   (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, #11).
 
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays
