@@ -690,6 +690,7 @@
   - ## 8. Dark/light theme — *all three surfaces*
 
 ### `docs/PHASE-7-PLAN.md`
+  - ## Re-entry rulings (Yigitcan, 2026-10-24) — the premise re-derivation after the migration
   - ## Ship-gate #17 — MOVED to the end-of-phase security pass (Yigitcan's ruling, 2026-10-18)
   - ## §1 · DISTANCE TO SHIP — measured from the repo, 2026-09-17
   - ### Open items — four buckets

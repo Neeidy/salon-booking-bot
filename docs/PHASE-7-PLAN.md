@@ -1,6 +1,6 @@
 # Phase 7 — Test + Codex + DoD · PLAN v3
 
-> **⏸ ON HOLD (Yigitcan's ruling 2026-10-19, "until the migration is done"; start condition re-ruled 2026-10-20, [ARCHITECTURE-DECISIONS.md](ARCHITECTURE-DECISIONS.md)): Phase 7 starts right after the migration's D6b acceptance, where its premises are re-checked; the 7-day soak runs in the background and does not hold it.** This plan was derived against Airtable's behaviour, and that cannot be assumed to still hold.
+> **▶ RE-ENTERED 2026-10-24** — the migration is closed (D6b accepted 2026-10-24, A1–A9; K-6 closed, `0bd4e74`). The hold below is history: *(was: ⏸ ON HOLD, ruling 2026-10-19, start condition re-ruled 2026-10-20 — Phase 7 starts right after D6b's acceptance, where its premises are re-checked.)* **v3 below stays the plan of record until PLAN v4 is approved in chat**; its premises were re-derived against the post-migration system and ruled ("Re-entry rulings" below). This plan was derived against Airtable's behaviour, and that cannot be assumed to still hold.
 >
 > **Status:** APPROVED by Yigitcan, 2026-09-17. Derived against `232321c` (181 files).
 > **This file exists because v2 did not.** The Phase 7 plan was produced once before, lived only in
@@ -8,6 +8,26 @@
 > plan, it is a memory (`governance-sync.md` §2: every standing decision lands in the repo).
 > **v3 was re-derived, not inherited:** v2's premises had all moved — 6d did not exist, the `leads` TTL
 > did not exist, the ship gate was not consolidated, and the Codex findings had not arrived.
+
+## Re-entry rulings (Yigitcan, 2026-10-24) — the premise re-derivation after the migration
+
+The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) were ruled:
+- **1–12 and 15 ACCEPTED as recommended:** (1) the Airtable request budget is gone; a window's precondition becomes a
+  declared LLM spend cap plus a counted Google API quota · (2) the "7-1 has no live route" conflict is resolved by the
+  2026-10-18 window protocol · (3) the window runs through the deploy helper's `--turnstile-swapped` mode and a COMMITTED
+  window script · (4) §1 is re-measured from scratch · (5) the migration's race drill (A3) is CRT 1b's sequential
+  evidence; a truly simultaneous pair is a separate drill with its expectation written first · (6) evidence the migration
+  already produced (CRT 1a/6/8/10/11) is not re-run · (7) the drill matrix and harness are scanned for Airtable-only
+  semantics and a COMMITTED seed tool replaces direct row injection · (9) RUNBOOK covers Postgres provisioning ·
+  (10) ship-gate lines naming Airtable are rewritten with D6c · (11) the named items form their own fix checkpoint ·
+  (12) the final security pass keeps its place at the end, scope frozen · (15) K-5 stays its own "not tested" line.
+- **13 (the dashboard runs as an unsupervised process) → the FIRST item of the fix checkpoint.**
+- **14 (K-6) → DONE** (`0bd4e74`: the route exists, behind Access, one named email).
+- **8 → D7 is Phase 7's FIRST checkpoint**, before any test checkpoint: rules, DATA-MODEL, the MASTER-BRIEF stack and
+  README describe Postgres; Airtable only as "read-only until D6c".
+- **Two NEW Phase 7 items:** (a) a read-only owner view or export of their own data (Postgres stays the single source of
+  truth, no dual write; the form and the columns, given PII, are decided in PLAN v4); (b) a database GUI for the operator
+  over an SSH tunnel as `salon_ro` (5432 stays closed).
 
 ## Ship-gate #17 — MOVED to the end-of-phase security pass (Yigitcan's ruling, 2026-10-18)
 
@@ -35,6 +55,8 @@
    pool listener's class filter could apply there too (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
 11. **The Purge schedule time stands in public files** (ROADMAP, MIGRATION-PLAN), against the rule that job times stay
    out of them (security-auditor LOW, Round 3b; Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
+12. **The dashboard's Access session is 730 h:** decide a shorter one; and confirm, without printing it, that the policy's
+   single email equals the repo author's email (a boolean only) (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, K-6).
 
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays
