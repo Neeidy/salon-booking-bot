@@ -31,6 +31,10 @@
    variable, is never re-checked. Taken WITH item 3, Q16 (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3b).
 9. **Auditor I-2: the nightly job runs `db/ops/pg-backup.sh` from the repo's working tree**, so an uncommitted edit
    present at that hour is what runs (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3a and 3b).
+10. **`storeError` puts the driver's error code on the dashboard page unfiltered** (`web/dashboard/lib/store.ts`); the
+   pool listener's class filter could apply there too (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
+11. **The Purge schedule time stands in public files** (ROADMAP, MIGRATION-PLAN), against the rule that job times stay
+   out of them (security-auditor LOW, Round 3b; Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
 
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays

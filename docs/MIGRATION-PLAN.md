@@ -73,8 +73,8 @@ D3 and runs on the one workflow where it is harmless.
 | **D2** | **Foundations + spikes.** **D2a ✅ 2026-10-19: image pinned by digest (§3m) · credential-decryption precondition PASSED with that image (§3k) · duplicate HMAC line removed (§3i).** **D2b-1 ✅ 2026-10-19 (offline): schema files, three gates, sanitizer test, operator commands (§3n).** **D2b-2 ✅ (operator) · D2b-3 ⚠ partial: network, Q15, deny rule, ro-negatives 26/26, S6, S8 done; STOPPED at S2 on a design-changing answer, Q17 (§3o).** **D2b-3 remainder (2026-10-20) ⚠ partial: Q17 ✅ ruled (a) and its premise measured · migrator role check (operator) · S3 ✅ · S5 measured; STOPPED at S5 on a design-changing answer, Q18 (§3p).** **D2b-3 close-out (2026-10-20): Q18 ✅ ruled · S1 ✅ · contract run ✅ on seeded rows, control red (§3q). ✅ D2 CLOSED 2026-10-20: exit gate met.** Then: Postgres service, roles and schema; the three committed gates (SQL-parameter gate · copy-diff tool · contract-shape test), each mutation-tested; sanitizer support for Postgres credentials; spikes S1–S9 | every gate shown able to go red · every spike answered or its design branch chosen |
 | **D3** | **The four small workflows as copies:** Drill State Read → Owner Actions → Reminders → Processed Purge. Each is an inactive copy, with mechanical diff, contract test and drills on a test path. **Purge rehearsal:** swap → verify → re-activate the original → verify → leave the copy inactive. **Plan APPROVED 2026-10-20 with rulings K-1 to K-7 (§3r); D3e needs its own go-ahead.** **S10 ✅ · D3a ✅ · D3b ⚠ (Q17 race gap, evidence accepted) · D3c ⛔ waiting for the operator's binaryMode step · D3d not started (§3r) — status as of 2026-10-20, superseded by the line that follows.** *Status 2026-10-22: D3a ✅ · D3b ⚠ (accepted) · **D3c ✅** (error paths in D4's M7 window) · D3d ✅ · **D3e ✅ (daytime form)** · K-3 closed for D3a/D3b/D3d · settings-parity built. D3 is complete apart from D3c's error paths, which move to D4.* *Status 2026-10-23: ✅ D3 fully closed; D3c's error paths were drilled in D4's M7 window.* | 4 copies green · rehearsal measured in both directions |
 | **D4** | **Main as a copy:** 17 nodes, 8 filter formulas (18 across all five), 43 `fields` references kept byte-identical by the contract shape. **Plan APPROVED 2026-10-23 with rulings D4-1 to D4-9 (§3s). D4a ✅ 2026-10-23 (offline build). D4b ✅ CLOSED 2026-10-23 (live drills; D4-5 cleared by a canary). D4c (the M7 window) ✅ 2026-10-23. D4-3 ruled (a). ✅ D4 CLOSED 2026-10-23.** | diff + contract + drills green; Turnstile window protocol on the COPY |
-| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example`. **Plan (with D6a and D6b) APPROVED 2026-10-23, §3t; built offline first; live check ✅ 2026-10-24 (round 2); the dashboard's live switch inside D6b; Codex on `store.ts` pending.** | CRT #10's boundary re-proven against Postgres |
-| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **✅ D6a CLOSED 2026-10-24** (operator run: restore equal on 107 rows, both negatives red; the nightly call added, §3t). **b) Coordinated cutover + acceptance window.** **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
+| **D5** | **Dashboard + tools:** `airtable.ts` → a read-only Postgres client · `run-d11.sh` PAT route · parity masks · `.env.example`. **Plan (with D6a and D6b) APPROVED 2026-10-23, §3t; built offline first; live check ✅ 2026-10-24 (round 2); the dashboard's live switch inside D6b; Codex CRT #10 on `store.ts` ruled (Round 3b); the dashboard reads Postgres in production since D6b (2026-10-24).** | CRT #10's boundary re-proven against Postgres |
+| **D6** | **a) Pre-cutover gate:** `pg_dump` in the nightly job plus a restore test (§3j). **✅ D6a CLOSED 2026-10-24** (operator run: restore equal on 107 rows, both negatives red; the nightly call added, §3t). **b) Coordinated cutover + acceptance window.** **✅ D6b CLOSED 2026-10-24** (cutover 14:15–14:18 UTC; acceptance A1–A5 and A7–A9 green; A6, Purge's first trigger-mode tick, and the first nightly Postgres backup log are soak items; §3t Round 3c). **Phase 7's premise re-check happens at D6b's acceptance, and Phase 7 starts right after it** (ruling 2026-10-20). **c) Soak, then the Airtable shutdown** behind the export gate (§7). The 7-day soak runs in the BACKGROUND; only D6c's revocations wait for it (speed plan 2026-10-22: D7's close no longer waits). **d) Permanent off-server target** (moved to the final security pass, speed plan 2026-10-22). **e) Decided in D6b's plan (ruling 2026-10-22):** the O3 question, i.e. whether D6b PUTs each copy's nodes onto its original's id. It is measured first on a throwaway with routes R1, R2 and R3 (settings-parity plan, §3r). With it: `staticData` (Reminders' `reminderRunAt` concurrency guard and the `ownerAlerts` throttles, absent on every copy) and Main's tags. | acceptance suite green · rollback trigger list armed · export taken before any revoke |
 | **D7** | Close: governance surfaces (rules, DATA-MODEL, MASTER-BRIEF stack, README), test-data cleanup, resume point. *(The Phase 7 premise list moved to D6b's acceptance, ruling 2026-10-20.)* Does not wait for the soak (speed plan 2026-10-22; it used to). | DoD |
 
 *Why D6 carries the shutdown and not D7: the D0 rulings already attach the Airtable export gate and the
@@ -2279,7 +2279,7 @@ proofs are weaker than claimed (Phase 7).** Turnstile 403 at the start and the e
   production*). **Not yet applied:** the
   operator runs a dry run (the same checksum-verified file with its final `COMMIT` turned into `ROLLBACK`) and then the
   real run, through the container's superuser socket, with `has_function_privilege` for both roles on all eight shown
-  before (true: the positive control) and after (false). *Not tested offline:* this machine has no Postgres engine of its
+  before (true: the positive control) and after (false). *(Applied and measured later the same day: Round 3c below.)* *Not tested offline:* this machine has no Postgres engine of its
   own, so the operator's dry run is the file's first execution.
 - **F1 (a): the module's claim narrowed** (`store.ts`): the header and `WRITE_CHECK`'s comment now say it is a TABLE-
   privilege check (`has_table_privilege` for INSERT, UPDATE, DELETE and TRUNCATE on the five tables, for the connection's
@@ -2326,6 +2326,85 @@ proofs are weaker than claimed (Phase 7).** Turnstile 403 at the start and the e
   production; all three are corrected. *Declared:* the round's docs commit message says "F1 and F3 fixed before the
   cutover" and the 003 commit message's "Applied by the operator" describes the procedure; 003 is NOT applied yet, so
   F1's database half is open until the operator's run is measured. The messages were not rewritten.
+
+**Round 3c · D6b: the cutover and its acceptance (2026-10-24). ✅ D6b CLOSED.** Yigitcan's brief was the written
+go-ahead and named the live work: the `--swap` PUTs, each original deactivated and each copy activated, the ROLES flip
+commit between `swap-main` and `smoke-main`, the two `--turnstile-swapped` PUTs on the Main copy, a seed workflow,
+Google Calendar create and cancel through the flow, LLM spend up to 1.00 USD, the dashboard started from `main`'s code
+with its own env file, `run-d11` on the production paths, the race drill and the dashboard release. Not in it: tags (D7),
+`staticData` (not moved), Airtable, Zernio. Rollback was not triggered. Turnstile 403 at the start and the end.
+- **003 applied** *(operator statements, screenshots to Cowork)*: checksum OK; dry run `…ROLLBACK`, then still 8/8
+  executable; real run `…COMMIT`, then 8/8 not executable for `salon_ro` and `salon_app`. **Measured by Claude as
+  `salon_ro`:** the catalog shows EXECUTE false on all eight for both roles while the reading functions stay true (the
+  control); `lo_create` and `lo_from_bytea` return `42501` inside rolled-back transactions and a read is allowed. **F1's
+  database half is closed.**
+- **Step 0 (14:15 UTC) GREEN:** `d6b_run.py pre` (five originals active, five copies inactive and paired, tables 0,
+  Main's dummy token 403, version values unchanged and recorded privately, every copy's `staticData` window expired);
+  the scratchpad tools import-safe; a fresh `next build` of the dashboard whose client chunks carry none of the
+  credential-path strings (server chunks: the positive control).
+- **The swaps, 14:15:57–14:18:14 UTC, in decision 6's order**, each `GREEN` and read back (original inactive, copy active,
+  swap-phase check green before and after the PUT, exactly one active per pair): Purge (more than an hour from its tick) → Reminders
+  (minute :16, temporary trigger removed) → Drill State and Owner Actions (no token refused at the edge; owner token with
+  a bad signature reached the COPY and was refused; no execution on the original) → **the dashboard**, started detached
+  on `127.0.0.1:3210` from the fresh build with a clean environment: its own env file, read by Next itself, plus the
+  committed mock client config passed as `CLIENT_CONFIG_JSON` (the engine's inline config is the same demo client); it
+  rendered "4 of 4 database reads" → Main (the copy on `barber-inbound`, the dummy token 403 by the copy, none on the
+  original).
+- **Step 6b, the ROLES flip:** all five lines `copy`, and the five copy exports brought to the swapped shape by the
+  helper's own `swap_patch` applied to the COMMITTED copy and original exports (byte-identical JSON round trip checked
+  first), so nothing live entered them. Inverted mode, live: exports parity 10/10 with five pairs as declared; live
+  parity on the active holder of `barber-inbound`, the Main copy. *Declared:* the flip was first committed while two role
+  tests were red (they still assumed "every pair original"): a `| tail` after each test swallowed its exit code, so the
+  chain went on to the commit. The tests now follow the declaration; the two local commits were squashed into one with
+  clean tests before the push (ruling, as R-1).
+- **A1 (routing smoke) and A3 (race) in ONE Turnstile window on the Main copy: 97 s**, opened and closed with the
+  helper's swap-phase mode (checked before and after each write; the order guard satisfied), measured both ways
+  (published literal true, dummy token 403 by the copy). Eleven turns, every reply the expected one: a booking and its
+  cancel (Delete 204, the row `cancelled`, the copy's freeBusy empty on the slot), one ask, then two sessions asking for
+  the same slot, the first confirming ("You're booked"), the second confirming after the first one's reply ("that time
+  was just taken"), and the winner cancelling through the flow. LLM spend 0.028 USD; Send WhatsApp 0.
+  **A3's five points (PHASE-7-PLAN M2):** one booked row on the race slot inside the window · the loser in `handoff`
+  with its event id cleared · the loser's event deleted (`Cancel Our Event` on its success output, then
+  `Build Race-Lost State`, which only a clean withdrawal reaches) · `race_other_count` 0, 0 and 1 (the smoke booking, the
+  winner, the loser; never −1) · `Build Orphan State` never ran. *Declared:* the second confirm was sent after the first
+  reply, so the second writer is caught by write-then-verify; a truly simultaneous pair can make both yield (the
+  documented symmetric limit) and was not attempted. *Declared, instrument faults fixed without a new live action:* the
+  driver first printed two reds; Google answers the delete with an empty 204, so the node's output has no `statusCode`
+  (the driver looked for one), and a cleared event id is stored as `''` by the same `|| ''` expression the original's
+  Airtable mapping uses (the driver asked `IS NULL`); with both read correctly, events created 3 = deleted 3.
+  **The calendar itself, read afterwards:** a short-lived read-only workflow on an Access-covered path, built from the
+  Main copy's OWN live `Load Config` and `Get Calendar Busy` nodes (same credential; no calendar id handled), deleted
+  (404) after each read: 2026-10-26 in Vienna → one calendar answered, the exact window, **0 busy intervals**, 0
+  errors, covering the race slot and every acceptance slot. *Not shown:* that this probe can go non-empty; the calendar
+  has no busy interval at all through 2026-12-19, so no positive control exists without creating an event. The
+  calendar's identity rests on the same credential's `events.list` seeing the winner's live event during the race
+  (`race_other_count` 1).
+- **A2: `run-d11` on the production paths, 13/13** (`owner-release` and `owner-drill-state`), on a seeded handoff row;
+  control (no token, 403) and treatment (200) differ.
+- **A4: the dashboard release.** First run RED for configuration: the board said "not configured to write. Nothing was
+  sent." Its env file had none of `OWNER_ACTION_URL` and `CF_OWNER_ACCESS_CLIENT_ID/SECRET` *(operator statement: 9
+  names before, 12 after; backup taken)*. The dashboard was restarted by stopping its own process group by PID; the
+  release was then clicked in the real board (headless Chromium through CDP) on the second seeded handoff: the board
+  said "Released"; the row went to `new` with an empty `last_intent`; one release marker; the Owner Actions COPY ran
+  once (`success`, `Build Owner Alert (Release)` and `Send Owner Alert (Telegram)` with `ok: true`); the original ran
+  none.
+- **A5:** Reminders' first hourly tick in trigger mode, 15:00:38 UTC on the copy, `success`, no error; none on the
+  original. **A6 (soak, decision 13):** Purge's first trigger-mode tick, tonight (its first after the DST change).
+- **A7:** Turnstile literal true on the copy, dummy token 403. **A8:** the inverted guards green; live mutants red: one
+  ROLES line declared `original` → `check-pair-roles` FAIL (an undeclared swap); the Main copy's content against the
+  ORIGINAL's export → `check-content-parity` DRIFT. *Declared:* `check-live-parity` compares topology only (node names
+  and connections), so it passes the copy against the original's export (the same graph); content is
+  `check-content-parity`'s job. **A9** *(operator statement)*: from the operator's machine, 5432 timed out and 22
+  succeeded (the control).
+- **Cleanup:** the seed workflow's prefix-guarded path removed 6 conversations, 2 appointments and 13 markers; no prefixed
+  row and no other row remain; the month's `bot_metrics` row is KEPT (ruling: it is now the real spend meter, 0.028 USD;
+  "tables 0" now means "no prefixed test row left"); the seed workflow and the calendar probe are 404. During the window
+  no row outside the drill prefixes appeared; the parked originals ran nothing; their version values are unchanged.
+- **Soak and open:** A6; tonight's nightly job, the first with the Postgres dump and its restore check; the dashboard
+  runs as a detached process Claude started (not a supervised service: it does not survive a reboot); the two env-file
+  backups (`.env.local.bak-r3b`, `-r3c`) hold secrets and go after the soak.
+- **Rulings recorded with this round** (Yigitcan, 2026-10-24, in the Round 3c brief): `storeError`'s unfiltered code on
+  the page and the Purge time in public files join the final security pass (PHASE-7-PLAN items 10 and 11).
 
 ## 4 · "No new bug": QA design
 
