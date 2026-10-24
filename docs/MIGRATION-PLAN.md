@@ -2079,16 +2079,23 @@ parallel; (3) D6b's window and acceptance, then Phase 7.
 **Round 1 · the offline builds ✅ (2026-10-24), one open item: #11's Schedule Trigger keys (ruling below).** Nothing live
 was written or activated; the only live reads were `salon_ro` reads and n8n GETs. Turnstile 403 at the start and the end.
 - **D5 (`web/dashboard/lib/store.ts`, replacing `airtable.ts`; one path).** Four constant, parameterless reads; `sender_key`,
-  `gcal_event_id`, `computed_reply` and `cancel_target_id` are never selected; each panel's column list is exactly the
-  displayed set; `LIMIT 101` gives the truncation flag; the Airtable shape the panels were written against; a pool of four
-  with a 10 s statement timeout; before its first read the module asks whether the connected role can write any salon
-  table and refuses if it can.
+  `gcal_event_id`, `computed_reply` and `cancel_target_id` are never selected; each panel's column list is the displayed
+  set plus five non-PII context columns that no panel draws (*corrected in Round 3b, Codex F7: this line said "exactly
+  the displayed set", which the module's own header contradicted*); `LIMIT 101` gives the truncation flag; the Airtable
+  shape the panels were written against; a pool of four with a 10 s statement timeout; before its first read the module
+  asks whether the connected role holds a TABLE write privilege on the five salon tables and refuses if it does
+  (*narrowed in Round 3b, Codex F1: this line said "can write any salon table"; the check does not see column grants,
+  assumable roles, functions or the large-object path*).
   - `lib/store.test.ts` (9 tests, in `check-all` through the dashboard's own `check`). **Ten mutants, all red.** *Found by
     a mutant:* the first "not a proxy" test checked `Function.length`, which does not count a parameter with a default
     value, so a read that let its caller pick the table passed; the test now reads the source, and the mutant is red.
+    ⚠ *Corrected in Round 3b (Codex CRT #10 F4):* those source checks catch the spellings they look for and nothing
+    more; Codex kept all nine tests green with twelve proxy mutants. They are NOT a proof that the module is not a proxy,
+    and the "proven from the source" wording of commit `cb6fd92`'s message and of this record overclaimed. History is not
+    rewritten; the behaviour-based test is a Phase 7 named item.
   - **As `salon_ro` (live read):** (i) the four statements on the real (empty) tables run; (ii) on fake `mig-` rows of
     each table's own row type: the filters keep the right rows, the truncation works at 101, **0 shape violations**, and
-    `salon_ro` holds 0 write privileges. Control: the same statements without `jsonb_strip_nulls`/`NULLIF`/`CASE` are red
+    `salon_ro` holds 0 table write privileges. Control: the same statements without `jsonb_strip_nulls`/`NULLIF`/`CASE` are red
     on appointments, leads and handoff. *Corrected by that control:* the first comment said a missing `::float8` would
     make the spend panel show nothing; inside `jsonb_build_object` a `numeric` is already a JSON number, so the cast is a
     guard against a future raw select, and the comment and test now say so.
@@ -2186,7 +2193,8 @@ through headless Chromium:
 - **CRT #10, claim 1:** the client chunks of the build that served carry none of the credential-path strings; the server
   chunks carry them (positive control). **Claim 2:** through the dashboard's own env and driver, as `salon_ro`, INSERT,
   UPDATE, DELETE, TRUNCATE and CREATE each return `42501` (inside rolled-back transactions); the page itself rendered, so the
-  module's write check passed. **Claim 3:** round 1's offline proof; the L3 (Codex) review is pending. **Claim 4:**
+  module's write check passed. **Claim 3:** round 1's offline source checks; the L3 (Codex) review followed and found them
+  weaker than claimed (Round 3b, F4). **Claim 4:**
   `check-deploy-separation` in `check-all`.
 - **D5-5:** with a deliberately wrong password the page says "could not load … did not answer" and names the privilege
   check; with no `PG*` env it says "not configured"; neither shows a seeded value.
@@ -2217,7 +2225,8 @@ through headless Chromium:
   job's backup directory, its output to the job's log, its failure through the job's own `die`), the diff showed exactly
   that line, and `bash -n` parses the script; mode and owner unchanged. It was NOT run by hand: its first real run is the
   next nightly one, and reading that run's log is a soak item. *Residual, stated:* the job calls the script from the
-  repo's working tree, so an uncommitted edit present at that hour is what runs.
+  repo's working tree, so an uncommitted edit present at that hour is what runs (auditor I-2; ruled in Round 3b: final
+  security pass).
 - **A2 (ruling):** the throttle keys left in the inactive Main original's `staticData` (WhatsApp senders, i.e. phone
   numbers) join the final security pass list.
 - *Declared (auditor INFO I-1):* the round-1 rewrite paragraph said "three LOW lines" while listing six items; it now says
@@ -2242,9 +2251,74 @@ written with its gate lowered when the check said so.
   it; the case was added and it is red. An independent mutant run by the LEAD (the PUT ahead of the pre-check, both
   phases) is red.
 - The scratchpad D6b driver uses the new mode; its #11 flag is removed (#11 closed).
-- *Open, for a ruling:* the new mode does not require the ORIGINAL to be inactive (the brief did not ask for it). After a
-  rollback (original active, copy swapped and inactive) it could still write the copy; activating it would then be refused
-  by n8n (409), but an order guard like `--swap`'s is a small addition.
+- *Was open, ruled and built in Round 3b:* the new mode did not require the ORIGINAL to be inactive. It now does, and it
+  also requires ROLES to declare the copy live (Round 3b below).
+
+**Round 3b · the pre-cutover fixes and the window's preparation (2026-10-24).** Codex audited `store.ts` at `59009e7`
+(CRT #10, findings F1–F13). Codex's overall verdict: no browser credential leak today and no request-controlled SQL; the
+guards and tests admit future counterexamples. **Rulings (Yigitcan, 2026-10-24):** F3 and F1 fixed now (F1 in two parts:
+narrow the module's claim; revoke the large-object writers at the database); F2 → the final security pass, with Q16; F4
+and F7 → the overclaims corrected in the docs now, the behaviour test and the column trim → Phase 7; F5, F6, F8–F13 →
+Phase 7 named items (F12 and F13 are 1:1 with the Airtable dashboard: Cowork read `airtable.ts` at `4b5ee73`, page size
+100, the queue by `last_updated` descending, appointments by `start_utc` ascending); the `--turnstile-swapped` order guard
+now; auditor I-2 → the final security pass. **CRT #10 is recorded as: current behaviour holds per Codex; the static
+proofs are weaker than claimed (Phase 7).** Turnstile 403 at the start and the end.
+- **F1, measured live first (read-only, as `salon_ro`, from the catalog):** EXECUTE is true for `salon_ro` AND
+  `salon_app` on `lo_create`, `lo_creat`, `lo_from_bytea`, `lo_put`, `lowrite`, `lo_truncate`, `lo_truncate64` and
+  `lo_unlink` (PUBLIC's default, no ACL set); `lo_import`/`lo_export` are already superuser-only; zero large objects
+  exist. An earlier probe the same day: `TEMPORARY` and `CREATE` (database, schema `salon`, schema `public`) refused.
+- **F1 (b): `db/schema/003_revoke_large_object_writes.sql`.** It revokes EXECUTE from PUBLIC on those eight functions in
+  database `salon` only (function privileges are per database), inside one transaction that also checks that none of
+  PUBLIC, `salon_app` or `salon_ro` can still execute any of them and rolls back if one can; it refuses any other
+  database; it is idempotent. *Declared:* `lo_unlink` is included although the ruling said "create or write": deleting a
+  large object is a write. **No workflow uses any of them:** a search of all ten exports, the five copy specs and the
+  schema files for the large-object function names found nothing, and the same search matched a planted `lo_create(0)`
+  (positive control). ⚠ `pg-backup.sh` restores with `--no-privileges`, so a database rebuilt from a dump carries
+  neither 002's grants nor this revoke; the file says to re-apply both after a real restore. **Not yet applied:** the
+  operator runs a dry run (the same checksum-verified file with its final `COMMIT` turned into `ROLLBACK`) and then the
+  real run, through the container's superuser socket, with `has_function_privilege` for both roles on all eight shown
+  before (true: the positive control) and after (false). *Not tested offline:* this machine has no Postgres engine of its
+  own, so the operator's dry run is the file's first execution.
+- **F1 (a): the module's claim narrowed** (`store.ts`): the header and `WRITE_CHECK`'s comment now say it is a TABLE-
+  privilege check (`has_table_privilege` for INSERT, UPDATE, DELETE and TRUNCATE on the five tables, for the connection's
+  role) and name what it does not see: column grants, roles reachable by `SET ROLE` without inheritance, functions (the
+  large-object writers, SECURITY DEFINER), sequences, other tables and schemas, schema CREATE and database TEMPORARY,
+  ownership, BYPASSRLS; and that it runs once per process (F2, deferred). Its test is renamed to the narrow form. The
+  SQL is unchanged (ruled).
+- **F3: the pool's error listener** (`store.ts`): attached once, at construction; it logs only a class (a SQLSTATE or a
+  Node errno code, otherwise `unknown`), never the message or the error object. A new test ports Codex's idle-error
+  probe: the REAL pg pool, built by `store.ts`, with a fake connection; four idle errors (two codes, a code-looking
+  string, none) are emitted; none escapes, each logs exactly one line with the right class and without the message
+  marker, and the next read opens a fresh connection. `store.test.ts` 9 → 10, the dashboard's `check` 51 → 52. **Mutants,
+  all red:** the listener removed (the error escapes); the listener attached on every read (two lines); the message
+  appended or the error object logged (leak); the code passed through unfiltered; `once` instead of `on` (the second
+  idle error escapes; the LEAD's own). *Not measured:* a real database restart; the connection is fake, the pool is real.
+- **F4, the overclaim corrected:** round 1's record above, ROADMAP, the `store.ts` header and the test header now say
+  the source checks catch the spellings they look for and are not a proof. *Declared:* commit `cb6fd92`'s message says
+  "proven from the source" and overclaims the same way; history is not rewritten.
+- **F7, corrected:** round 1's record above, the `store.ts` header (the rule's middle clause, "a field that is not
+  displayed is not fetched", is NOT met today) and the test header. Re-measured here: the five context columns
+  (appointments' `end_utc`, `reminder_sent`, `created_at`; leads' `created_at`; the queue's `stage`) are in the
+  projections and no panel or page reads them (search over the dashboard; control: `start_utc` is found in the
+  appointments panel).
+- **The `--turnstile-swapped` order guard** (`deploy-workflow-copy.py`): refused before the content check and before any
+  write unless ROLES (read through `pair_roles`, the one parser) declares exactly this pair with LIVE = `copy`, AND the
+  original reads back inactive; both directions, 'off' and 'on'; the test-phase `--turnstile` reads neither. Selftest
+  125 → 134 ✓, 0 ✗, on ROLES fixtures with fake ids. **Mutants, all red:** the ROLES check removed (3 ✗), the inactive
+  check removed (2 ✗), the guard applied to the test phase too (2 ✗); the LEAD's own, at the call site: the read-back
+  flag ignored (2 ✗), original and copy swapped (7 ✗). Against today's repo (all five ROLES lines `original`) it refuses,
+  as intended.
+  **Consequences for the window, declared (D6b driver, scratchpad):** (1) the ROLES flip is no longer after `post`: it is
+  a LEAD step **6b**, one commit, between `swap-main` and `smoke-main`, because the guard needs it; `smoke-main` now
+  predicts the guard with the helper's own check and stops before touching anything if it would refuse. (2) The gate is
+  restored ('on') BEFORE any rollback, never after: once the original is active again, the guard refuses 'on' and the
+  parked copy would keep a lowered literal. `smoke-main`'s `finally` already restores first.
+- **The pre-window reads (read-only, `d6b_run.py pre`): GREEN.** Main's holder is the original; Turnstile literal true
+  and a dummy token 403; Main's version values unchanged; every table 0; all five pairs original-active, copy-inactive,
+  `pair_roles.judge` 0 errors, ROLES all `original`; the copies' youngest activity about 13 hours old (≥ 30 min); the
+  Purge tick about 9 hours away.
+- **Records:** PHASE-7-PLAN named items (6)–(15) and final security pass items 8 (F2) and 9 (I-2); the CRT #10 row in
+  MASTER-BRIEF §9; ROADMAP. **Waiting:** the operator block (003, the dashboard's env lines), then the D6b window.
 
 ## 4 · "No new bug": QA design
 
