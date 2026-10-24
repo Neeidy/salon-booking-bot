@@ -23,8 +23,9 @@
 -- for real. It is idempotent (a second run revokes nothing new and passes the check).
 -- Undo, if ever needed: GRANT EXECUTE ON FUNCTION <the same list> TO PUBLIC.
 --
--- ⚠ RESTORE: db/ops/pg-backup.sh restores with --no-privileges, so a database rebuilt from a dump does NOT
--- carry this revoke (nor 002's grants). After a real restore, re-apply 002 and then this file.
+-- ⚠ RESTORE: db/ops/pg-backup.sh's verify restore (into a throwaway) uses --no-privileges, which skips every
+-- privilege entry in the dump, and the script has no real-restore path. A real restore done the same way loses
+-- this revoke (and 002's grants): re-apply 002 and then this file.
 
 \set ON_ERROR_STOP on
 \set VERBOSITY terse

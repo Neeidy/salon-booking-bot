@@ -2273,8 +2273,10 @@ proofs are weaker than claimed (Phase 7).** Turnstile 403 at the start and the e
   database; it is idempotent. *Declared:* `lo_unlink` is included although the ruling said "create or write": deleting a
   large object is a write. **No workflow uses any of them:** a search of all ten exports, the five copy specs and the
   schema files for the large-object function names found nothing, and the same search matched a planted `lo_create(0)`
-  (positive control). ⚠ `pg-backup.sh` restores with `--no-privileges`, so a database rebuilt from a dump carries
-  neither 002's grants nor this revoke; the file says to re-apply both after a real restore. **Not yet applied:** the
+  (positive control). ⚠ `pg-backup.sh`'s verify restore (into the throwaway) uses `--no-privileges`, and the script has
+  no real-restore path; a real restore done the same way would carry neither 002's grants nor this revoke, so the file
+  says to re-apply both after one (*worded so after the review: the first draft read as if the script restored
+  production*). **Not yet applied:** the
   operator runs a dry run (the same checksum-verified file with its final `COMMIT` turned into `ROLLBACK`) and then the
   real run, through the container's superuser socket, with `has_function_privilege` for both roles on all eight shown
   before (true: the positive control) and after (false). *Not tested offline:* this machine has no Postgres engine of its
@@ -2319,6 +2321,11 @@ proofs are weaker than claimed (Phase 7).** Turnstile 403 at the start and the e
   Purge tick about 9 hours away.
 - **Records:** PHASE-7-PLAN named items (6)–(15) and final security pass items 8 (F2) and 9 (I-2); the CRT #10 row in
   MASTER-BRIEF §9; ROADMAP. **Waiting:** the operator block (003, the dashboard's env lines), then the D6b window.
+- **The L2 review before the push** (security-auditor: push OK; two code reviews) found that the decision log and the
+  CRT #10 row read as if 003 were already applied, and that 003's restore note read as if the backup script restored
+  production; all three are corrected. *Declared:* the round's docs commit message says "F1 and F3 fixed before the
+  cutover" and the 003 commit message's "Applied by the operator" describes the procedure; 003 is NOT applied yet, so
+  F1's database half is open until the operator's run is measured. The messages were not rewritten.
 
 ## 4 · "No new bug": QA design
 
