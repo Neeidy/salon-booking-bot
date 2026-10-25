@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { verifyForTest, OWNER_ACTIONS, releaseHandoff } from './ownerAction.ts';
 
 const SECRET = 'test-secret-not-a-real-one';
@@ -84,7 +85,40 @@ test('a plain 200 {ok:true} is still a release — the guard did not break the h
   assert.equal(outcome.degraded, undefined);
 });
 
-async function withStubbedEngine(body: unknown) {
+// ── A 502 is decided on the STATUS (7-F1 item 1) ───────────────────────────────────────────────────────
+// The engine answers a failed release write with `502 {ok:false, error:'release_failed'}`, and the body that
+// reached the client in the D3b drill was the edge's `error code: 502` instead. Both must read the same.
+test('a 502 is release_failed, whether the engine body survives or the edge replaced it', async () => {
+  const engineBody = await withStubbedEngine({ ok: false, error: 'release_failed' }, 502);
+  assert.equal(engineBody.ok, false);
+  assert.equal(engineBody.reason, 'release_failed');
+  assert.equal(engineBody.status, 502);
+  const edgeBody = await withStubbedEngine('error code: 502', 502);
+  assert.equal(edgeBody.ok, false);
+  assert.equal(edgeBody.reason, 'release_failed');
+});
+
+// The negative control for the case above: only 502 moved. Every other unmapped status keeps its old reading.
+test('a 503 or a 500 is still unreachable — the 502 mapping did not widen', async () => {
+  assert.equal((await withStubbedEngine('error code: 503', 503)).reason, 'unreachable');
+  assert.equal((await withStubbedEngine({ ok: false }, 500)).reason, 'unreachable');
+});
+
+// ReleaseButton is a client component and cannot import this server-only module, so the two lists are kept
+// apart by construction. A reason without its own line falls back to the "did not answer" text, which is a
+// different claim; this reads both SOURCES and fails on any reason the screen has no sentence for.
+test('every reason this module can return has its own line in ReleaseButton', () => {
+  const here = readFileSync(new URL('./ownerAction.ts', import.meta.url), 'utf8');
+  const union = here.match(/reason: ((?:'[a-z_]+'(?: \| )?)+);/);
+  assert.ok(union, 'the ReleaseOutcome reason union was not found in ownerAction.ts');
+  const reasons = [...union[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  const button = readFileSync(new URL('../components/ReleaseButton.tsx', import.meta.url), 'utf8');
+  const missing = reasons.filter((r) => !new RegExp(`^\\s+${r}: '`, 'm').test(button));
+  assert.ok(reasons.includes('release_failed'), 'the union no longer holds release_failed');
+  assert.deepEqual(missing, []);
+});
+
+async function withStubbedEngine(body: unknown, status = 200) {
   const saved = {
     fetch: globalThis.fetch,
     url: process.env.OWNER_ACTION_URL,
@@ -96,8 +130,11 @@ async function withStubbedEngine(body: unknown) {
   process.env.OWNER_HMAC_SECRET = 'test-secret-not-a-real-one';
   process.env.CF_OWNER_ACCESS_CLIENT_ID = 'test-id';
   process.env.CF_OWNER_ACCESS_CLIENT_SECRET = 'test-secret';
+  // A string body is sent as-is (the edge's plain-text page); anything else as JSON.
   globalThis.fetch = (async () =>
-    new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    typeof body === 'string'
+      ? new Response(body, { status, headers: { 'Content-Type': 'text/plain' } })
+      : new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
   ) as typeof fetch;
   try {
     return await releaseHandoff('recAAAAAAAAAAAAAA', 'd11-unit-1');

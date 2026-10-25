@@ -59,7 +59,7 @@ export interface ReleaseOutcome {
   /** HTTP status from the engine, or 0 when the request never left. */
   status: number;
   /** A SHAPE for the screen — never an engine payload, never a credential. */
-  reason: 'released' | 'not_locked' | 'not_found' | 'refused' | 'stale' | 'unreachable' | 'misconfigured';
+  reason: 'released' | 'not_locked' | 'not_found' | 'refused' | 'stale' | 'release_failed' | 'unreachable' | 'misconfigured';
   /** Set when the release happened but something downstream did not — e.g. the owner alert never arrived. */
   degraded?: string;
 }
@@ -142,6 +142,11 @@ export async function releaseHandoff(recordId: string, messageId: string): Promi
   if (res.status === 404) return { ok: false, status: 404, reason: 'not_found' };
   if (res.status === 401) return { ok: false, status: 401, reason: 'stale' };
   if (res.status === 403 || res.status === 400) return { ok: false, status: res.status, reason: 'refused' };
+  // 502 is decided on the STATUS ALONE, never on the body. The engine answers a failed release write with
+  // `502 {ok:false, error:'release_failed'}`, but the body measured at the client was the edge's own
+  // `error code: 502` (MIGRATION-PLAN §3r, D3b W1, finding 1), so a body check would never match. A 502 the
+  // edge produced by itself is possible too, which is why the screen hedges: the release may not have happened.
+  if (res.status === 502) return { ok: false, status: 502, reason: 'release_failed' };
   console.error('[dashboard] owner action: unmapped engine status', res.status);
   return { ok: false, status: res.status, reason: 'unreachable' };
 }

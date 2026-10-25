@@ -28,6 +28,9 @@ const MESSAGE: Record<string, string> = {
   // an unobserved success look identical from here. `honesty-demos.md`: a visible gap beats a hidden one,
   // and the gap is the whole point for the person deciding whether to press it again.
   unreachable: 'The engine did not answer, so this board cannot tell whether the release happened. Reload before pressing again.',
+  // A 502: the engine reported the release write as failed, or the edge answered on its own. Neither proves
+  // the lock is still closed, so the line says "may not" and sends the owner to look before trying again.
+  release_failed: 'The release may not have happened (502). Reload and check this conversation before pressing again.',
   misconfigured: 'This board is not configured to write. Nothing was sent.',
   bad_request: 'The request was malformed and was not sent.',
   // A DEGRADED success. The lock IS open — saying only "released" would hide the half that failed, and the
