@@ -138,11 +138,22 @@ try:
     H.ROLES_FILE = roles_file()
     tmp.append(H.ROLES_FILE)
     P, R = 'db/copies/purge.json', 'db/copies/reminders.json'
-    SP, SR = 'n8n/staged/workflow.purge.copy.sanitized.json', 'n8n/staged/workflow.reminders.copy.sanitized.json'
-    staged_p = json.load(open(os.path.join(ROOT, SP), encoding='utf-8'))
-    staged_r = json.load(open(os.path.join(ROOT, SR), encoding='utf-8'))
+    # The edits under test are SYNTHESISED from the committed exports (an engine change inside the allowlist), so the
+    # test does not depend on n8n/staged/, which empties as each edit is promoted.
+    def synth(x, code_node, flag_node=None):
+        e = json.load(open(os.path.join(ROOT, 'n8n', f'workflow.{x}.copy.sanitized.json'), encoding='utf-8'))
+        n = next(n for n in e['nodes'] if n['name'] == code_node)
+        n['parameters']['jsCode'] += '\n// the engine edit under test'
+        if flag_node:
+            f = next(n for n in e['nodes'] if n['name'] == flag_node)
+            f['alwaysOutputData'] = not f.get('alwaysOutputData', False)
+        return e
+    staged_p = synth('purge', 'Build Owner Alert (Purge)', 'Find Old Leads')
+    staged_r = synth('reminders', 'Build Owner Alert (Reminders)')
+    SP, SR = repo_file(staged_p), repo_file(staged_r)
+    CP_EXPORT = 'n8n/workflow.purge.copy.sanitized.json'   # tracked and clean in a committed tree
 
-    # 1. E1 and E2 as staged: green, read back == staged
+    # 1. an E1-shaped and an E2-shaped edit: green, read back == the edit
     for spec, sfile, allow, staged in ((P, SP, E1, staged_p), (R, SR, E2, staged_r)):
         x = os.path.splitext(os.path.basename(spec))[0]
         committed, fake, oid, cid = world(x)
@@ -164,12 +175,13 @@ try:
     flag = copy.deepcopy(staged_p)
     next(n for n in flag['nodes'] if n['name'] == 'Find Old Leads')['onError'] = 'stopWorkflow'
     sett = dict(copy.deepcopy(staged_p), settings=dict(staged_p.get('settings') or {}, executionTimeout=999))
-    for label, exp, allow in (('a changed node left out of --allow', SP, E1[1:]), ('an edge rewired', repo_file(edge), E1),
+    for label, exp, allow in (('a changed node left out of --allow', SP, [n for n in E1 if n != 'Build Owner Alert (Purge)']), ('an edge rewired', repo_file(edge), E1),
                               ("an allowed node's onError changed", repo_file(flag), E1), ('settings changed', repo_file(sett), E1)):
         committed, fake, oid, cid = world()
         rc, out = run(fake, ['put', P, cid, exp, '--allow', *allow])
         case(f'refused before any PUT: {label}', rc == 1 and fake.puts() == 0 and 'allowlist' in out, f'rc {rc} · PUTs {fake.puts()}')
-    old = os.popen(f"git -C {ROOT} log --format=%H -- n8n/workflow.purge.copy.sanitized.json").read().split()
+    old = __import__('subprocess').run(['git', '-C', ROOT, 'log', '--format=%H', '--', CP_EXPORT], capture_output=True,
+                                       text=True).stdout.split()
     if len(old) >= 2:
         committed, fake, oid, cid = world()
         rc, out = run(fake, ['put', P, cid, f'{old[-1]}:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])
@@ -185,15 +197,15 @@ try:
     rc, out = run(fake, ['put', P, cid, os.path.relpath(t.name, ROOT), '--allow', *E1])
     case('an UNTRACKED export file is refused', rc == 1 and fake.puts() == 0 and 'untracked' in out, f'rc {rc}')
     H_tc = W.tracked_clean
-    W.tracked_clean = lambda rel: False if rel == SP else H_tc(rel)   # the staged file as if locally edited
+    W.tracked_clean = lambda rel: False if rel == SP else H_tc(rel)   # the edit file as if locally modified
     committed, fake, oid, cid = world()
     rc, out = run(fake, ['put', P, cid, SP, '--allow', *E1])
     W.tracked_clean = H_tc
     case('a locally modified export file is refused', rc == 1 and fake.puts() == 0, f'rc {rc}')
-    if real_tc(SP):
-        case('the committed staged file itself counts as tracked and clean', True, 'git ls-files + git diff --quiet HEAD')
+    if real_tc(CP_EXPORT):
+        case('a committed export counts as tracked and clean', True, 'git ls-files + git diff --quiet HEAD')
     else:
-        case('the committed staged file itself counts as tracked and clean', False, 'it is untracked or modified in this tree')
+        case('a committed export counts as tracked and clean', False, 'it is untracked or modified in this tree')
 
     # 3c. a schedule trigger in --allow, re-timed, is refused (the scope's only trigger type)
     tr = copy.deepcopy(staged_p)
@@ -210,8 +222,10 @@ try:
     case('a copy that reads back under another name is refused', rc == 1 and not fake.writes(), f'rc {rc}')
 
     # 4. a PUT whose read-back differs is RED: n8n keeps a flag · changes settings · leaves the copy active · answers 500
-    def keep_flag(b):
-        next(n for n in b['nodes'] if n['name'] == 'Find Old Leads')['alwaysOutputData'] = True
+    want_flag = next(n for n in staged_p['nodes'] if n['name'] == 'Find Old Leads').get('alwaysOutputData', False)
+
+    def keep_flag(b):   # n8n does not apply the flag change the edit makes
+        next(n for n in b['nodes'] if n['name'] == 'Find Old Leads')['alwaysOutputData'] = not want_flag
     for label, kw in (('n8n keeps alwaysOutputData', {'mangle': keep_flag}),
                       ('n8n changes the settings', {'mangle': lambda b: b.__setitem__('settings', dict(b['settings'], callerPolicy='any'))}),
                       ('the copy comes back active', {'mangle': lambda b: b.__setitem__('_active', True)}),
