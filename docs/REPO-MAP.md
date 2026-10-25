@@ -739,6 +739,7 @@
   - ### §4b · v2 backlog — DEFERRED by ruling, named and reasoned (also README's "not yet / v2" section)
   - ### §4d · 7-F1 Round A — what Round B inherits (2026-10-25)
   - ### §4e · 7-1 — plan approved 2026-10-25 (rulings K1–K8); Round 1 STOPPED (driver not clean)
+  - ### §4f · 7-1 re-shaped and RUN (ruling 2026-10-25): one short window for what is new — ✅ green
   - ### §4c · Decisions ruled at approval
   - ## §5 · SKELETON
   - ## §6 · INTEGRATIONS

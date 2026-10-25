@@ -114,6 +114,8 @@ Phase 7's fix checkpoint instead.
 | **A second owner-alert channel** | owner alerts have one channel (Telegram); if it is down, failures are visible only in the n8n execution log |
 | **The older v2 / LATER bucket** (unchanged since 2026-09-17): the idempotent replay's stored reply · `messageTemplates` required keys · the transcript lost on navigation · font subsetting · a `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | they improve the product but do not change whether it can be sold (PHASE-7-PLAN → Open items) |
 
+**What the regression covers on Postgres, stated (ruled 2026-10-25):** the full suite last ran on the Main copy's test path (D4b, 28/28; the cutover diff proves only the path differs); the production path was exercised by the routing smoke (A1), the dashboard write path (A2, 13/13) and the 7-1 window (a truly simultaneous race pair and a DST booking) — live measurements recorded in PHASE-7-PLAN, their raw output not committed; the seeded ⚙ scenarios were not re-run on Postgres — their paths are covered by D4b G1–G3 and the M7 error drills.
+
 **Not tested end to end: the WhatsApp lane (K-5).** The regression drives the widget lane only; Zernio's inbound
 webhook is deliberately closed for spend safety, so no current test crosses the WhatsApp adapter boundary. It was
 proven live once in Phase 4, before the store moved. "Regression green" does not mean "the WhatsApp path works".

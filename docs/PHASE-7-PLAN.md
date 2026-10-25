@@ -139,7 +139,7 @@ security pass — without re-running what the migration already proved.
 | **7-F2** dashboard (NARROWED) | **F4** behaviour test (mock driver) · **F7** trim the unused columns · **F12** triage priority before the limit · **D9** `validate-intent` in `check-all` · **new item (a)** the owner CSV export (D7: dashboard route, appointments + leads, the panels' columns, masked) — built and tested OFFLINE, behind a default-off flag, **not exposed live before 7-2's Codex audit** | 1 (round 1, parallel) | — | the export cannot be made masked-only · a mutant survives and its claim stays | `/goal` allowed (offline, goal: `check-all` 0) |
 | **7-T** tooling | a COMMITTED window script (premise 3: `--turnstile-swapped`, restore before rollback, `finally`) · a COMMITTED seed tool (premise 7: Access-covered, prefixes `w-mig-p7-` / `mig-p7-`, prefix-guarded clean-up) · `regression-suite.md`'s ⚙ setups rewritten (D6) | 1 (round 1, parallel, nothing run live) | — | any step needing a live write | neither |
 | **7-F1** ops + engine (sequential; **plan APPROVED 2026-10-25, scope narrowed by its rulings**) | **Final scope:** item 13, the dashboard under supervision (D8: a systemd user unit with linger) — **✅ live-proven 2026-10-25 (§4d); boot start shown by configuration, NOT by reboot** · **Q18's alert detail (mandatory)**, Purge and Reminders, closed OFFLINE on fixtures of the error shapes measured live in S10 and M7 (label: "offline-proven, error shape measured live"; no operator window, ruling K5) · (2) the spurious `no_candidates` · ~~the reschedule orphan alert's old-slot line~~ → **v2** (Main is not edited before ship, ruling 2026-10-25) · (1) the 502 body, written and tested now, deployed after 7-2 with round 1's code (K6) · K2: item (4)'s premise corrected below, no workflow change. **Moved out by ruling:** (3) rebook after cancel → v2 (§4b) · the reminder-after-cancel gate → v2 (§4b; K4) · (5) → the final security pass, item 13. **Guards (K1):** after the cutover each copy's reference is its OWN committed export; node-level copy↔original comparison is retired for the post-cutover modes, settings copy↔original parity stays; engine tests read the copy exports; every engine edit goes through the helper's edit path (deactivate → PUT the committed export → live == committed → activate → Turnstile 403), each its own ⚠ ONAY. **Rounds: 2** — A (guards, tests, offline fixes, item 13) and B (E1 Purge: Q18 + (2) · E2 Reminders: Q18 · E3 → v2) — **✅ E1 and E2 deployed live 2026-10-25 (§4d)** | 2 | the one root `loginctl enable-linger` command when 7-F1 asks (D8) | parity red after an edit · a drill breaks behaviour the original had · Turnstile not restorable | neither (gated writes) |
-| **7-1** ONE window | the full regression, the truly simultaneous race pair (its expectation written first: both writers may yield), one DST booking; precondition: a declared LLM spend cap and a counted Google API quota (premise 1) | 2 | — | Turnstile not restorable · a double booking · any outbound send | neither |
+| **7-1** ONE window — **✅ RUN 2026-10-25, re-shaped (§4f): the simultaneous race pair (both withdrew, writes overlapped), the DST booking, the Reminders dry-run path; the full suite not re-run (D4b)** | the full regression, the truly simultaneous race pair (its expectation written first: both writers may yield), one DST booking; precondition: a declared LLM spend cap and a counted Google API quota (premise 1) | 2 | — | Turnstile not restorable · a double booking · any outbound send | neither |
 | **7-2** audit | Codex: CRT 4, 12's five R3 items, 1a (its own audit), 1b (after the simultaneous drill; D1), the #11 drift, the owner export route (CRT 9/10's PII surface — the export goes live only after this) · CRT 9 → ship gate 18 (K-6 measured in part) | 3 | triggering Codex | a finding → a fix round | neither |
 | **7-3** artefacts | `docs/CASE-STUDY.md` (moved from README) · `docs/RUNBOOK.md`: Postgres provisioning, 001–003, the nightly backup, the dashboard service, **new item (b): a database GUI over an SSH tunnel as `salon_ro`** — dry-run, labelled "NOT run end to end" · golden-set expanded to 15 cases (D11) | 3 | installing the GUI client on his machine | — | neither |
 | **7-S** D6c-dependent | ship-gate text naming Airtable (#19) · after D6c, which also renames the production workflows (D3, amendment) | 1 | — | D6c not closed | neither |
@@ -319,6 +319,35 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
   `usageLimits`); the finding that the edited Reminders builder is fed only by its error branches (K3).
 - *Declared in the parked driver, carried to the next attempt:* #28 seeds its booking instead of booking it through the
   bot (its past-guard locks the session in handoff, so a real event booked there could not be cancelled).
+
+### §4f · 7-1 re-shaped and RUN (ruling 2026-10-25): one short window for what is new — ✅ green
+*Measured in the session's terminal, output not committed. Ruling: no committed driver; the full suite is NOT re-run
+(D4b ran it 28/28 on the same Main copy's test path; A1/A2/A3 covered the production path); ONE window ≤ 10 minutes
+through main's reviewed `scripts/turnstile-window.py`, an import-safe scratchpad sequence, a 1.00 USD ceiling.*
+- **Preconditions:** Turnstile 403 · Main live == committed (content parity) · the sequence import-safe.
+- **The window: 89 s** (opened and closed by the committed script; restored and measured both ways — published literal
+  true, a dummy token 403 through the copy, none through the original). 10 requests, 0.022986 USD. Calendar calls in the
+  window bounded at ≤ 14 (2 availability asks + 2 confirms at ≤ 2 calls each + 2 withdrawals for the race; 1 + 2 + 1 for the
+  DST booking and its cancel; 2 freeBusy asks), within the brief's ≤ ~20 budget.
+- **The race pair (expectation written before the run, §4e plan):** both confirms released together; **the two
+  Book → Verify write spans overlapped in time — a truly simultaneous pair.** Result: **both writers withdrew** — the
+  documented symmetric limit: no double booking and no booking. `Check Race` ×2 · `Build Orphan State` 0 · events
+  created 2 = withdrawn 2 · 0 booked rows on the slot, read right after the confirms · both replies "just taken" (a
+  human follows up). **GREEN against the written expectation.**
+- **The DST booking:** Mon 2027-03-29 15:00 Vienna (after the spring change) stored at **13:00Z (+02:00)**, then
+  cancelled through the flow (`Delete Booking Event`).
+- **After the window:** every Main-copy execution from open to close was this run's (10) or the window script's own
+  closing probe (1): **no foreign traffic**; Zernio 0; no Calendar quota error; both drill slots read free through the
+  bot's own availability check.
+- **Outside the window — the Reminders dry-run + stamp path, first live proof on Postgres (K3):** one due appointment
+  seeded through the committed seed tool (edge check first); the next hourly run: success · `Find Due Appointments` 1
+  item · `Reminder Send (dry-run)` ran · `Stamp Reminded` succeeded, the row reads `reminded = true` · `Send Reminder
+  (Zernio Template)` did not run. The edited `Build Owner Alert (Reminders)` did not run (no error), as expected: its
+  proof stays offline (Q18's label).
+- **Cleanup:** the seed tool's prefix-guarded `clean` removed 5 conversations, 2 appointments, 10 processed markers, 0
+  leads; the seed workflow deleted (GET 404); every table holds 0 rows under the p7 prefixes. The month's `bot_metrics`
+  row is kept (the spend meter).
+- **Not re-run, labelled (README):** the seeded ⚙ scenarios — their paths are covered by D4b G1–G3 and M7.
 
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |
