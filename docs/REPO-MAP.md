@@ -145,6 +145,23 @@
 - `docs/UX-ARCHITECTURE.md`
 - `docs/n8n-rollback.md`
 
+### docs/codex
+
+- `docs/codex/7-2-prompts.md`
+
+### docs/codex/7-2
+
+- `docs/codex/7-2/11.md`
+- `docs/codex/7-2/12.md`
+- `docs/codex/7-2/1a.md`
+- `docs/codex/7-2/1b.md`
+- `docs/codex/7-2/2.md`
+- `docs/codex/7-2/4.md`
+- `docs/codex/7-2/5.md`
+- `docs/codex/7-2/6.md`
+- `docs/codex/7-2/9.md`
+- `docs/codex/7-2/containment-1a-9.md`
+
 ### n8n
 
 - `n8n/notes.md`
@@ -200,6 +217,7 @@
 - `scripts/check-outbound-inventory.py`
 - `scripts/check-pair-roles.py`
 - `scripts/check-sql-params.py`
+- `scripts/codex-containment.py`
 - `scripts/compile-intent-validator.cjs`
 - `scripts/deploy-workflow-copy.py`
 - `scripts/diff-workflow-copy.py`
@@ -273,6 +291,7 @@
 
 ### tests/unit
 
+- `tests/unit/codex-containment.test.py`
 - `tests/unit/content-parity-inactive.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
 - `tests/unit/leads-purge-read-error.test.cjs`
@@ -782,6 +801,8 @@
   - ### design/mockups/variants
   - ### design/mockups/widget
   - ### docs
+  - ### docs/codex
+  - ### docs/codex/7-2
   - ### n8n
   - ### n8n/screenshots
   - ### n8n/staged
@@ -996,6 +1017,42 @@
   - ## §10 — Kararların uygulama dağılımı
   - ### §10.1 — Kabul edilen ama ADLANDIRILMIŞ kalıntı: hatırlatma penceresi
   - ## Kapanış — bu belge neyi garanti eder
+
+### `docs/codex/7-2-prompts.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/11.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/12.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/1a.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/1b.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/2.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/4.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/5.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/6.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/9.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/7-2/containment-1a-9.md`
+  - ## Flag 1 — run 1a
+  - ## Flag 2 — run 9
+  - ## Flag 3 — run 9
+  - ## Tur 1b — containment by isolation (runs 1b, 2, 5, 6, 12, 4, 11)
 
 ### `docs/n8n-rollback.md`
   - ## ⚠ Do NOT trust `n8n_workflow_versions` for THIS workflow

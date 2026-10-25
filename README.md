@@ -143,6 +143,9 @@ alerted. An outage that looks normal is an outage nobody fixes.
 to the calendar first. Two sources of truth mean double bookings — and Postgres's transactions do not change
 that, because the calendar write is an HTTP call outside them.
 
+**Safety over liveness: a truly simultaneous pair withdraws both.** Each writer books, re-reads and yields if it sees
+another event, so two requests at the same moment can both yield: no double booking, no booking, a human follows up.
+
 **Config / code / secret are separate — as a design, not yet as a demonstrated fact.** The engine is meant
 to be identical for every client, with a new client being a new `client.config.json` plus new credentials.
 Two things stand between that and the truth today: the engine reads its config from an **inline copy in the
