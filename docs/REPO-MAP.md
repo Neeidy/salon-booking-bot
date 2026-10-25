@@ -166,8 +166,6 @@
 ### n8n/staged
 
 - `n8n/staged/workflow.main.copy.sanitized.json`
-- `n8n/staged/workflow.purge.copy.sanitized.json`
-- `n8n/staged/workflow.reminders.copy.sanitized.json`
 
 ### ops/systemd
 
@@ -215,6 +213,7 @@
 - `scripts/seed-workflow.py`
 - `scripts/settings_parity.py`
 - `scripts/turnstile-window.py`
+- `scripts/workflow-step.py`
 
 ### tests
 
@@ -290,6 +289,7 @@
 - `tests/unit/staged-sanitised.test.py`
 - `tests/unit/turnstile-window.test.py`
 - `tests/unit/validate-intent.test.cjs`
+- `tests/unit/workflow-step.test.py`
 
 ### web
 

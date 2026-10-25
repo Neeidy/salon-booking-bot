@@ -138,7 +138,7 @@ security pass — without re-running what the migration already proved.
 | **7-D7** governance close | rules (`booking-integrity.md`, `spend-safety.md`, `honesty-demos.md`), DATA-MODEL, the MASTER-BRIEF stack and §9's #1b note (D1), README with an honest "not yet / v2" section; test-doc wording; this plan rewritten as v4 | 1 (round 1, offline, parallel) | — | a doc change would need an unmeasured claim | neither |
 | **7-F2** dashboard (NARROWED) | **F4** behaviour test (mock driver) · **F7** trim the unused columns · **F12** triage priority before the limit · **D9** `validate-intent` in `check-all` · **new item (a)** the owner CSV export (D7: dashboard route, appointments + leads, the panels' columns, masked) — built and tested OFFLINE, behind a default-off flag, **not exposed live before 7-2's Codex audit** | 1 (round 1, parallel) | — | the export cannot be made masked-only · a mutant survives and its claim stays | `/goal` allowed (offline, goal: `check-all` 0) |
 | **7-T** tooling | a COMMITTED window script (premise 3: `--turnstile-swapped`, restore before rollback, `finally`) · a COMMITTED seed tool (premise 7: Access-covered, prefixes `w-mig-p7-` / `mig-p7-`, prefix-guarded clean-up) · `regression-suite.md`'s ⚙ setups rewritten (D6) | 1 (round 1, parallel, nothing run live) | — | any step needing a live write | neither |
-| **7-F1** ops + engine (sequential; **plan APPROVED 2026-10-25, scope narrowed by its rulings**) | **Final scope:** item 13, the dashboard under supervision (D8: a systemd user unit with linger) — **✅ live-proven 2026-10-25 (§4d); boot start shown by configuration, NOT by reboot** · **Q18's alert detail (mandatory)**, Purge and Reminders, closed OFFLINE on fixtures of the error shapes measured live in S10 and M7 (label: "offline-proven, error shape measured live"; no operator window, ruling K5) · (2) the spurious `no_candidates` · the reschedule orphan alert's old-slot line (from D2's triage) · (1) the 502 body, written and tested now, deployed after 7-2 with round 1's code (K6) · K2: item (4)'s premise corrected below, no workflow change. **Moved out by ruling:** (3) rebook after cancel → v2 (§4b) · the reminder-after-cancel gate → v2 (§4b; K4) · (5) → the final security pass, item 13. **Guards (K1):** after the cutover each copy's reference is its OWN committed export; node-level copy↔original comparison is retired for the post-cutover modes, settings copy↔original parity stays; engine tests read the copy exports; every engine edit goes through the helper's edit path (deactivate → PUT the committed export → live == committed → activate → Turnstile 403), each its own ⚠ ONAY. **Rounds: 2** — A (guards, tests, offline fixes, item 13) and B (E1 Purge: Q18 + (2) · E2 Reminders: Q18 · E3 Main: the orphan line) | 2 | the one root `loginctl enable-linger` command when 7-F1 asks (D8) | parity red after an edit · a drill breaks behaviour the original had · Turnstile not restorable | neither (gated writes) |
+| **7-F1** ops + engine (sequential; **plan APPROVED 2026-10-25, scope narrowed by its rulings**) | **Final scope:** item 13, the dashboard under supervision (D8: a systemd user unit with linger) — **✅ live-proven 2026-10-25 (§4d); boot start shown by configuration, NOT by reboot** · **Q18's alert detail (mandatory)**, Purge and Reminders, closed OFFLINE on fixtures of the error shapes measured live in S10 and M7 (label: "offline-proven, error shape measured live"; no operator window, ruling K5) · (2) the spurious `no_candidates` · ~~the reschedule orphan alert's old-slot line~~ → **v2** (Main is not edited before ship, ruling 2026-10-25) · (1) the 502 body, written and tested now, deployed after 7-2 with round 1's code (K6) · K2: item (4)'s premise corrected below, no workflow change. **Moved out by ruling:** (3) rebook after cancel → v2 (§4b) · the reminder-after-cancel gate → v2 (§4b; K4) · (5) → the final security pass, item 13. **Guards (K1):** after the cutover each copy's reference is its OWN committed export; node-level copy↔original comparison is retired for the post-cutover modes, settings copy↔original parity stays; engine tests read the copy exports; every engine edit goes through the helper's edit path (deactivate → PUT the committed export → live == committed → activate → Turnstile 403), each its own ⚠ ONAY. **Rounds: 2** — A (guards, tests, offline fixes, item 13) and B (E1 Purge: Q18 + (2) · E2 Reminders: Q18 · E3 → v2) — **✅ E1 and E2 deployed live 2026-10-25 (§4d)** | 2 | the one root `loginctl enable-linger` command when 7-F1 asks (D8) | parity red after an edit · a drill breaks behaviour the original had · Turnstile not restorable | neither (gated writes) |
 | **7-1** ONE window | the full regression, the truly simultaneous race pair (its expectation written first: both writers may yield), one DST booking; precondition: a declared LLM spend cap and a counted Google API quota (premise 1) | 2 | — | Turnstile not restorable · a double booking · any outbound send | neither |
 | **7-2** audit | Codex: CRT 4, 12's five R3 items, 1a (its own audit), 1b (after the simultaneous drill; D1), the #11 drift, the owner export route (CRT 9/10's PII surface — the export goes live only after this) · CRT 9 → ship gate 18 (K-6 measured in part) | 3 | triggering Codex | a finding → a fix round | neither |
 | **7-3** artefacts | `docs/CASE-STUDY.md` (moved from README) · `docs/RUNBOOK.md`: Postgres provisioning, 001–003, the nightly backup, the dashboard service, **new item (b): a database GUI over an SSH tunnel as `salon_ro`** — dry-run, labelled "NOT run end to end" · golden-set expanded to 15 cases (D11) | 3 | installing the GUI client on his machine | — | neither |
@@ -173,6 +173,7 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
 | D2 note | the bare-greeting dead end was CLOSED on 2026-09-07 (the clarify class); the "fail-closed in both directions" item is a standing rule, not a work item |
 | **(3)** rebooking a just-cancelled identical slot hands off (7-F1 ruling K3, 2026-10-25) | no double booking, only a handoff; the fix changes the event-id scheme or the reconcile branch and needs a real calendar-write spike first; README "Not yet" says it plainly |
 | **the reminder for an appointment cancelled inside the mirror-failure window** (D2 triage; 7-F1 ruling K4, 2026-10-25) | the gate (Reminders reads the event before sending) needs a NEW Google credential in Reminders, which holds none today; D2's premise that this was a small change fell |
+| **E3: the reschedule orphan alert's old-slot line** (7-F1 ruling, 2026-10-25) | Main is not edited before ship; the change is written, tested offline and kept staged (`n8n/staged/workflow.main.copy.sanitized.json`), and README "Not yet" names the gap |
 | v3's v2 / LATER bucket (Open items table below, unchanged) | already deferred on 2026-09-17; listed again in README's "Not yet" so the two surfaces agree |
 | stale code comments the docs now contradict: `001_init.sql`'s `lead_no` comment (Airtable-era dashboard), the Purge copy's `Compute Purge Cutoff` ("lexicographic compare"; the SQL casts to `timestamptz`) and `Compute Leads Cutoff` ("Airtable has no undo") | the workflow comments are live-workflow edits (gated) → with D6c's rename change; `001_init.sql` is an applied file whose hash is on record, so its comment is corrected with the next schema file, not in place |
 
@@ -224,6 +225,19 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
   kills only the helper, so a helper hung past it while a curl (≤ 60 s) is in flight could let that one request finish
   after the close began. The close re-reads the draft literal after its deactivate, which covers a write that landed
   before the read but not one that lands after it. Residual, low (it needs a helper hung for five minutes), not fixed.
+- **Round B, final shape (ruling 2026-10-25): the allowlist through the REVIEWED diff tool, E1 + E2 only.**
+  `scripts/diff-workflow-copy.py --phase edit` compares the copy's COMMITTED export with the staged one: only the named
+  nodes may differ, and in them only `parameters` and `alwaysOutputData` (*declared:* that one flag is allowed because
+  item (2)'s fix IS removing it; type, typeVersion, credentials, onError, disabled stay); a trigger can never be named;
+  nodes added/removed, connections, settings (strict, even if a live-mode allowlist is passed) and every other node are
+  red. 15 edit-phase selftest cases beside the 22 existing ones; code mutants were run red (their runs are not committed). `scripts/workflow-step.py` holds
+  ONLY the three calls with read-backs (`deactivate`, `put … --allow N…`, `activate`); `put` runs that diff before any
+  write and `content_drift` (live == staged) plus a raw comparison with the body sent after it. Scope: copies without a
+  webhook trigger or a Turnstile gate (Purge, Reminders); Main is not edited before ship, so **E3 (the orphan old-slot
+  line) moves to v2**. The edit allowlists: **E1** = `Aggregate Leads Total`, `Build Owner Alert (Purge)`, `Count Leads
+  After`, `Count Leads Total`, `Find Old Leads`, `Leads Purge Sane?`, `Verify Leads Purge` · **E2** = `Build Owner Alert
+  (Reminders)` (measured: the staged exports differ from the committed ones in exactly these nodes, connections and
+  settings equal).
 - **Declared: Round A's push left `check-exports-parity` red** (the committed `n8n/staged/` exports have no pair; the
   pre-commit run saw them untracked). Fixed in Round B: the guard excludes `n8n/staged/` by name. *Lesson: a guard
   that reads git's index must be re-run AFTER the commit, not only on the working tree before it.*
@@ -240,11 +254,32 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
   index shift could fill from the wrong path (none in today's exports; fails closed for strings, not for `__rl`); the
   SAFETY message's runnable restore command prints real workflow ids and a commit hash — add a "mask before pasting
   into a report" line when re-enabling (security-auditor LOW-1).
-- **Staged edits:** `n8n/staged/workflow.{purge,reminders,main}.copy.sanitized.json` hold Q18 (Purge, Reminders), (2) and
-  the orphan old-slot line. Round B promotes each into its committed copy export (one commit per workflow) and runs
-  `--engine-edit` from HEAD once it is re-enabled; the three new unit tests then repoint from `n8n/staged/` to the committed export.
-- **Premises (2) still needs measured live in E1:** without `alwaysOutputData`, a read error leaves NOTHING on output 0;
-  n8n returns the `jsonb_agg` column as an array (if not, every run refuses visibly with `leads_read_shape_invalid`).
+- **Staged edits — outcome (2026-10-25; measured in the session's terminal, output not committed):** **E1 (Purge: Q18 +
+  (2)) and E2 (Reminders: Q18) are LIVE.** Each: content
+  parity live == committed → `diff-workflow-copy --phase edit` green on its allowlist → `workflow-step.py deactivate` →
+  `put` (read back == staged) → the draft re-read == staged right before `activate` → `activate` (published == draft) →
+  content parity live == staged → the staged file promoted into the committed export in the same commit → both parity
+  guards green AFTER the commit → Turnstile 403. The two offline tests now read the committed exports.
+  `n8n/staged/workflow.main.copy.sanitized.json` (the orphan old-slot line) STAYS staged: **E3 is v2** (README "Not yet").
+- **(2)'s two live premises, MEASURED 2026-10-25** (terminal output, not committed; within E1's approved scope, which
+  named this read-only probe; a temporary read-only workflow, the S10 pattern: an Access-covered
+  `owner-mig-p7-` path, edge refusal shown with both signals, webhook-triggered, SELECT only, the Purge copy's own
+  Postgres credential, deleted afterwards and GET 404): a READ error under `continueErrorOutput` WITHOUT
+  `alwaysOutputData` left **0 items on output 0** and 1 on output 1 (keys `error`, `message`); the staged `jsonb_agg` SQL
+  returned a **JS array** (empty window: length 0; a constant two-element aggregate: two strings) and `count(*)::int` a
+  **number**. Q18's offline proof stands as labelled: "offline-proven, error shape measured live (S10, M7)".
+- **E2's first scheduled run on the new code (terminal-measured, not committed):** trigger mode, status success, 6 nodes,
+  no node error, the Zernio send not reached. **Its limit, stated:** `Find Due Appointments` found no due row, so the run
+  stopped there; neither the dry-run send path nor the edited `Build Owner Alert (Reminders)` ran. The edited builder is
+  proven offline only (Q18's label stands).
+- **Soak items (not yet observed):** the Purge copy's next nightly run on the new code; a Reminders run that has due rows
+  or a store error (the first that exercises the edited builder live).
+- **Declared mechanical faults in E1, fixed and committed:** the deploy helper's selftest built its "export drops
+  `alwaysOutputData` while live keeps it" fixture from a node carrying the flag in the committed Purge export; E1
+  removed the flag, so the fixture raised (and one case had been skipped silently wherever an export carried no flag).
+  It is now built on the live side for all five copies. The step-command test read the staged Purge export, which E1
+  removed; it now synthesises its edits from the committed exports. `check-import-safe.py` crashes on a bare file name
+  (`dirname('')`); run it with a path (not fixed).
 - **`tests/db/copy-contract.cjs`** (operator-run, live) expects record rows from the three changed leads reads; before
   it is next run, those three checks become "one row; an integer count / an `ids` string array".
 - **D6c needs a ruling for the guards:** the window's ORDER guard, the production path and the settings parity all read

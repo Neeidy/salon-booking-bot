@@ -15,10 +15,16 @@ restore source here. Use the two paths below instead.
 
 ## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
 
-> ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d): five review
-> rounds each found a new HIGH. **Their replacement, single-purpose step commands, did not pass review either** and is
-> not on `main` (local branch only). **No post-cutover engine edit has a reviewed tool today.** The section below
-> describes the abandoned tool, kept as the record of its design.
+> ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d). **Engine edits
+> on Purge and Reminders** (the only copies in scope; Main is not edited before ship) use `scripts/workflow-step.py`,
+> one call per step, each read back, nothing automatic. Each run on a production copy is its own ⚠ ONAY:
+> 1. precheck: content parity green (live == the committed export), so the committed export IS the restore source;
+>    `diff-workflow-copy.py <committed export> <staged export> --allow <the edit's nodes> --phase edit` green;
+> 2. `workflow-step.py deactivate SPEC COPY` → `put SPEC COPY <staged export> --allow <nodes>` → `activate SPEC COPY`;
+> 3. if any step or the evidence after it is red: `deactivate` (if active) → `put SPEC COPY
+>    <REV>:n8n/workflow.<x>.copy.sanitized.json --allow <the same nodes>` (REV = the commit production held before the
+>    edit) → `activate`, and STOP.
+> The section below describes the abandoned tool, kept as the record of its design.
 
 Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies
 are the live holders, and **each copy's reference is its own committed export** (`n8n/workflow.<x>.copy.sanitized.json`).
