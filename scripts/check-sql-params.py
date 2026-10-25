@@ -21,7 +21,10 @@ fail WITH THE REASON MAPPED TO ITS NAME below. A fixture that fails for some oth
 about the rule it is named after (pre-push audit, 2026-10-19: rule 4 could be switched off and the
 selftest stayed green, because its fixture was also failing rule 3).
 
-Usage: python3 scripts/check-sql-params.py [export.json …]   (default: n8n/*.sanitized.json)
+Usage: python3 scripts/check-sql-params.py [export.json …]   (default: n8n/*.sanitized.json + n8n/staged/*.sanitized.json)
+A STAGED export (n8n/staged/, 7-F1) is a copy's next version, prepared offline and deployed in a later round. It
+is in the default scope because it is SQL that will run: leaving it out until it is promoted would let the gate
+first see a query on the day it ships.
        python3 scripts/check-sql-params.py --selftest
 """
 import glob
@@ -146,7 +149,8 @@ def selftest():
 def main(argv):
     if argv[1:2] == ['--selftest']:
         return selftest()
-    paths = argv[1:] or sorted(glob.glob(os.path.join(ROOT, 'n8n', '*.sanitized.json')))
+    paths = argv[1:] or (sorted(glob.glob(os.path.join(ROOT, 'n8n', '*.sanitized.json')))
+                         + sorted(glob.glob(os.path.join(ROOT, 'n8n', 'staged', '*.sanitized.json'))))
     total, problems = 0, []
     for p in paths:
         found, bad = check_export(p)

@@ -51,6 +51,9 @@ n8n/**/*.json
 # the sanitize step itself produces (`*.sanitized.json`) come back, never a raw export.
 !n8n/workflow.sanitized.json
 !n8n/workflow.*.sanitized.json
+# 7-F1 Round A: engine edits PREPARED for Round B, kept beside (not in place of) the live copies' reference
+# exports, so both parity guards stay true while live is unchanged. Same suffix rule: sanitized files only.
+!n8n/staged/workflow.*.sanitized.json
 
 # Real per-client config — only the .example is committed
 config/client.config.json
