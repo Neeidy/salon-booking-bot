@@ -1,0 +1,40 @@
+# salon-dashboard.service — the owner dashboard under supervision (PHASE-7-PLAN 7-F1, item 13; decision D8).
+#
+# WHY: until 7-F1 the dashboard ran as a detached process started by hand. Nothing restarted it after a crash and
+# nothing started it after a reboot. A systemd USER unit fixes both without root: the user manager restarts it on
+# failure, and with linger enabled the user manager itself starts at boot.
+#
+# Install (as the dashboard's own user, never root):
+#   install -m 0644 ops/systemd/salon-dashboard.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable salon-dashboard.service
+#   sudo loginctl enable-linger "$USER"      # once, by the operator: the user manager starts at boot
+#   systemctl --user start salon-dashboard.service
+# Rollback: systemctl --user disable --now salon-dashboard.service, remove the file, daemon-reload.
+#
+# The port and the 127.0.0.1 bind come from web/dashboard/package.json's `start` script, so there is one source for
+# them. The database credentials come from the dashboard's own env file, which Next reads itself; this unit never
+# names or reads it. The client config is the committed MOCK config (honesty-demos.md): a real client's deployment
+# points CLIENT_CONFIG_FILE at its own, gitignored config.
+
+[Unit]
+Description=salon-booking-bot owner dashboard (Next.js, loopback only)
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=%h/salon-booking-bot/web/dashboard
+Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 CLIENT_CONFIG_FILE=../../config/client.config.example.json
+ExecStart=/bin/sh scripts/serve.sh
+# ⚠ `next start` needs a finished build (`npm run build` in web/dashboard, `.next/`). Without one the server exits 1,
+# which is NOT 78, so it restarts until StartLimitBurst stops it (five tries in 300 s) — visible in the journal, not silent.
+# A crash restarts it; a config error (serve.sh exits 78) does not, because restarting cannot fix a missing file and
+# a restart loop would only bury the first error in the journal.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=78
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target
