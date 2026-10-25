@@ -166,6 +166,8 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. (The chat presentation estimate
 | W64/W65: the reschedule closed-day and busy rejects give less help than the booking side | an inconsistency, not a defect (D2) |
 | a second owner-alert channel or a delivery check | today a Telegram outage is visible only in n8n's execution log; *triaged v2 by judgment — close to "failures must be visible", so it is flagged for Yigitcan to override* (D2) |
 | D2 note | the bare-greeting dead end was CLOSED on 2026-09-07 (the clarify class); the "fail-closed in both directions" item is a standing rule, not a work item |
+| v3's v2 / LATER bucket (Open items table below, unchanged) | already deferred on 2026-09-17; listed again in README's "Not yet" so the two surfaces agree |
+| stale code comments the docs now contradict: `001_init.sql`'s `lead_no` comment (Airtable-era dashboard), the Purge copy's `Compute Purge Cutoff` ("lexicographic compare"; the SQL casts to `timestamptz`) and `Compute Leads Cutoff` ("Airtable has no undo") | the workflow comments are live-workflow edits (gated) → with D6c's rename change; `001_init.sql` is an applied file whose hash is on record, so its comment is corrected with the next schema file, not in place |
 
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |

@@ -13,7 +13,7 @@ Two DISTINCT problems, two DISTINCT guards (do not conflate them):
    `message_id` is **UNIQUE** (`001_init.sql`), plus a 30-day TTL (the Purge workflow deletes older rows).
    `Check Processed` reads the ID first; if it was seen, `Is Duplicate` → `Idempotent Replay` answers
    `duplicate_ignored` and nothing is booked again. *(It returns no stored copy of the first reply — the
-   "Idempotent Replay stored reply" item is in the v2 bucket, PHASE-7-PLAN §1.)*
+   "Idempotent Replay stored reply" item is in the v2 bucket, PHASE-7-PLAN → "Open items", v2 / LATER row.)*
    `Record Processed` writes it after `Save State` with `INSERT … ON CONFLICT (message_id) DO NOTHING`, so a
    second marker for the same ID is a no-op, not an error.
    ⚠ **The UNIQUE does not close the check-then-record race** (CRT 1a): two deliveries of one message can both

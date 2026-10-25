@@ -95,11 +95,11 @@ Each layer catches a different class of error → no single point of dependency.
   WhatsApp channel = generic Webhook + HTTP Request (`n8n-nodes-zernio` NOT used; provider-agnostic);
   handoff via Zernio Inbox.
 - **Integrations — unverified (confirm at build):** Google Calendar (OAuth per client) `⚠ verify §13` ·
-  ~~Airtable `⚠ verify limits §13`~~ → **self-hosted Postgres** since 2026-10-24 (§13) · LLM (Claude/OpenAI,
+  **self-hosted Postgres** since 2026-10-24 (§13) · LLM (Claude/OpenAI,
   cheap-model-first) · n8n webhooks · Vercel (frontend).
 - **Mock plan:** services/prices/hours come from config (mock); demo via a test WhatsApp number / the
   website widget. **One-swap-to-real** = client's real Zernio number + Google Calendar + their own Postgres
-  (per client: a Postgres service, its secrets, its backup step — MIGRATION-PLAN §8; was "+ Airtable base").
+  (per client: a Postgres service, its secrets, its backup step — MIGRATION-PLAN §8).
 
 ## 5. Architecture — components & where each runs
 

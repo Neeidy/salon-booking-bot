@@ -80,10 +80,10 @@ quote a wrong price** — the answer path contains no model.
 | **Lead capture** | Non-booking interest written to Postgres (`salon.leads`) with channel + message |
 | **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Distinct machine-side error flags, never dressed as a normal reply — e.g. `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` · `calendar_unavailable` |
-| **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once (`processed_messages.message_id` is UNIQUE). See [booking-integrity](.claude/rules/booking-integrity.md) for the race it does not close |
+| **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once (`processed_messages.message_id` is UNIQUE) — except when both deliveries pass `Check Processed` before either is recorded (CRT 1a, open). See [booking-integrity](.claude/rules/booking-integrity.md) for that race and the booking race it does not close |
 | **Cancel · reschedule · reminders** | Bot-automated, identity-bound to the channel's `sender_key`. Reminders are proven in dry-run; live WhatsApp template delivery needs the client's own WhatsApp Business number |
 | **Owner dashboard** | Read-only panels + the handoff queue + one write (release a handoff lock, through a protected n8n path). Runs on the build server behind Cloudflare Access and reads Postgres as a SELECT-only role. ⚠ It runs as an unsupervised process today and does not survive a reboot — the first item of Phase 7's next fix checkpoint |
-| **Spend brakes before the LLM** | Kill-switch, max-turns and a monthly LLM spend cap run *before* any paid call — a tripped guard costs nothing |
+| **Spend brakes before the LLM** | Kill-switch, max-turns and a monthly LLM spend cap run *before* any paid call — a tripped guard costs nothing. The cap fails OPEN if the spend meter cannot be read (the turn runs, and a `spend_meter_unavailable` alert goes to the owner) |
 | **Embeddable widget, one script tag** | A single self-contained IIFE (well under 20 kB; `npm run build -w @salon/snippet --prefix web` prints the current size — no byte count is pinned in prose here, because one went stale inside a single round) that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
 
 ## Not built yet 🔜
@@ -108,6 +108,7 @@ booking; the older named items that would have were sent to Phase 7's fix checkp
 | **The `handoffShown` twin** in `web/snippet` | the snippet and the site each record "lock line shown" at their own call site; deleting that line from one caller leaves the parity suite green — a test blind spot, not a runtime defect |
 | **Reschedule reject symmetry (W64/W65)** | a closed-day or busy reschedule offers no working hours and no alternative, while the same rejection in booking does — inconsistent help, not a wrong action |
 | **A second owner-alert channel** | owner alerts have one channel (Telegram); if it is down, failures are visible only in the n8n execution log |
+| **The older v2 / LATER bucket** (unchanged since 2026-09-17): the idempotent replay's stored reply · `messageTemplates` required keys · the transcript lost on navigation · font subsetting · a `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | they improve the product but do not change whether it can be sold (PHASE-7-PLAN → Open items) |
 
 **Not tested end to end: the WhatsApp lane (K-5).** The regression drives the widget lane only; Zernio's inbound
 webhook is deliberately closed for spend safety, so no current test crosses the WhatsApp adapter boundary. It was
@@ -202,9 +203,9 @@ control had swept only the axis its author happened to think of.
 | The stuck-verification watchdog is drilled on five axes, but **five more are not swept**: a real Cloudflare site key (the accept direction needs a real human token), a genuinely slow network where Turnstile legitimately needs >20 s, a backgrounded tab where browsers throttle timers, a token arriving at the exact deadline, and two widgets on one page | named in [`tests/snippet/DRILLS.md`](tests/snippet/DRILLS.md) |
 | The `Try again` note stays on screen after the token arrives and the composer is usable again — a true sentence that has become stale | open |
 | The **site** panel does not read the engine's `locked` flag, so on the site the handoff-lock line repeats on every message; the snippet shows it once | open, Phase 6c |
-| The visible transcript is lost when a visitor moves to another page in the same tab. The conversation itself continues — the session id survives — so the engine may be waiting on a confirmation the visitor can no longer see | open, Phase 7 |
-| `messageTemplates` has **no required keys** in the committed schema, so a config can pass every gate while missing a message the widget must supply. The snippet's build now fails by name for the two it reads; the schema gap itself is still open | open, Phase 7 |
-| An idempotent replay returns no text, so after a client timeout the engine's real answer (*"You're booked: …"*) is unrecoverable. The visitor now gets an honest interim message — **the silence was fixed, the information was not** | open, Phase 7 |
+| The visible transcript is lost when a visitor moves to another page in the same tab. The conversation itself continues — the session id survives — so the engine may be waiting on a confirmation the visitor can no longer see | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
+| `messageTemplates` has **no required keys** in the committed schema, so a config can pass every gate while missing a message the widget must supply. The snippet's build now fails by name for the two it reads; the schema gap itself is still open | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
+| An idempotent replay returns no text, so after a client timeout the engine's real answer (*"You're booked: …"*) is unrecoverable. The visitor now gets an honest interim message — **the silence was fixed, the information was not** | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
 | **The drills are one-off manual measurements, not a regression harness.** Each is recorded against the bundle it was taken on; nothing re-runs on a change. An executable browser harness is not written | open, 6c / Phase 7 |
 | Cloudflare's Turnstile script is loaded **without SRI and without a version pin** — Cloudflare does not publish a pinned, integrity-hashed distribution for it, so this is an **accepted supply-chain exception**, not an unsolved task. It is the one third-party script, and its whole purpose is to be third-party | accepted, named |
 | `style-src 'none'` / nonce-only CSP and **Trusted Types** are incompatible — the widget injects its stylesheet inline and assigns markup via `innerHTML` inside its own component | known limit, documented on `/install` |
@@ -250,7 +251,7 @@ This repository is **public**, so it is built as if it were.
   session is redirected to the Access login, and the policy admits one named email
   ([MIGRATION-PLAN §3t, K-6](docs/MIGRATION-PLAN.md)). CRT #9 (dashboard auth) is still open in
   [MASTER-BRIEF §9](MASTER-BRIEF.md).
-- The store's own boundary: n8n's database role has DML on the five tables and nothing else, the dashboard's role
+- The store's own boundary: n8n's database role has DML on the five tables plus their sequences and two helper functions, nothing else, the dashboard's role
   has SELECT only ([`db/schema/002_roles.sql`](db/schema/002_roles.sql)), and every workflow query is parameterised
   (`scripts/check-sql-params.py`). The database port is not reachable from outside *(operator statement,
   MIGRATION-PLAN §3t, A9)*.

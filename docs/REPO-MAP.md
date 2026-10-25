@@ -202,7 +202,9 @@
 - `scripts/pair_roles.py`
 - `scripts/repo-map.sh`
 - `scripts/secret-scan.sh`
+- `scripts/seed-workflow.py`
 - `scripts/settings_parity.py`
+- `scripts/turnstile-window.py`
 
 ### tests
 
@@ -269,7 +271,9 @@
 - `tests/unit/pair-roles.test.py`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
+- `tests/unit/seed-workflow.test.py`
 - `tests/unit/settings-parity.test.py`
+- `tests/unit/turnstile-window.test.py`
 - `tests/unit/validate-intent.test.cjs`
 
 ### web
@@ -292,6 +296,14 @@
 - `web/dashboard/app/layout.tsx`
 - `web/dashboard/app/page.tsx`
 
+### web/dashboard/app/api/export/appointments
+
+- `web/dashboard/app/api/export/appointments/route.ts`
+
+### web/dashboard/app/api/export/leads
+
+- `web/dashboard/app/api/export/leads/route.ts`
+
 ### web/dashboard/app/api/release
 
 - `web/dashboard/app/api/release/route.ts`
@@ -309,11 +321,15 @@
 
 - `web/dashboard/lib/alertState.test.ts`
 - `web/dashboard/lib/alertState.ts`
+- `web/dashboard/lib/appointmentView.ts`
+- `web/dashboard/lib/exportCsv.test.ts`
+- `web/dashboard/lib/exportCsv.ts`
 - `web/dashboard/lib/mask.test.ts`
 - `web/dashboard/lib/mask.ts`
 - `web/dashboard/lib/ownerAction.test.ts`
 - `web/dashboard/lib/ownerAction.ts`
 - `web/dashboard/lib/shopConfig.ts`
+- `web/dashboard/lib/store.behaviour.test.ts`
 - `web/dashboard/lib/store.test.ts`
 - `web/dashboard/lib/store.ts`
 - `web/dashboard/lib/types.ts`
@@ -761,6 +777,8 @@
   - ### web
   - ### web/dashboard
   - ### web/dashboard/app
+  - ### web/dashboard/app/api/export/appointments
+  - ### web/dashboard/app/api/export/leads
   - ### web/dashboard/app/api/release
   - ### web/dashboard/components
   - ### web/dashboard/lib
