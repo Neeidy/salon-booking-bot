@@ -1,14 +1,13 @@
-# Phase 7 — Test + Codex + DoD · PLAN v3
+# Phase 7 — Test + Codex + DoD · PLAN v4
 
-> **▶ RE-ENTERED 2026-10-24** — the migration is closed (D6b accepted 2026-10-24, A1–A9; K-6 closed, `0bd4e74`). The hold below is history: *(was: ⏸ ON HOLD, ruling 2026-10-19, start condition re-ruled 2026-10-20 — Phase 7 starts right after D6b's acceptance, where its premises are re-checked.)* **v3 below stays the plan of record until PLAN v4 is approved in chat**; its premises were re-derived against the post-migration system and ruled ("Re-entry rulings" below). This plan was derived against Airtable's behaviour, and that cannot be assumed to still hold.
->
-> **Status:** APPROVED by Yigitcan, 2026-09-17. Derived against `232321c` (181 files).
-> **This file exists because v2 did not.** The Phase 7 plan was produced once before, lived only in
-> chat, and evaporated — so v3 had to be derived from scratch. A plan that is not in the repo is not a
-> plan, it is a memory (`governance-sync.md` §2: every standing decision lands in the repo).
-> **v3 was re-derived, not inherited:** v2's premises had all moved — 6d did not exist, the `leads` TTL
-> did not exist, the ship gate was not consolidated, and the Codex findings had not arrived.
-
+> **Status: PLAN v4 APPROVED by Yigitcan (plan-gate), 2026-10-24**, presented in chat in the full format and approved with
+> the amendments below; derived against `97aded7` after the migration closed (D6b accepted 2026-10-24, A1–A9; K-6 closed,
+> `0bd4e74`). It replaces v3 (approved 2026-09-17, derived against `232321c`; its full text is in git at `97aded7`). v3's
+> measurements and rulings that still stand as records (M1, M2, CP 7-0, the window protocol, the v3 7-1 window plan) are
+> kept at the end of this file. *(History: Phase 7 was ⏸ ON HOLD from 2026-10-19 until the migration's cutover was
+> accepted.)*
+> **A plan that is not in the repo is not a plan, it is a memory** (`governance-sync.md` §2) — which is why v3 existed,
+> and why v4 replaces it in place rather than living in chat.
 ## Re-entry rulings (Yigitcan, 2026-10-24) — the premise re-derivation after the migration
 
 The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) were ruled:
@@ -89,33 +88,174 @@ and 7-0 stops and reports rather than routing around it.
 
 ---
 
-## §1 · DISTANCE TO SHIP — measured from the repo, 2026-09-17
+---
 
-| DoD item (`testing.md`) | State | Evidence |
+## §1 · DISTANCE TO SHIP — measured from scratch, 2026-10-24 (`97aded7`)
+
+| Surface | Measured |
+|---|---|
+| Live workflows | 10 on the instance: the five Postgres copies ACTIVE (Main 191 nodes, Owner Actions 44, Purge 27, Reminders 19, Drill State 9) and the five originals parked inactive with the same node counts. The production workflows still carry the names "MIG COPY — …" (renamed at D6c, amendment below). |
+| Critical-Review Targets (`MASTER-BRIEF.md` §9, the single status source) | 14 rows · 5 closed (3 · 7 · 8 · 10 · 13) · 9 open (1a · 1b · 2 · 4 · 5 · 6 · 9 · 11 · 12). Two drifts: #11 (§9 open, ROADMAP records the CP 6d remediation) and #1b (§9 open, the decision log and ROADMAP say "CLOSED 2026-08-16"; ruled D1 below). |
+| Evidence the migration already produced (premise 6: not re-run) | regression 28/28 on the Main copy (D4b) · `run-d11` 13/13 on the production paths (A2) · the routing smoke (A1) · the sequential race with M2's five points (A3) · the M7 failure window (store down, auth failure, spend meter refused) · Turnstile both ways. |
+| Ship gate | the one numbered list in `ROADMAP.md`, items 11–21, all open; only #19 names Airtable (rewritten after D6c, 7-S). |
+| Named items | the PHASE 7 row of the open-items table below: Q18 (mandatory), (1)–(15), one observation, and v3's older items. |
+| Final security pass | 12 items (top of this file), scope frozen (premise 12). |
+| DoD | built ✅ · tested ◐ (the regression passes only in a Turnstile window; WhatsApp not tested, K-5) · cleaned ☐ · sanitized ✅ (10/10 exports, inverted parity) · README/case study ◐ (`docs/CASE-STUDY.md` and `docs/RUNBOOK.md` absent) · pushed ✅ · resume-point memory ✅ for the migration · Loom ☐ (after D6c, amendment below). |
+| Test assets | `golden-set.md` 7 cases, never run; `jailbreak-cases.md` 12/12 in the Airtable era; `validate-intent.test.cjs` not in `check-all` (D9); `secret-scan` is a hook by design. |
+| Drill matrix / harness (read-only scan, 2026-10-24) | ten ⚙ setups in `regression-suite.md` wrote Airtable rows directly — Claude holds only `salon_ro` now, so they go through a committed seed tool (7-T); #5 depends on `created_at` order and #5/#33 on a fixed fake gid (UNIQUE now); the "break the table" setups (#35, SC3, E-*) have no Postgres equivalent (ruled D6); `''`-vs-NULL is harmless in these rows (the readers use `NULLIF` and `|| ''`) but evidence queries use `COALESCE`. `run-d11` and `run-regression.sh`'s code paths are clean. |
+
+---
+
+## §2 · STANDING RULINGS — premise re-checked
+
+| Ruling | Still alive? | Verdict |
 |---|---|---|
-| built | ✅ | 5 live workflows (191·19·27·44·9), 3 web apps, 181 files |
-| **tested** (happy + key edge) | **◐ two distinct gaps** | `run-regression.sh` carries 25 assertions, but `fire()` hard-codes `channel:"widget"` → one lane only; and the file's own header says it gets `403 turnstile_failed` against the production gate and passes ONLY with `channels.widget.turnstile.enabled` flipped false. 3 unit files. `run-d11` 13/13 |
-| cleaned | ☐ | never run repo-wide for this phase |
-| sanitized | ✅ | 5 exports equal live; `secret-scan` / `host-leak` 0 |
-| **README / case-study** | **◐** | README §"Case study — the embeddable widget (Phase 6b)" exists; `docs/CASE-STUDY.md` does NOT |
-| pushed | ✅ | `232321c` |
-| resume-point memory | ✅ | written AND read back, SHA matched |
-| Loom | ☐ | ship gate 20 |
+| **K-1** + the 2026-10-18 **window protocol** | ✅ | VALID; the window now runs through the deploy helper's `--turnstile-swapped` (with its order guard) and a COMMITTED window script (premise 3) |
+| **K-4** `docs/CASE-STUDY.md`, README's 6b section MOVED | ✅ file absent | VALID (7-3) |
+| **K-5** regression from the widget lane | ✅ | VALID, with its two lines: it proves the engine end to end on the widget lane; it does NOT prove the WhatsApp adapter boundary (Zernio closed) — a separate "not tested" line in the DoD |
+| **E2** `docs/RUNBOOK.md` | ✅ file absent | VALID, now including Postgres (premise 9) |
+| **K-3** Loom at ship gate 20 | ✅ | VALID, and taken only AFTER D6c (amendment) |
+| **K-2** dead `instagram` / `business.locale` keys | ✅ | DEFERRED to the v2 backlog (amendment) — README must not claim "fully config-driven" while they exist |
 
-**Critical-Review Targets — counted, not recalled:** 14 rows · **5 closed** (3·7·8·10·13) · **9 open**
-(1a·1b·2·4·5·6·9·11·12).
+---
 
-🔴 **Cross-surface drift found while measuring:** `MASTER-BRIEF.md` §9 still shows **#11 as `[ ]`** while
-`docs/ROADMAP.md` records `CP 6d · CRT #11 REMEDIATION` as done. Two surfaces disagree, two days apart.
-CP 7-2 reconciles it — by ticking it after an audit, or by writing why it cannot be ticked. Not by the
-build ticking its own row.
+## §3 · GOAL
+Make the post-migration system shippable on test, audit and DoD: close or honestly bound every open Critical-Review
+Target, fix the known defects ruled into Phase 7, produce the case study and the runbook, and end with the frozen final
+security pass — without re-running what the migration already proved.
 
-**v1 scope (`MASTER-BRIEF.md` §7) vs what exists:** *golden set · edge · jailbreak · critical-targets
-audit · sanitize · README/case-study · Loom.* `golden-set.md` (18 lines) and `jailbreak-cases.md`
-(44 lines) EXIST but **neither has been run in this phase**; `sanitize` ✅; case-study and Loom missing;
-the audit has 9 open rows.
+---
 
-### Open items — four buckets
+## §4 · CHECKPOINTS (amended at approval, 2026-10-24)
+
+| CP | What | Rounds | Yigitcan by hand (only what CC cannot) | Stop conditions | Automation |
+|---|---|---|---|---|---|
+| **7-D7** governance close | rules (`booking-integrity.md`, `spend-safety.md`, `honesty-demos.md`), DATA-MODEL, the MASTER-BRIEF stack and §9's #1b note (D1), README with an honest "not yet / v2" section; test-doc wording; this plan rewritten as v4 | 1 (round 1, offline, parallel) | — | a doc change would need an unmeasured claim | neither |
+| **7-F2** dashboard (NARROWED) | **F4** behaviour test (mock driver) · **F7** trim the unused columns · **F12** triage priority before the limit · **D9** `validate-intent` in `check-all` · **new item (a)** the owner CSV export (D7: dashboard route, appointments + leads, the panels' columns, masked) — built and tested OFFLINE, behind a default-off flag, **not exposed live before 7-2's Codex audit** | 1 (round 1, parallel) | — | the export cannot be made masked-only · a mutant survives and its claim stays | `/goal` allowed (offline, goal: `check-all` 0) |
+| **7-T** tooling | a COMMITTED window script (premise 3: `--turnstile-swapped`, restore before rollback, `finally`) · a COMMITTED seed tool (premise 7: Access-covered, prefixes `w-mig-p7-` / `mig-p7-`, prefix-guarded clean-up) · `regression-suite.md`'s ⚙ setups rewritten (D6) | 1 (round 1, parallel, nothing run live) | — | any step needing a live write | neither |
+| **7-F1** ops + engine (NEXT round, sequential) | **item 13 first: the dashboard under supervision** (D8: a systemd user unit with linger) · **Q18's alert detail (mandatory)**, verified offline by a unit test of the builder code taken from the committed export with a Postgres error-item fixture (D5) · named items (1) 502 body, (2) spurious `no_candidates`, (3) rebook after cancel, (4) first-turn throttle, (5) alert sender from node references · **from D2's triage (correctness):** the reminder for an appointment cancelled inside the mirror-failure window, and the reschedule orphan (the customer is told "moved" while a stale calendar event can remain). **This CP presents its own node-level plan before any build** (`plan-gate.md`'s skeleton requirement), and every live engine edit is its own ⚠ ONAY | 3 | the one root `loginctl enable-linger` command when 7-F1 asks (D8) | parity red after an edit · a drill breaks behaviour the original had · Turnstile not restorable | neither (gated writes) |
+| **7-1** ONE window | the full regression, the truly simultaneous race pair (its expectation written first: both writers may yield), one DST booking; precondition: a declared LLM spend cap and a counted Google API quota (premise 1) | 2 | — | Turnstile not restorable · a double booking · any outbound send | neither |
+| **7-2** audit | Codex: CRT 4, 12's five R3 items, 1a (its own audit), 1b (after the simultaneous drill; D1), the #11 drift, the owner export route (CRT 9/10's PII surface — the export goes live only after this) · CRT 9 → ship gate 18 (K-6 measured in part) | 3 | triggering Codex | a finding → a fix round | neither |
+| **7-3** artefacts | `docs/CASE-STUDY.md` (moved from README) · `docs/RUNBOOK.md`: Postgres provisioning, 001–003, the nightly backup, the dashboard service, **new item (b): a database GUI over an SSH tunnel as `salon_ro`** — dry-run, labelled "NOT run end to end" · golden-set expanded to 15 cases (D11) | 3 | installing the GUI client on his machine | — | neither |
+| **7-S** D6c-dependent | ship-gate text naming Airtable (#19) · after D6c, which also renames the production workflows (D3, amendment) | 1 | — | D6c not closed | neither |
+| **7-4** final security pass + DoD | the 12 items, scope frozen · `cleaned` · golden-set + jailbreak run · resume-point memory · one push | 2 | the #17 rotations · the Access session setting (#12, D10) | an item that cannot close is declared, never dropped silently | neither |
+
+**Rounds: 15** — the three "1"s of 7-D7, 7-F2 and 7-T are ONE round (run in parallel), then 3 + 2 + 3 + 3 + 1 + 2. Not
+uniform on purpose: 7-F1 and 7-2 carry the risk. (The chat presentation estimated 21 with those three CPs sequential.)
+
+### §4a · Amendments at approval (Yigitcan, 2026-10-24)
+- 7-D7, 7-F2 (narrowed) and 7-T run in ONE round as parallel agents with disjoint files; the LEAD alone edits shared
+  files and commits.
+- **D3 → D6c:** the "MIG COPY — …" production workflows are renamed at D6c, together with the copy specs, the deploy
+  helper's name identity (`deploy-workflow-copy.py` finds a copy by its NAME) and the guards, in one coherent change.
+  **Consequence: screenshots and the Loom are taken only AFTER D6c.**
+- **7-F1 is the next round**, sequential, each live edit its own ⚠ ONAY, and it presents its own node-level plan first.
+- D1, D2, D4–D11 as recommended (below).
+
+### §4b · v2 backlog — DEFERRED by ruling, named and reasoned (also README's "not yet / v2" section)
+| Item | Why it waits |
+|---|---|
+| **F5** deploy-separation guard checks import spelling, not reachability | a false-negative guard, not a present leak (Codex found no dashboard-reaching import in the public packages) |
+| **F6** hardlink identity substring match | a false POSITIVE (it over-reports), never a missed leak |
+| **F9** client-import gate misses `.mts`/`.cts` | no such files exist today; a coverage gap for a future refactor |
+| **F10** runtime browser guard is a DOM heuristic | the build-time boundary is the real one; the runtime check is a diagnostic |
+| **F11** schema accepts an empty id, an infinite timestamp, a `NaN` spend | no writer produces them today; constraints need a migration file and an operator apply |
+| **F13** a capped appointment window can say "Nothing booked ahead" | 1:1 with the Airtable dashboard; needs >100 cancellations in the window to show |
+| **K-2** dead config keys (`instagram`, `business.locale`) | no wrong behaviour; README stops claiming "fully config-driven" |
+| the `handoffShown` twin in `web/snippet` | a parity-suite blind spot, not a runtime defect |
+| W64/W65: the reschedule closed-day and busy rejects give less help than the booking side | an inconsistency, not a defect (D2) |
+| a second owner-alert channel or a delivery check | today a Telegram outage is visible only in n8n's execution log; *triaged v2 by judgment — close to "failures must be visible", so it is flagged for Yigitcan to override* (D2) |
+| D2 note | the bare-greeting dead end was CLOSED on 2026-09-07 (the clarify class); the "fail-closed in both directions" item is a standing rule, not a work item |
+
+### §4c · Decisions ruled at approval
+| # | Decision | Ruling |
+|---|---|---|
+| D1 | CRT #1b drift | §9 stays `[ ]`; the 2026-08-16 "CLOSED" is the Airtable-era audit; it closes after the simultaneous drill (7-1) and Codex (7-2) |
+| D2 | the older named items absent from this plan | triaged in 7-D7: correctness → 7-F1, the rest → §4b |
+| D3 | rename the production workflows | → D6c (amendment) |
+| D4 | Phase 7 prefixes | `w-mig-p7-` / `mig-p7-` (the existing prefix-guarded clean-up covers them) |
+| D5 | Q18 verification | offline unit test of the builder code from the committed export; the fix is a gated edit; no operator REVOKE window |
+| D6 | the "break the table" setups (#35, SC3, E-*) | out of 7-1; covered by the M7 window evidence and offline unit tests |
+| D7 | the owner export | dashboard CSV behind Access, appointments + leads, the panels' masked columns; no sheet snapshot (a second PII copy at a third party); full contact data only after Q16 |
+| D8 | the dashboard's supervision | a systemd user unit with linger (one root command by Yigitcan) |
+| D9 | tests outside `check-all` | `validate-intent.test.cjs` joins; `secret-scan` stays a hook |
+| D10 | the Access session (#12) | 24 h, applied in the final security pass |
+| D11 | golden-set size | 15 cases in 7-3, run in 7-4 |
+
+---
+
+## §5 · SKELETON
+- 7-D7: the six governance files and three test docs above; this file.
+- 7-F2: `web/dashboard/lib/store.ts` + `store.test.ts` (F4, F7, F12), the export route under `web/dashboard/app/api/` and
+  its tests; `scripts/package.json` (`validate-intent` in `check-all`).
+- 7-T: `scripts/turnstile-window.py`, `scripts/seed-workflow.py`, their offline tests under `tests/unit/`,
+  `tests/regression-suite.md`.
+- 7-F1: its own node-level plan (MAIN copy nodes `Build Owner Alert (Purge)` / `(Reminders)` and the named items'
+  nodes; the dashboard's service unit).
+- 7-3: `docs/CASE-STUDY.md`, `docs/RUNBOOK.md`, `tests/golden-set.md`.
+
+## §6 · INTEGRATIONS
+n8n API (reads; gated edits in 7-F1) · Postgres (`salon_ro` reads; writes only through the seed workflow) · Google
+Calendar "Salon Bookings" (bookings and cancels inside the 7-1 window) · Anthropic (window spend cap) · Telegram (owner
+alerts) · Cloudflare (Access reads; panel changes by Yigitcan) · Codex (7-2).
+
+## §7 · MOCK DATA
+Session and message prefixes `w-mig-p7-` / `mig-p7-`; slots ≥ 24 h ahead in shop hours; seeded rows through the
+committed seed tool only; prefix-guarded clean-up with the before/after counts shown; the month's `bot_metrics` row is
+the production spend meter and is never deleted; golden-set and jailbreak inputs are synthetic.
+
+## §8 · CRITICAL-REVIEW TARGETS — each with its runnable check
+| CRT | Criterion | Runnable check |
+|---|---|---|
+| 1a idempotency | 4 | migration evidence (D4b #3, `run-d11` replay) + Codex (7-2) |
+| 1b concurrency | 4 | 7-1's simultaneous pair: `appointments` booked rows on the slot via `salon_ro`, `Check Race` / `Build Orphan State` from the executions; A3 is the sequential evidence |
+| 2 Calendar write | 1 + 2 (quota) | 7-1's bookings: events created = deleted, the slot's freeBusy empty; the quota counted before the window |
+| 4 secret / PII | 3 | `bash scripts/secret-scan.sh </dev/null && bash scripts/check-no-host-leak.sh` + Codex |
+| 5 handoff threshold | 1/5 | the regression's uncertain-turn scenarios + `conversations.stage` via `salon_ro` (`COALESCE`) |
+| 6 error visibility | 5 | the M7 window evidence + Q18's offline unit test (7-F1) |
+| 9 dashboard auth | 3 | ship gate 18; K-6 measured the session-less 302 and the one-email allow policy |
+| 11 D11 write path | 1/3 | `run-d11.sh` 13/13 on the production paths (A2) + the #11 drift reconciled |
+| 12 date resolution | 1/4/5 | `node tests/unit/resolve-date.test.cjs` + Codex on the five R3 items |
+
+## §9 · ACCEPTANCE CRITERIA
+1. Every open CRT row is closed, or the reason it cannot close is written.
+2. `check-all` 0, including the new tests.
+3. The 7-1 window under K-1's label ("tested — gate lowered for the duration of each run, restored and measured after
+   each"), Turnstile measured both ways.
+4. Golden-set (15) and jailbreak run; results recorded.
+5. `docs/CASE-STUDY.md` and `docs/RUNBOOK.md` exist; RUNBOOK dry-run, labelled "NOT run end to end".
+6. The dashboard comes back on its own after a restart (supervised).
+7. The owner export returns masked columns only, behind Access, and goes live only after 7-2.
+8. The 12 security-pass items closed or ruled; nothing dropped silently.
+9. The "tested" DoD carries two lines (K-5); the resume-point memory written AND read back.
+
+## §10 · DRILL MATRIX
+| Scenario | Where | MUST-RUN | MUST-NOT-RUN |
+|---|---|---|---|
+| truly simultaneous race pair | 7-1 | `Check Race` ×2 | `Build Orphan State` |
+| idempotency | migration evidence + regression #3 | `Check Processed` | a second `Book Appointment` |
+| prompt injection | 7-4 jailbreak | handoff | any write |
+| uncertain turn (1st clarify, 2nd handoff) | regression | `Mark Handoff` on the second | `Book` |
+| invalid LLM output | `validate-intent` (in `check-all`) + regression | the `extraction_invalid` flag | a `stage` write |
+| DST | 7-1 | the right wall-clock time | — |
+| Q18 alert detail | 7-F1, offline unit test | a readable detail | `[object Object]` |
+| dashboard restart | 7-F1 | the service comes back | — |
+| PII in the export | 7-F2 offline, 7-2 audit | masked columns | a raw phone or name |
+
+## §11 · AUTOMATION-FIT
+`/goal` only in 7-F2's offline loop (goal: `check-all` 0). Not for gated writes, live windows or audits. `/loop`: none.
+
+## §12 · NOT-BUILD
+- Opening the WhatsApp lane (Zernio stays closed); K-5 stays a "not tested" line.
+- Lowering Turnstile outside a window, or a second window beyond the one planned.
+- Re-running what the migration proved (CRT 1a/6/8/10/11 evidence, `run-d11` 13/13, the sequential race).
+- A second store or a dual write for the owner's data (Postgres is the single source of truth).
+- New product features beyond the two new items; tags; D6c itself (the migration's).
+- Screenshots or the Loom before D6c.
+
+---
+
+## Open items — v3's four buckets, kept verbatim (v4 routes each: §4 for PHASE 7, §4b for the v2 backlog)
 
 | Bucket | Items | One-line reason |
 |---|---|---|
@@ -126,118 +266,9 @@ the audit has 9 open rows.
 
 ---
 
-## §2 · STANDING RULINGS — premise re-checked, not assumed
-
-| Ruling | Premise still alive? | Verdict |
-|---|---|---|
-| **K-2** dead `instagram` + `business.locale` keys | ✅ `instagram` in 8+ surfaces, `locale` in both examples + the schema | VALID · the `MASTER-BRIEF` §4 scope change goes in the decision log |
-| **K-4** separate `docs/CASE-STUDY.md`, README's 6b section **MOVED** | ✅ file absent, README section present | VALID |
-| **K-5** regression from the widget lane | ✅ **measured**: `fire()` hard-codes `channel:"widget"` — it can target that lane, and ONLY that lane | VALID, with the two lines below |
-| **E2** `docs/RUNBOOK.md` | ✅ file absent | VALID |
-| **K-3** Loom stays at ship gate 20 | ✅ at 20 | VALID · no checkpoint budget may absorb it |
-
-**K-5's two lines, which go into the "tested" DoD as TWO SEPARATE ENTRIES:**
-1. **What it proves:** the engine's end-to-end behaviour on the widget lane.
-2. **What it does NOT prove:** the WhatsApp adapter boundary is never crossed. `Normalize Inbound`
-   selects the lane from the signature header, and a widget run never executes that branch. "Regression
-   green" is not "the WhatsApp path works".
-
 ---
 
-## §3 · GOAL
-
-> **At the end of Phase 7, this template's central sales claim — "no code change, a new config file and
-> new credentials" — can be demonstrated from a single artefact; and the claim that the engine behaves
-> correctly rests on evidence gathered WITHOUT lowering any security control.**
-
-Not "close the list". The sentence is derived from §1's two largest gaps: there is no RUNBOOK, and
-"tested" currently passes only with the gate down.
-
----
-
-## §4 · CHECKPOINTS — grouped by class, riskiest seam first
-
-| CP | What | Why here | Round budget | First thing dropped on overrun |
-|---|---|---|---|---|
-| **7-0** | **THE RISKY SEAM: make the regression runnable WITHOUT lowering Turnstile.** Measure first: a real-token path, a separately signed test lane, or not possible | Everything rests on it. Today "tested" means *"passed with the gate down"* — and lowering the gate is a declared stop condition | **2** | If impossible: **do not redesign** — STOP and report. "I lowered the gate and ran it" is not an option (ruling K-1: it closes as *"run only with the gate down"* and the real-token run becomes **ship gate 21**) |
-| **7-1** | **ONE MECHANISM, SIX CRTs**: a live regression plus targeted drills → CRT **1a·1b·2·5·6·12** | Six rows fed by one evidence source; the highest leverage on the list | **4** | 1b (concurrency) — the most expensive drill, and CRT #8 already records a residual |
-| **7-2** | **What drills cannot prove → audit**: CRT **4** (secret/PII) · **9** (dashboard auth) · **11** (reconcile the §9 drift) · **12**'s five R3 items. Yigitcan triggers Codex; this build prepares | These are claims about SHAPE, not behaviour; they need reading, not drilling | **3** | 9 → moves to ship gate 18, where its twin already lives |
-| **7-3** | **Artefacts**: `docs/CASE-STUDY.md` (K-4, **moved** from README) · `docs/RUNBOOK.md` (E2, dry-run) · K-2 dead-key removal · the `handoffShown` twin | All file work, zero live risk; last because they must carry 7-1/7-2's findings | **3** | K-2 → drops to the v2 bucket; a dead key produces no wrong behaviour |
-| **7-4** | **DoD closure**: `cleaned` · run `golden-set` + `jailbreak` · memory · one commit + push | The definition itself | **1** | Nothing — if this CP drops, the phase does not close |
-
-**Total 13 rounds.** Deliberately not uniform: 7-1 gets four because it feeds six CRTs; 7-4 gets one
-because it is only the close.
-
----
-
-## §5 · SKELETON
-
-**New:** `docs/CASE-STUDY.md` · `docs/RUNBOOK.md`
-**Changed:** `tests/run-regression.sh` (per 7-0's finding) · `README.md` (6b section REMOVED, pointing at
-CASE-STUDY) · `MASTER-BRIEF.md` §4 (K-2) and §9 (#11) · `config/client.config.example{,-b}.json` +
-`schemas/client.config.schema.json` (`locale`, `instagram`) · `web/snippet/src/index.ts` (the twin) ·
-`docs/ROADMAP.md` · `docs/ARCHITECTURE-DECISIONS.md`
-**n8n:** depends on 7-0's decision. **No new capability family** — NOT-build.
-
-## §6 · INTEGRATIONS
-Airtable (reads + drill writes) · Google Calendar (**real event creation in 7-1, approved as part of this
-plan under K-3's conditions**) · LLM (regression rounds — quota) · Telegram (alert verification) ·
-**Zernio stays CLOSED** (NOT-build).
-
-## §7 · MOCK DATA
-Every drill row carries a `d11-` / `reg-` prefix, is labelled mock, and is **deleted at the end of its CP
-with a before/after count and the arithmetic shown**. RUNBOOK's dry-run uses
-`client.config.example-b.json` — no real customer data. **K-3's conditions:** mock-prefixed titles · the
-demo calendar only · deletion with arithmetic proof at CP close. A client calendar would be a separate
-decision.
-
-## §8 · CRITICAL-REVIEW TARGETS — re-derived, **criterion 2 included**, each with a runnable check
-
-| CRT | Criterion | Verification command |
-|---|---|---|
-| 1a idempotency | 4 | `bash tests/run-regression.sh` (dedupe assertion) · `bash tests/run-d11.sh` (marker counter) |
-| 1b concurrency | 4 | two parallel `curl`s into one slot → `appointments` count = 1 |
-| 2 Calendar write | **1 + 2 (quota)** | the `Book Appointment` execution + a calendar read; **the Google API quota is counted and declared before measuring** |
-| 4 secret / PII | 3 | `bash scripts/secret-scan.sh </dev/null && bash scripts/check-no-host-leak.sh` |
-| 5 handoff threshold | 1/5 | the regression's uncertain-turn scenarios + the `conversations.stage` column |
-| 6 error visibility | 5 | inject a failure → the error branch in the execution + Telegram `ok:true` |
-| 9 dashboard auth | 3 | **NOT MEASURABLE TODAY — ship gate 18.** This sentence stands in place of a command (Yigitcan's ruling K-2: the row stays `[ ]` with the note "measurable at gate 18") |
-| 11 D11 write path | 1/3 | `bash tests/run-d11.sh` → 13/13 |
-| 12 date resolution | 1/4/5 | `node tests/unit/resolve-date.test.cjs` + an audit of the five R3 items |
-| **NEW: LLM spend / quota** | **2** | read `bot_metrics` + drill the `LLM_COST_CAP_USD` brake — *criterion 2 has never produced a row in §9 until now* |
-
-## §9 · ACCEPTANCE CRITERIA
-1. The regression passes **with Turnstile ON** — or, if it cannot, the reason is measured and written.
-2. The "tested" DoD carries **two separate lines**: what was proven, and that the WhatsApp adapter
-   boundary was not.
-3. Every CRT row that closes has a verification **shown able to go red**.
-4. `RUNBOOK.md` exists, its dry-run is verified, and it is labelled **"NOT run end to end"**.
-5. `CASE-STUDY.md` exists and that section is **gone** from README — moved, not copied.
-6. The §9 #11 drift is reconciled.
-7. Gates 0; `run-d11` 13/13; five exports equal live.
-
-## §10 · DRILL MATRIX
-
-| Scenario | Setup | Expected | MUST-RUN | MUST-NOT-RUN |
-|---|---|---|---|---|
-| duplicate message | same `messageId` twice | one booking | `Check Processed` | a second `Book Appointment` |
-| **same slot, two customers** | two parallel requests | **see the measured expectation below** | `Verify Slot` · `Check Race` · `Race Gate` | two `Write Appointment` |
-| jailbreak | from `jailbreak-cases.md` | handoff, no write | `Mark Handoff` | `Route Intent`'s write branch |
-| uncertain turn ×2 | two low-confidence turns | 1st clarify · 2nd handoff | `Repeat Uncertain?` | `Mark Handoff` on the first |
-| missing `dateExpr` | remove the key | `extraction-transient`, no lock | `Extraction Transient?` | any `stage` write |
-| DST boundary | booking near the boundary | correct wall-clock time | `Resolve Date` | — |
-
-## §11 · AUTOMATION-FIT
-**NEITHER**, re-derived rather than inherited. `/loop` waits on a condition; here each CP's output
-changes the next one's DESIGN (7-0's finding decides how 7-1 runs). `/goal` wants autonomous
-convergence; half of this phase is **Codex, triggered by Yigitcan** and **a rotation in his hands**.
-
-## §12 · NOT-BUILD
-✗ deployment · ✗ opening Zernio · ✗ Supabase · ✗ v2 RAG · ✗ deleting `Customers` · ✗ closing a
-ship-gate item "while we're here" · ✗ a new n8n capability family · ✗ lowering Turnstile for ANY purpose other than a regression/drill run under the **window protocol** below *(changed 2026-10-18 by Yigitcan's ruling; this line used to read "✗ lowering Turnstile for a drill")*
-· ✗ the eight items in the v2 bucket
-
----
+## History — v3's measurements and rulings, kept as records
 
 ## M1 · IS TURNSTILE ACTUALLY ON RIGHT NOW? — measured 2026-09-17
 
@@ -340,7 +371,7 @@ session memory**. Every widget message goes to `Verify Turnstile`, and a Turnsti
 | (d) lower the gate for the run | ⛔ forbidden | NOT-build here, and a declared stop condition |
 | (e) **PROPOSED, not adopted:** a drill COPY of Main behind `/webhook/owner-*` with Turnstile off in the copy only | ◐ needs a ruling | production's gate never moves and its security model is untouched; the copy is behind Access Service Auth and active only during a drill. ⚠ The cost is a second truth — a copy that drifts tests something that is not production, the exact defect this repo keeps paying for — so it is viable ONLY with a parity check (every node equal to Main except the Turnstile flag) run immediately before each drill, and it does not prove `Verify Turnstile` itself |
 
-### ⛔ THE RULING NEEDED BEFORE 7-1 — a conflict inside the approved plan
+### ✅ RESOLVED — the conflict that stopped 7-0 (ruled by the 2026-10-18 window protocol below; re-confirmed as premise 2, 2026-10-24)
 
 K-1 says: if 7-0 cannot be solved, "tested" closes as *"run only with the gate down"* and the real-token run
 becomes **ship gate 21**. But this plan's NOT-build also says **✗ lowering Turnstile for a drill**. Read
@@ -398,7 +429,7 @@ pure exposure. **The gate stayed UP the whole turn.**
   compute how few widget messages would take the data layer down for a month. Figures are in the round
   report.)*
 
-## 7-1 · WINDOW PLAN — PROPOSED, not run
+## 7-1 · WINDOW PLAN (v3) — SUPERSEDED by v4 §4 (7-1); kept as the record of the Airtable-era budget, never run
 
 **First criterion, as asked: the fewest windows and the shortest total time.** Answer: **ONE window, ~7
 minutes**, plus everything else outside it.
