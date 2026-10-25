@@ -718,6 +718,7 @@
   - ## §4 · CHECKPOINTS (amended at approval, 2026-10-24)
   - ### §4a · Amendments at approval (Yigitcan, 2026-10-24)
   - ### §4b · v2 backlog — DEFERRED by ruling, named and reasoned (also README's "not yet / v2" section)
+  - ### §4d · 7-F1 Round A — what Round B inherits (2026-10-25)
   - ### §4c · Decisions ruled at approval
   - ## §5 · SKELETON
   - ## §6 · INTEGRATIONS
@@ -974,6 +975,7 @@
 
 ### `docs/n8n-rollback.md`
   - ## ⚠ Do NOT trust `n8n_workflow_versions` for THIS workflow
+  - ## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
   - ## Snapshot — before EACH refactor step (one per step, never reused)
   - ## Rollback — if a step breaks the suite
   - ## ⚠ `b1` (Build Reply Payload) has a mandatory extra gate

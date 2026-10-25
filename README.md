@@ -93,8 +93,9 @@ site runs locally against the live endpoint) · `docs/CASE-STUDY.md` and `docs/R
 
 ## Not yet — deferred to v2 (ruled 2026-10-24)
 
-Known, named, and deliberately left out of this release. None of them makes the bot do the wrong thing to a
-booking; the older named items that would have were sent to Phase 7's fix checkpoint instead.
+Known, named, and deliberately left out of this release. Only one of them can make the bot do something wrong
+around a booking: the reminder row, a narrow window, named there. The other named items that would have were sent to
+Phase 7's fix checkpoint instead.
 
 | Item | Why it waits |
 |---|---|
@@ -107,6 +108,8 @@ booking; the older named items that would have were sent to Phase 7's fix checkp
 | **Two dead config keys: `instagram`, `business.locale`** (K-2) | they drive nothing — there is no Instagram adapter, and customer-facing dates use the n8n runtime's default locale — so they cause no wrong behaviour. **But the config is not fully config-driven while they exist** |
 | **The `handoffShown` twin** in `web/snippet` | the snippet and the site each record "lock line shown" at their own call site; deleting that line from one caller leaves the parity suite green — a test blind spot, not a runtime defect |
 | **Reschedule reject symmetry (W64/W65)** | a closed-day or busy reschedule offers no working hours and no alternative, while the same rejection in booking does — inconsistent help, not a wrong action |
+| **Rebooking a slot you just cancelled** — a customer who cancels and then books the exact same slot and service is handed to a human instead of booked | Google keeps the cancelled event's deterministic id reserved, and the reconcile step correctly refuses a cancelled event. The fix changes the event-id scheme or the reconcile branch, and needs a real calendar write to prove; the customer is never double-booked, only passed to the owner (ruled v2, 2026-10-25) |
+| **A reminder for an appointment cancelled while the database mirror was failing** | if the cancel reached Google Calendar but the database row could not be updated, the hourly reminder job can still remind that customer. Closing it means Reminders checks the calendar before sending, which needs a new Google credential in that workflow, so it is not the small change it first looked like (ruled v2, 2026-10-25) |
 | **A second owner-alert channel** | owner alerts have one channel (Telegram); if it is down, failures are visible only in the n8n execution log |
 | **The older v2 / LATER bucket** (unchanged since 2026-09-17): the idempotent replay's stored reply · `messageTemplates` required keys · the transcript lost on navigation · font subsetting · a `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | they improve the product but do not change whether it can be sold (PHASE-7-PLAN → Open items) |
 

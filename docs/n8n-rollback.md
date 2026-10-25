@@ -13,6 +13,35 @@ The n8n-mcp version history is **stale**: on 2026-08-17 its newest snapshot was 
 created **no** tracked version. Rolling back through it would **destroy CP3**. It is not a safe
 restore source here. Use the two paths below instead.
 
+## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
+
+> ⛔ **DISABLED as of 7-F1 Round A** (`ENGINE_EDIT_ENABLED = False`): two critical recovery defects from the final
+> review are open (PHASE-7-PLAN §4d). The tool refuses `--engine-edit` and `--restore` before any API call. What follows
+> is the design they implement and are re-enabled under.
+
+Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies
+are the live holders, and **each copy's reference is its own committed export** (`n8n/workflow.<x>.copy.sanitized.json`).
+An engine edit and its rollback are ONE command, `scripts/deploy-workflow-copy.py … --engine-edit COPY_ID [--from-rev REV]`
+(each run is its own ⚠ ONAY under `irreversible-actions.md`):
+- **edit:** commit the edited export, then run without `--from-rev` (it takes HEAD's export): checked before any write →
+  deactivate → PUT → read back live == committed → activate → the Turnstile dummy-token probe. The production path has
+  no holder for those few seconds.
+- **rollback, normal:** `git revert` the export commit, then the same command from HEAD. **Emergency:** `--from-rev` the
+  previous commit; the exports parity guard then stays red until HEAD's export matches live again, by design.
+- **an engine edit never changes a masked value** (a credential, a chat id, the Turnstile secret, the calendar id):
+  those are operator or credential operations. Every placeholder in the export is filled from the live copy's value at
+  the SAME path; a placeholder with no live counterpart (e.g. a new node that needs a credential) is refused before any
+  write, as an operator step.
+- **if a step after the deactivate is red** (or the run is interrupted: Ctrl-C, SIGTERM and a dropped ssh session are
+  recorded and the run stops at the next step boundary), the tool re-PUTs the pre-edit live body it holds in memory —
+  only if the copy no longer holds it — proves it, re-activates and exits 3. The tool never saves that body, but like
+  every request it passes through a 0600 temp file (and the API key and Access secret through a header file the same
+  way) that is deleted when curl returns; a kill -9 at that moment can leave them.
+- **if even that cannot be proven** it exits 4 (SAFETY). The copy is left INACTIVE, except when its content is back and
+  only the probe failed, in which case it stays ACTIVE and the message says so. For the inactive case it prints the
+  exact restore command: `… --restore COPY_ID --from-rev REV`, which accepts only that inactive copy, fills by path from
+  its own values, writes, reads back, activates and proves. It never activates an original.
+
 ## Snapshot — before EACH refactor step (one per step, never reused)
 
 A single snapshot only rescues the moment it was taken — rolling back to it 5 steps later deletes the
