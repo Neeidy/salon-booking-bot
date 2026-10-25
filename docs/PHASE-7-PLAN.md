@@ -174,6 +174,7 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
 | **(3)** rebooking a just-cancelled identical slot hands off (7-F1 ruling K3, 2026-10-25) | no double booking, only a handoff; the fix changes the event-id scheme or the reconcile branch and needs a real calendar-write spike first; README "Not yet" says it plainly |
 | **the reminder for an appointment cancelled inside the mirror-failure window** (D2 triage; 7-F1 ruling K4, 2026-10-25) | the gate (Reminders reads the event before sending) needs a NEW Google credential in Reminders, which holds none today; D2's premise that this was a small change fell |
 | **E3: the reschedule orphan alert's old-slot line** (7-F1 ruling, 2026-10-25) | Main is not edited before ship; the change is written, tested offline and kept staged (`n8n/staged/workflow.main.copy.sanitized.json`), and README "Not yet" names the gap |
+| **the nightly "purge-error · no_candidates" alert** (7-1 plan, 2026-10-25) | an empty leads table produces it every night (kept behaviour, MIGRATION-PLAN); noise, not a fault. Cheap to change now through `workflow-step.py` and its edit allowlist |
 | v3's v2 / LATER bucket (Open items table below, unchanged) | already deferred on 2026-09-17; listed again in README's "Not yet" so the two surfaces agree |
 | stale code comments the docs now contradict: `001_init.sql`'s `lead_no` comment (Airtable-era dashboard), the Purge copy's `Compute Purge Cutoff` ("lexicographic compare"; the SQL casts to `timestamptz`) and `Compute Leads Cutoff` ("Airtable has no undo") | the workflow comments are live-workflow edits (gated) → with D6c's rename change; `001_init.sql` is an applied file whose hash is on record, so its comment is corrected with the next schema file, not in place |
 
@@ -290,6 +291,34 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
 - **Open, not fixed this round:** `check-cancel-validation-parity.py` skips a missing Reminders/Purge export silently
   (`FileNotFoundError` → `continue`); the parity projection still does not compare the four execution fields (only the
   edit path does).
+
+### §4e · 7-1 — plan approved 2026-10-25 (rulings K1–K8); Round 1 STOPPED (driver not clean)
+- **Rulings:** K1 the seeded ⚙ scenarios run in the window · K2 auth-strip/config-edit scenarios stay out (Main is not
+  edited before ship; label "Airtable era, topology unchanged") · K3 one seeded due appointment: the first live proof of
+  the Reminders dry-run + stamp path on Postgres; the edited builder is fed ONLY by `Reminder Error (lookup/stamp/send)`,
+  so it stays offline-proven (Q18's label holds) · K4 a 1.00 USD ceiling · **K5 (changed at approval):** no manual quota
+  reading; the planned Calendar calls are counted and compared with Google's documented default quotas, and any quota
+  error closes the window · K6 the DST booking's slot (not a window time): Mon 2027-03-29 15:00 Vienna · K7 ≤ 25 minutes, no new turn after minute 22, AND any
+  request on the production path that is not the driver's closes the window · K8 one ⚠ ONAY block for Round 2.
+- **Round 1 ⛔ STOPPED (2026-10-25): the window driver did not pass review; nothing live ran.** Built offline and parked
+  on the LOCAL branch `wip/7-1-driver` (not pushed, not merged): `tests/run-7-1.py` (phases harness → 11 seeded ⚙ →
+  race pair → DST, run as the window script's command, five stops) and its 106-case offline test. Review history, each
+  HIGH fixed once with a killing mutant: **1st** — a hung salon_ro read blinded the guard while the harness ran out of the
+  window's group kill; an unreadable execution was never judged; real events were cancelled only on the happy path ·
+  **2nd** — a red path check in the race could lose a double booking before it was read · **3rd (the declared stop)** —
+  the fix for "judge only finished executions" used n8n's `finished` field, which is true only on SUCCESS: an execution
+  that ended in error (`finished: false`) was treated as still running and never judged, so a foreign or outbound
+  execution would stop the run only at its end (premise from n8n's semantics, not measured here; one read of a known
+  failed execution settles it). Also open from the 3rd round: the race's double-booking label can be lost when another
+  STOP is already propagating (exit 3 still holds); `check-import-safe.py` cannot see this driver's live calls (it loads
+  them through `importlib` and `node -e`), so its import-safety rests on reading, not on the gate.
+- **What stands without the driver:** the rulings above; the Calendar-call count, an offline output of the parked
+  driver's `--plan` (≤ 220 calls in the window, ≤ 60 per minute, the race pair ≤ 8 at once) against Google's documented
+  defaults (Calendar API "Manage quotas", developers.google.com/workspace/calendar/api/guides/quota, last updated
+  2026-09-11: 10,000 requests per minute per project, 600 per minute per user per project; exceeded → 403 or 429
+  `usageLimits`); the finding that the edited Reminders builder is fed only by its error branches (K3).
+- *Declared in the parked driver, carried to the next attempt:* #28 seeds its booking instead of booking it through the
+  bot (its past-guard locks the session in handoff, so a real event booked there could not be cancelled).
 
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |
