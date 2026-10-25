@@ -3,15 +3,18 @@
 **A config-driven salon booking chatbot — one message in, a booked appointment or a captured lead out.**
 
 ![status](https://img.shields.io/badge/status-learning%20%2F%20demo%20build-orange)
-![phase](https://img.shields.io/badge/phase-6b%20done%20%E2%80%94%20embeddable%20widget-blue)
+![phase](https://img.shields.io/badge/phase-7%20%E2%80%94%20test%20%2B%20audit-blue)
+![store](https://img.shields.io/badge/store-Postgres%20self--hosted-336791)
 ![engine](https://img.shields.io/badge/engine-n8n%20self--hosted-EA4B71)
 ![llm](https://img.shields.io/badge/LLM-Claude%20Haiku%204.5-8A63D2)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 > **Honest status:** this is a **demo / learning build**, not a system serving paying customers.
-> Phases 0–1 are done, Phase 2 (the core bot) is nearly complete, Phases 3–8 are not built yet.
-> Everything below marked ✅ has been built **and verified from execution logs**; everything marked
-> 🔜 is designed and locked but **not shipped**. No invented metrics, no fake traffic.
+> Phases 0–6 are done. The bot's store then moved from Airtable to **self-hosted Postgres** in an interim
+> phase whose cutover was accepted on 2026-10-24. Phase 7 (test, Codex audit, Definition of Done) is in
+> progress and Phase 8 (a config-only second client) has not started — live status in
+> [`docs/ROADMAP.md`](docs/ROADMAP.md). Everything below marked ✅ has been built **and verified from execution
+> logs**; 🔜 means not built yet. No invented metrics, no fake traffic.
 
 ---
 
@@ -22,8 +25,9 @@ instantly, in the shop's voice, and turns each message into one of two outcomes:
 
 **a booked appointment** — or — **a captured lead + a human handoff**
 
-…with **zero owner effort** and **zero double-bookings**. It is a **template**: a new client means a new
-config file and new credentials, *not* new code.
+…with **zero owner effort** and **zero double-bookings**. It is built as a **template**: the goal is that a new
+client means a new config file and new credentials, *not* new code — a goal, not yet a demonstrated fact (see
+"Config / code / secret" below).
 
 ---
 
@@ -33,28 +37,28 @@ config file and new credentials, *not* new code.
                     ┌─────────────── config-gated channels ───────────────┐
    WhatsApp ────────┤                                                     │
    Web widget ──────┤   →  NORMALIZE  →  one channel-agnostic brain       │
-   Instagram (off) ─┘      {channel, sender_key, text}                    │
+                    │      {channel, sender_key, text}                    │
                     └─────────────────────────────────────────────────────┘
                                           │
    ┌──────────────────────────────────────▼──────────────────────────────────────┐
    │  1  Validate payload            invalid → 400                               │
-   │  2  Load conversation state     Airtable, keyed by "{channel}:{id}"         │
-   │  3  Handoff lock  🔜             a human took over → bot stays quiet         │
+   │  2  Load conversation state     Postgres, keyed by "{channel}:{id}"         │
+   │  3  Handoff lock                a human took over → bot stays quiet         │
    │  4  Guards                      kill-switch · max-turns  → 0 LLM cost       │
    │  5  LLM intent extraction       Claude, structured JSON output              │
    │  6  Validate against schema     ajv compiled from the committed contract    │
-   │  7  Confidence & intent gate    < 0.7 or cancel/unknown → human             │
-   │  8  Route (deterministic)       book · FAQ · lead · handoff                 │
+   │  7  Confidence & intent gate    < 0.7 / unknown → ask once, then human      │
+   │  8  Route (deterministic)       book · cancel · reschedule · FAQ · lead     │
    └──────────────────────────────────────┬──────────────────────────────────────┘
                                           │
         book → collect service/date/time (multi-turn, deterministic)
         FAQ  → answered from config — the LLM never writes the answer
-        lead → written to Airtable
+        lead → written to Postgres
                                           │
                               reply returns to the origin channel
 ```
 
-*Steps marked 🔜 are designed and in progress, not yet shipped.*
+*`instagram` exists as a config key, but no Instagram adapter is built — a dead key, listed under "Not yet" below.*
 
 **The LLM has exactly one job: understanding.** It converts messy free text into a structured intent.
 It never writes a customer-facing answer, never chooses an action, and holds no write permissions.
@@ -68,27 +72,46 @@ quote a wrong price** — the answer path contains no model.
 | Capability | Detail |
 |---|---|
 | **Multi-channel intake** | WhatsApp + widget shapes normalized to one internal format; channels toggle in config |
-| **Conversation memory** | Per-sender state in Airtable (`stage`, slots, turn count) — survives restarts |
+| **Conversation memory** | Per-sender state in Postgres (`salon.conversations`: `stage`, slots, turn count) — survives restarts |
 | **Intent understanding** | Claude Haiku 4.5, temperature 0, native structured outputs |
 | **Contract validation** | Model output validated by an ajv validator **compiled from the committed schema** — no hand-written copy that can drift |
 | **Multi-turn booking collect** | "I want a haircut" → "what day and time?" → merged into a complete request |
 | **Deterministic FAQ** | Price / hours / services / address answered from config, never from the model |
-| **Lead capture** | Non-booking interest written to Airtable with channel + message |
+| **Lead capture** | Non-booking interest written to Postgres (`salon.leads`) with channel + message |
 | **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
-| **Visible failures** | Four separate error responses: `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` |
-| **Spend brakes before the LLM** | Kill-switch and max-turns run *before* any paid call — a tripped guard costs nothing |
+| **Visible failures** | Distinct machine-side error flags, never dressed as a normal reply — e.g. `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` · `calendar_unavailable` |
+| **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once (`processed_messages.message_id` is UNIQUE). See [booking-integrity](.claude/rules/booking-integrity.md) for the race it does not close |
+| **Cancel · reschedule · reminders** | Bot-automated, identity-bound to the channel's `sender_key`. Reminders are proven in dry-run; live WhatsApp template delivery needs the client's own WhatsApp Business number |
+| **Owner dashboard** | Read-only panels + the handoff queue + one write (release a handoff lock, through a protected n8n path). Runs on the build server behind Cloudflare Access and reads Postgres as a SELECT-only role. ⚠ It runs as an unsupervised process today and does not survive a reboot — the first item of Phase 7's next fix checkpoint |
+| **Spend brakes before the LLM** | Kill-switch, max-turns and a monthly LLM spend cap run *before* any paid call — a tripped guard costs nothing |
 | **Embeddable widget, one script tag** | A single self-contained IIFE (well under 20 kB; `npm run build -w @salon/snippet --prefix web` prints the current size — no byte count is pinned in prose here, because one went stale inside a single round) that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
 
-## Designed, locked, not built yet 🔜
+## Not built yet 🔜
 
-The **full safety suite** (cost cap, endpoint rate-limiting, injection hardening) · the **owner dashboard**
-(read-only + handoff queue, Phase 6c) · a **config-only second client**.
+A **config-only second client** (Phase 8) · a **public deploy of the demo site** (there is no Vercel project; the
+site runs locally against the live endpoint) · `docs/CASE-STUDY.md` and `docs/RUNBOOK.md` (Phase 7).
 
-_(Built since this line was first written: booking write + no-double-book, cancel, reschedule and the
-**reminder engine** — Phase 3; WhatsApp **inbound** (HMAC-verified) + **outbound transport** — Phase 4,
-dry-run/sandbox-proven. The reminder engine runs end-to-end and is proven in dry-run; **live WhatsApp
-template delivery opens with one config flag** once a client's WhatsApp Business number is provisioned —
-that number and its message templates are the customer's to supply, per-client onboarding.)_
+## Not yet — deferred to v2 (ruled 2026-10-24)
+
+Known, named, and deliberately left out of this release. None of them makes the bot do the wrong thing to a
+booking; the older named items that would have were sent to Phase 7's fix checkpoint instead.
+
+| Item | Why it waits |
+|---|---|
+| **F5** — the deploy-separation guard checks import *spelling*, not reachability | a guard that can miss, not a present leak: Codex found no dashboard-reaching import in the public packages |
+| **F6** — the hardlink identity check is a substring match | it can over-report (a false positive), never miss a leak |
+| **F9** — the client-import gate does not enumerate `.mts` / `.cts` | no such files exist today; a coverage gap for a future refactor |
+| **F10** — the dashboard's runtime browser guard is a DOM-presence heuristic | the build-time server/client boundary is the real control; the runtime check is a diagnostic |
+| **F11** — the database schema accepts an empty id, an infinite timestamp and a `NaN` spend, which the dashboard panels would misread | no writer produces them today; tightening needs a migration file and an operator apply |
+| **F13** — a capped appointment window can say "Nothing booked ahead" | inherited 1:1 from the Airtable dashboard; it needs more than a hundred cancellations inside the window to show |
+| **Two dead config keys: `instagram`, `business.locale`** (K-2) | they drive nothing — there is no Instagram adapter, and customer-facing dates use the n8n runtime's default locale — so they cause no wrong behaviour. **But the config is not fully config-driven while they exist** |
+| **The `handoffShown` twin** in `web/snippet` | the snippet and the site each record "lock line shown" at their own call site; deleting that line from one caller leaves the parity suite green — a test blind spot, not a runtime defect |
+| **Reschedule reject symmetry (W64/W65)** | a closed-day or busy reschedule offers no working hours and no alternative, while the same rejection in booking does — inconsistent help, not a wrong action |
+| **A second owner-alert channel** | owner alerts have one channel (Telegram); if it is down, failures are visible only in the n8n execution log |
+
+**Not tested end to end: the WhatsApp lane (K-5).** The regression drives the widget lane only; Zernio's inbound
+webhook is deliberately closed for spend safety, so no current test crosses the WhatsApp adapter boundary. It was
+proven live once in Phase 4, before the store moved. "Regression green" does not mean "the WhatsApp path works".
 
 ---
 
@@ -109,11 +132,16 @@ instead of a crash.
 polite message, but the machine-side response is distinct (`503` + an error flag) so the owner can be
 alerted. An outage that looks normal is an outage nobody fixes.
 
-**Availability has one source of truth.** Google Calendar owns free/busy; Airtable mirrors it. Writes go
-to the calendar first. Two sources of truth mean double bookings.
+**Availability has one source of truth.** Google Calendar owns free/busy; Postgres mirrors it. Writes go
+to the calendar first. Two sources of truth mean double bookings — and Postgres's transactions do not change
+that, because the calendar write is an HTTP call outside them.
 
-**Config / code / secret are separate.** The engine is identical for every client. A new client is a new
-`client.config.json` plus new credentials — the workflow does not change.
+**Config / code / secret are separate — as a design, not yet as a demonstrated fact.** The engine is meant
+to be identical for every client, with a new client being a new `client.config.json` plus new credentials.
+Two things stand between that and the truth today: the engine reads its config from an **inline copy in the
+workflow's `Load Config` node** (so a new client also means editing that node), and two keys in the config
+schema drive nothing (`instagram`, `business.locale` — see "Not yet"). The config-only second client that would
+prove the claim is Phase 8.
 
 ---
 
@@ -192,19 +220,21 @@ blocking) is drilled headless, and the drill sheet says which is which.
 
 | Path | What |
 |---|---|
-| [`n8n/`](n8n/) | the engine — **sanitized** workflow export only |
+| [`n8n/`](n8n/) | the engine — **sanitized** workflow exports only: the five live Postgres workflows (`*.copy.sanitized.json`) and the five parked Airtable originals, kept as the rollback path until D6c |
+| [`db/`](db/) | `schema/` — the Postgres DDL, roles and the large-object revoke · `ops/` — the nightly backup and its restore check |
 | [`schemas/`](schemas/) | JSON Schemas — the intent contract and the client config contract |
 | [`prompts/`](prompts/) | versioned LLM prompts (the canonical system prompt) |
-| [`scripts/`](scripts/) | validator compiler + drift check · repo map generator |
+| [`scripts/`](scripts/) | validator compiler + drift check · the SQL-parameter gate · workflow copy / parity guards · repo map generator |
 | [`config/`](config/) | per-client `client.config.json` (mock example committed) |
 | [`docs/`](docs/) | architecture decisions · data model · live roadmap · repo map |
 | [`design/`](design/) | Phase-1 mockups + flow diagram |
 | [`tests/`](tests/) | golden-set intents · jailbreak / injection cases |
-| [`web/`](web/) | frontend surfaces — `site/` (Next.js demo), `snippet/` (the embeddable widget), `shared/` (one transport, both front ends) |
+| [`web/`](web/) | frontend surfaces — `site/` (Next.js demo), `snippet/` (the embeddable widget), `shared/` (one transport, both front ends), `dashboard/` (the owner dashboard) |
 | [`.claude/`](.claude/) | the rules this repo is actually built under |
 
-**Stack** — n8n (self-hosted) · Anthropic Claude Haiku 4.5 · Airtable · Google Calendar ·
-Zernio (WhatsApp Business API) · Next.js on Vercel.
+**Stack** — n8n (self-hosted) · Anthropic Claude Haiku 4.5 · PostgreSQL (self-hosted, since 2026-10-24;
+Airtable read-only until D6c) · Google Calendar · Zernio (WhatsApp Business API) · Next.js (the site: no
+public deploy yet · the dashboard: its own server behind Cloudflare Access).
 
 ---
 
@@ -212,11 +242,18 @@ Zernio (WhatsApp Business API) · Next.js on Vercel.
 
 This repository is **public**, so it is built as if it were.
 
-- No secrets, no customer PII in git — real values live in n8n Credentials. Only
-  `n8n/workflow.sanitized.json` is committed; base, table and credential IDs are placeholders.
+- No secrets, no customer PII in git — real values live in n8n Credentials. Only sanitized n8n exports
+  (`n8n/*.sanitized.json`) are committed; credential, base and calendar ids are placeholders.
 - Every push runs a secret/PII scan.
 - The n8n editor is never exposed to the internet; only webhook endpoints are.
-- The owner dashboard will be authenticated — it shows PII and a destructive cancel.
+- The owner dashboard shows PII, so it sits behind Cloudflare Access: measured 2026-10-24, a request without a
+  session is redirected to the Access login, and the policy admits one named email
+  ([MIGRATION-PLAN §3t, K-6](docs/MIGRATION-PLAN.md)). CRT #9 (dashboard auth) is still open in
+  [MASTER-BRIEF §9](MASTER-BRIEF.md).
+- The store's own boundary: n8n's database role has DML on the five tables and nothing else, the dashboard's role
+  has SELECT only ([`db/schema/002_roles.sql`](db/schema/002_roles.sql)), and every workflow query is parameterised
+  (`scripts/check-sql-params.py`). The database port is not reachable from outside *(operator statement,
+  MIGRATION-PLAN §3t, A9)*.
 - **A finding from this build, recorded honestly:** the LLM webhook was discovered publicly reachable
   with no rate limit or spend cap. It was taken offline immediately and re-publishing is gated behind
   the Phase-5 brakes. Documented in [`docs/ARCHITECTURE-DECISIONS.md`](docs/ARCHITECTURE-DECISIONS.md).
@@ -244,25 +281,29 @@ This repository is **public**, so it is built as if it were.
 - **Cancel identity (honest limit):** a customer can only cancel their OWN booking — cancel looks up
   appointments by the channel-authenticated `sender_key`, never a customer-supplied booking id, so IDOR
   is structurally impossible. On the widget, though, `sender_key` derives from a **client-supplied
-  `sessionId`** — session-token strength, not a verified identity. A real signed widget session (Phase 6)
-  plus endpoint rate-limiting (Phase 5) harden this; recorded in `docs/ARCHITECTURE-DECISIONS.md` §5.
+  `sessionId`** — session-token strength, not a verified identity. Endpoint rate-limiting and Turnstile
+  (Phase 5) raise the cost of abusing it; they do not make the session an identity. Recorded in
+  `docs/ARCHITECTURE-DECISIONS.md` §5.
 
 ---
 
 ## From demo to real
 
-Everything runs today on mock config and a test endpoint. Going live for a client means their real
-WhatsApp number, their calendar and their Airtable base — **no code change**, a new config file and new
-credentials.
+Everything runs today on mock config and a test endpoint. Going live for a client means their real WhatsApp
+number, their calendar and **their own Postgres** — under Model 1 (one isolated deployment per client) that is a
+Postgres service, its secrets and its backup step per client ([MIGRATION-PLAN §8](docs/MIGRATION-PLAN.md)). The
+engine's code does not change; whether *only config* changes is not yet demonstrated (see "Config / code / secret"
+above). The step-by-step provisioning runbook is not written yet (`docs/RUNBOOK.md`, Phase 7).
 
-⚠ **One thing a config file cannot swap, and it belongs here rather than in a footnote: the free Airtable
-plan cannot serve a single real client.** Measured 2026-09-12 — 1,000 API calls per month per workspace,
-shared between the bot and the dashboard, plus a hard 5 requests/second per base that no plan raises. The
-dashboard costs four calls per page load; the bot costs several per conversation. One real shop exhausts
-a month in days. Going live therefore means **a paid Airtable plan or a migration to Postgres/Supabase**,
-and **the migration cost has not been estimated** — it is deferred, not solved
-([ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md), 2026-09-12). The "one swap to real" claim
-holds for the CODE, which is what it was always about; it does not hold for the data plan.
+**Why Postgres and not Airtable — kept here because it is the reason.** The free Airtable plan could not serve a
+single real client: 1,000 API calls per month per workspace, shared between the bot and the dashboard, plus a hard
+5 requests/second per base (measured 2026-09-12). On 2026-10-06 the quota ran out with no customer traffic at all,
+and the bot had no data layer for almost twelve days ([OPS-5](docs/OPERATIONAL-INCIDENTS.md)). The store moved to
+self-hosted Postgres (ruling 2026-10-19; cut over and accepted 2026-10-24,
+[MIGRATION-PLAN §3t](docs/MIGRATION-PLAN.md)). **Airtable is read-only until D6c** — the shutdown after a 7-day
+soak — and the parked original workflows still point at it as the rollback path. What Postgres costs instead: a
+database to run, back up and restore for every client. The nightly backup restores each dump into a throwaway
+container and compares every table before the dump counts ([`db/ops/pg-backup.sh`](db/ops/pg-backup.sh)).
 
 ---
 
@@ -271,6 +312,7 @@ holds for the CODE, which is what it was always about; it does not hold for the 
 **[MASTER-BRIEF.md](MASTER-BRIEF.md)** — the current architecture ·
 **[docs/ROADMAP.md](docs/ROADMAP.md)** — live phase status ·
 **[docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md)** — every decision and why it changed ·
-**[docs/DATA-MODEL.md](docs/DATA-MODEL.md)** — the data model.
+**[docs/DATA-MODEL.md](docs/DATA-MODEL.md)** — the Postgres data model ·
+**[docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md)** — how the store moved from Airtable to Postgres, step by step.
 
 MIT licensed. Built by [Neeidy](https://github.com/Neeidy) as a portfolio project in AI automation.

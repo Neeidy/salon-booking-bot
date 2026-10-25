@@ -1,8 +1,9 @@
 # Snippet drills — the run sheet
 
 Every drill states what MUST run and what MUST NOT. **Where a drill has an engine-side consequence, the
-result is read from the Airtable column or the execution, never from the screen** — the screen is evidence
-of RENDERING, the column is evidence of BEHAVIOUR, and this project has been burned by confusing the two.
+result is read from the database column (Postgres, read as `salon_ro`, since 2026-10-24; Airtable before)
+or the execution, never from the screen** — the screen is evidence of RENDERING, the column is evidence of
+BEHAVIOUR, and this project has been burned by confusing the two.
 
 ⚠ **Two corrections to this header, both from Codex CRT #13.** (1) It used to say *every* result is read
 from Airtable. That is false and could not be otherwise: the isolation, layout, listener, RTL and

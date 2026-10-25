@@ -1,7 +1,11 @@
 # Barber Booking Bot — MASTER BRIEF
 *(Cowork → Claude Code handoff · approved architecture + roadmap)*
 
-**Version:** v1.2 — updated 2026-08-22 · (v1.1 2026-07-04 · v1.0 approved 2026-06-29)
+**Version:** v1.3 — updated 2026-10-24 · (v1.2 2026-08-22 · v1.1 2026-07-04 · v1.0 approved 2026-06-29)
+> Changelog v1.3: **the store is self-hosted Postgres, not Airtable** (ruling 2026-10-19, cut over and accepted
+> 2026-10-24 — docs/MIGRATION-PLAN.md §3t; decision log 2026-10-19). Every line below that named Airtable as the
+> store now names Postgres; Airtable is **read-only until D6c** (the shutdown after a 7-day soak, MIGRATION-PLAN §7)
+> and survives only as the parked originals' rollback path. §9 CRT #1b carries the D1 note.
 > Changelog v1.2: **build-ownership corrected to Phase-3 reality — CC builds the n8n flow (MCP/raw-API);
 > Yigitcan approves and is final judge; he does NOT build (2026-09-13 ruling — see CLAUDE.md); the
 > "understand + sell" purpose is secured by the WHAT/WHY/HOW walkthrough + a current FLOW-DIAGRAM, not by
@@ -91,9 +95,11 @@ Each layer catches a different class of error → no single point of dependency.
   WhatsApp channel = generic Webhook + HTTP Request (`n8n-nodes-zernio` NOT used; provider-agnostic);
   handoff via Zernio Inbox.
 - **Integrations — unverified (confirm at build):** Google Calendar (OAuth per client) `⚠ verify §13` ·
-  Airtable `⚠ verify limits §13` · LLM (Claude/OpenAI, cheap-model-first) · n8n webhooks · Vercel (frontend).
+  ~~Airtable `⚠ verify limits §13`~~ → **self-hosted Postgres** since 2026-10-24 (§13) · LLM (Claude/OpenAI,
+  cheap-model-first) · n8n webhooks · Vercel (frontend).
 - **Mock plan:** services/prices/hours come from config (mock); demo via a test WhatsApp number / the
-  website widget. **One-swap-to-real** = client's real Zernio number + Google Calendar + Airtable base.
+  website widget. **One-swap-to-real** = client's real Zernio number + Google Calendar + their own Postgres
+  (per client: a Postgres service, its secrets, its backup step — MIGRATION-PLAN §8; was "+ Airtable base").
 
 ## 5. Architecture — components & where each runs
 
@@ -102,7 +108,7 @@ Each layer catches a different class of error → no single point of dependency.
 | Repo / code | RS (VS Code Remote-SSH) | **GitHub** (source of truth) |
 | n8n flows (engine/brain) | RS n8n editor | **RS** (Cloudflare tunnel — **webhook endpoints only; editor/admin UI never public**) |
 | Frontend (landing + chat widget + owner dashboard) | repo | **Vercel** (push-to-deploy) |
-| Data (leads/customers/appointments) | — | **Airtable** (cloud) |
+| Data (leads · appointments · conversation state · dedupe · spend meter) | `db/schema/` | **Postgres, self-hosted on the RS** (schema `salon`; since 2026-10-24 — Airtable read-only until D6c) |
 | Appointments (owner's phone) | — | **Google Calendar** (cloud) |
 | LLM | — | Claude/OpenAI API |
 | Channels | — | WhatsApp (Zernio) + website widget |
@@ -113,7 +119,7 @@ Each layer catches a different class of error → no single point of dependency.
 - **CONFIG** (non-secret, per client) — `client.config.json`: business name, branding, services + prices,
   working hours, timezone, bot tone, message templates.
 - **SECRET** (per client) — n8n Credentials / `.env` / Vercel env: Zernio token, Google Calendar OAuth,
-  Airtable key, LLM key.
+  the Postgres role passwords (`salon_app` for n8n, `salon_ro` for the dashboard — `db/schema/002_roles.sql`), LLM key.
 - **New client = new `client.config.json` + new secrets. No code change.**
 
 ## 7. Mandatory core controls (T1 chatbot)
@@ -136,9 +142,10 @@ Each layer catches a different class of error → no single point of dependency.
   See [.claude/rules/handoff.md](.claude/rules/handoff.md).
 - **Error branch visible** — no silent failure.
 - **Idempotency** (same message processed twice) — dedupe on message-ID via a **persistent store**
-  (Airtable `processed_messages` + TTL). *This alone does NOT prevent double-booking.*
+  (Postgres `processed_messages`, `message_id` UNIQUE, + TTL). *This alone does NOT prevent double-booking.*
 - **Concurrency / no-double-book** (two *different* customers, same slot, ~same time) — **no atomic lock**
-  across Airtable + Google Calendar (TOCTOU between availability-check and write). Guard =
+  across Postgres + Google Calendar: Postgres has transactions, but the Calendar write is an HTTP call outside
+  them (TOCTOU between availability-check and write). Guard =
   **write-then-verify**: write → re-read the slot → if >1 event, cancel one + handoff. The race must be
   **visible + recoverable**; don't pretend a lock exists.
 - **Webhook verification** — Zernio = HMAC signature verify; **website widget = no shared secret**
@@ -159,14 +166,14 @@ Each layer catches a different class of error → no single point of dependency.
   └ Website widget ──(webhook)───┤
                                   ▼
                          [n8n · RS]  ← engine/brain
-   0) Load conversation state (Airtable `conversations`, keyed by sender) → merge prior slots
+   0) Load conversation state (Postgres `conversations`, keyed by sender) → merge prior slots
    1) LLM intent extract → JSON {intent, confidence, slots} → schema-validate (fail → error + handoff)
    2) Route: deterministic (menu/price/hours/slots = IF/Switch) · free text → LLM
    3) Slot-fill: missing slot (service/date/time) → ask + save state → loop until complete
-   4) Act: ├ Book → only when slots complete → availability check → write Cal + Airtable
+   4) Act: ├ Book → only when slots complete → availability check → write Cal, then Postgres
            │        → re-verify slot (no atomic lock; >1 event → cancel one + handoff)
-           ├ Cancel/Reschedule → identity + confirm → GCal delete/rebook + Airtable
-           ├ Capture lead → Airtable
+           ├ Cancel/Reschedule → identity + confirm → GCal delete/rebook + Postgres
+           ├ Capture lead → Postgres
            └ Answer FAQ (from config)
    5) confidence < 0.7 → Human handoff (notify owner)
    6) any failure → Error branch (VISIBLE notify)
@@ -177,12 +184,12 @@ Each layer catches a different class of error → no single point of dependency.
 ```
 
 > **Conversation state (multi-turn / slot-filling):** each inbound message is a separate **stateless**
-> n8n execution. Dialog state lives in Airtable `conversations` (keyed by sender: `stage` · collected
+> n8n execution. Dialog state lives in Postgres `conversations` (keyed by sender: `stage` · collected
 > slots `service/date/time` · `last_updated`). Every message **loads context → fills the missing slot →
 > books ONLY when all slots are complete**. Simple slot-filling state machine; stays T1.
 
 > **Availability = Google Calendar (SINGLE source of truth):** owner "busy" blocks live in GCal too;
-> booking write order = **GCal first → Airtable (mirror)**; if GCal is unreachable the bot does **NO
+> booking write order = **GCal first → Postgres (mirror)**; if GCal is unreachable the bot does **NO
 > silent booking** → error branch + owner notify.
 
 ## 9. Critical-Review Targets (Codex audit — gate before "done")
@@ -201,9 +208,9 @@ repo; only the key was missing.*
 | # | Criterion | Means |
 |---|---|---|
 | **1** | irreversible | once done it cannot be undone — a calendar event, a sent message, rewritten history |
-| **2** | **money / quota** | it spends, or it consumes a metered allowance that cannot be raised in time. ⚠ *Live in this project, not theoretical: the free Airtable plan (1,000 calls/month/workspace, 5 req/s/base) stopped this project once already.* |
+| **2** | **money / quota** | it spends, or it consumes a metered allowance that cannot be raised in time. ⚠ *Live in this project, not theoretical: the free Airtable plan (1,000 calls/month/workspace, 5 req/s/base) stopped this project once already (OPS-5), and that is why the store moved to Postgres. Since then the metered allowances are LLM spend and the Google API quota.* |
 | **3** | data leak | a secret or PII can reach somewhere it must not — a public repo, a browser bundle, a screenshot |
-| **4** | shared state / race | two writers, one row; TOCTOU; no atomic lock across Airtable + Calendar |
+| **4** | shared state / race | two writers, one row; TOCTOU; no atomic lock across the store + Calendar (Postgres + Calendar since 2026-10-24) |
 | **5** | silent failure | it breaks and nobody is told — the failure mode this repo forbids by name |
 
 ⚠ **`[x]` IN THE TABLE BELOW MEANS ONE THING: audited AND findings addressed. THERE IS NO THIRD STATE.**
@@ -217,7 +224,7 @@ CONSCIOUSLY ACCEPTED with its reasoning — that is a finding addressed, not a f
 | # | What | Why critical (criterion) | Status |
 |---|---|---|---|
 | 1a | Idempotency — same message twice → one booking (dedupe store + TTL) | 4 — shared state | [ ] |
-| 1b | Concurrency / no-double-book — two customers, same slot; **no atomic lock** → write-then-verify | 4 — race / TOCTOU | [ ] |
+| 1b | Concurrency / no-double-book — two customers, same slot; **no atomic lock** → write-then-verify | 4 — race / TOCTOU | [ ] — the 2026-08-16 "CLOSED" in ARCHITECTURE-DECISIONS/ROADMAP is the Airtable-era Codex audit; on Postgres it closes after the simultaneous-pair drill (Phase 7 7-1) and Codex's confirmation (ruling D1) |
 | 2 | Google Calendar write (external, hard to undo) | 1 — irreversible | [ ] |
 | 3 | Webhook verification — Zernio HMAC + widget (no secret → rate-limit/bot-protect) | 1/3 — origin/leak | **[x]** — CLOSED (CP5d; `docs/ROADMAP.md`: "CRT #3 audit CLOSED") |
 | 4 | Secret + PII handling in a PUBLIC repo | 3 — data leak | [ ] |
@@ -237,10 +244,10 @@ CONSCIOUSLY ACCEPTED with its reasoning — that is a finding addressed, not a f
 
 | Phase | Work | Done criteria |
 |---|---|---|
-| **0. Scaffold** | `/repo-scaffold` → repo · `.env.example` · `client.config.json` schema · Airtable tables (incl. `conversations`, `processed_messages`) · intent JSON schema · ARCHITECTURE-DECISIONS.md *(analyzes this brief first; needs no mockup)* | Skeleton + schemas in place |
+| **0. Scaffold** | `/repo-scaffold` → repo · `.env.example` · `client.config.json` schema · store tables (incl. `conversations`, `processed_messages`; Airtable at the time — Postgres `db/schema/` since 2026-10-24) · intent JSON schema · ARCHITECTURE-DECISIONS.md *(analyzes this brief first; needs no mockup)* | Skeleton + schemas in place |
 | **1. Visual blueprint** | landing + chat widget + owner dashboard **mockup** + flow diagram *(CC builds → commits; Cowork reviews from git)* | Visual demo approved, gaps logged |
 | **2. Core bot** | n8n: webhook → load conversation state → LLM intent → routing → **slot-filling state machine** (`conversations`) → reply (test via website widget first) | Happy path + 2–3 intents work, JSON valid, multi-turn slot-fill completes |
-| **3. Booking + data** | availability → write → **re-verify (no atomic lock)** → Google Calendar + Airtable · **cancel · reschedule · reminders** · **GCal = availability source-of-truth (write GCal→Airtable)** · **widget-cancel booking-ref (IDOR)** · idempotency (dedupe store + TTL) · **timezone-explicit (store UTC)** | Booking works; duplicate trigger ≠ double-booking; concurrent same-slot → one booking + handoff; cancel/reschedule mutate exactly one appointment safely; edge cases |
+| **3. Booking + data** | availability → write → **re-verify (no atomic lock)** → Google Calendar + the store (Airtable then; Postgres since 2026-10-24) · **cancel · reschedule · reminders** · **GCal = availability source-of-truth (write GCal→store)** · **widget-cancel booking-ref (IDOR)** · idempotency (dedupe store + TTL) · **timezone-explicit (store UTC)** | Booking works; duplicate trigger ≠ double-booking; concurrent same-slot → one booking + handoff; cancel/reschedule mutate exactly one appointment safely; edge cases |
 | **4. WhatsApp** | Zernio channel `✅ verified 2026-07-04` — generic Webhook + HTTP Request (`n8n-nodes-zernio` not used) | Real WhatsApp message → booking + reply |
 | **5. Safety** | handoff · cost cap · **kill-switch · dry-run default · max-iteration** · injection handling · error branch | Low confidence → handoff; kill-switch works; errors visible; jailbreak attempt caught |
 | **6. Vitrin frontend** | build landing + widget + owner dashboard (from Phase 0) → live data → Vercel | Deployed, branded, reads live data |
@@ -275,8 +282,10 @@ CONSCIOUSLY ACCEPTED with its reasoning — that is a finding addressed, not a f
 - **Build from scratch (not reusing Beauty)** → an owned, reusable, resellable template + stronger portfolio piece.
 - **Model 1 (copy-per-client) over multi-tenant** → simpler, fully isolated, fits per-client resale; avoids the
   multi-tenant isolation risk (would be T3).
-- **Booking = Google Calendar (owner's phone) + Airtable (CRM)** → customer-POV value: appointment lands where
-  the owner already looks.
+- **Booking = Google Calendar (owner's phone) + the CRM store** → customer-POV value: appointment lands where
+  the owner already looks. The CRM store was Airtable until 2026-10-24.
+- **Store = self-hosted Postgres, not Airtable** (ruling 2026-10-19; cut over 2026-10-24) → the free Airtable
+  quota could not carry even the system's own idle consumption (OPS-5). Airtable stays read-only until D6c.
 - **Frontend on Vercel, n8n on RS** → right home per piece; don't self-host the frontend.
 - **UI (landing + widget + dashboard) promoted to first-class deliverable** → it is the vitrin (portfolio + sales face).
 
@@ -297,5 +306,6 @@ Verified at build time (Phase 0/4), **not** in the architecture phase:
   credential** — the built-in Google Calendar node is OAuth2-only. `freeBusy` proven live on this instance
   (200, exec 62, 2026-08-15). **Gotcha:** no `attendees` in `events.insert` (service account can't invite
   without domain-wide delegation) — customer notice goes via the channel, not a Calendar invite. See ARCH-DEC §5.
-- **Airtable limits** — free base ≈ 1,000 records/base, API ≈ 5 req/s/base, automation/attachment caps.
-  If bookings grow this becomes a ceiling → confirm the plan/tier at build.
+- **Airtable limits** — **✅ RESOLVED by replacement 2026-10-24.** The ceiling was real: the free plan's monthly
+  quota ran out on 2026-10-06 with no customer traffic (OPS-5), and the store moved to self-hosted Postgres
+  (ruling 2026-10-19; MIGRATION-PLAN). Airtable is read-only until D6c.

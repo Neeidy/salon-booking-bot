@@ -11,7 +11,7 @@ Format: input message → expected `{intent, key slots}` → expected outcome.
 | G2 | "Sakal tirasi ne kadar?" | `answer_faq` | — | price from config |
 | G3 | "Cumartesi kacta acisiniz?" | `answer_faq` | — | hours from config |
 | G4 | "Randevu almak istiyorum" (no details) | `book` | all null | slot-fill: ask service → date → time |
-| G5 | "Adim Mehmet, beni arayin" | `capture_lead` | customerName=Mehmet | lead saved to Airtable |
+| G5 | "Adim Mehmet, beni arayin" | `capture_lead` | customerName=Mehmet | lead saved to Postgres (`salon.leads`) |
 | G6 | "Sac + sakal, bu Cuma 11:00" | `book` | serviceId=haircut_beard, date=Fri, time=11:00 | booking created |
 | G7 | (unclear) "olur mu acaba" | `unknown`/low-conf | — | handoff |
 
