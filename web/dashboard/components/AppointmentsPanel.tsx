@@ -2,7 +2,8 @@
  * D1 · D2 · D3 · D5 · D6 — appointments. SERVER component (see app/page.tsx).
  *
  * Times are stored in UTC and shown in the shop's timezone; that split is the product's own rule, so
- * the formatting lives here rather than being left to whatever the viewer's browser happens to be.
+ * the formatting is done on the server (lib/appointmentView.ts, shared with the CSV export) rather than
+ * being left to whatever the viewer's browser happens to be.
  *
  * ⚠ D5 and D6 are DIFFERENT empty states and are not collapsed into one. "No bookings today" is an
  * ordinary Tuesday; "no bookings ever" means the shop has not started. Showing the same sentence for
@@ -12,37 +13,22 @@ import type { Page } from '../lib/store.ts';
 import type { Appointment } from '../lib/types.ts';
 import { maskName, assertMasked } from '../lib/mask.ts';
 import { shopConfig } from '../lib/shopConfig.ts';
-
-// K5 (code-reviewer, 2026-09-12): this was `const TZ = 'Europe/Vienna'` — a literal, in a
+// K5 (code-reviewer, 2026-09-12): the timezone was `const TZ = 'Europe/Vienna'` — a literal, in a
 // config-driven product that already ships a second example client on Europe/Berlin. It did not look
 // wrong because the two share an offset, which is exactly what made it dangerous: the first client
 // outside CET gets every time drawn wrong, silently. Read from the shop's own config now.
-function when(iso: string | undefined, TZ: string): { day: string; time: string } | null {
-  const t = Date.parse(iso ?? '');
-  if (!Number.isFinite(t)) return null;
-  const d = new Date(t);
-  return {
-    day: d.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }),
-    time: d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }),
-  };
-}
+// The selection and the time wording live in lib/appointmentView.ts since Phase 7 F2, so the CSV export
+// carries exactly the rows this panel shows.
+import { appointmentSections, when } from '../lib/appointmentView.ts';
 
 export function AppointmentsPanel({ page }: { page: Page<Appointment> }) {
   const { timezone: TZ } = shopConfig();
-  const now = Date.now();
-  const dated = page.rows.filter((r) => Number.isFinite(Date.parse(r.start_utc ?? '')));
+  const { dated, undated, todays, upcoming } = appointmentSections(page.rows, TZ, Date.now());
   // A row with no start time cannot be placed on any screen. It is EXCLUDED from the lists and
   // COUNTED below rather than dropped in silence. Measured 2026-09-12 on Airtable, these were UI
   // artefacts (completely empty rows). On Postgres `start_utc` is NOT NULL, so the count should read
   // zero; it stays, because a count the owner can see is how anyone would notice if that stopped being true.
-  const undated = page.rows.length - dated.length;
 
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: TZ });
-  const isToday = (r: Appointment) =>
-    new Date(Date.parse(r.start_utc!)).toLocaleDateString('en-CA', { timeZone: TZ }) === today;
-
-  const todays = dated.filter((r) => isToday(r) && r.status === 'booked');
-  const upcoming = dated.filter((r) => Date.parse(r.start_utc!) > now && !isToday(r) && r.status === 'booked');
   // K4: this was called `anyBookedEver` and was computed from a 30-day, 100-row window — so a shop
   // whose table held 121 appointments of which 118 were cancelled (measured 2026-09-12, before that
   // day's drill cleanup; the counts have moved since and the defect does not depend on them) was told

@@ -26,6 +26,7 @@ import { LeadsPanel } from '../components/LeadsPanel.tsx';
 import { HandoffQueue } from '../components/HandoffQueue.tsx';
 import { SystemHealth } from '../components/SystemHealth.tsx';
 import { Unavailable } from '../components/States.tsx';
+import { exportLinks } from '../lib/exportCsv.ts';
 
 // No caching and no revalidation: this page is a live board, and a cached PII surface behind an
 // authenticated gate is a copy of that surface with weaker access rules.
@@ -57,6 +58,9 @@ export default async function DashboardPage() {
   }
 
   const used = budgetUsed();
+  // Empty unless DASHBOARD_EXPORT_ENABLED=1: the routes answer 404 while it is off, so no link may point at them.
+  // A release gate until the Phase 7-2 Codex audit (lib/exportCsv.ts), not an access control.
+  const downloads = exportLinks();
 
   return (
     <>
@@ -75,6 +79,13 @@ export default async function DashboardPage() {
                   one number, two copies, the shape contract-integrity.md exists for. */}
               {used} of {BUDGET_PER_PAGE} database reads · one read per panel · no auto-refresh
             </span>
+            {downloads.length > 0 && (
+              <span className="tech">
+                {downloads.map((d, i) => (
+                  <span key={d.href}>{i > 0 ? ' · ' : ''}<a href={d.href} download>{d.label}</a></span>
+                ))}
+              </span>
+            )}
           </div>
         </div>
       </header>

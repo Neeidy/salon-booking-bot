@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alertState, alertLabel, triageRank } from './alertState.ts';
+import { alertState, alertLabel, triageRank, triageCompare } from './alertState.ts';
 
 const T = (min: number) => new Date(Date.UTC(2026, 8, 12, 12, 0, 0) + min * 60_000).toISOString();
 
@@ -79,4 +79,20 @@ test('a delivered-but-throttled event still renders as notified — the known li
   const s = alertState('handoff_lock', T(0), T(20));
   assert.equal(s.kind, 'notified');
   assert.doesNotMatch(alertLabel(s), /up to date|current|all clear/i);
+});
+
+test('triageCompare: rank first, newest first, unparseable times sink below every parseable one, ties keep input order', () => {
+  const rows = [
+    { id: 'a', last_alert_class: 'handoff', last_alert_at: T(0), last_updated: T(5) },          // notified
+    { id: 'b', last_updated: T(1) },                                                         // unconfirmed
+    { id: 'c', last_alert_class: 'handoff', last_alert_at: T(0), last_updated: T(45) },         // stale
+    { id: 'd', last_updated: 'not a time' },                                                 // unconfirmed, no time
+    { id: 'e', last_updated: '1969-07-20T20:17:00.000Z' },                                   // unconfirmed, pre-1970
+    { id: 'f', last_updated: T(9) },                                                         // unconfirmed
+    { id: 'g', last_updated: T(9) },                                                         // tie with f
+  ];
+  assert.deepEqual([...rows].sort(triageCompare).map((r) => r.id), ['f', 'g', 'b', 'e', 'd', 'c', 'a']);
+  // The tie is left to the input order (the store's SQL breaks it by id), in both directions.
+  const swapped = [rows[6], rows[5]];
+  assert.deepEqual(swapped.sort(triageCompare).map((r) => r.id), ['g', 'f']);
 });

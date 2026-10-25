@@ -1,7 +1,9 @@
 /**
  * The shapes the dashboard reads. These mirror `docs/DATA-MODEL.md`, and they are DELIBERATELY
  * narrower than the tables: a field absent here is a field `store.ts` does not select, which is
- * the point (E2 — data not fetched cannot leak).
+ * the point (E2 — data not fetched cannot leak). Since Phase 7 F2 a field here is one a panel draws or
+ * uses to choose what it draws; the five context fields no panel read (`end_utc`, `reminder_sent`, both
+ * `created_at`, `stage`) were removed with their columns in `store.ts` (Codex CRT #10 F7).
  *
  * ⚠ These are hand-written, and that makes them a second truth against `docs/DATA-MODEL.md`. The
  * repo's own `contract-integrity.md` says a hand-mirrored contract needs a drift guard committed in
@@ -14,13 +16,10 @@ interface Row { id: string }
 
 export interface Appointment extends Row {
   start_utc?: string;
-  end_utc?: string;
   service?: string;
   channel?: string;
   status?: 'booked' | 'cancelled';
   reminded?: boolean;
-  reminder_sent?: string;
-  created_at?: string;
   /** PII. Masked before it crosses any boundary. */
   customer_name?: string;
 }
@@ -32,7 +31,6 @@ export interface Lead extends Row {
   phone?: string;
   source?: string;
   status?: 'new' | 'contacted' | 'converted';
-  created_at?: string;
 }
 
 export interface HandoffRow extends Row {
@@ -42,7 +40,6 @@ export interface HandoffRow extends Row {
    * earlier defect, and its fix, are recorded in `store.ts` and `mask.ts`.
    */
   sender_masked?: string;
-  stage?: string;
   /**
    * ⚠ EMPTY DOES NOT MEAN "no alert" — it means the alert was never delivered, or never produced.
    * `Record Alert Class` writes this only AFTER the Telegram send succeeds (Codex #5). A dashboard

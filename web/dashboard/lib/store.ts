@@ -15,19 +15,24 @@
  * WHY IT IS NOT A PROXY, stated as a rule and not as an intention: **no exported function takes a table, a
  * filter, a column list, a sort or a record id from its caller.** There are exactly four reads, each one a
  * constant SQL string in `SQL` below, each with NO bound parameter: the only inputs are the clock, read by the
- * database itself. `lib/store.test.ts` CHECKS this from the file's own text, and a text check is not a proof: it
- * catches the spellings it looks for (a read that grows a parameter, a `.query(` that takes something other than
- * a module constant, a `$n` placeholder) and nothing else. Codex CRT #10 F4 wrote twelve mutants that turn this
- * module into a proxy and keep every test green (`p['query']`, `.query (`, code hidden between comment-looking
- * strings, an aliased export). A behaviour-based test, a mocked driver recording what is actually sent, is a
- * named Phase 7 item; until it exists, the rule above holds because the code is short enough to read.
+ * database itself. Two tests check it, and they check different things:
+ *   - `lib/store.behaviour.test.ts` replaces the `pg` Pool and Client with a recorder, calls EVERY export with
+ *     hostile arguments, and asserts that only members of `SQL` and the privilege check are ever sent, with no
+ *     bound value, each read sending exactly its own statement. Codex CRT #10 F4's twelve proxy mutants, which all
+ *     kept the text checks green, each turn it red (Phase 7 F2). What it cannot see is listed in its header: a
+ *     route to the database other than `pg`, and which columns a member of `SQL` selects;
+ *   - `lib/store.test.ts` reads this file's text: a spelling check, kept because it fails faster and catches a
+ *     declared-but-unused parameter that changes no behaviour. It is not a proof on its own.
  *
  * COLUMN SELECTION IS A SECURITY CONTROL, NOT AN OPTIMISATION (Yigitcan's addition E2). The rule is unchanged
  * from the Airtable version: **a field that is DISPLAYED is fetched; a field that is not displayed is not
- * fetched; and no PII crosses a client-component boundary.** ⚠ The middle clause is NOT met today: five non-PII
- * context columns are fetched and never drawn (appointments' `end_utc`, `reminder_sent`, `created_at`; leads'
- * `created_at`; the queue's `stage`), and an earlier version of this paragraph permitted that in the same breath
- * as stating the rule (Codex CRT #10 F7). Trimming them is a named Phase 7 item. Deliberately never selected, and asserted by
+ * fetched; and no PII crosses a client-component boundary.** "Displayed" counts a column a panel draws AND a
+ * column it uses to choose what it draws (`status`, `start_utc`); nothing else is projected. Five non-PII context
+ * columns used to be fetched and never drawn (appointments' `end_utc`, `reminder_sent`, `created_at`; leads'
+ * `created_at`; the queue's `stage`), while an earlier version of this paragraph permitted it in the same breath as
+ * stating the rule (Codex CRT #10 F7). They were removed from the projections in Phase 7 F2, after a grep of
+ * components/, app/ and lib/ found no reader, and `lib/store.test.ts` now fails if any projected column has no
+ * reader there; a WHERE or ORDER BY may still use them, because a filter column never leaves the database. Deliberately never selected, and asserted by
  * the test: `sender_key` (a BEARER credential on the widget lane), `gcal_event_id` (a hex ENCODING of the
  * sender key, `security-secrets.md`), `computed_reply`, `cancel_target_id`. The handoff queue reads
  * `sender_masked`, now a STORED generated column (db/schema/001_init.sql) computed by the corrected formula
@@ -47,6 +52,7 @@
  */
 import pg from 'pg';
 import type { Appointment, Lead, HandoffRow, SpendRow } from './types.ts';
+import { STALE_AFTER_MINUTES } from './alertState.ts';
 
 /** Server-only. A RUNTIME guard, the same shape `@salon/shared/config` carries and for the same reason. */
 if (typeof globalThis === 'object' && 'window' in globalThis && 'document' in globalThis) {
@@ -66,14 +72,20 @@ export const PAGE_ROWS = 100;
  *                  (a 30-day ascending window once showed a busy shop the OLDEST hundred, all in the past);
  *   leads        — the last 90 days, newest first (a working list, not an archive);
  *   handoff      — every conversation at `stage = 'handoff'`, NOT date-filtered (a lock from July is still a
- *                  lock), newest first;
+ *                  lock), in the PANEL'S TRIAGE ORDER, before the LIMIT (Codex CRT #10 F12): rows with no
+ *                  confirmed notification first, then stale ones, then notified, each group newest first, then
+ *                  `id`. Newest-first alone meant a queue longer than 100 could cut an UNCONFIRMED row off the
+ *                  page while showing notified ones, and the panel's own sort can only reorder what it was given.
+ *                  The CASE is `lib/alertState.ts`'s `alertState` → `triageRank` written in SQL; the threshold is
+ *                  its exported constant, so the two cannot disagree on the number. `lib/store.test.ts` (F12)
+ *                  pins this text and checks a transliteration of it against `alertState` on boundary rows;
+ *                  running the statement itself on a real database is a later, live proof;
  *   spend        — this UTC month's bucket, the one `Spend Gate` reads.
  */
 export const SQL = Object.freeze({
   appointments: `SELECT id, jsonb_strip_nulls(jsonb_build_object(
-      'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'service', NULLIF(service, ''),
+      'start_utc', salon.at_ts(start_utc), 'service', NULLIF(service, ''),
       'channel', NULLIF(channel, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END,
-      'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at),
       'customer_name', NULLIF(customer_name, ''))) AS fields
     FROM salon.appointments
     WHERE start_utc > (((now() AT TIME ZONE 'UTC')::date - 1)::timestamp AT TIME ZONE 'UTC')
@@ -81,19 +93,24 @@ export const SQL = Object.freeze({
     LIMIT ${PAGE_ROWS + 1}`,
   leads: `SELECT id, jsonb_strip_nulls(jsonb_build_object(
       'name', NULLIF(name, ''), 'phone', NULLIF(phone, ''), 'source', NULLIF(source, ''),
-      'status', NULLIF(status, ''), 'created_at', salon.at_ts(created_at))) AS fields
+      'status', NULLIF(status, ''))) AS fields
     FROM salon.leads
     WHERE created_at > (((now() AT TIME ZONE 'UTC')::date - 90)::timestamp AT TIME ZONE 'UTC')
     ORDER BY created_at DESC, id
     LIMIT ${PAGE_ROWS + 1}`,
   handoff: `SELECT id, jsonb_strip_nulls(jsonb_build_object(
-      'sender_masked', NULLIF(sender_masked, ''), 'stage', NULLIF(stage, ''),
+      'sender_masked', NULLIF(sender_masked, ''),
       'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at),
       'last_intent', NULLIF(last_intent, ''), 'turn_count', turn_count, 'last_updated', salon.at_ts(last_updated),
       'recent_messages', NULLIF(recent_messages, ''))) AS fields
     FROM salon.conversations
     WHERE stage = 'handoff'
-    ORDER BY last_updated DESC, id
+    ORDER BY CASE
+        WHEN last_alert_class IS NULL OR last_alert_class ~ '^[[:space:]]*$' OR last_alert_at IS NULL THEN 0
+        WHEN date_trunc('milliseconds', last_updated) - date_trunc('milliseconds', last_alert_at)
+             >= interval '${STALE_AFTER_MINUTES} minutes' THEN 1
+        ELSE 2
+      END, last_updated DESC NULLS LAST, id
     LIMIT ${PAGE_ROWS + 1}`,
   spend: `SELECT id, jsonb_strip_nulls(jsonb_build_object(
       'period_key', NULLIF(period_key, ''), 'cost_usd', cost_usd::float8, 'updated_at', salon.at_ts(updated_at))) AS fields
@@ -230,7 +247,8 @@ function ensureReadOnly(p: pg.Pool): Promise<void> {
  * per-render (two concurrent renders each reset it), so it catches the mistake it was written for and cannot
  * see concurrency; the pool's `max: 4` is the bound on what reaches the database at once. ⚠ It used to guard
  * Airtable's 5 requests/second, a base-wide limit shared with the bot; on Postgres the shared resource is the
- * cluster's connections, which the pool bounds.
+ * cluster's connections, which the pool bounds. The CSV export routes (`lib/exportCsv.ts`) reset it per request
+ * as well, because each of them is one read and is not part of a page render.
  */
 let readsThisRender = 0;
 export function resetBudget(): void { readsThisRender = 0; }

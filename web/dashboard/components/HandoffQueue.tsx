@@ -14,7 +14,7 @@
  */
 import type { Page } from '../lib/store.ts';
 import type { HandoffRow } from '../lib/types.ts';
-import { alertState, alertLabel, triageRank } from '../lib/alertState.ts';
+import { alertState, alertLabel, triageCompare } from '../lib/alertState.ts';
 import { maskFreeText, maskSenderKey, assertMasked } from '../lib/mask.ts';
 import { ReleaseButton } from './ReleaseButton.tsx';
 
@@ -41,16 +41,11 @@ function waitedFor(lastUpdated: string | undefined): string {
 }
 
 export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
-  const rows = [...page.rows].sort((a, b) => {
-    const ra = triageRank(alertState(a.last_alert_class, a.last_alert_at, a.last_updated));
-    const rb = triageRank(alertState(b.last_alert_class, b.last_alert_at, b.last_updated));
-    if (ra !== rb) return ra - rb;
-    // An unparseable timestamp made this return NaN, which is an INCONSISTENT comparator (a sort can
-    // then order neither way); such rows sink to the bottom instead.
-    const ta = Date.parse(a.last_updated ?? '');
-    const tb = Date.parse(b.last_updated ?? '');
-    return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
-  });
+  // The store already sends the rows in this order (its SQL ORDER BY, Codex CRT #10 F12), so on a healthy
+  // read this sort changes nothing. It stays because it is the definition the SQL is tested against, and
+  // because the panel must not depend on a query it cannot see. An unparseable timestamp once made the
+  // comparator return NaN, which is an INCONSISTENT comparator; `triageCompare` sinks such rows instead.
+  const rows = [...page.rows].sort(triageCompare);
 
   // K1 (code-reviewer, 2026-09-12): `assertMasked` throwing inside the row map took the WHOLE PAGE
   // down. The throw happened during render, OUTSIDE app/page.tsx's try (which only wraps the reads),

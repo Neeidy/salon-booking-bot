@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start -p ${DASHBOARD_PORT:-3210} -H 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/mask.test.ts lib/alertState.test.ts lib/store.test.ts",
-    "check": "tsc --noEmit && node --test lib/mask.test.ts lib/alertState.test.ts lib/ownerAction.test.ts lib/store.test.ts"
+    "test": "node --test lib/mask.test.ts lib/alertState.test.ts lib/ownerAction.test.ts lib/store.test.ts lib/store.behaviour.test.ts lib/exportCsv.test.ts",
+    "check": "tsc --noEmit && node --test lib/mask.test.ts lib/alertState.test.ts lib/ownerAction.test.ts lib/store.test.ts lib/store.behaviour.test.ts lib/exportCsv.test.ts"
   },
   "dependencies": {
     "@salon/shared": "*",

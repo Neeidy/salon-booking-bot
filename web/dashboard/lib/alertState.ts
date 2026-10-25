@@ -36,8 +36,12 @@
  * away, and the only honest statement is the timestamp we actually have.
  */
 
-/** Minutes after which a delivered alert is older than the conversation it describes. */
-const STALE_AFTER_MINUTES = 30;
+/**
+ * Minutes after which a delivered alert is older than the conversation it describes. EXPORTED because
+ * `store.ts` writes the same threshold into the handoff queue's SQL ORDER BY (Codex CRT #10 F12): one
+ * number, read by both, so the database and this function cannot disagree on it.
+ */
+export const STALE_AFTER_MINUTES = 30;
 
 export type AlertState =
   | { kind: 'notified'; className: string; at: string }
@@ -106,4 +110,36 @@ export function alertLabel(s: AlertState): string {
  */
 export function triageRank(s: AlertState): number {
   return s.kind === 'unconfirmed' ? 0 : s.kind === 'stale' ? 1 : 2;
+}
+
+/** The fields the queue's order reads. */
+interface TriageRow {
+  last_alert_class?: string | null;
+  last_alert_at?: string | null;
+  last_updated?: string | null;
+}
+
+/**
+ * The queue's full order: `triageRank` first, then the newest `last_updated` first, and a row whose time
+ * cannot be parsed sinks below every row whose time can. A TIE RETURNS 0 ON PURPOSE: `Array.prototype.sort`
+ * is stable, so tied rows keep the order the store sent them in, and the store's SQL breaks ties by `id`.
+ * Comparing ids here instead would compare them in JavaScript's code-unit order, which need not be the
+ * database collation's order, and the two sorts could then disagree about which row comes first.
+ *
+ * Moved out of `HandoffQueue.tsx` (Phase 7 F2) so the SQL ORDER BY in `store.ts` can be tested against it:
+ * the database picks WHICH 100 rows reach the panel, and this decides how they are drawn, so the two must
+ * be the same order. An unparseable time used to be scored as 0 (1970), which put a pre-1970 time below an
+ * unparseable one; the explicit branch below makes "unparseable sinks" true for every time.
+ */
+export function triageCompare(a: TriageRow, b: TriageRow): number {
+  const ra = triageRank(alertState(a.last_alert_class, a.last_alert_at, a.last_updated));
+  const rb = triageRank(alertState(b.last_alert_class, b.last_alert_at, b.last_updated));
+  if (ra !== rb) return ra - rb;
+  const ta = Date.parse(a.last_updated ?? '');
+  const tb = Date.parse(b.last_updated ?? '');
+  const fa = Number.isFinite(ta);
+  const fb = Number.isFinite(tb);
+  if (fa !== fb) return fa ? -1 : 1;
+  if (fa && ta !== tb) return tb - ta;
+  return 0;
 }
