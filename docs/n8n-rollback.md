@@ -15,9 +15,10 @@ restore source here. Use the two paths below instead.
 
 ## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
 
-> ⛔ **DISABLED as of 7-F1 Round A** (`ENGINE_EDIT_ENABLED = False`): two critical recovery defects from the final
-> review are open (PHASE-7-PLAN §4d). The tool refuses `--engine-edit` and `--restore` before any API call. What follows
-> is the design they implement and are re-enabled under.
+> ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d): five review
+> rounds each found a new HIGH. **Their replacement, single-purpose step commands, did not pass review either** and is
+> not on `main` (local branch only). **No post-cutover engine edit has a reviewed tool today.** The section below
+> describes the abandoned tool, kept as the record of its design.
 
 Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies
 are the live holders, and **each copy's reference is its own committed export** (`n8n/workflow.<x>.copy.sanitized.json`).

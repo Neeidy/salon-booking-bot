@@ -196,6 +196,34 @@ uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds;
   on an ACTIVE copy prints a restore that refuses it), M5/L6–L9, auditor L1/L2. The work is kept on the LOCAL branch
   `wip/7f1-roundb-step1` (not pushed, not merged); `main` keeps the reviewed tool with the modes off. The same
   process-group class exists in `scripts/turnstile-window.py`'s own curl and helper call (not changed).
+- **Round B re-planned (ruling 2026-10-25): the self-recovering edit tool is abandoned, not fixed.** It failed review
+  five rounds in a row, each fix finding a new HIGH — the stop rule's "fix of a fix": the design was wrong. Its lessons,
+  kept so the next tool does not repeat them: **H1** a recovery that writes from a revision it never proved restorable
+  can refuse itself and strand production inactive; **H2/M1** detaching a child (`start_new_session`) without owning its
+  lifetime lets a write land after its parent died; **M3** a signal arriving after a proven restore must not undo it;
+  **M4** a printed restore command must be runnable in the state the copy is actually in; **M5** "cannot be killed" was
+  claimed for a call that could be. The branch `wip/7f1-roundb-step1` stays LOCAL and unmerged.
+  **Replacement tried: single-purpose step commands (`workflow-step.py`: `deactivate` · `put` · `activate`, each read
+  back, no signal handling, no automatic recovery) — ⛔ STOPPED, not merged.** First review: two HIGH (the Turnstile probe
+  ran on Owner Actions and Drill State, whose gate is an HMAC signature, so their activate could never be green; a
+  deleted Turnstile literal passed `put`), fixed once with killing mutants (the test and its mutants are on the local branch, not committed). Second review: two HIGH again —
+  **(1)** `put` does not check the trigger's production path or the temporary trigger, so an OLDER revision of a copy's
+  own export is accepted and takes the production holder off its path or brings the deleting test trigger back;
+  **(2)** the Turnstile gate can still be bypassed by an export: an edge INTO the gate rerouted, a `Load Config` override
+  after the literal, execution flags on a gate node. (2) is the SAME defect as the first review's gate finding, so the
+  brief's rule "a second fix of the same defect → STOP" applied. The work is on the LOCAL branch `wip/7f1-roundb-steps`
+  (not pushed, not merged); `main` has no step commands and the deploy helper's edit modes stay disabled.
+  **What the two rounds show, for the ruling:** a guard that tries to RECOGNISE a harmful export (a gate bypass, a moved
+  trigger) is a blacklist and stays incomplete, because the export can express the same effect many ways. The complete
+  form is the opposite: a per-edit ALLOWLIST of the node names an edit may change (e.g. E1 = the two builders and the
+  three leads nodes), with `put` refusing any other difference against the committed export: nodes, edges, flags,
+  settings, triggers. A semantic bypass inside an allowlisted node stays a review question (L2/Codex read that diff).
+  **`--turnstile-swapped` on main, read for this ruling:** its `api()` runs curl as an ordinary child (no new session),
+  so H2 does not exist there; a signal to the operator's process group reaches curl too. **`scripts/turnstile-window.py`,
+  recorded:** its own curl and its helper call are ordinary children as well; the helper call has a 300 s timeout that
+  kills only the helper, so a helper hung past it while a curl (≤ 60 s) is in flight could let that one request finish
+  after the close began. The close re-reads the draft literal after its deactivate, which covers a write that landed
+  before the read but not one that lands after it. Residual, low (it needs a helper hung for five minutes), not fixed.
 - **Declared: Round A's push left `check-exports-parity` red** (the committed `n8n/staged/` exports have no pair; the
   pre-commit run saw them untracked). Fixed in Round B: the guard excludes `n8n/staged/` by name. *Lesson: a guard
   that reads git's index must be re-run AFTER the commit, not only on the working tree before it.*
