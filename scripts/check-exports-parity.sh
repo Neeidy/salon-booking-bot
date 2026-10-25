@@ -49,10 +49,14 @@ if [ -z "${N8N_API_KEY:-}" ] || [ -z "${N8N_HOST:-}" ]; then
 fi
 
 # A committed export with no PAIRS line would otherwise be silently unguarded — the exact failure above.
+# n8n/staged/ is excluded BY NAME: it holds engine edits PREPARED for the next deploy (7-F1), which by design match no
+# live workflow until they are promoted into the paired export above. Their sanitisation is checked by
+# tests/unit/staged-sanitised.test.py. (The first Round A push committed them without this line and turned this guard
+# red: the pre-commit run had seen them untracked, and `git ls-files` lists tracked files only.)
 missing=0
 while IFS= read -r f; do
   case " ${PAIRS[*]} " in *":$f "*) ;; *) echo "  ✗ committed export with NO parity pair: $f"; missing=1;; esac
-done < <(git ls-files 'n8n/*.sanitized.json')
+done < <(git ls-files -- 'n8n/*.sanitized.json' ':(exclude)n8n/staged/')
 [ "$missing" -eq 0 ] || { echo "check-exports-parity: FAIL — an export is not covered."; exit 1; }
 
 rc=0
