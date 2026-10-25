@@ -163,6 +163,16 @@
 
 - `n8n/screenshots/.gitkeep`
 
+### n8n/staged
+
+- `n8n/staged/workflow.main.copy.sanitized.json`
+- `n8n/staged/workflow.purge.copy.sanitized.json`
+- `n8n/staged/workflow.reminders.copy.sanitized.json`
+
+### ops/systemd
+
+- `ops/systemd/salon-dashboard.service`
+
 ### prompts
 
 - `prompts/intent-extraction.md`
@@ -252,6 +262,7 @@
 
 ### tests/ops
 
+- `tests/ops/dashboard-serve.test.sh`
 - `tests/ops/k3-window.test.sh`
 - `tests/ops/m7-window.test.sh`
 - `tests/ops/pg-backup.test.sh`
@@ -265,14 +276,18 @@
 
 - `tests/unit/content-parity-inactive.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
+- `tests/unit/leads-purge-read-error.test.cjs`
 - `tests/unit/live-parity-target.test.py`
 - `tests/unit/locked-once-parity.test.cjs`
 - `tests/unit/message-id-guard.test.cjs`
+- `tests/unit/owner-alert-detail.test.cjs`
 - `tests/unit/pair-roles.test.py`
+- `tests/unit/reschedule-orphan-alert.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
 - `tests/unit/seed-workflow.test.py`
 - `tests/unit/settings-parity.test.py`
+- `tests/unit/staged-sanitised.test.py`
 - `tests/unit/turnstile-window.test.py`
 - `tests/unit/validate-intent.test.cjs`
 
@@ -333,6 +348,10 @@
 - `web/dashboard/lib/store.test.ts`
 - `web/dashboard/lib/store.ts`
 - `web/dashboard/lib/types.ts`
+
+### web/dashboard/scripts
+
+- `web/dashboard/scripts/serve.sh`
 
 ### web/shared
 
@@ -763,6 +782,8 @@
   - ### docs
   - ### n8n
   - ### n8n/screenshots
+  - ### n8n/staged
+  - ### ops/systemd
   - ### prompts
   - ### schemas
   - ### scripts
@@ -783,6 +804,7 @@
   - ### web/dashboard/app/api/release
   - ### web/dashboard/components
   - ### web/dashboard/lib
+  - ### web/dashboard/scripts
   - ### web/shared
   - ### web/shared/src/chat
   - ### web/shared/src/config
