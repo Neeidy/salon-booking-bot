@@ -13,14 +13,49 @@
 >
 > **Endpoints.** Published production webhook: `POST https://<n8n-host>/webhook/barber-inbound`
 > (no arming; pass the host via `WEBHOOK_URL` — not hardcoded, this is a public template). Draft test
-> webhook: `…/webhook-test/…` (needs one "Execute workflow" per call).
+> webhook: `…/webhook-test/…` (needs one "Execute workflow" per call — **not used since the migration**: a manual
+> execution of a workflow that uses a database credential is off, ruling Q13).
 > `sender_key = "widget:{sessionId}"`. `messageId` MUST be unique per message (idempotency dedupe).
 >
-> **Setup note.** Scenarios marked ⚙ need Airtable state injected first (a booked `appointments`
-> row, or a crafted `conversations` row). `appointments` valid-mock row = `{sender_key, service:"Haircut",
-> start_utc (future weekday, outside cutoff), end_utc, gcal_event_id (real hex OR shape-valid fake
-> "a1b2c3d4e5"), calendar_id (real cal), channel:"widget", status:"booked"}`. A **shape-valid fake**
-> gid is used when the delete must NOT actually fire (the row is there only to be bound/validated).
+> **Setup note (rewritten 2026-10-24 for the Postgres store).** Scenarios marked ⚙ need store state seeded first.
+> Since the migration Claude holds only `salon_ro` (ruling Q6), so a row is **never injected or edited by hand**: every
+> setup goes through the committed seed tool `scripts/seed-workflow.py` (`up` → actions → `clean` → `down`). Its
+> statements are fixed and prefix-guarded **in the SQL itself**; creating, activating, hitting and deleting it are edits
+> and executions of a workflow that uses a database credential, so each step is gated (⚠ ONAY) and runs through its
+> Access-covered webhook, never as a manual execution. **Prefixes, binding for every drill row:** sessions `w-mig-p7-…`
+> (`sender_key` `widget:w-mig-p7-…`), messageIds `mig-p7-…`, lead messages `mig-p7…`. `clean` removes exactly those,
+> plus the run-d11 dashboard markers, and **never** touches the month's `bot_metrics` row (the production spend meter).
+> Calendar events are NOT the seed tool's: a real event is removed through the bot's own cancel.
+> **Measured constraints the setups obey:**
+> · `appt-insert` takes an EXPLICIT `--created-at`. Find Booking reads `ORDER BY created_at, id`, so a row's place in
+>   that read is its `created_at`, not the moment it was seeded (#5).
+> · A fake event id is `migp7` + 16 random base32hex digits: unique, prefixed, and it **passes** Validate Cancel
+>   Target's shape check `/^[0-9a-v]{5,1024}$/`, so the row is bindable and validatable, while a delete aimed at it
+>   answers 404 from Google (it names no real event). The one exception is row #9's whitespace id (`--gid blank`),
+>   which exists to FAIL that check.
+> · `turn_count` is `integer NOT NULL`: the Airtable-era "null" case is not expressible, only 0 (#10). `confirm_turn`
+>   is text. `stage` has a 9-value CHECK (`new` `collecting` `ready` `confirming` `booked` `cancel_confirming`
+>   `cancelled` `reschedule_confirming` `handoff`); the tool refuses any other value before anything is sent.
+> · `--bind-target` sets `cancel_target_id` to the session's ONE booked appointment, found in SQL: no record id is
+>   typed or printed. `appt-update` / `appt-delete` act only when the session has exactly one booked row.
+> · `--service` must be a configured service NAME (default `Haircut`): Reschedule Lookup maps the row by name and
+>   hands off on an unknown one, so a misspelt service would make #29/#33/#36 fail on the wrong gate.
+> · `<shop cal>` is the shop's configured calendar id, passed as `--calendar-id` at run time; it is never written into
+>   this file and the tool never prints it.
+> **Evidence reads** go through `salon_ro` only, as SELECTs that read a blank and a NULL alike, e.g.
+> `SELECT stage, turn_count, COALESCE(confirm_turn,'') AS confirm_turn, COALESCE(cancel_target_id,'') <> '' AS bound
+> FROM salon.conversations WHERE sender_key = 'widget:w-mig-p7-…'` and `SELECT status, COALESCE(calendar_id,'') = ''
+> AS cal_blank FROM salon.appointments WHERE sender_key = 'widget:w-mig-p7-…'`. Never the reply alone.
+> **The window.** The curl suite sends a dummy Turnstile token, so it runs only inside the committed window on Main's
+> production holder: `python3 scripts/turnstile-window.py --timeout <s> -- <the suite command>`, with
+> `SESSION_PREFIX=w-mig-p7-` and `MESSAGE_PREFIX=mig-p7-` so every row it writes is under the clean-up prefixes.
+> **Not in the 7-1 window (ruling D6):** setups that break a table or a node's table id — #35, SC3, A4, A8, M1a and the
+> E-LS … E-FOBR (a) rows — are covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests
+> (Q18, 7-F1). **Auth-strip and config-edit setups** (#6/#7, #19, #30, #32, #34, reconcile D1/D2, A5/A6, DR1/DR2)
+> are edits of a workflow that uses a database credential: gated (⚠ ONAY per edit), run through the webhook, never a
+> manual execution.
+> **Historical evidence.** Execution ids and column reads recorded before the cutover are labelled *Airtable era, not
+> re-run on the copies*: they prove the logic as it ran on the old store, not on the Postgres copies.
 >
 > **Config baseline:** services `haircut`/`beard`/`haircut_beard`; hours Mon–Sat; `cancellationCutoffHours:2`.
 
@@ -34,27 +69,27 @@
 | 2 | **race / no-double-book** ⚙(concurrent) | pre-existing overlapping event on the calendar for the slot | `book … <slot>` → `yes` | "Sorry — that time was just taken…" (`slotJustTaken`) | Verify Slot · Check Race · Race Gate(→lost) · Cancel Our Event · Build Race-Lost State | Write Appointment(as booked-success) — the event we inserted is DELETED, the pre-existing survives |
 | 3 | **idempotency (double webhook)** | — | send the SAME `messageId` twice | 2nd call → `{"status":"duplicate_ignored"}` (distinct short-circuit — NOT a replay of the prior reply; see Step-2 note: `booking-integrity.md` says "return the prior result") | Check Processed · Dedupe Gate · Is Duplicate(true) · Idempotent Replay | any state-mutating node on the 2nd call (no 2nd Write/Delete) |
 | 4 | **cancel happy (204)** | book first (sc.1) | `cancel my appointment` → `yes` | T1 "Cancel your Haircut on …?" · T2 "Done — your … is cancelled." | Route Intent(cancel)→Find Booking→Cancel Lookup→Cancel Route→Build Cancel-Confirm State ; then Confirm Router(true)→**Confirm Fresh?(true)**→Find Booking→Cancel Lookup(execute)→Cancel Route→Validate Cancel Target→Cancel Target Valid?(true)→**Re-read Cancel State**→**Verify Confirm Live**→**Confirm Live?(true)**→Delete Booking Event(204)→Classify Cancel Delete(deleted)→Update Appointment Cancelled→Build Cancelled State | Build Cancel-Aborted State |
-| 5 | **cancel BIND (booked[0] ≠ target)** ⚙ | book A (later); confirm-cancel A; then inject B (earlier, same sender_key, shape-valid fake gid) | `cancel`→`yes` (A) → [inject B] → `yes` | "Done — your Haircut on **A's time** is cancelled." | Cancel Lookup(execute) binds `cancel_target_id`=A ; Delete uses A's real gid | Delete of B (B stays `booked`) |
-| 6 | **401 → unavailable** ⚙(auth-strip) | book; cancel-confirm; strip Delete node auth (`authentication:none`) | `yes` | HTTP **503** `{error:"calendar_unavailable", cancel_delete_failed:true, reply:cancelUnavailable}` — NOT "already cancelled", NOT "cancelled" | Delete Booking Event(statusCode 401)→Classify Cancel Delete(**unavailable**)→Cancel Delete Gate(true)→Cancel Delete Unavailable Reply | Update Appointment Cancelled · Save State (no state write — stage stays cancel_confirming) |
-| 7 | **retry after unavailable → 204** ⚙ | continue sc.6, restore auth | `yes` (again) | "Done — … cancelled." (stage was NOT locked; retry reaches execute) | Confirm Router→Confirm Fresh?(true)→…→Delete(204) | Handoff Lock Reply |
-| 8 | **Validate reject — calendar_id empty** ⚙ | inject booked row with `calendar_id` = "" (real-ish gid) | `cancel`→`yes` | cancelNeedsHuman ("I found your booking but can't cancel it automatically…") | Cancel Target Valid?(false)→Build Cancel-NeedsHuman State | Delete Booking Event · Re-read Cancel State |
-| 9 | **Validate reject — gid whitespace** ⚙ | inject booked row with `gcal_event_id`="   " | `cancel` | cancelNeedsHuman — **no confirm prompt is built** (ask-mode structOk) | Cancel Lookup(ask, needs_human)→Cancel Route→Build Cancel-NeedsHuman State ; stage→handoff | a `cancel_confirming` prompt · Delete |
-| 10 | **Validate reject — legacy tc=0/null** ⚙ | inject `conversations` row `{stage:cancel_confirming, cancel_target_id, turn_count:0}` with **no** `confirm_turn`, + booked appt | `yes` | cancelAborted ("No problem — your booking stands.") | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Find Booking · Delete Booking Event |
+| 5 | **cancel BIND (booked[0] ≠ target)** ⚙ | book A (later slot) through the bot; `cancel` binds `cancel_target_id`=A; then seed B on the SAME session, earlier slot AND earlier `created_at`: `seed-workflow.py appt-insert --session S --start <earlier slot> --created-at <before A's, e.g. now−1 h> --calendar-id <shop cal>` (prefixed fake gid: bindable, never a real event). *The explicit earlier `created_at` is measured, not cosmetic: Find Booking reads `ORDER BY created_at, id`, so B is first in the read only if its `created_at` is earlier* | `cancel` (A) → [seed B] → `yes` | "Done — your Haircut on **A's time** is cancelled." | Cancel Lookup(execute) binds `cancel_target_id`=A ; Delete uses A's real gid | Delete of B (B stays `booked`) |
+| 6 | **401 → unavailable** ⚙(auth-strip) | book; cancel-confirm; strip Delete node auth (`authentication:none`) — an edit of a workflow that uses a database credential: **gated (⚠ ONAY per edit), run through the webhook, never a manual execution** | `yes` | HTTP **503** `{error:"calendar_unavailable", cancel_delete_failed:true, reply:cancelUnavailable}` — NOT "already cancelled", NOT "cancelled" | Delete Booking Event(statusCode 401)→Classify Cancel Delete(**unavailable**)→Cancel Delete Gate(true)→Cancel Delete Unavailable Reply | Update Appointment Cancelled · Save State (no state write — stage stays cancel_confirming) |
+| 7 | **retry after unavailable → 204** ⚙ | continue sc.6, restore auth (the restore is a second edit: **gated (⚠ ONAY per edit), run through the webhook, never a manual execution**) | `yes` (again) | "Done — … cancelled." (stage was NOT locked; retry reaches execute) | Confirm Router→Confirm Fresh?(true)→…→Delete(204) | Handoff Lock Reply |
+| 8 | **Validate reject — calendar_id empty** ⚙ | seed a valid booked row: `seed-workflow.py appt-insert --session S --start <future weekday, outside cutoff> --created-at <now> --calendar-id <shop cal>`; `cancel` (confirm prompt binds it); then `seed-workflow.py appt-update --session S --blank-calendar-id`; `yes`. *Corrected 2026-10-24: the old setup (a row born with `calendar_id` = "") no longer reaches Validate Cancel Target — Cancel Lookup's ask-mode `structOk` (Codex#8 LOW-2) already refuses a blank calendar id on the `cancel` turn, which is row #9's path. Blanking AFTER the prompt is what reaches the execute-time gate named in MUST-RUN* | `cancel` → [blank calendar_id] → `yes` | cancelNeedsHuman ("I found your booking but can't cancel it automatically…") | Cancel Target Valid?(false)→Build Cancel-NeedsHuman State | Delete Booking Event · Re-read Cancel State |
+| 9 | **Validate reject — gid whitespace** ⚙ | `seed-workflow.py appt-insert --session S --start <future weekday, outside cutoff> --created-at <now> --calendar-id <shop cal> --gid blank` (three spaces: the ONE seeded id that deliberately fails the shape check) | `cancel` | cancelNeedsHuman — **no confirm prompt is built** (ask-mode structOk) | Cancel Lookup(ask, needs_human)→Cancel Route→Build Cancel-NeedsHuman State ; stage→handoff | a `cancel_confirming` prompt · Delete |
+| 10 | **Validate reject — legacy tc=0** ⚙ | `seed-workflow.py appt-insert --session S --start <future, outside cutoff> --created-at <now> --calendar-id <shop cal>`, then `seed-workflow.py conv-insert --session S --stage cancel_confirming --turn-count 0 --bind-target` (no `--confirm-turn`: NULL). *On Postgres `turn_count` is `integer NOT NULL`: the Airtable-era "null" half of this row is not expressible, so only 0 is tested* | `yes` | cancelAborted ("No problem — your booking stands.") | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Find Booking · Delete Booking Event |
 | 11 | **confirm TTL — fresh passes** | = sc.4 (the immediate `yes` after the confirm prompt) | see sc.4 | "Done — cancelled." | Confirm Fresh?(**true**) | Build Cancel-Aborted State |
-| 12 | **confirm TTL — stale drops** ⚙ | inject `{stage:cancel_confirming, cancel_target_id, turn_count:6, confirm_turn:"5"}` + booked appt | `yes` | cancelAborted | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Delete Booking Event |
+| 12 | **confirm TTL — stale drops** ⚙ | `seed-workflow.py appt-insert --session S --start <future, outside cutoff> --created-at <now> --calendar-id <shop cal>`, then `seed-workflow.py conv-insert --session S --stage cancel_confirming --turn-count 6 --confirm-turn 5 --bind-target` (`confirm_turn` is text) | `yes` | cancelAborted | Confirm Router(true)→**Confirm Fresh?(false)**→Build Cancel-Aborted State | Delete Booking Event |
 | 13 | **Abort — FAQ intervenes** | book; `cancel` (confirm prompt) | `cancel`→ `what are your prices?` | "No problem — your booking stands." (cancel aborted; FAQ **not** answered) | Abort Cancel?(true)→Build Cancel-Aborted State | Answer FAQ · Route Intent · Delete |
 | 14 | **Abort — lead intervenes** | book; `cancel` | `cancel`→ `can someone call me back about a package?` | "No problem — your booking stands." | Abort Cancel?(true)→Build Cancel-Aborted State | Capture Lead · Delete |
-| 15 | **cancelTargetGone** ⚙ | book; `cancel` (confirm); **delete the appt row**; `yes` | `cancel`→[delete row]→`yes` | "I couldn't find that booking to cancel anymore…" (`cancelTargetGone`) — NOT "I found your booking" | Cancel Lookup(execute, `_cancel_target_gone:true`)→Build Cancel-NeedsHuman State(neutral) | Delete Booking Event |
+| 15 | **cancelTargetGone** ⚙ | seed the booking instead of booking it: `seed-workflow.py appt-insert --session S --start <future, outside cutoff> --created-at <now> --calendar-id <shop cal>` (fake gid, so deleting the row orphans no real calendar event); `cancel` (confirm); `seed-workflow.py appt-delete --session S` (acts only on the session's ONE booked row); `yes` | `cancel`→[appt-delete]→`yes` | "I couldn't find that booking to cancel anymore…" (`cancelTargetGone`) — NOT "I found your booking" | Cancel Lookup(execute, `_cancel_target_gone:true`)→Build Cancel-NeedsHuman State(neutral) | Delete Booking Event |
 | 16 | **FAQ** | — | `what are your prices?` | config price line ("Our prices: Haircut €25 …") | Route Intent(faq)→Answer FAQ→Save State | any LLM-authored answer · Delete |
 | 17 | **lead** | — | `can someone call me back about a package?` | `leadCaptured` ("Thanks! We've got your details…") | Route Intent(lead)→Capture Lead→Build Lead State→Save State | booking nodes |
-| 18 | **handoff (intent-handoff)** | — | an explicit handoff request or a jailbreak (invalid intent JSON takes the same exit) | `handoff` ("I'm passing you to a team member…"); Airtable `stage=handoff` | Invalid or Handoff Gate(true)→Mark Handoff→Save State | *(**corrected 2026-09-07:** "a low-confidence msg" no longer belongs here — since the clarify tier a below-threshold turn hands off only inside a confirmation window or as the SECOND consecutive uncertain turn; see D8 and D3)* | booking/cancel mutations |
+| 18 | **handoff (intent-handoff)** | — | an explicit handoff request or a jailbreak (invalid intent JSON takes the same exit) | `handoff` ("I'm passing you to a team member…"); store `stage=handoff` | Invalid or Handoff Gate(true)→Mark Handoff→Save State | *(**corrected 2026-09-07:** "a low-confidence msg" no longer belongs here — since the clarify tier a below-threshold turn hands off only inside a confirmation window or as the SECOND consecutive uncertain turn; see D8 and D3)* | booking/cancel mutations |
 | 18b | **clarify tier — 1st uncertain** | — | `asdfgh qwerty zzz ???` | `askIntent` ("…what would you like?"); NO `stage` write, so no lock | Uncertain Turn?(true)→Repeat Uncertain?(false)→Build Clarify State→Save State | Mark Handoff |
 | 18c | **clarify tier — 2nd uncertain** | continues 18b | `qwerty zzz ???` | `handoff` ("I'm passing you to a team member…"); `stage=handoff` | Repeat Uncertain?(true)→Mark Handoff→Save State | Build Clarify State |
-| 19 | **guard-trip** ⚙(config) | set `bot.killSwitch:true` (or exceed `maxTurnsPerConversation`) | any message | `handoff` (200), **0 LLM cost** | Check Bot Guards(false)→Handoff Reply | Build LLM Request · Extract Intent (no paid call) |
+| 19 | **guard-trip** ⚙(config) | set `bot.killSwitch:true` (or exceed `maxTurnsPerConversation`) — a config edit of the Main copy: **gated (⚠ ONAY per edit), run through the webhook, never a manual execution** | any message | `handoff` (200), **0 LLM cost** | Check Bot Guards(false)→Handoff Reply | Build LLM Request · Extract Intent (no paid call) |
 | 20 | **invalid payload → 400** | — | POST a body with **no `messageId`** (or empty text / bad senderId / disabled channel) | HTTP **400** (`Send Reject Response`) | Validate Payload(false)→Send Reject Response | Normalize Inbound · any downstream |
 | 21 | **cancel, no booking** | — (fresh session, never booked) | `cancel my appointment` | `cancelNoBooking` ("You don't have an active booking to cancel.") | Route Intent(cancel)→Find Booking(0)→Cancel Lookup('none')→Cancel Route→Build No-Booking Reply | Delete Booking Event · a confirm prompt |
 | 22 | **handoff lock** | — | `I want to talk to a human please` (→handoff) → then any 2nd message *(**corrected 2026-09-07:** the old input `reschedule to next week` relied on a gibberish/low-confidence handoff that the clarify tier removed — it now only clarifies, so no lock ever formed and this scenario failed against a correct engine)* | 2nd → `{locked:true, "A team member is already helping…"}` (`Handoff Lock Reply`) | Merge State→Check Handoff Lock(true)→Handoff Lock Reply | Check Bot Guards · Build LLM Request (bot stays silent, 0 cost) |
-| 23 | **cancel within cutoff** ⚙ | inject booked row with `start_utc` **< 2h** from now | `cancel my appointment` | `cancelCutoff` ("too close to its time to cancel here…") | Cancel Lookup('cutoff')→Cancel Route→Build Cancel-Cutoff Reply | a confirm prompt · Delete |
+| 23 | **cancel within cutoff** ⚙ | `seed-workflow.py appt-insert --session S --start <now + 1 h> --created-at <now> --calendar-id <shop cal>` (inside the 2 h cutoff) | `cancel my appointment` | `cancelCutoff` ("too close to its time to cancel here…") | Cancel Lookup('cutoff')→Cancel Route→Build Cancel-Cutoff Reply | a confirm prompt · Delete |
 
 ### Reschedule (CP4 sub-step 3 — insert-new + verify/race + commit; book-new-first). "R:" prefixes the reschedule execute nodes.
 
@@ -64,15 +99,15 @@
 | 25 | **reschedule happy (end-to-end move)** | book slot A first | `Move … to <B>` → `yes` | T3 "Move your Haircut from A to B?" · T4 **"Moved — your Haircut is now B."** (`rescheduleDone`, stage=booked) | Reschedule Fresh?(true)→Find Old Booking (R)→Validate Reschedule Target(valid)→Build Reschedule Event Request→Book Reschedule Appointment→Verify Slot (R)→Check Race (R)(won)→Update Appointment (R)→Delete Old Event (R)(204)→Classify Reschedule Delete(done)→Build Reschedule-Done State | Build Reschedule Insert-Failed/NeedsHuman/Race-Lost/Orphan/Mirror-Failed State · Build Reschedule-Aborted State |
 | 26 | **reschedule available → confirm-ask** | book slot A | `Move … to <free B>` | "Move your Haircut from A to B? Reply \"yes\"…" — `stage=reschedule_confirming`, `confirm_turn` set | Compute Reschedule Availability('available')→confirm-ask | any R: execute node (no move on the ASK turn) |
 | 27 | **reschedule abort (FAQ intervenes)** | book slot A; ask reschedule to B (confirm prompt) | `Move … to B` → `what are your prices?` | `rescheduleAborted` ("No problem — your booking stays as it is.") — FAQ **not** answered | Abort Reschedule?(true)→Build Reschedule-Aborted State (clears confirm state) | Answer FAQ · any R: execute node |
-| 28 | **reschedule past-guard** ⚙(handoff→locked, curl cannot self-clean) | book slot A | `Move … to <past date>` | "<when> has already passed — a team member will help you pick a new time." (handoff) | Compute Reschedule Availability('past')→handoff | any R: execute node |
-| 29 | **reschedule target-invalid → NeedsHuman** ⚙(inject; restore: none — row deleted at cleanup) | book A; ask reschedule to B (confirm); **blank the appt row `calendar_id`** (or delete the row) | `yes` | `rescheduleNeedsHuman` ("I found your booking but can't reschedule it automatically…") | Validate Reschedule Target(`_reschedule_valid:false`)→Reschedule Target Valid?(false)→Build Reschedule-NeedsHuman State | Book Reschedule Appointment (**NO insert**) · Delete Old Event (R) |
-| 30 | **reschedule insert-fail → original stands** ⚙(auth-strip; restore Book Reschedule auth → live 2xx) | book A; ask reschedule to B; strip `Book Reschedule Appointment` auth (`authentication:none`) | `yes` | `rescheduleInsertFailed` ("Sorry — I couldn't move your booking; your original appointment still stands…") | Book Reschedule Appointment(401 error out1)→Build Reschedule Insert-Failed State→Save State (Post-Write) | Verify Slot (R) · Update Appointment (R) · Delete Old Event (R) — OLD row + event untouched |
+| 28 | **reschedule past-guard** ⚙(handoff→locked, curl cannot self-clean; `seed-workflow.py clean` removes the locked row) | book slot A | `Move … to <past date>` | "<when> has already passed — a team member will help you pick a new time." (handoff) | Compute Reschedule Availability('past')→handoff | any R: execute node |
+| 29 | **reschedule target-invalid → NeedsHuman** ⚙(seed; restore: none — `clean` deletes the row) | seed A: `seed-workflow.py appt-insert --session S --start <A> --created-at <now> --calendar-id <shop cal>`; ask reschedule to B (confirm); `seed-workflow.py appt-update --session S --blank-calendar-id` (or `appt-delete`). *A is seeded, not booked: blanking a REAL booking's calendar id would strand its calendar event behind a handoff lock* | `yes` | `rescheduleNeedsHuman` ("I found your booking but can't reschedule it automatically…") | Validate Reschedule Target(`_reschedule_valid:false`)→Reschedule Target Valid?(false)→Build Reschedule-NeedsHuman State | Book Reschedule Appointment (**NO insert**) · Delete Old Event (R) |
+| 30 | **reschedule insert-fail → original stands** ⚙(auth-strip; restore Book Reschedule auth → live 2xx) | book A; ask reschedule to B; strip `Book Reschedule Appointment` auth (`authentication:none`) — **gated (⚠ ONAY per edit), run through the webhook, never a manual execution** | `yes` | `rescheduleInsertFailed` ("Sorry — I couldn't move your booking; your original appointment still stands…") | Book Reschedule Appointment(401 error out1)→Build Reschedule Insert-Failed State→Save State (Post-Write) | Verify Slot (R) · Update Appointment (R) · Delete Old Event (R) — OLD row + event untouched |
 | 31 | **reschedule race-lost** ⚙(2nd sender fills B before `yes`) | book A; ask reschedule to B; a **2nd sender books B** | `yes` | `slotJustTaken` ("Sorry — that time was just taken…") | Verify Slot (R)→Check Race (R)(`race_lost:true`)→Race Gate (R)(lost)→Cancel New Event (R)(204, deletes OUR new event)→Build Reschedule Race-Lost State | Update Appointment (R) · Delete Old Event (R) — OLD row + event untouched; the 2nd sender's event survives |
-| 32 | **reschedule verify-unavailable** ⚙(auth-strip; restore Verify Slot (R) auth → 2xx) | book A; ask reschedule to B; strip `Verify Slot (Reschedule)` auth | `yes` | `verifyIncomplete` ("We couldn't finish confirming that time just now…") | Book Reschedule Appointment(ok)→Verify Slot (R)(error out1)→Build Reschedule Verify-Unavailable State(`verify_unavailable`, NEW event KEPT) | Check Race (R) · Cancel New Event (R) · Delete Old Event (R) — never delete on an unverified read; OLD intact |
-| 33 | **reschedule delete-old 404/gone → success** ⚙(inject fake OLD gid; restore: none — cleanup deletes rows) | book A; ask reschedule to B; set the appt row `gcal_event_id` to a **valid-shaped nonexistent** id | `yes` | `rescheduleDone` ("Moved — …") — a 404 on the OLD delete is a **success**, never a "couldn't move" | Delete Old Event (R)(404)→Classify Reschedule Delete(**gone**)→Reschedule Delete Gate(done/gone)→Build Reschedule-Done State | Build Reschedule Orphan State · any "couldn't move" message |
-| 34 | **reschedule delete-old unavailable → orphan** ⚙(auth-strip; restore Delete Old Event (R) auth → 2xx) | book A; ask reschedule to B; strip `Delete Old Event (Reschedule)` auth | `yes` | `rescheduleDone` ("Moved — …") — honest, it WAS moved; `stage=handoff` + `reschedule_orphan` owner flag | Update Appointment (R)(ok)→Delete Old Event (R)(401)→Classify Reschedule Delete(**unavailable**)→Reschedule Delete Gate(unavailable)→Build Reschedule Orphan State | Build Reschedule-Done State — two events exist (OLD lingers), row→NEW |
-| 35 | **reschedule update-row fail → mirror-failed** ⚙(break Update Appointment (R) table id; restore table → 2xx) | book A; ask reschedule to B; set `Update Appointment (Reschedule)` table to a bad id | `yes` | `rescheduleMirrorFailed` ("Your booking change is being finalized — a team member will confirm…") | Update Appointment (R)(error out1)→Build Reschedule Mirror-Failed State(`reschedule_mirror_failed`, NEW event exists) | Delete Old Event (R) (**does NOT run**) — row stays stale (OLD), NEW event exists |
-| 36 | **reschedule stale-TTL → aborted** ⚙(inject stale `confirm_turn`) | book A; ask reschedule to B; set the conversation `confirm_turn` to a stale value (≠ turn_count) | `yes` | `rescheduleAborted` ("No problem — your booking stays as it is.") — fail-closed, NO move | Reschedule Router(true)→Reschedule Fresh?(**false**)→Build Reschedule-Aborted State | Find Old Booking (R) · Book Reschedule Appointment · any R: execute node — nothing moves |
+| 32 | **reschedule verify-unavailable** ⚙(auth-strip; restore Verify Slot (R) auth → 2xx) | book A; ask reschedule to B; strip `Verify Slot (Reschedule)` auth — **gated (⚠ ONAY per edit), run through the webhook, never a manual execution** | `yes` | `verifyIncomplete` ("We couldn't finish confirming that time just now…") | Book Reschedule Appointment(ok)→Verify Slot (R)(error out1)→Build Reschedule Verify-Unavailable State(`verify_unavailable`, NEW event KEPT) | Check Race (R) · Cancel New Event (R) · Delete Old Event (R) — never delete on an unverified read; OLD intact |
+| 33 | **reschedule delete-old 404/gone → success** ⚙(seed; restore: none — `clean` deletes rows; the NEW event is real: cancel it through the bot afterwards) | seed A with the valid-shaped nonexistent id from the start: `seed-workflow.py appt-insert --session S --start <A> --created-at <now> --calendar-id <shop cal>` (its prefixed fake gid IS that id; `appt-update --fake-gid` does the same to an existing row, but on a bot-booked A it would leave A's real event behind); ask reschedule to B | `yes` | `rescheduleDone` ("Moved — …") — a 404 on the OLD delete is a **success**, never a "couldn't move" | Delete Old Event (R)(404)→Classify Reschedule Delete(**gone**)→Reschedule Delete Gate(done/gone)→Build Reschedule-Done State | Build Reschedule Orphan State · any "couldn't move" message |
+| 34 | **reschedule delete-old unavailable → orphan** ⚙(auth-strip; restore Delete Old Event (R) auth → 2xx) | book A; ask reschedule to B; strip `Delete Old Event (Reschedule)` auth — **gated (⚠ ONAY per edit), run through the webhook, never a manual execution** | `yes` | `rescheduleDone` ("Moved — …") — honest, it WAS moved; `stage=handoff` + `reschedule_orphan` owner flag | Update Appointment (R)(ok)→Delete Old Event (R)(401)→Classify Reschedule Delete(**unavailable**)→Reschedule Delete Gate(unavailable)→Build Reschedule Orphan State | Build Reschedule-Done State — two events exist (OLD lingers), row→NEW |
+| 35 | **reschedule update-row fail → mirror-failed** ⚙ | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1). *(Airtable-era setup: break `Update Appointment (Reschedule)`'s table id, restore → 2xx.)* | `yes` | `rescheduleMirrorFailed` ("Your booking change is being finalized — a team member will confirm…") | Update Appointment (R)(error out1)→Build Reschedule Mirror-Failed State(`reschedule_mirror_failed`, NEW event exists) | Delete Old Event (R) (**does NOT run**) — row stays stale (OLD), NEW event exists |
+| 36 | **reschedule stale-TTL → aborted** ⚙(seed a stale `confirm_turn`) | seed A (`seed-workflow.py appt-insert --session S --start <A> --created-at <now> --calendar-id <shop cal>`); ask reschedule to B (confirm); `seed-workflow.py conv-update --session S --confirm-turn 999` (any value ≠ the stored `turn_count`) | `yes` | `rescheduleAborted` ("No problem — your booking stays as it is.") — fail-closed, NO move | Reschedule Router(true)→Reschedule Fresh?(**false**)→Build Reschedule-Aborted State | Find Old Booking (R) · Book Reschedule Appointment · any R: execute node — nothing moves |
 
 **Handoff-class note (rule `handoff.md`):** #6 = infra-unavailable (503 + error flag, no state write); #18/#8/#9/#15 = intent-handoff (200, writes `stage=handoff`); #19 = guard-trip (200, transient, no counter increment). Reschedule: #28/#29/#31/#32/#34/#36 hand off (`stage=handoff`) with context; #25/#33 finish `stage=booked`; #27/#36 abort to `stage=new`.
 
@@ -90,7 +125,7 @@ never books**. Needle "team member" = the handoff reply (a real booking "You're 
 | 39 | **pre-hours: invalid date → no book** | — | `Book … 2026-02-30 …` → `yes` | T1 re-ask ("What day and time works…") · T2 handoff | Slot Gate(collecting; 2026-02-30 caught here)→…; stray `yes` → Build Event Request(gate)→Mark Handoff | Book Appointment |
 | 40 | **pre-hours: busy → no book** ⚙(blocker) | a 2nd sender books slot X first | `Book … X` → `yes` | T1 "X is taken. Free that day: … Which works?" · T2 handoff | Compute Availability('busy', time CLEARED)→…→Mark Handoff | Book Appointment on X |
 
-**Evidence (execution API + Airtable column, 2026-08-19):** closed = exec **690** (Compute Availability
+**Evidence (execution API + Airtable column, 2026-08-19 — *Airtable era, not re-run on the copies*):** closed = exec **690** (Compute Availability
 `slots.time:null`, Save State drops `slot_time`; stage=collecting) + exec **691** (Build Event Request →
 `booking.eventId:""` → Event ID Valid?(false) → Mark Handoff; **Book Appointment absent**). past · invalid ·
 busy verified the same turn; **zero appointments rows** created across all four (column-verified). #37–#39
@@ -155,18 +190,18 @@ A real WhatsApp message from the tester's own phone (activated as a sandbox reci
 
 ### ⚙ Owner-alert drills (CP5a) — execution API + real Telegram delivery, NEVER the reply text
 Verify from the execution (`Build Owner Alert` output + `Send Owner Alert` Telegram 2xx) and a real message to the
-owner chat; **D-c**: the customer reply is byte-identical to pre-CP5a on every one (alert branch is off the reply path).
+owner chat (exec ids below: *Airtable era, not re-run on the copies*); **D-c**: the customer reply is byte-identical to pre-CP5a on every one (alert branch is off the reply path).
 
 | # | Scenario | Setup | Expected | MUST-RUN | MUST-NOT-RUN | Evidence |
 |---|---|---|---|---|---|---|
 | A1 | intent-handoff alert | low-conf/gibberish msg | Telegram `handoff` alert w/ sender/intent/stage; reply = `handoff` template | Build Owner Alert · Send Owner Alert | — | exec 1131 (msg_id 4) |
 | A2 | **throttle 5→1 (KK1)** | lock a thread, then 5 msgs to it | first locked → `handoff_lock` alert; msgs 2-5 → Build Owner Alert `[]` (throttled) | (1st) Send Owner Alert | (2-5) Send Owner Alert | exec 1138 alert / 1142 suppressed |
 | A3 | D-c on throttle | same 5 msgs | every reply = `handoffLocked`, 200 (unchanged) | Finalize Outbound | — | 1138/1142 Finalize |
-| A4 | mirror_failed (post-write builder) | break Write Appointment table, book | reply still **"You're booked"** (D-c) + `mirror-failed` alert w/ slots | Build Mirror-Failed State · Send Owner Alert | — | exec 1147 (msg_id 8) |
-| A5 | **KK2 max-turns** | `maxTurns=2`, 3rd msg | `max-turns` alert; reply = handoff | Handoff Reply · Send Owner Alert | — | exec 1152 (msg_id 9) |
-| A6 | **KK2 kill-switch SUPPRESS** | `killSwitch=true`, 1 msg | Build Owner Alert `[]` (owner set it); reply = handoff | Handoff Reply | Send Owner Alert | exec 1153 |
+| A4 | mirror_failed (post-write builder) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1). *(Airtable-era setup: break Write Appointment table, book.)* | reply still **"You're booked"** (D-c) + `mirror-failed` alert w/ slots | Build Mirror-Failed State · Send Owner Alert | — | exec 1147 (msg_id 8) |
+| A5 | **KK2 max-turns** | `maxTurns=2` (**gated (⚠ ONAY per edit), run through the webhook, never a manual execution**), 3rd msg | `max-turns` alert; reply = handoff | Handoff Reply · Send Owner Alert | — | exec 1152 (msg_id 9) |
+| A6 | **KK2 kill-switch SUPPRESS** | `killSwitch=true` (**gated (⚠ ONAY per edit), run through the webhook, never a manual execution**), 1 msg | Build Owner Alert `[]` (owner set it); reply = handoff | Handoff Reply | Send Owner Alert | exec 1153 |
 | A7 | alert-channel-down (D-c) | underscore class → Telegram parse-error | `Owner Alert Failed` visible; reply unaffected | Owner Alert Failed | — | exec 1138 (pre Markdown-safe fix) |
-| A8 | reminders reminder-error | temp trigger + break Find Due | `reminder_error` alert w/ detail (reminders wf) | Build Owner Alert (Reminders) · Send | — | exec 1154 (msg_id 10) |
+| A8 | reminders reminder-error | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1). *(Airtable-era setup: temp trigger + break Find Due.)* | `reminder_error` alert w/ detail (reminders wf) | Build Owner Alert (Reminders) · Send | — | exec 1154 (msg_id 10) |
 | A9 | recent_messages context (D-a) | 2 normal msgs + handoff | alert carries `recent: … | … | …` (last-5) | Build Owner Alert | — | exec 1240 (msg_id 24) |
 | A10 | no false-positive | normal FAQ | Build Owner Alert `[]`, no alert; reply normal | — | Send Owner Alert | exec 1155 |
 
@@ -180,8 +215,8 @@ owner chat; **D-c**: the customer reply is byte-identical to pre-CP5a on every o
 #24 reschedule-no-booking · #25 reschedule-happy (end-to-end move → "Moved") · #27 reschedule-abort ·
 **#37 pre-hours-closed · #38 pre-hours-past · #39 pre-hours-invalid** (stray "yes" → handoff, never a booking).
 The 3 reschedule scenarios self-clean (happy cancels the MOVED booking; abort cancels the standing one); the
-pre-hours scenarios create no booking (handoff). The reschedule FAILURE paths (#28–#36) need injected Airtable
-state / stripped auth (and #28 past-guard hands off → locked, so curl cannot self-clean it), and #40 pre-hours
+pre-hours scenarios create no booking (handoff). The reschedule FAILURE paths (#28–#36) need seeded store state
+(`scripts/seed-workflow.py`; in this 2026-08-19 run, Airtable rows injected by hand) / stripped auth (and #28 past-guard hands off → locked, so curl cannot self-clean it), and #40 pre-hours
 busy needs a blocker booking → they are ⚙, verified via the execution API (below).
 Harness bugs found + fixed on the way (flow was correct each time): (a) idempotency returns
 `duplicate_ignored`, not a replay — expectation corrected; (b) the Abort scenario left its 16:00
@@ -221,11 +256,11 @@ a credential/service failure injected → spec'd as ⚙ infra-drills, not in the
 | Handoff Lock Reply (200) | Check Handoff Lock[true] | ✅ #22 |
 | Handoff Reply (200, guard-trip) | Check Bot Guards[false] | ⚙ #19 |
 | Cancel Delete Unavailable Reply (503) | Cancel Delete Gate[unavail] | ⚙ #6 |
-| Send Error Response (503 `state_unavailable`) | Load/Save State · Check Processed · Find Booking [error] | ⚙ **infra-drill** (Airtable down) |
+| Send Error Response (503 `state_unavailable`) | Load/Save State · Check Processed · Find Booking [error] | ⚙ **infra-drill** (store down) |
 | LLM Unavailable Reply (503) | Extract Intent[error] | ⚙ **infra-drill** (LLM down) |
-| Lead Unavailable Reply (503) | Capture Lead[error] | ⚙ **infra-drill** (Airtable lead-write fail) |
+| Lead Unavailable Reply (503) | Capture Lead[error] | ⚙ **infra-drill** (store lead-write fail) |
 | Calendar Unavailable Reply (503) | Get Calendar Busy · Compute Availability · Reconcile 404?[def] | ⚙ **infra-drill** (freeBusy down / ambiguous-insert reconcile) |
-| Booking State-Unsaved Reply (200) | Save State (Post-Write)[error] | ⚙ **infra-drill** (post-write Airtable fail) |
+| Booking State-Unsaved Reply (200) | Save State (Post-Write)[error] | ⚙ **infra-drill** (post-write store fail) |
 
 **18 branch nodes** (16 IF + 2 Switch): every output is now reached by a scenario except the pure
 infra-error branches above. Newly covered by #20–#23: `Validate Payload[false]`, `Check Handoff Lock[true]`,
@@ -237,7 +272,7 @@ pair (ambiguous 409/timeout insert) are ⚙ edge-drills, spec'd, not automated.
 they are documented drills, not curl-only. The confirmation-lifecycle, cancel, booking, idempotency, routing,
 and handoff-class branches are all covered.
 
-**⚙ Setup-heavy (assisted, verified this session via the execution API):**
+**⚙ Setup-heavy (assisted, verified this session via the execution API — *Airtable era, not re-run on the copies*):**
 
 | # | Scenario | Evidence | On current 92-node flow? |
 |---|---|---|---|
@@ -255,7 +290,7 @@ and handoff-class branches are all covered.
 automated harness — they need injected state or a live drill. The re-audit only touched `Confirm Fresh?`
 + the pre-delete re-read; scenarios whose logic it did not touch are cited from their original proof.
 
-**⚙ Reschedule setup-heavy (assisted, verified 2026-08-19 via the execution API + Airtable column, never the reply):**
+**⚙ Reschedule setup-heavy (assisted, verified 2026-08-19 via the execution API + Airtable column, never the reply — *Airtable era, not re-run on the copies*):**
 
 | # | Scenario | Evidence (exec) | Verified |
 |---|---|---|---|
@@ -266,10 +301,10 @@ automated harness — they need injected state or a live drill. The re-audit onl
 | 32 | verify-unavailable → NEW kept | **542** | Verify Slot (R) 403 out1 → Verify-Unavailable (`verify_unavailable`, NEW kept); Check Race did NOT run; OLD intact |
 | 33 | delete-old 404/gone → success | **588** | fake OLD gid → Delete 404 → Classify `gone` → Done, "Moved", NO false error |
 | 34 | delete-old unavailable → orphan | **592** | Delete 401 → Classify `unavailable` → Orphan (`reschedule_orphan`, two events, row→NEW, honest "moved") |
-| 35 | update-row fail → mirror-failed | **596** | Update table broken → error out1 → Mirror-Failed; Delete did NOT run; NEW exists, row stale |
+| 35 | update-row fail → mirror-failed — **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) | **596** | Update table broken → error out1 → Mirror-Failed; Delete did NOT run; NEW exists, row stale |
 | 36 | stale-TTL → aborted | **600** | injected stale `confirm_turn` → Reschedule Fresh?(false) → Aborted; NO R: execute node ran; old intact |
 
-Every auth/table-break drill was **restored** (Book/Verify/Delete auth → `predefinedCredentialType`; Update
+*(Airtable era, not re-run on the copies.)* Every auth/table-break drill was **restored** (Book/Verify/Delete auth → `predefinedCredentialType`; Update
 table id → real) and re-verified (live 2xx, suite 15/15, content-parity byte-for-byte, committed
 injection-free). All drill GCal events + Airtable rows cleaned via bot-cancel + delete (reschedule creates a
 2nd event; orphan events are cleaned by re-pointing the row and bot-cancelling again).
@@ -286,7 +321,7 @@ was taken as proof of the whole control; a fake token in fact passed straight th
 | # | Setup | Expected | MUST-RUN | MUST-NOT-RUN |
 |---|---|---|---|---|
 | T1 | POST widget payload **with no `turnstileToken`** | **403** `{"ok":false,"error":"turnstile_failed"}` | Turnstile Gate → Verify Turnstile → Reject Bot Request | Check Bot Guards, Extract Intent, Save State |
-| T2 | POST the SAME payload with `"turnstileToken":"garbage-token"` | **403** `turnstile_failed` — a non-empty string must NOT be enough | Verify Turnstile → Turnstile Valid?[false] → Reject Bot Request | Extract Intent, Save State, any Airtable write |
+| T2 | POST the SAME payload with `"turnstileToken":"garbage-token"` | **403** `turnstile_failed` — a non-empty string must NOT be enough | Verify Turnstile → Turnstile Valid?[false] → Reject Bot Request | Extract Intent, Save State, any store write |
 | T3 | Browser-solved REAL token from the widget | **200** with a `reply` | Turnstile Valid?[true] → Resume After Turnstile → brain | Reject Bot Request |
 
 Payload for T1/T2 (`message_id` is REQUIRED — without it the request dies at `Validate Payload` with
@@ -296,8 +331,8 @@ Payload for T1/T2 (`message_id` is REQUIRED — without it the request dies at `
 {"sessionId":"<drill-id>","messageId":"<drill-id>-1","text":"hello","turnstileToken":"<omit | garbage>"}
 ```
 
-**Cleanup:** T3 (and any leg that reaches the brain) writes `Conversations` + `processed_messages` rows —
-delete them and verify the search returns 0, as CP4d-1 did. T2 must write nothing; if it does, that is
+**Cleanup:** T3 (and any leg that reaches the brain) writes `conversations` + `processed_messages` rows —
+with the p7 prefixes they are removed by `seed-workflow.py clean`; verify with a `salon_ro` count that returns 0. T2 must write nothing; if it does, that is
 itself the failure.
 
 **Recorded results.** 2026-09-04 (BEFORE the fix): T1 ✓ 403 · T2 ✗ **200, reached the brain** · T3 not run. 2026-09-06 (AFTER provisioning a real widget and PUBLISHING): **T1 ✓ 403 · T2 ✓ 403 · T2d (realistic fake token) ✓ 403 · T3 ✓ 200** with a real engine reply from a real browser. T1/T2/T2d MUST-NOT-RUN proven by column (no `conversations` row); T3 verified server-side (`stage`, `computed_reply` byte-identical to the screen).
@@ -321,7 +356,7 @@ body is not parsed as JSON so there is no `sessionId`. Still rejected, so no sec
 above was reasoning, and reasoning lost. The table now carries the MEASURED value, and this is the fourth time in
 this repo that an unmeasured expectation sat in a test file looking like a fact. It also doubles the edge rate-limit spend on a failing send; see the rate-limit item below.
 
-### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning
+### ⚙ CP5b perimeter-brake drills (spend-cap + dry-run) — exec-API + Airtable column, self-cleaning (*Airtable era, not re-run on the copies*)
 
 Spend-cap and dry-run are proven via the execution API + the `bot_metrics`/`conversations` columns (never the
 reply alone), with the `bot_metrics` row and `bot.dryRun` toggle RESTORED after each drill (restore gate).
@@ -329,9 +364,9 @@ reply alone), with the `bot_metrics` row and `bot.dryRun` toggle RESTORED after 
 | # | scenario | evidence | proof |
 |---|---|---|---|
 | SC1 | under-cap → normal LLM + spend recorded | exec **1313** | `_spend:{prev:0,cap:10,under:true}` → LLM ran; `Build Spend Record` cost 0.002044 → `Record LLM Spend` upsert `bot_metrics` 2026-08 |
-| SC2 | over-cap → deterministic handoff, 0 LLM | exec **1314** | `bot_metrics` forced to cap → `_spend.under:false` → Spend Gate out1 → `Build Spend-Cap Reply` (handoff, `spend_cap_tripped`); **`Build LLM Request` + `Extract Intent` MUST-NOT-RUN**; real Telegram `spend_cap` |
-| SC3 | meter-unavailable → fail-OPEN + alert, ONE LLM call | exec **1316** | `Read Spend` table broken → out0 empty item drives fail-open (`prev:0`), **exactly one** `Extract Intent`; out1 → `Build Spend-Meter Alert` → real Telegram `spend_meter_unavailable`. (Regression fix: routing both Read Spend outputs to Eval Spend double-processed — exec 1315.) |
-| DR1 | dry-run booking → no real write | exec **1318** | `bot.dryRun=true` → `Live Booking?` out1 → `Build Dry-Run Booked State` (`dry_run:true`, empty gcal id); **`Book Appointment` + `Write Appointment` + `Verify Slot` MUST-NOT-RUN**; reply = bookingConfirmed |
+| SC2 | over-cap → deterministic handoff, 0 LLM | exec **1314** | *(on the copies: lower the cap in config — a gated edit — never write `bot_metrics`, the production spend meter)* `bot_metrics` forced to cap → `_spend.under:false` → Spend Gate out1 → `Build Spend-Cap Reply` (handoff, `spend_cap_tripped`); **`Build LLM Request` + `Extract Intent` MUST-NOT-RUN**; real Telegram `spend_cap` |
+| SC3 | meter-unavailable → fail-OPEN + alert, ONE LLM call — **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) | exec **1316** | `Read Spend` table broken → out0 empty item drives fail-open (`prev:0`), **exactly one** `Extract Intent`; out1 → `Build Spend-Meter Alert` → real Telegram `spend_meter_unavailable`. (Regression fix: routing both Read Spend outputs to Eval Spend double-processed — exec 1315.) |
+| DR1 | dry-run booking → no real write | exec **1318** | `bot.dryRun=true` (**gated (⚠ ONAY per edit), run through the webhook, never a manual execution**) → `Live Booking?` out1 → `Build Dry-Run Booked State` (`dry_run:true`, empty gcal id); **`Book Appointment` + `Write Appointment` + `Verify Slot` MUST-NOT-RUN**; reply = bookingConfirmed |
 | DR2 | dryRun=false → live booking intact (regression) | exec **1320** | `Live Booking?` out0 → `Book Appointment` (real GCal event) + `Write Appointment` row; drill cleaned via the bot's own cancel |
 
 The whatsapp `Live Send?` dry-run gate uses the byte-identical `dryRun` IF as `Live Booking?`; the whatsapp
@@ -361,11 +396,11 @@ reply alone. **`crypto.timingSafeEqual` is spike-proven unavailable** → plain-
 | M2b | unsigned widget bad-shape (no header) | exec **1452** | `Is Zernio Inbound?` out1 (no header) → widget lane → **400** `bad_request`; Build Owner Alert returned **[]** = NO alert (regression) |
 | L1a | signed body, header = non-hex (`deadbeef`) | exec **1450** | `Verify Signature` type/length validation → `sig_valid:false` → **403**; Build LLM Request MUST-NOT-RUN |
 | L1b | signed body, header = 64-char UPPERCASE hex | HTTP **403** | HEX64 is lowercase-only → `sig_valid:false` → 403 (coercion/format bypass closed) |
-| M1a | `Record Processed` (dedupe marker) write fails | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
+| M1a | `Record Processed` (dedupe marker) write fails — **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
 
-### ⚙ CP5e robustness drills (Airtable error-split · purge · reminders overlap lock)
+### ⚙ CP5e robustness drills (store error-split · purge · reminders overlap lock — exec ids: *Airtable era, not re-run on the copies*)
 
-The 6 Airtable read/lookup nodes now split **error → 503/abort ONLY** from **0-results/data → continue**
+The 6 store read/lookup nodes (Airtable when drilled; Postgres on the copies, same split) now split **error → 503/abort ONLY** from **0-results/data → continue**
 (`onError:continueRegularOutput` + a `<Node> Errored?` IF on `!!$json.error`). Each drilled BOTH ways; the
 (b) 0-results case for the entry/confirm-turn nodes is also covered by the suite's cancel/reschedule
 no-booking + happy scenarios. Self-cleaning (table broken per node, restored; the one real GCal booking
@@ -373,14 +408,14 @@ cancelled + rows purged).
 
 | # | node · case | evidence | proof |
 |---|---|---|---|
-| E-LS(a) | Load State failure | exec **1456** | error item `$json.error` → Errored? out0 → Send Error Response 503; **Merge State + Build LLM Request MUST-NOT-RUN** |
-| E-CP(a) | Check Processed failure | exec **1457** | 503; **Dedupe Gate + Load State + Build LLM Request MUST-NOT-RUN** |
-| E-FB(a) | Find Booking failure (cancel) | exec **1461** | 503; **Cancel Lookup MUST-NOT-RUN** |
-| E-FBR(a) | Find Booking (Reschedule) failure | exec **1462** | 503; **Reschedule Lookup MUST-NOT-RUN** |
-| E-RRCS(a) | Re-read Cancel State failure (cancel confirm turn) | exec **1466** | Errored? → Build Cancel-Aborted State ("booking stands"); **Verify Confirm Live + Delete Booking Event MUST-NOT-RUN** = NO wrong-delete on a failed pre-delete re-read |
-| E-FOBR(a) | Find Old Booking (Reschedule) failure (reschedule execute turn) | exec **1468** | 503; **Validate Reschedule Target + Book Reschedule Appointment MUST-NOT-RUN** = NO wrong-insert on a failed re-find |
+| E-LS(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Load State failure | exec **1456** | error item `$json.error` → Errored? out0 → Send Error Response 503; **Merge State + Build LLM Request MUST-NOT-RUN** |
+| E-CP(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Check Processed failure | exec **1457** | 503; **Dedupe Gate + Load State + Build LLM Request MUST-NOT-RUN** |
+| E-FB(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Find Booking failure (cancel) | exec **1461** | 503; **Cancel Lookup MUST-NOT-RUN** |
+| E-FBR(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Find Booking (Reschedule) failure | exec **1462** | 503; **Reschedule Lookup MUST-NOT-RUN** |
+| E-RRCS(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Re-read Cancel State failure (cancel confirm turn) | exec **1466** | Errored? → Build Cancel-Aborted State ("booking stands"); **Verify Confirm Live + Delete Booking Event MUST-NOT-RUN** = NO wrong-delete on a failed pre-delete re-read |
+| E-FOBR(a) | **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) · Find Old Booking (Reschedule) failure (reschedule execute turn) | exec **1468** | 503; **Validate Reschedule Target + Book Reschedule Appointment MUST-NOT-RUN** = NO wrong-insert on a failed re-find |
 | E-(b) | 0-results → continue (all 6) | exec **1455** + suite | Load State + Check Processed Errored? = FALSE → continue → brain + reply; entry/confirm-turn nodes' 0-results/found covered by cancel/reschedule no-booking (21/24) + happy (4/25) |
-| PURGE | processed_messages > 30d deleted, recent kept | temp-trigger run | 40-day-old row deleted (`deleteRecord`), 2026-08-26 row kept |
+| PURGE | processed_messages > 30d deleted, recent kept | **On the copies:** `seed-workflow.py pm-insert --session w-mig-p7-purge-<run> --message-id mig-p7-purge-old-<run> --created-at <now − 40 d>` and a second one, `--message-id mig-p7-purge-new-<run> --created-at <now − 1 d>`; then OBSERVE the Purge copy's next scheduled tick (no edit, no manual run) and read both ids via `salon_ro`; `clean` removes the survivor | old row deleted, recent row kept. *Airtable era, not re-run on the copies:* temp-trigger run, 40-day-old row deleted (`deleteRecord`), 2026-08-26 row kept |
 | REM-OVERLAP | 2nd reminders run within 2 min → skip | exec **1475** | `Reminders Concurrency Guard` returns [] → `Compute Reminder Window` MUST-NOT-RUN (staticData 2-min window) |
 
 ### ⚙ Reconcile drills — Phase-7 gate (from refactor Step 1 / c1)
@@ -393,14 +428,14 @@ infra-drill session** (isolated auth manipulation, one publish window, restore-g
 
 | Drill | Setup | Expected | Verify |
 |---|---|---|---|
-| **reconcile D1 — gone/404** | `Book Appointment` auth→`none` (Book 401, no event created) → book once | `Get For Reconcile` **404** → `Classify` **gone** → `Reconcile 404?`[true] → `Calendar Unavailable Reply` 503 (retry-safe). Restore Book auth + gate (a config · b live 2xx · c grep auth:none→0) | exec: Get statusCode 404 · `_reconcile_class:"gone"` · no "already exists / never created" text output; failure visible |
-| **reconcile D2 — unavailable/401** | `Get For Reconcile` auth→`none`; trigger a Book error to reach Get | `Get` **401/403** → `Classify` **unavailable** → `Reconcile 404?`[false] → `Build Reconcile-Unresolved State` 200 handoff. Invariant: statusCode ∉ {200,204,404,410} ⇒ unavailable (403 also passes). Restore Get auth + gate | exec: Get statusCode 401 · `_reconcile_class:"unavailable"` · handoff, id visible |
+| **reconcile D1 — gone/404** | **gated (⚠ ONAY per edit), run through the webhook, never a manual execution**: `Book Appointment` auth→`none` (Book 401, no event created) → book once | `Get For Reconcile` **404** → `Classify` **gone** → `Reconcile 404?`[true] → `Calendar Unavailable Reply` 503 (retry-safe). Restore Book auth + gate (a config · b live 2xx · c grep auth:none→0) | exec: Get statusCode 404 · `_reconcile_class:"gone"` · no "already exists / never created" text output; failure visible |
+| **reconcile D2 — unavailable/401** | **gated (⚠ ONAY per edit), run through the webhook, never a manual execution**: `Get For Reconcile` auth→`none`; trigger a Book error to reach Get | `Get` **401/403** → `Classify` **unavailable** → `Reconcile 404?`[false] → `Build Reconcile-Unresolved State` 200 handoff. Invariant: statusCode ∉ {200,204,404,410} ⇒ unavailable (403 also passes). Restore Get auth + gate | exec: Get statusCode 401 · `_reconcile_class:"unavailable"` · handoff, id visible |
 
 Reason deferred to Phase 7 (ARCHITECTURE-DECISIONS §5, 2026-08-17): the auth-break + 4-publish + clobber
 risk of running these mid-refactor outweighs the residual; classifier is unit-proven (17/17) + the
 `_reconcile_class` field/value contract is statically verified. **The phase may move; the gate may not.**
 
-### Clarify tier — `unknown` ≠ `handoff` (added 2026-09-07, all Airtable-verified)
+### Clarify tier — `unknown` ≠ `handoff` (added 2026-09-07, all Airtable-verified — *Airtable era, not re-run on the copies*)
 
 Gate order (corrected twice on 2026-09-07, both times because `flow-reviewer` found a regression the drills and
 the guards had missed):
@@ -412,10 +447,10 @@ Two things this order encodes: the abort gates own a CONFIDENT non-confirm turn 
 confirmation be dropped on a classification we distrust). **Sticky-flag caveat: `last_intent='clarify'` is cleared only by a
 turn that WRITES state** — handoff-lock, guard-trip, LLM-unavailable, spend-cap, idempotent replay and state-error
 turns leave it standing, so "consecutive" is shorthand, not a literal guarantee. **Evidence rule for every row below: read `last_intent` / `stage` / `turn_count` from the
-Airtable `Conversations` row. A screenshot is NOT evidence** — the reply text alone cannot distinguish "clarified"
+store's `conversations` row (today: a `salon_ro` SELECT; in 2026-09 it was the Airtable row). A screenshot is NOT evidence** — the reply text alone cannot distinguish "clarified"
 from "handed off then locked".
 
-| # | Session | Message sequence | Expected | Airtable proof (observed 2026-09-07) |
+| # | Session | Message sequence | Expected | Store proof (observed 2026-09-07 on Airtable — *Airtable era, not re-run on the copies*) |
 |---|---|---|---|---|
 | D1 | fresh | `hi` | askIntent question, NO lock | `last_intent=clarify` · `stage=new` · `turn_count=1` — the same input previously gave `unknown`/`handoff`/1 |
 | D2 | continues D1 | `Can I get a haircut Friday at 15:30?` | normal booking | `last_intent=book` · `stage=collecting` · slots kept → the `clarify` flag self-clears |
@@ -468,7 +503,7 @@ changes; a single event in 30 samples cannot rule out a true rate above the thre
 | # | Input | Expected | Evidence |
 |---|---|---|---|
 | **E8** | any booking message with a relative day | `slots.dateExpr` carries the RAW wording (`"friday"`), never a date | execution → `Validate Intent` output. **Measured 2026-09-07 (exec 1998): `dateExpr:"friday"`, `date:"2026-09-11"`** |
-| E1 | `haircut on friday at 11:00` | that week's Friday | Airtable `slot_date=2026-09-11` ✔ |
+| E1 | `haircut on friday at 11:00` | that week's Friday | Airtable `slot_date=2026-09-11` ✔ (*Airtable era, not re-run on the copies*; so is every exec id in this table) |
 | E2 | `haircut tomorrow at 11:00` | today+1 | `slot_date=2026-09-08` ✔ |
 | E3 | `haircut next tuesday at 11:00` | **refused** — date dropped, `askDateTime` re-ask, owner alert | `slot_date` EMPTY · exec 2006 (the gate was named `Date Mismatch?` then; renamed `Date Alert?` 2026-09-08): `Resolve Date`+`Date Mismatch?`+`Send Owner Alert (Telegram)` ran, **`Book Appointment` and `Write Appointment` did NOT** ✔ |
 | ~~E7~~ | `haircut in two weeks at 11:00` | **SUPERSEDED 2026-09-09 — the old expectation (LLM's date kept) is now a DEFECT.** Fail-closed: `unresolved_expr` → date dropped → re-ask, `date_unresolved` alert. Do not restore the old assertion | see E21/E23 |
@@ -509,7 +544,7 @@ from a neighbouring row. The live-drill debt is a named open item in `docs/ROADM
 | **E25a** | `haircut friday this week at 11` sent on a **Saturday** | **refused** — `this week` is an anchor and never rolls forward; `anchor_past` → `date_anchor_past` alert → re-ask | unit: `resolve-date.test.cjs` ANCHOR block, own pinned clock `2026-09-12T07:00:00Z`. Mutants M1–M4 killed. **No live exec** |
 | **E25b** | customer types `friday`, the model returns `dateExpr:"saturday"` | **refused** — `expr_not_from_customer` → `date_expr_forged`. The relative side now demands the customer's own text exactly as the ISO side always did | unit: CODEX-H2a rows (incl. the SILENT side: a day the customer really typed still resolves, and capitalisation is not forgery). Mutants M5–M6 killed. **No live exec** |
 | **E25c** | `stage=collecting`, message `in two weeks`, model returns `dateExpr:null` + the STORED date | **refused** — the confirm-echo exception now needs `intent='confirm'` AND a pending-confirmation stage | unit: CODEX-H2b, all four corners incl. `cancel_confirming`/`reschedule_confirming` accepting. Mutants M10–M12 killed. **No live exec** |
-| **E25d** | an `answer_faq`/price payload whose `dateExpr` key is **ABSENT** (not null) — Codex's exact JSON | schema-invalid, but **NO `stage='handoff'`**: `Extraction Transient?` → `Build Extraction-Retry State` (`notUnderstood`, no stage write, owner alert `extraction_invalid`). Verify from the Airtable `stage` column, **never** from the reply | unit: `validate-intent.test.cjs` 33/33, executing the committed `Extraction Transient?` + `Repeat Extraction Failure?` expressions and running the retry builder; the same drill repeated for lead / cancel / greeting. Mutants M14–M15 killed; M16 proven equivalent and pinned. **No live exec** |
+| **E25d** | an `answer_faq`/price payload whose `dateExpr` key is **ABSENT** (not null) — Codex's exact JSON | schema-invalid, but **NO `stage='handoff'`**: `Extraction Transient?` → `Build Extraction-Retry State` (`notUnderstood`, no stage write, owner alert `extraction_invalid`). Verify from the store's `stage` column (`salon_ro`), **never** from the reply | unit: `validate-intent.test.cjs` 33/33, executing the committed `Extraction Transient?` + `Repeat Extraction Failure?` expressions and running the retry builder; the same drill repeated for lead / cancel / greeting. Mutants M14–M15 killed; M16 proven equivalent and pinned. **No live exec** |
 | **E25e** | `book 2026-09-11 at 11` where the model guesses `2026-09-18` · `dateExpr:"friday"` with model `2026-09-11T00:00:00` | **both book** — the clipping check only runs on a bare-weekday resolution and compares normalized dates | unit: CODEX-M5a/M5b. Mutants M7–M9 killed. **No live exec** |
 | **E25f** | ordinary booking lane AND ordinary reschedule lane | unchanged; the two lanes are asserted **separately**, never by generalisation | unit: the DOMINATOR check (`Merge Slots` / `Reschedule Lookup` unreachable without `Resolve Date`) + each lane's own `date_dropped` handling. Mutants M17–M18 and the topological mutant killed. **No live exec** |
 
