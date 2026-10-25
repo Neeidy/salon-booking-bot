@@ -11,7 +11,9 @@
  * and every case below removes the key entirely.
  *
  * WHY IT EXECUTES THE COMMITTED NODE AND THE COMMITTED IF EXPRESSION: `.claude/rules/contract-integrity.md`.
- * The node body comes from n8n/workflow.sanitized.json and the routing decision is evaluated from the
+ * The node body comes from n8n/workflow.main.copy.sanitized.json (the Main COPY export: since the D6b cutover
+ * the live Main is the Postgres copy, and the parked original is only the rollback path until D6c) and the
+ * routing decision is evaluated from the
  * committed IF nodes' own `leftValue` expression text AND their `operator` — not a paraphrase of either.
  * A rewritten condition or an inverted operator therefore fails here; the combinator is NOT evaluated and
  * the harness refuses to run if either IF ever grows a second condition.
@@ -23,12 +25,13 @@
  * ⚠ Same accepted security note as resolve-date.test.cjs: this runs `jsCode` from the committed export via
  * `new Function`. A PR touching the workflow JSON is a CODE change and must be read as one.
  *
- * Run:  node tests/unit/validate-intent.test.cjs      (exit 0 = all pass)
+ * Run:  node tests/unit/validate-intent.test.cjs      (exit 0 = all pass; optional argv[2]: another export,
+ *       for mutation runs)
  */
 const fs = require('fs');
 const path = require('path');
 
-const WF = path.join(__dirname, '../../n8n/workflow.sanitized.json');
+const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.copy.sanitized.json');
 const wf = JSON.parse(fs.readFileSync(WF, 'utf8'));
 const nodeOf = (name) => wf.nodes.find(n => n.name === name);
 
@@ -65,7 +68,7 @@ const condOf = (name) => {
 };
 const transientCond = condOf('Extraction Transient?');
 const repeatCond    = condOf('Repeat Extraction Failure?');
-// `prev` is what `Merge State` read from Airtable at the START of this turn — the only thing the escalation
+// `prev` is what `Merge State` read from the store at the START of this turn — the only thing the escalation
 // ladder keys on. `null` = a clean previous turn.
 // ⚠ IT IS NOT A LITERAL ANY MORE (Codex round 4). Setting it to the string 'invalid' by hand meant the
 // ladder was tested against the harness's OPINION of what turn 1 persists, not against what turn 1 actually
@@ -74,9 +77,9 @@ const repeatCond    = condOf('Repeat Extraction Failure?');
 // committed node for turn 1 and follows the value through the SAME mapping `Save State` writes
 // (`$json.state.last_intent`) and `Merge State` reads back, so turn 2 sees what turn 1 really left behind.
 let PREV_INTENT = null;
-// what `Save State`'s own `stage` column expression produced on the last `persistedAfter()` run
+// what `Save State`'s own `stage` binding produced on the last `persistedAfter()` run
 let STAGE_WRITTEN;
-// ⚠ THE WHOLE PERSISTENCE CHAIN IS EXECUTED — producer, retry builder, column mapping, Airtable row,
+// ⚠ THE WHOLE PERSISTENCE CHAIN IS EXECUTED — producer, retry builder, Save State binding, returned row,
 // readback (Codex round 4, finding 1). Two earlier versions of this helper were each one node short of the
 // loop, and each left the ladder's real killer alive:
 //   * v1 wrote `out.state.last_intent` with a comment claiming that is what Save State stores — a hand mirror.
@@ -92,41 +95,72 @@ let STAGE_WRITTEN;
 // executing the COMMITTED node", and step 4 is a literal — code-reviewer, round 5):
 //   1 `Validate Intent`                 — committed node, executed
 //   2 `Build Extraction-Retry State`    — committed node, executed
-//   3 `Save State`.last_intent + .stage — committed COLUMN EXPRESSIONS, fetched and evaluated
-//   4 the Airtable row                  — HAND-BUILT here from (3)'s outputs; Airtable itself is not run
+//   3 `Save State`.last_intent + .stage — the committed BOUND VALUES: the node's own query says which `$n`
+//                                         each column takes, and its `queryReplacement` array expression is
+//                                         evaluated (see `saveStateBinding()`)
+//   4 the returned row                  — HAND-BUILT here from (3)'s outputs in the `{id, createdTime,
+//                                         fields}` shape Save State's RETURNING builds; Postgres is not run
 //   5 `Merge State`                     — committed node, executed, and its `last_intent` readback is read
 // Only `last_intent` and `stage` travel the whole way; `Merge State`'s other readbacks (turn_count, slots)
 // are not asserted here and this comment does not pretend they are.
 const chainSrc = (n) => nodeOf(n).parameters.jsCode;
+const die = (msg) => { console.error(msg); process.exit(1); };
+// 3 — On the Main copy `Save State` is a Postgres `INSERT … (cols) VALUES ($1, …) ON CONFLICT … DO UPDATE SET`,
+// and every value arrives through ONE positional array expression, `options.queryReplacement`. Which element
+// is `stage` and which is `last_intent` is read from the node's OWN column list and `$n` placeholders, never
+// hard-coded: reorder the columns and the binding this harness evaluates moves with them. A column that is
+// inserted but not in the DO UPDATE SET would leave an existing row's OLD value in place, which for
+// `last_intent` is the ladder reading a value nothing wrote — so that is a missing binding too.
+const LUXON = require(path.join(__dirname, '../../scripts/node_modules/luxon'));
+const saveStateBinding = () => {
+  const p = nodeOf('Save State').parameters || {};
+  const q = typeof p.query === 'string' ? p.query : '';
+  const ins = q.match(/^\s*INSERT\s+INTO\s+[\w.]+\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/i);
+  if (!ins) die('Save State is not an `INSERT … (cols) VALUES (…)` query — the harness cannot find what it '
+    + 'binds to `stage` / `last_intent`. Teach the harness the new form; do not let this pass.');
+  const cols = ins[1].split(',').map((c) => c.trim());
+  const vals = ins[2].split(',').map((v) => v.trim());
+  if (cols.length !== vals.length) die(`Save State lists ${cols.length} columns but ${vals.length} values.`);
+  const rm = String((p.options || {}).queryReplacement || '').match(/^=\{\{([\s\S]+)\}\}$/);
+  if (!rm) die('Save State.options.queryReplacement is not an ={{ }} expression — nothing binds the values.');
+  const params = new Function('$json', '$now', 'return (' + rm[1] + ');');
+  const at = (col, missing) => {
+    const i = cols.indexOf(col);
+    const pm = i === -1 || cols.lastIndexOf(col) !== i ? null : vals[i].match(/^\$(\d+)(::\w+)?$/);
+    const updated = new RegExp('\\bDO\\s+UPDATE\\s+SET\\b[\\s\\S]*\\b' + col + '\\s*=\\s*EXCLUDED\\.' + col + '\\b', 'i').test(q);
+    if (!pm || !updated) die(missing);
+    const idx = Number(pm[1]) - 1;
+    return (item) => {
+      const arr = params(item, LUXON.DateTime.now());
+      if (!Array.isArray(arr) || arr.length !== cols.length) {
+        die(`Save State.queryReplacement must yield one value per column (${cols.length}), got `
+          + (Array.isArray(arr) ? arr.length : typeof arr));
+      }
+      return arr[idx];
+    };
+  };
+  return {
+    lastIntent: at('last_intent', 'Save State has no `last_intent` binding (inserted AND updated) — the '
+      + 'escalation ladder reads a value nothing writes. Fix the flow or this harness, but do not let this pass.'),
+    stage: at('stage', 'Save State has no `stage` binding (inserted AND updated) — "no stage write, no lock" '
+      + 'cannot be checked. Fix the flow or this harness, but do not let this pass.'),
+  };
+};
 const persistedAfter = (raw) => {
   const produced = validateIntentNode(raw, $)[0].json;                                    // 1 producer
   const retryCfg = () => ({ first: () => ({ json: { config: { messageTemplates: { notUnderstood: 'X' } } } }) });
   const built = new Function('$json', '$', chainSrc('Build Extraction-Retry State'))(produced, retryCfg)[0].json;  // 2
-  const cols = (nodeOf('Save State').parameters.columns || {}).value || {};               // 3 column mapping
-  const expr = cols.last_intent;
-  if (typeof expr !== 'string') {
-    console.error('Save State has no `last_intent` column mapping — the escalation ladder reads a value '
-      + 'nothing writes. Fix the flow or this harness, but do not let this pass.'); process.exit(1);
-  }
-  const m = expr.match(/^=\{\{([\s\S]+)\}\}$/);
-  if (!m) { console.error('Save State.last_intent is not an ={{ }} expression: ' + expr); process.exit(1); }
-  const written = new Function('$json', 'return (' + m[1] + ');')(built);
-  // ⚠ `stage` IS EVALUATED FROM ITS COLUMN TOO (code-reviewer, round 5). It used to be hand-copied from
+  const bind = saveStateBinding();                                                     // 3 bound values
+  const written = bind.lastIntent(built);
+  // ⚠ `stage` IS EVALUATED FROM ITS BINDING TOO (code-reviewer, round 5). It used to be hand-copied from
   // `built.state.stage`, which left the SEVENTH fixed axis of this phase — and on the one field that is this
-  // class's entire contract. Measured: setting `Save State`'s stage column to `={{ 'handoff' }}`, i.e.
-  // writing a PERMANENT LOCK on every single turn (MED-6 restored in the worst possible form), left the suite
-  // at 35/35. The two existing stage assertions could not see it: one greps the BUILDER's body, the other
-  // RUNS the builder — and neither of them is the thing that writes the column.
-  const stageExpr = cols.stage;
-  if (typeof stageExpr !== 'string') {
-    console.error('Save State has no `stage` column mapping — "no stage write, no lock" cannot be checked.');
-    process.exit(1);
-  }
-  const sm = stageExpr.match(/^=\{\{([\s\S]+)\}\}$/);
-  if (!sm) { console.error('Save State.stage is not an ={{ }} expression: ' + stageExpr); process.exit(1); }
-  const writtenStage = new Function('$json', 'return (' + sm[1] + ');')(built);
+  // class's entire contract. Measured on the Airtable original: setting `Save State`'s stage column to
+  // `={{ 'handoff' }}`, i.e. writing a PERMANENT LOCK on every single turn (MED-6 restored in the worst
+  // possible form), left the suite at 35/35. The two existing stage assertions could not see it: one greps the
+  // BUILDER's body, the other RUNS the builder — and neither of them is the thing that writes the column.
+  const writtenStage = bind.stage(built);
   STAGE_WRITTEN = writtenStage;
-  const row = { id: 'recDrill0000000001', createdTime: '2026-09-08T00:00:00.000Z',        // 4 the written row
+  const row = { id: 'recDrill0000000001', createdTime: '2026-09-08T00:00:00.000Z',        // 4 the returned row
                 fields: { sender_key: CTX.sender_key, last_intent: written,
                           stage: writtenStage, turn_count: 1 } };
   const mergeCtx = () => ({ first: () => ({ json: { channel: 'widget', senderId: 'test',
@@ -265,6 +299,18 @@ for (const [label, raw] of HARD) {
   check('Save State\'s own stage column writes the stage back unchanged — an extraction-transient turn '
       + 'persists NO lock', STAGE_WRITTEN === CTX.state.stage && STAGE_WRITTEN !== 'handoff',
     { written: STAGE_WRITTEN, handed: CTX.state.stage });
+  // D4a, the migration's DECLARED deviation (ARCHITECTURE-DECISIONS 2026-10-23): the copy binds
+  // `last_intent ?? null`. A defined value is bound unchanged; a state that carries NO last_intent binds SQL
+  // NULL — not `undefined`, which is not a value the driver is meant to receive. Both halves are asserted.
+  {
+    const bind = saveStateBinding();
+    const bare = { sender_key: CTX.sender_key,
+                   state: { stage: 'collecting', turn_count: 0, slots: { serviceId: null, date: null, time: null } } };
+    const absent = bind.lastIntent(bare);
+    const present = bind.lastIntent({ ...bare, state: { ...bare.state, last_intent: 'book' } });
+    check('D4a: Save State binds a defined last_intent unchanged and an ABSENT one as null',
+      present === 'book' && absent === null, { present, absent });
+  }
   check('SECOND consecutive extraction failure -> escalates to the handoff gate',
     routesToRetry(out) === false && repeatCond(out, $merge) === true, { retry: routesToRetry(out) });
   PREV_INTENT = 'clarify';
@@ -408,5 +454,5 @@ for (const [label, raw] of HARD) {
     { eventId: !!b.eventId, startISO: b.startISO, dateStr: b.dateStr });
 }
 
-console.log(`\nvalidate-intent: ${pass}/${pass + fail} pass (node code + IF expression read from n8n/workflow.sanitized.json)`);
+console.log(`\nvalidate-intent: ${pass}/${pass + fail} pass (node code + IF expression read from ${path.relative(path.join(__dirname, '../..'), WF)})`);
 process.exit(fail ? 1 : 0);

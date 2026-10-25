@@ -10,9 +10,16 @@
  * MODES:
  *   node compile-intent-validator.cjs          → print the full `Validate Intent` node code
  *                                                 (orchestration + generated validator) to stdout.
+ *                                                 It WRITES NO FILE — no export is touched; the node is
+ *                                                 updated by pasting this output into it.
  *   node compile-intent-validator.cjs --check   → DRIFT-GUARD: recompile from the schema and compare
  *                                                 the generated block against the block committed inside
- *                                                 n8n/workflow.sanitized.json. Exit 1 on drift.
+ *                                                 n8n/workflow.main.copy.sanitized.json (or $SANITIZED_PATH).
+ *                                                 Exit 1 on drift.
+ *
+ * WHY THE MAIN COPY EXPORT: since the D6b cutover the live Main is the Postgres copy; the original
+ * (n8n/workflow.sanitized.json) is parked as the rollback path until D6c. Checking the parked file would
+ * stay green while the node that actually runs drifted from the schema.
  *
  * DRIFT-GUARD TRIGGERS (not dormant):
  *   (a) CP3 Definition-of-Done gate — must pass before CP3 is called done.
@@ -26,7 +33,8 @@ const standaloneCode = require("ajv/dist/standalone").default;
 
 const ROOT = path.resolve(__dirname, "..");
 const SCHEMA_PATH = path.join(ROOT, "schemas", "intent.schema.json");
-const WORKFLOW_PATH = path.join(ROOT, "n8n", "workflow.sanitized.json");
+// SANITIZED_PATH points the drift check at another export (mutation runs), as in the sibling guards.
+const WORKFLOW_PATH = process.env.SANITIZED_PATH || path.join(ROOT, "n8n", "workflow.main.copy.sanitized.json");
 const NODE_NAME = "Validate Intent";
 
 const BEGIN = "// >>> GENERATED validator — from schemas/intent.schema.json — DO NOT EDIT — regenerate: node scripts/compile-intent-validator.cjs";
@@ -141,7 +149,7 @@ if (process.argv.includes("--check")) {
   const fresh = generateBlock().trim();
   const committed = extractCommittedBlock();
   if (committed.status === "no-workflow") {
-    console.error("DRIFT-CHECK: workflow.sanitized.json not found."); process.exit(1);
+    console.error("DRIFT-CHECK: " + path.relative(ROOT, WORKFLOW_PATH) + " not found."); process.exit(1);
   }
   if (committed.status === "no-node") {
     console.log("DRIFT-CHECK: '" + NODE_NAME + "' node not committed yet (pre-3c.1) — nothing to check."); process.exit(0);

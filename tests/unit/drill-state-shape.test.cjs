@@ -7,7 +7,9 @@
  * readings made run-d11's "unchanged" checks pass for the wrong reason (measured live 2026-10-19 while the
  * store was down, OPS-5).
  *
- * This runs the node's `jsCode` FROM THE COMMITTED EXPORT against three kinds of input:
+ * This runs the node's `jsCode` FROM THE COMMITTED DRILL-STATE COPY EXPORT
+ * (`n8n/workflow.drill-state.copy.sanitized.json`; since the D6b cutover the live workflow is the Postgres copy,
+ * and the parked original is only the rollback path until D6c) against three kinds of input:
  * an error item → STORE-ERROR · a successful empty read → NOT-FOUND · a record → its state.
  * The "found" path cannot run live while the store is down; this test is its evidence until D3 runs it
  * against Postgres.
@@ -22,12 +24,14 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.drill-state.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.drill-state.copy.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const src = wf.nodes.find((n) => n.name === 'Shape Drill State').parameters.jsCode;
 const shape = new Function('$', '$input', src);
 
-// The exact item shapes the store nodes emit, as measured in the execution history (keys only).
+// The exact item shapes the store nodes emit, as measured in the execution history (keys only). On the copy the
+// two Postgres reads build the same `{id, createdTime, fields}` shape in their SELECT (jsonb_build_object), so
+// `rec()` is still the shape the node receives — read from the copy's queries, not measured live here.
 const ERR = { json: { error: { message: 'store unavailable' }, message: 'store unavailable' } };
 const EMPTY = { json: {} };                                   // alwaysOutputData on a 0-row read
 const rec = (fields) => ({ json: { id: 'recAAAAAAAAAAAAAA', createdTime: '2026-10-19T00:00:00.000Z', fields } });

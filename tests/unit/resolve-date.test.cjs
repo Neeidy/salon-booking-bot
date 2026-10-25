@@ -4,8 +4,8 @@
  *
  * WHY IT EXECUTES THE COMMITTED NODE INSTEAD OF A COPY: `.claude/rules/contract-integrity.md` — a
  * hand-mirrored copy of the logic would be a second truth that drifts silently. This file extracts the
- * `jsCode` of `Resolve Date` from `n8n/workflow.sanitized.json` and runs it with the same globals n8n gives
- * a Code node: `$json`, `$('<node>')` and `DateTime`. So a green run here is a statement about the COMMITTED
+ * `jsCode` of `Resolve Date` from `n8n/workflow.main.copy.sanitized.json` and runs it with the same globals
+ * n8n gives a Code node: `$json`, `$('<node>')` and `DateTime`. So a green run here is a statement about the COMMITTED
  * node, not about a snippet someone pasted into a test.
  *
  * ⚠ CONDITIONAL, and the condition is not this file's to satisfy (corrected 2026-09-09g): "the node that is
@@ -20,19 +20,23 @@
  *
  * ⚠ SECURITY NOTE (security-auditor, 2026-09-08): this file EXECUTES `jsCode` taken from the committed
  * export via `new Function`, with full Node privileges (`process.env`, `require` via `process.mainModule`
- * are reachable inside that body). On a PUBLIC repo that makes n8n/workflow.sanitized.json — a file reviewers
+ * are reachable inside that body). On a PUBLIC repo that makes the committed export — a file reviewers
  * read as DATA — an executable surface for anyone who can open a PR, triggered by running the tests. The
  * alternative (hand-copying the node body) is worse: it is the second source of truth contract-integrity.md
  * forbids. So the risk is accepted here and moved to the REVIEW model: a PR touching the workflow JSON is a
  * code change, not a data change, and must be read as one. Sandboxing this run is open in ROADMAP.
  *
- * Run:  node tests/unit/resolve-date.test.cjs      (exit 0 = all pass)
+ * Run:  node tests/unit/resolve-date.test.cjs      (exit 0 = all pass; optional argv[2]: another export, for mutation runs)
  */
 const fs = require('fs');
 const path = require('path');
 const { DateTime } = require(path.join(__dirname, '../../scripts/node_modules/luxon'));
 
-const WF = path.join(__dirname, '../../n8n/workflow.sanitized.json');
+// The Main COPY export, not the parked original: since the D6b cutover the live Main is the Postgres copy, and
+// the original (`n8n/workflow.sanitized.json`) is kept only as the rollback path until D6c. A test that kept
+// reading the original would go on passing while the node that actually runs drifted away from it.
+// argv[2] points it at another export, for mutation runs.
+const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.copy.sanitized.json');
 const src = JSON.parse(fs.readFileSync(WF, 'utf8')).nodes.find(n => n.name === 'Resolve Date').parameters.jsCode;
 
 const TZ = 'Europe/Vienna';
@@ -862,5 +866,5 @@ if (bare.date_dropped === false && bare.date_alert === false && bare.date_resolu
   }
 }
 
-console.log(`\nresolve-date: ${pass}/${pass + fail} pass (node code read from n8n/workflow.sanitized.json, now=${NOW} ${TZ})`);
+console.log(`\nresolve-date: ${pass}/${pass + fail} pass (node code read from ${path.relative(path.join(__dirname, '../..'), WF)}, now=${NOW} ${TZ})`);
 process.exit(fail ? 1 : 0);

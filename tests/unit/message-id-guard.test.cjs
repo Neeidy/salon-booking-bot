@@ -3,8 +3,9 @@
  *
  * `Validate Payload` on Main's public path rejects a client-supplied `message_id` that carries any
  * character outside a strict class, so the identifier cannot break out of the string it is placed in
- * further down. This test reads the condition FROM THE COMMITTED EXPORT, the same file the content-parity
- * guard holds equal to live, and drives its regex over two fixed lists:
+ * further down. This test reads the condition FROM THE COMMITTED MAIN COPY EXPORT
+ * (`n8n/workflow.main.copy.sanitized.json`) — since the D6b cutover the live Main is the Postgres copy, and the
+ * parked original is only the rollback path until D6c — and drives its regex over two fixed lists:
  *   - ACCEPT: every id shape this system emits or receives (widget `m-<uuid>`, the regression suite's
  *     `reg-…-<run>` ids, and a WhatsApp `wamid.` shape, which is ASSUMED base64; no real Zernio id was
  *     available, see the ship gate);
@@ -28,7 +29,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.main.copy.sanitized.json');
 
 const LEFT = "={{ ($json.message_id ?? '').toString() }}";
 

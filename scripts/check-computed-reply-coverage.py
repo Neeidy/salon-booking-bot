@@ -10,11 +10,12 @@
 #
 # CHECK: for each Save State node, walk backwards to the nearest Code-node ancestors (through IF/Switch
 # passthroughs) — those are the "builders" whose output is persisted+replied. Every such Code node's
-# jsCode must contain `computed_reply`. Missing one = FAIL. Static (reads the committed sanitized only).
+# jsCode must contain `computed_reply`. Missing one = FAIL. Static (reads the committed Main COPY export only:
+# since the D6b cutover the live Main is the Postgres copy; the parked original is the rollback path until D6c).
 # Exit 0 = OK, 1 = a builder is missing computed_reply. Run at every close gate / pre-push.
 import json, sys, collections
 
-PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.sanitized.json'
+PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.main.copy.sanitized.json'
 SAVE_NODES = ('Save State', 'Save State (Post-Write)')
 
 w = json.load(open(PATH, encoding='utf-8'))

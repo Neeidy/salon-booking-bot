@@ -38,11 +38,12 @@ Since FIX-1 it also asserts the INVENTORY is exhaustive: the set of nodes feedin
 must EQUAL the CONVERGE list, so a new unrecorded exit cannot slip in silently (Codex #6).
 
 This guard is a close-gate + security-auditor check. Non-zero exit = the convergence
-contract drifted. Runs on the committed sanitized workflow (no n8n API needed).
+contract drifted. Runs on the committed Main COPY export (no n8n API needed): since the D6b cutover the
+live Main is the Postgres copy, and the parked original is only the rollback path until D6c.
 """
 import json, re, sys, os
 
-PATH = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
+PATH = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.main.copy.sanitized.json')
 
 CONVERGE = ['Send Reply To Origin','Handoff Reply','Handoff Lock Reply','Idempotent Replay',
  'Booking State-Unsaved Reply','Send Reject Response','Send Error Response','LLM Unavailable Reply',
