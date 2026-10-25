@@ -18,9 +18,9 @@
  *   never serialise the item. The inner structure of S10's `error` object was not compared live (§3r), so the PII
  *   fixture puts the fake data in BOTH places.
  *
- * WHICH FILE: the STAGED exports (n8n/staged/, 7-F1 Round A). ⚠ Round B promotes them to the committed copy exports;
- * when it does, it repoints the two constants below at `n8n/workflow.<x>.copy.sanitized.json`. argv[2] / argv[3]
- * override them (Purge / Reminders), so a mutant export can be pointed at.
+ * WHICH FILE: Purge's COMMITTED copy export (promoted by 7-F1 Round B's E1, put live and read back) and Reminders'
+ * STAGED export until E2 promotes it and repoints REMINDERS below at `n8n/workflow.reminders.copy.sanitized.json`.
+ * argv[2] / argv[3] override them (Purge / Reminders), so a mutant export can be pointed at.
  *
  * ⚠ Same accepted security note as validate-intent.test.cjs: this runs `jsCode` from an export via `new Function`. A
  * PR touching the workflow JSON is a CODE change and must be read as one.
@@ -33,7 +33,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 const N8N = join(__dirname, '..', '..', 'n8n');
-const PURGE = process.argv[2] || join(N8N, 'staged', 'workflow.purge.copy.sanitized.json');
+const PURGE = process.argv[2] || join(N8N, 'workflow.purge.copy.sanitized.json');
 const REMINDERS = process.argv[3] || join(N8N, 'staged', 'workflow.reminders.copy.sanitized.json');
 
 function builder(exportPath, nodeName, configNode) {

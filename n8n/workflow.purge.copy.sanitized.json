@@ -201,7 +201,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert (Purge) — FIX-1. A purge failure used to be INVISIBLE: this workflow had no alert at all,\n// so if the dedupe purge or the PII scrub stopped, the data just quietly stopped being cleaned.\n// Same silent-failure class as cancel_mirror_failed (A1).\n//\n// WHY THE THROTTLE KEY CARRIES THE BRANCH (drill-corrected, exec 1631): n8n runs a node ONCE PER INCOMING\n// CONNECTION, not once with the inputs merged — so $input.all() only ever sees ONE collector. The first\n// build attempt threw both collectors at a single global 'purge_error' throttle key: run#0 (processed)\n// alerted, run#1 (PII) hit the key it had just set and returned [] — the PII failure was SWALLOWED, the\n// exact thing the two collectors exist to prevent. Keying on class+branch makes the two branches\n// independent: each gets its own alert, and each still gets its own storm brake.\nconst lc = $('Load Config (Purge)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst branch = (items[0] && items[0].json && items[0].json._purge_branch) || 'unknown';\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'purge_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + branch;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 purge-error\\nbranch: ' + branch +\n              '\\nfailed items: ' + items.length + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls, _purge_branch: branch } }];"
+        "jsCode": "// Owner-alert (Purge) — FIX-1. A purge failure used to be INVISIBLE: this workflow had no alert at all,\n// so if the dedupe purge or the PII scrub stopped, the data just quietly stopped being cleaned.\n// Same silent-failure class as cancel_mirror_failed (A1).\n//\n// WHY THE THROTTLE KEY CARRIES THE BRANCH (drill-corrected, exec 1631): n8n runs a node ONCE PER INCOMING\n// CONNECTION, not once with the inputs merged — so $input.all() only ever sees ONE collector. The first\n// build attempt threw both collectors at a single global 'purge_error' throttle key: run#0 (processed)\n// alerted, run#1 (PII) hit the key it had just set and returned [] — the PII failure was SWALLOWED, the\n// exact thing the two collectors exist to prevent. Keying on class+branch makes the two branches\n// independent: each gets its own alert, and each still gets its own storm brake.\nconst lc = $('Load Config (Purge)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst branch = (items[0] && items[0].json && items[0].json._purge_branch) || 'unknown';\n// Q18 (Phase 7): under `independently` batching a Postgres error item carries the input's own keys plus an\n// `error` OBJECT and no `message` (measured live: S10, and D3d W1 / D4c T1 on the real copies), so the old\n// `|| e.error` printed \"[object Object]\". Only a non-empty STRING is ever used. The item is NEVER serialised\n// (no JSON.stringify): it can carry the failed row's own fields, i.e. customer data. An item with no `error`\n// at all is a refusal, not a store failure, and keeps the 'unknown' it always had.\nconst str = (v) => (typeof v === 'string' && v.trim() !== '') ? v : null;\nlet detail = 'unknown';\ntry {\n  const e = items[0].json || {};\n  detail = str(e.error && e.error.message) || str(e.message) || str(e.error)\n    || (e.error != null ? 'store error (item carried no message)' : 'unknown');\n} catch (x) {}\ndetail = Array.from(String(detail)).slice(0, 300).join('');   // a Telegram line, not a log: cut, never wrapped\nconst cls = 'purge_error';\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + branch;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 purge-error\\nbranch: ' + branch +\n              '\\nfailed items: ' + items.length + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls, _purge_branch: branch } }];"
       },
       "id": "purge_build_alert",
       "name": "Build Owner Alert (Purge)",
@@ -329,10 +329,9 @@
         }
       },
       "onError": "continueErrorOutput",
-      "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('created_at', salon.at_ts(created_at))) AS fields FROM salon.leads",
+        "query": "SELECT count(*)::int AS leads_total FROM salon.leads",
         "options": {}
       }
     },
@@ -346,7 +345,7 @@
         520
       ],
       "parameters": {
-        "jsCode": "\n// Collapse the row-per-item output of Count Leads Total into ONE item carrying only the count.\n// WHY THIS NODE EXISTS: an n8n Airtable search runs ONCE PER INCOMING ITEM. Feeding 44 rows into\n// Find Old Leads made it run 44 times and report 264 candidates against a 44-row table — the cap\n// refused the run, which is the only reason that was a finding rather than an incident (drill, exec 2764).\nreturn [{ json: { leads_total: $input.all().filter(i => i.json && i.json.id).length } }];\n"
+        "jsCode": "\n// Hand Find Old Leads ONE item carrying only the count. WHY THIS NODE EXISTS: an n8n data node runs ONCE PER\n// INCOMING ITEM. Feeding 44 rows into Find Old Leads made it run 44 times and report 264 candidates against a\n// 44-row table — the cap refused the run, which is the only reason that was a finding rather than an incident\n// (drill, exec 2764).\n// Count Leads Total now counts in SQL (`count(*)::int AS leads_total`), one row on success, so this only\n// unpacks it. It used to read rows, and a READ ERROR then reached here as alwaysOutputData's empty item: a\n// total of 0 and a spurious refusal next to the real error (MIGRATION-PLAN §3r, D3d R1, finding 2).\n// Not an integer → null, which Leads Purge Sane? refuses as leads_read_shape_invalid instead of guessing.\nconst t = $input.first().json.leads_total;\nreturn [{ json: { leads_total: Number.isInteger(t) ? t : null } }];\n"
       }
     },
     {
@@ -365,10 +364,9 @@
         }
       },
       "onError": "continueErrorOutput",
-      "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('created_at', salon.at_ts(created_at))) AS fields FROM salon.leads WHERE created_at < $1::timestamptz",
+        "query": "SELECT coalesce(jsonb_agg(id), '[]'::jsonb) AS ids FROM salon.leads WHERE created_at < $1::timestamptz",
         "options": {
           "queryReplacement": "={{ [$('Compute Leads Cutoff').first().json.cutoff] }}"
         }
@@ -384,7 +382,7 @@
         520
       ],
       "parameters": {
-        "jsCode": "\n// B3 · THE CANDIDATE CAP — the single most important node in this branch.\n// A mis-computed cutoff is one arithmetic slip. WITHOUT a cap its cost is the whole table; WITH one its\n// cost is a Telegram message. Cap = min(200, 20% of the table).\n//\n// ⚠ MEASURED GAP, recorded rather than silently accepted: rows whose `created_at` is EMPTY never match\n// `{created_at} < cutoff`, so they are never candidates and never expire. 3 of 41 rows were in that state\n// when this was built. The cap does not fix it and must not be read as if it did.\nconst CAP_ABS = 200, CAP_PCT = 0.20;\nconst cut = $('Compute Leads Cutoff').first().json;\nconst total = $('Aggregate Leads Total').first().json.leads_total;\nconst rows = $input.all().filter(i => i.json && i.json.id);\nconst cap = Math.min(CAP_ABS, Math.floor(total * CAP_PCT));\nconst within = rows.length > 0 && rows.length <= cap;\n\nif (!within) {\n  return [{ json: { _purge_branch: 'leads',\n    _leads_refused: rows.length === 0 ? 'no_candidates' : 'leads_purge_capped',\n    candidates: rows.length, cap, total, cutoff: cut.cutoff } }];\n}\n// Carry the rows through, each tagged, so the delete node receives one item per record to delete.\nreturn rows.map(i => ({ json: { id: i.json.id, _within_cap: true,\n  _candidates: rows.length, _cap: cap, _total: total, _cutoff: cut.cutoff } }));\n"
+        "jsCode": "\n// B3 · THE CANDIDATE CAP — the single most important node in this branch.\n// A mis-computed cutoff is one arithmetic slip. WITHOUT a cap its cost is the whole table; WITH one its\n// cost is a Telegram message. Cap = min(200, 20% of the table).\n//\n// ⚠ MEASURED GAP, recorded rather than silently accepted: rows whose `created_at` is EMPTY never match\n// `{created_at} < cutoff`, so they are never candidates and never expire. 3 of 41 rows were in that state\n// when this was built. The cap does not fix it and must not be read as if it did.\nconst CAP_ABS = 200, CAP_PCT = 0.20;\nconst cut = $('Compute Leads Cutoff').first().json;\nconst total = $('Aggregate Leads Total').first().json.leads_total;\n// Find Old Leads returns ONE row, `ids` = the candidate ids as a JSON array (`[]` when none), so a read error\n// no longer arrives here as an empty item that looks like \"no candidates\" (7-F1 item 2). A shape we do not\n// recognise is refused visibly, never read as zero.\nconst ids = $input.first().json.ids;\nif (!Array.isArray(ids) || !Number.isInteger(total)) {\n  return [{ json: { _purge_branch: 'leads', _leads_refused: 'leads_read_shape_invalid', cutoff: cut.cutoff } }];\n}\nconst rows = ids.map(id => ({ json: { id } }));\nconst cap = Math.min(CAP_ABS, Math.floor(total * CAP_PCT));\nconst within = rows.length > 0 && rows.length <= cap;\n\nif (!within) {\n  return [{ json: { _purge_branch: 'leads',\n    _leads_refused: rows.length === 0 ? 'no_candidates' : 'leads_purge_capped',\n    candidates: rows.length, cap, total, cutoff: cut.cutoff } }];\n}\n// Carry the rows through, each tagged, so the delete node receives one item per record to delete.\nreturn rows.map(i => ({ json: { id: i.json.id, _within_cap: true,\n  _candidates: rows.length, _cap: cap, _total: total, _cutoff: cut.cutoff } }));\n"
       }
     },
     {
@@ -462,10 +460,9 @@
         }
       },
       "onError": "continueErrorOutput",
-      "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('created_at', salon.at_ts(created_at))) AS fields FROM salon.leads WHERE created_at < $1::timestamptz",
+        "query": "SELECT count(*)::int AS leads_old_after FROM salon.leads WHERE created_at < $1::timestamptz",
         "options": {
           "queryReplacement": "={{ [$('Compute Leads Cutoff').first().json.cutoff] }}"
         }
@@ -481,7 +478,7 @@
         440
       ],
       "parameters": {
-        "jsCode": "\n// B7 · Verify Leads Purge — ARITHMETIC PROOF, because \"the delete returned 200\" is not \"the rows are gone\".\n// before − after === deleted, or the branch alerts. A delete that reports success and removes nothing, and\n// one that removes more than it was asked to, both fail this check and both are silent without it.\nconst sane = $('Leads Purge Sane?').first().json;\nconst before = sane._candidates;\nconst deleted = $('Delete Old Leads').all().filter(i => i.json && !i.json.error).length;\nconst after = $('Count Leads After').all().filter(i => i.json && i.json.id).length;\n\nif (before - after !== deleted) {\n  return [{ json: { _purge_branch: 'leads', _leads_refused: 'leads_purge_arithmetic_mismatch',\n                    before, after, deleted } }];\n}\nreturn [];   // clean run: nothing to alert about\n"
+        "jsCode": "\n// B7 · Verify Leads Purge — ARITHMETIC PROOF, because \"the delete returned 200\" is not \"the rows are gone\".\n// before − after === deleted, or the branch alerts. A delete that reports success and removes nothing, and\n// one that removes more than it was asked to, both fail this check and both are silent without it.\nconst sane = $('Leads Purge Sane?').first().json;\nconst before = sane._candidates;\nconst deleted = $('Delete Old Leads').all().filter(i => i.json && !i.json.error).length;\n// Count Leads After counts in SQL. It runs once per deleted item and every run returns the same single count,\n// so the FIRST is the number of aged rows left. Not an integer → the mismatch alert, never a silent pass.\nconst left = $('Count Leads After').first().json.leads_old_after;\nconst after = Number.isInteger(left) ? left : NaN;\n\nif (before - after !== deleted) {\n  return [{ json: { _purge_branch: 'leads', _leads_refused: 'leads_purge_arithmetic_mismatch',\n                    before, after, deleted } }];\n}\nreturn [];   // clean run: nothing to alert about\n"
       }
     },
     {

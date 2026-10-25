@@ -24,8 +24,8 @@
  * back) while the happy, empty, capped and unconfigured cases stay GREEN — so the model reproduces the live finding,
  * and the fix leaves the other paths' outcomes as they were.
  *
- * WHICH FILE: the STAGED export (n8n/staged/, 7-F1 Round A). ⚠ Round B promotes it and repoints EXPORT below at
- * `n8n/workflow.purge.copy.sanitized.json`. argv[2] overrides it, for mutants.
+ * WHICH FILE: the Purge copy's COMMITTED export, the live reference (promoted from n8n/staged/ by 7-F1 Round B's E1,
+ * which put it live and read it back). argv[2] overrides it, for mutants.
  *
  * ⚠ Same accepted security note as validate-intent.test.cjs: this runs `jsCode` from an export via `new Function`.
  *
@@ -37,7 +37,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { DateTime } = require(join(__dirname, '../../scripts/node_modules/luxon'));
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'staged', 'workflow.purge.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.purge.copy.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const byName = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
 const NOW = DateTime.fromISO('2026-06-15T10:00:00.000Z', { zone: 'utc' });
