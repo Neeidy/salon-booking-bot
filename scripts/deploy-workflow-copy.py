@@ -1227,11 +1227,15 @@ def selftest():
         for key in spec.get('settings_allow', {}):           # equal on both sides: only the settings parity that stays sees it
             both = lambda w, key=key: dict(w, settings=dict(w['settings'], **{key: (osets or {}).get(key, '__x__')}))
             pc_cases.append((f"post-cutover: the export AND the copy both carry the allowlisted '{key}'", both(plive), both(committed), plive, False))
-        aod = next((n['name'] for n in committed['nodes'] if n.get('alwaysOutputData')), None)
-        if aod:                                              # Round B's shape: ccp's projection cannot see this one
-            dropped = _copy.deepcopy(committed)
-            N_(dropped, aod).pop('alwaysOutputData')
-            pc_cases.append((f"post-cutover: the export drops alwaysOutputData on '{aod}' while the live copy keeps it", plive, dropped, plive, False))
+        # Round B's shape (ccp's projection cannot see this one): the export lacks alwaysOutputData on a node where the
+        # live copy carries it. Built on the LIVE side, so it exists whether or not the committed export has the flag
+        # anywhere (after E1 the Purge export has none, and an `if` here silently dropped the case).
+        aod = next(n['name'] for n in committed['nodes'] if n['type'] == 'n8n-nodes-base.postgres')
+        dropped = _copy.deepcopy(committed)
+        N_(dropped, aod).pop('alwaysOutputData', None)
+        live_aod = _copy.deepcopy(plive)
+        N_(live_aod, aod)['alwaysOutputData'] = True
+        pc_cases.append((f"post-cutover: the export drops alwaysOutputData on '{aod}' while the live copy keeps it", live_aod, dropped, live_aod, False))
         tg = next((n['name'] for n in plive['nodes'] if n['type'] == 'n8n-nodes-base.telegram'), None)
         if tg:                                               # R1: a masked path whose COMMITTED value is not a placeholder is drift
             c_expr = _copy.deepcopy(committed)
@@ -1504,9 +1508,13 @@ def selftest():
         c_test = _copy.deepcopy(mcommitted)
         next(n for n in c_test['nodes'] if n['name'] == mspec['trigger']['node'])['parameters']['path'] = mspec['trigger']['test_path']
         c_mcp = dict(_copy.deepcopy(mcommitted), settings=dict(mcommitted['settings'], availableInMCP=True))
-        p_aod = _copy.deepcopy(pcommitted)                # Round B: the export REMOVES alwaysOutputData on a Purge node
-        p_aod_node = next(n['name'] for n in p_aod['nodes'] if n.get('alwaysOutputData'))
-        next(n for n in p_aod['nodes'] if n['name'] == p_aod_node).pop('alwaysOutputData')
+        # Round B: the export REMOVES alwaysOutputData on a Purge node that production still carries it on. Built on the
+        # live side (after E1 the committed Purge export carries the flag nowhere).
+        p_aod_node = next(n['name'] for n in pcommitted['nodes'] if n['type'] == 'n8n-nodes-base.postgres')
+        p_aod = _copy.deepcopy(pcommitted)
+        next(n for n in p_aod['nodes'] if n['name'] == p_aod_node).pop('alwaysOutputData', None)
+        plive_aod = _copy.deepcopy(plive)
+        next(n for n in plive_aod['nodes'] if n['name'] == p_aod_node)['alwaysOutputData'] = True
         two_pg = _copy.deepcopy(mold)                       # two different live credentials behind one placeholder
         next(n for n in two_pg['nodes'] if n['name'] == next(iter(mspec['nodes'])))['credentials']['postgres']['id'] = 'LiveOtherPostgres01'
 
@@ -1655,8 +1663,8 @@ def selftest():
         E = [('a clean edit', M, mold, None, 'HEAD', 'copy', False, True, None, {}, 'written', 1),
              ('a clean edit on a copy with no Turnstile gate (no probe)', P, pold, None, 'HEAD', 'copy', False, True, None, {}, 'written', 1),
              ('the live copy already equals the export', M, msw, None, 'HEAD', 'copy', False, True, None, {}, 'nothing', 0),
-             ('the export drops alwaysOutputData on one node (Round B): a change to write, read back without it', P, plive, p_aod, 'HEAD', 'copy', False, True, None, {}, 'written', 1),
-             ('the export drops alwaysOutputData, n8n keeps it on write (read-back red → rollback)', P, plive, p_aod, 'HEAD', 'copy', False, True, 'keep-flag', {}, 'rc 3', 1),
+             ('the export drops alwaysOutputData on one node (Round B): a change to write, read back without it', P, plive_aod, p_aod, 'HEAD', 'copy', False, True, None, {}, 'written', 1),
+             ('the export drops alwaysOutputData, n8n keeps it on write (read-back red → rollback)', P, plive_aod, p_aod, 'HEAD', 'copy', False, True, 'keep-flag', {}, 'rc 3', 1),
              ('the export carries a lowered Turnstile literal', M, mold, c_low, 'HEAD', 'copy', False, True, None, {}, 'rc 1', 0),
              ('the export carries a placeholder at a path where live holds an ordinary value', M, mold, c_ph, 'HEAD', 'copy', False, True, None, {}, 'rc 1', 0),
              ('the export puts the trigger on its test path', M, mold, c_test, 'HEAD', 'copy', False, True, None, {}, 'rc 1', 0),
