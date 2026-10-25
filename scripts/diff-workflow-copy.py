@@ -14,6 +14,12 @@ FAILS when:
   · the workflow settings differ. Offline (two committed files) this is strict equality. In live mode (the
     deploy helper passes the copy spec's `settings_allow`) a key the spec allowlists may be ABSENT on the copy,
     and nothing else (scripts/settings_parity.py; MIGRATION-PLAN §3r, settings-parity).
+The EDIT phase (7-F1, ruling 2026-10-25) is the same comparison turned into a per-edit ALLOWLIST for an engine edit
+after the cutover: COMMITTED copy export vs the edited (staged) export. Only the --allow nodes may differ, and in them
+only `parameters` and `alwaysOutputData` (an engine edit changes code, SQL and that one flag; type, typeVersion,
+credentials, onError, disabled and every other key stay); a trigger can never be in an edit's --allow. Everything
+else is red exactly as in the swap phase: a node added or removed, any other node changed, the connections, the
+settings (strict), pinData. The temporary-trigger and test-path exceptions do not exist in this phase.
 Two exceptions exist, and only in the TEST phase:
   · --temp-trigger NAME: a declared temporary webhook trigger (Q13's only test route for schedule-
     triggered copies) may exist, together with the edges that leave it, and those edges must be exactly
@@ -24,6 +30,7 @@ Two exceptions exist, and only in the TEST phase:
 
 Usage: python3 scripts/diff-workflow-copy.py ORIGINAL COPY --allow "Node A" "Node B" … \\
            [--phase test|swap] [--temp-trigger NAME] [--trigger NAME]
+       python3 scripts/diff-workflow-copy.py COMMITTED_COPY_EXPORT STAGED_EXPORT --allow "Node A" … --phase edit
        python3 scripts/diff-workflow-copy.py --selftest      (positive control, built from a committed export)
 """
 import argparse
@@ -35,6 +42,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IGNORED = {'id', 'position', 'webhookId'}            # n8n assigns these per workflow; never behaviour
 ALLOWED_ON_DATA_NODE = {'type', 'typeVersion', 'parameters', 'credentials'}
+ALLOWED_ON_EDITED_NODE = {'parameters', 'alwaysOutputData'}   # the EDIT phase: code, SQL, and the flag item (2) removes
+
+
+def _is_trigger(node):
+    t = str(node.get('type', ''))
+    return t == 'n8n-nodes-base.webhook' or t.endswith('Trigger')
 
 
 def _settings_parity():
@@ -59,6 +72,10 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, sett
     O = {n['name']: n for n in orig['nodes']}
     C = {n['name']: n for n in cp['nodes']}
     added, removed = set(C) - set(O), set(O) - set(C)
+    if phase == 'edit':
+        settings_allow = None   # strict settings: the live-mode absence allowlist is a migration exception (the test-phase
+                                # trigger exceptions are keyed on phase == 'test' and cannot apply here)
+        errs += [f"'{n}' is in --allow but is not a node of the committed export" for n in sorted(set(allow) - set(O))]
     if temp_trigger and temp_trigger in added:
         if phase == 'test':
             added.discard(temp_trigger)
@@ -69,6 +86,13 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, sett
     errs += [f"node removed: '{n}'" for n in sorted(removed)]
     for name in sorted(set(O) & set(C)):
         o, c = O[name], C[name]
+        if name in allow and phase == 'edit':
+            if _is_trigger(o) or _is_trigger(c):
+                errs.append(f"'{name}' is a trigger: an engine edit never changes a trigger")
+            for k in sorted((set(o) | set(c)) - IGNORED - ALLOWED_ON_EDITED_NODE):
+                if canon(o.get(k)) != canon(c.get(k)):
+                    errs.append(f"edited node '{name}': '{k}' changed (only parameters/alwaysOutputData may)")
+            continue
         if name in allow:
             if o.get('type') not in ('n8n-nodes-base.airtable', 'n8n-nodes-base.postgres'):
                 errs.append(f"'{name}' is in --allow but is not a data-layer node in the original ({o.get('type')})")
@@ -86,7 +110,8 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, sett
             so.get('parameters', {}).pop('path', None); sc.get('parameters', {}).pop('path', None)
         if canon(so) != canon(sc):
             keys = sorted(k for k in set(so) | set(sc) if canon(so.get(k)) != canon(sc.get(k)))
-            errs.append(f"node outside the data layer changed: '{name}' ({', '.join(keys)})")
+            where = 'the edit allowlist' if phase == 'edit' else 'the data layer'
+            errs.append(f"node outside {where} changed: '{name}' ({', '.join(keys)})")
     oc = _copy.deepcopy(orig.get('connections', {}))
     cc = _copy.deepcopy(cp.get('connections', {}))
     if temp_trigger and phase == 'test' and temp_trigger in C:
@@ -184,7 +209,65 @@ def selftest():
     m = swapped(); m['settings'] = {k: v for k, v in o2.items() if k != 'binaryMode'}
     cases.append(('settings: key absent and NOT allowlisted (live mode)', m, 'swap', False, {'settings_allow': {}, '_orig_settings': o2}))
 
+    # EDIT phase (7-F1): built from the Main copy export, which carries a Load Config Turnstile literal and a webhook
+    # trigger. The edit allowlist is one Code node.
+    mexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json')))
+    mtrig = [n['name'] for n in mexp['nodes'] if n['type'] == 'n8n-nodes-base.webhook'][0]
+    medit = 'Build Owner Alert'
+    mother = [n['name'] for n in mexp['nodes'] if n['type'] == 'n8n-nodes-base.code' and n['name'] not in (medit, 'Load Config')][0]
+    mpg = [n['name'] for n in mexp['nodes'] if n['type'] == 'n8n-nodes-base.postgres'][0]
+
+    def edited():
+        e = _copy.deepcopy(mexp)
+        node(e, medit)['parameters']['jsCode'] += '\n// the engine edit'
+        return e
+    ecases = []                                                # (label, edited export, allow, expect_pass)
+    ecases.append(('edit: only the allowed Code node changed', edited(), {medit}, True))
+    m = edited(); node(m, mpg)['alwaysOutputData'] = not node(m, mpg).get('alwaysOutputData', False)
+    m2 = _copy.deepcopy(m); node(m2, mpg)['parameters']['query'] = 'SELECT 1'
+    ecases.append(("edit: an allowed Postgres node's SQL and alwaysOutputData changed", m2, {medit, mpg}, True))
+    m = edited(); node(m, mother)['parameters']['jsCode'] += '\n// not allowed'
+    ecases.append(('edit: a NON-allowed node changed', m, {medit}, False))
+    m = edited(); src_e = next(k for k, v in m['connections'].items() if v.get('main') and v['main'][0])
+    m['connections'][src_e]['main'][0] = m['connections'][src_e]['main'][0][:-1] + [{'node': medit, 'type': 'main', 'index': 0}]
+    ecases.append(('edit: an edge rewired', m, {medit}, False))
+    m = edited(); lc = node(m, 'Load Config')['parameters']
+    lc['jsCode'] = lc['jsCode'].replace('enabled: true', 'enabled: false', 1)
+    ecases.append(('edit: the Turnstile literal changed in Load Config', m, {medit}, False))
+    m = edited(); node(m, mtrig)['parameters']['path'] = 'owner-mig-somewhere-else'
+    ecases.append(('edit: the trigger path changed', m, {medit}, False))
+    m = edited(); node(m, mtrig)['parameters']['path'] = 'owner-mig-somewhere-else'
+    ecases.append(('edit: the trigger smuggled into --allow', m, {medit, mtrig}, False))
+    m = edited(); node(m, medit)['onError'] = 'continueErrorOutput'
+    ecases.append(("edit: an allowed node's onError changed", m, {medit}, False))
+    m = edited(); node(m, mpg)['credentials'] = {'postgres': {'id': 'REPLACE_WITH_OTHER', 'name': 'x'}}
+    ecases.append(("edit: an allowed node's credentials changed", m, {medit, mpg}, False))
+    m = edited(); node(m, medit)['type'] = 'n8n-nodes-base.function'
+    ecases.append(("edit: an allowed node's type changed", m, {medit}, False))
+    m = edited(); m['nodes'].append({'name': 'Temporary Test Trigger', 'type': 'n8n-nodes-base.webhook', 'typeVersion': 2,
+                                     'parameters': {'path': 'owner-mig-x'}})
+    ecases.append(('edit: a temporary trigger added (no test-phase exception)', m, {medit}, False))
+    m = edited(); m['settings'] = dict(m.get('settings') or {}, executionTimeout=999)
+    ecases.append(('edit: settings changed', m, {medit}, False))
+    m = edited(); m['settings'] = {k: v for k, v in (m.get('settings') or {}).items() if k != 'executionOrder'}
+    ecases.append(('edit: a settings key dropped, even with a live-mode allowlist passed', m, {medit}, False))
+    ecases.append(('edit: an --allow name the export does not have', edited(), {medit, 'No Such Node'}, False))
+    # The only trigger type in the tool's scope is the SCHEDULE trigger (Purge, Reminders): prove the rule on it too.
+    pexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.purge.copy.sanitized.json')))
+    ptrig = [n['name'] for n in pexp['nodes'] if str(n['type']).endswith('Trigger')][0]
+    m = _copy.deepcopy(pexp); node(m, ptrig)['parameters']['rule'] = {'interval': [{'field': 'minutes'}]}
+    pcase = ('edit: a schedule trigger smuggled into --allow and re-timed', m, {ptrig}, False)
+
     ok = True
+    perrs = compare(pexp, pcase[1], pcase[2], 'edit')
+    ok &= bool(perrs)
+    print(f"{'✓' if perrs else '✗'} {pcase[0]}: {'RED — ' + perrs[0] if perrs else 'pass'}")
+    for label, e, allow, expect_pass in ecases:
+        errs = compare(mexp, e, allow, 'edit', temp_trigger='Temporary Test Trigger', trigger=mtrig,
+                       settings_allow={'executionOrder': {'covers': 'absent', 'ruling': 'selftest'}})
+        good = (not errs) == expect_pass
+        ok &= good
+        print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0]}")
     for label, cp, phase, expect_pass, kw in cases:
         kw = dict(kw); allow = set(data) | ({kw.pop('allow_extra')} if 'allow_extra' in kw else set())
         o = dict(orig, settings=kw.pop('_orig_settings')) if '_orig_settings' in kw else orig
@@ -192,7 +275,8 @@ def selftest():
         good = (not errs) == expect_pass
         ok &= good
         print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0]}")
-    print('diff-workflow-copy selftest:', 'OK' if ok else 'FAILED', f'({len(cases)} cases, built from {os.path.basename(src)})')
+    print('diff-workflow-copy selftest:', 'OK' if ok else 'FAILED',
+          f'({len(cases)} cases built from {os.path.basename(src)}, {len(ecases) + 1} edit-phase cases from the Main and Purge copy exports)')
     return 0 if ok else 1
 
 
@@ -202,7 +286,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('original'); ap.add_argument('copy')
     ap.add_argument('--allow', nargs='+', required=True)
-    ap.add_argument('--phase', choices=['test', 'swap'], default='swap')
+    ap.add_argument('--phase', choices=['test', 'swap', 'edit'], default='swap')
     ap.add_argument('--temp-trigger'); ap.add_argument('--trigger')
     a = ap.parse_args()
     errs = compare(json.load(open(a.original)), json.load(open(a.copy)), set(a.allow), a.phase, a.temp_trigger, a.trigger)
@@ -211,7 +295,8 @@ def main():
         for e in errs:
             print('  - ' + e)
         return 1
-    print(f'diff-workflow-copy: OK — only the {len(a.allow)} data-layer node(s) differ ({a.phase} phase)')
+    what = 'allowed node(s) may' if a.phase == 'edit' else 'data-layer node(s)'
+    print(f'diff-workflow-copy: OK — only the {len(a.allow)} {what} differ ({a.phase} phase)')
     return 0
 
 
