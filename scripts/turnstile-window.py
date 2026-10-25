@@ -14,8 +14,9 @@ ORDER — every live step is read back, and nothing below runs on import or with
        · the copy is ACTIVE, named as the spec, and is the ONE active holder of the original's production path
          (pair_roles.holder); its PUBLISHED trigger is on that path;
        · its published AND draft Load Config hold exactly one Turnstile literal, and it reads true;
-       · the deploy helper's pure --turnstile-swapped checks ('off' and 'on', swap phase) are GREEN on the live
-         content, so the helper will not refuse half-way through an opened window;
+       · the deploy helper's pure --turnstile-swapped checks ('off' and 'on', window_check: the live copy against ITS
+         OWN committed export at HEAD, except the one Turnstile literal — ruling K1; it was the live original until
+         then) are GREEN on the live content, so the helper will not refuse half-way through an opened window;
        · a dummy token to the production path answers 403 turnstile_failed, executed by the copy, none by the original.
   OPEN : deactivate the copy → `deploy-workflow-copy.py <spec> --original-id O --turnstile-swapped off C` → activate.
   RUN  : the caller's command, under a hard timeout (its whole process group is stopped at the limit).
@@ -262,16 +263,17 @@ def precheck(spec_path):
         raise Refused(f'the Turnstile literal is not true on the copy (published {pub}, draft {dr})')
     print('  ✓ published and draft Turnstile literal: true')
     try:
-        gen = X.BUILD.build(spec)
+        # The same calls, with the same reference, that the helper makes before its own write (K1).
+        committed = X.committed_export(X.copy_export_path(spec_path, c))
         lo, lc = draft(od), draft(cd)
-        off = X.turnstile_check(lo, X.turnstile_patch(lc, 'off'), gen, spec, 'off', 'swap')
-        on = X.turnstile_check(lo, lc, gen, spec, 'on', 'swap')
-    except (ValueError, KeyError, StopIteration) as e:
+        off = X.window_check(X.turnstile_patch(lc, 'off'), committed, spec, prod, 'off', lc, lo.get('settings'))
+        on = X.window_check(lc, committed, spec, prod, 'on', lc, lo.get('settings'))
+    except (ValueError, KeyError, StopIteration, OSError) as e:
         off = on = [f'{type(e).__name__}: {e}']
     if off or on:
         raise Refused("the deploy helper's --turnstile-swapped checks are predicted RED on the live copy: "
                       + '; '.join((off + on)[:3]))
-    print("  ✓ the helper's --turnstile-swapped off/on checks predicted GREEN on the live content")
+    print("  ✓ the helper's --turnstile-swapped off/on checks predicted GREEN: the live copy equals its committed export")
     ok, _ = dummy_probe(prod, o, c)
     if not ok:
         raise Refused('the production path does not answer a dummy token 403 through the copy')

@@ -2,12 +2,14 @@
 """scripts/turnstile-window.py, offline: a stand-in for the n8n public API AND the webhook on 127.0.0.1 (loopback
 only, remote-operator.md), and a fake deploy helper that flips the copy's Turnstile literal through that stand-in.
 The window's own HTTP layer (the real curl) and its precheck run for real against it; the precheck's prediction uses
-the REAL deploy helper's pure checks on workflows built from the committed exports (as the helper's own selftest does).
+the REAL deploy helper's pure checks on workflows built from the committed exports (as the helper's own selftest does):
+the copy simulated from its own committed export at HEAD, its reference since ruling K1.
 
 What it proves: the window closes and restores in `finally` when the command fails, times out, cannot start, is
 interrupted (KeyboardInterrupt) or the process gets SIGTERM; it refuses to open (nothing touched, no helper call) when
-ROLES declares the original, the original is active, the literal is not true, or a dummy token is not 403; and it
-NEVER re-activates a copy whose draft literal is not true (SAFETY exit 3), even when the helper fails half-way.
+ROLES declares the original, the original is active, the literal is not true, the copy differs from its committed
+export (a second literal included), or a dummy token is not 403; and it NEVER re-activates a copy whose draft literal
+is not true (SAFETY exit 3), even when the helper fails half-way.
 
 Run: python3 tests/unit/turnstile-window.test.py   (TURNSTILE_WINDOW=<path> runs it against another copy of the
 script — a mutant — with every import still resolving to this repo)
@@ -177,8 +179,9 @@ def main():
     X = helper_module()
     spec = json.load(open(os.path.join(ROOT, 'db', 'copies', 'main.json'), encoding='utf-8'))
     orig = X._simulated_live(json.load(open(os.path.join(ROOT, spec['original']), encoding='utf-8')))
-    deployed = X.assemble(X.BUILD.build(spec), orig, spec, {'id': 'LiveCredential01', 'name': 'Postgres account'})
-    swapped = X.swap_patch(deployed, orig, spec)
+    # After the cutover the copy's reference is its OWN committed export (ruling K1), so the live copy is simulated
+    # from that export at HEAD, not assembled from the original.
+    _, swapped = X._simulated_live_copy(os.path.join(ROOT, 'db', 'copies', 'main.json'))
     orig = {k: orig.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
     swapped = {k: swapped.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
 
@@ -210,8 +213,10 @@ def main():
          (True, ['false'], ['false']), []),
         ('REFUSED: a dummy token is not 403 (200)', [PY, '-c', 'pass'], 60, {'force': {1: 200}, 'text': 'does not answer a dummy token 403'}, 2,
          (True, ['true'], ['true']), []),
-        ("REFUSED: the copy drifted from the original (the helper's checks predicted RED)", [PY, '-c', 'pass'], 60,
+        ("REFUSED: the copy drifted from its committed export (the helper's checks predicted RED)", [PY, '-c', 'pass'], 60,
          {'drift': True, 'text': 'predicted RED'}, 2, (True, ['true'], ['true']), []),
+        ("REFUSED: a second literal lowered beside the Turnstile one (the helper's checks predicted RED)", [PY, '-c', 'pass'], 60,
+         {'second_literal': True, 'text': 'predicted RED'}, 2, (True, ['true'], ['true']), []),
         ("helper 'on' REFUSES: never re-activated with a false draft literal (SAFETY)", [PY, '-c', 'pass'], 60,
          {'mode': 'refuse-on'}, 3, (False, ['false'], ['false']), ['off', 'on']),
         ("helper 'off' writes, then fails: command not run, 'on' restores", [PY, '-c', 'raise SystemExit(9)'], 60,
@@ -231,6 +236,10 @@ def main():
         if setup.get('drift'):
             for nodes in (world.wf['C1']['nodes'], world.wf['C1']['published']):
                 next(n for n in nodes if n['name'] == 'Normalize Inbound')['parameters']['_probe'] = 'changed'
+        if setup.get('second_literal'):
+            for nodes in (world.wf['C1']['nodes'], world.wf['C1']['published']):
+                n = next(n for n in nodes if n['name'] == 'Load Config')
+                n['parameters']['jsCode'] = n['parameters']['jsCode'].replace('enabled: true', 'enabled: false', 1)
         world.force_dummy = setup.get('force', {})
         srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), make_handler(world))
         threading.Thread(target=srv.serve_forever, daemon=True).start()

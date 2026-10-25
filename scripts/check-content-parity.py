@@ -388,6 +388,24 @@ def _live_placeholder_shaped(live):
     return hits
 
 
+# EXEMPTIONS — exact tokens, never patterns. A value that is a placeholder in LIVE **by design** is not a
+# broken push, and screaming about it every run is how a guard gets switched off (ARCH-DEC 2026-09-03:
+# "a noisy guard gets switched off, and a switched-off guard is worse than none"). Each entry names WHY,
+# and the guard PRINTS the ones it skipped, so an exemption cannot quietly become permanent.
+#   ZERNIO_ACCOUNT_ID — the Zernio account was never provisioned (CP4d is gated on it) and
+#   `bot.whatsappSendDisabled: true` means the live send branch never runs. Remove this line the day the
+#   real account id is installed; the guard will then protect it like every other real value.
+# ⚠ This token lives in `n8n/workflow.reminders.sanitized.json`, NOT in the main export — a reviewer who
+# greps only `workflow.sanitized.json` will conclude the set is dead code (one did, 2026-09-09f). Run the
+# guard against the reminders workflow and the skip line below prints.
+# ⚠ EXACT-TOKEN while the shapes above are now matched case-insensitively, so `replace_with_zernio_
+# account_id` in live would NOT be exempted and would fail the guard. That asymmetry is deliberate and it
+# points the safe way: an exemption should be hard to claim, a defect easy to report. Recorded because the
+# two are no longer under the same case rule (code-reviewer, round 5).
+# Module level since 2026-10-25 so the deploy helper's post-cutover checks read this one set, not a copy of it.
+EXEMPT = {'REPLACE_WITH_ZERNIO_ACCOUNT_ID'}
+
+
 def check_live_not_sanitised(live, comm):
     """LIVE-side: the running workflow must NOT contain the committed PLACEHOLDERS.
 
@@ -408,21 +426,7 @@ def check_live_not_sanitised(live, comm):
     # placeholder whose shape we did not anticipate, and the shape catches one whose spelling we have not
     # seen. Neither alone is sufficient — that is the whole lesson of Codex round 4.
     shaped = _live_placeholder_shaped(live)
-    # EXEMPTIONS — exact tokens, never patterns. A value that is a placeholder in LIVE **by design** is not a
-    # broken push, and screaming about it every run is how a guard gets switched off (ARCH-DEC 2026-09-03:
-    # "a noisy guard gets switched off, and a switched-off guard is worse than none"). Each entry names WHY,
-    # and the guard PRINTS the ones it skipped, so an exemption cannot quietly become permanent.
-    #   ZERNIO_ACCOUNT_ID — the Zernio account was never provisioned (CP4d is gated on it) and
-    #   `bot.whatsappSendDisabled: true` means the live send branch never runs. Remove this line the day the
-    #   real account id is installed; the guard will then protect it like every other real value.
-    # ⚠ This token lives in `n8n/workflow.reminders.sanitized.json`, NOT in the main export — a reviewer who
-    # greps only `workflow.sanitized.json` will conclude the set is dead code (one did, 2026-09-09f). Run the
-    # guard against the reminders workflow and the skip line below prints.
-    # ⚠ EXACT-TOKEN while the shapes above are now matched case-insensitively, so `replace_with_zernio_
-    # account_id` in live would NOT be exempted and would fail the guard. That asymmetry is deliberate and it
-    # points the safe way: an exemption should be hard to claim, a defect easy to report. Recorded because the
-    # two are no longer under the same case rule (code-reviewer, round 5).
-    EXEMPT = {'REPLACE_WITH_ZERNIO_ACCOUNT_ID'}
+    # EXEMPT (module level, above): placeholders that are in LIVE by design; each skip is printed below.
     # Containment is checked on a token boundary, not as a bare substring: `..._ID` must not report itself
     # "present" because live happens to hold `..._ID_V2`. That superstring would fire on its own (it is a
     # committed placeholder too, so it cannot be MASKED) — but a guard's information line has to be true as
@@ -532,6 +536,16 @@ def build_smap(live, comm):
     return smap
 
 
+def placeholder_smap(live, comm):
+    """build_smap restricted to what the SANITISER did: only the entries whose COMMITTED value is a sanitizer placeholder
+    (`_is_known_placeholder`, the narrow committed-side predicate), plus the $N8N_HOST mask. build_smap maps EVERY
+    live≠committed value at a masked path — a chatId, a Turnstile secret, a calendar id, a credential id — so an
+    intended change there (a chatId turned into an expression) was masked as "equal" and an unintended one was hidden
+    the same way. Any other difference is drift and must show (pre-push review, 2026-10-25)."""
+    return {real: ph for real, ph in build_smap(live, comm).items()
+            if _is_known_placeholder(ph) or ph == 'N8N_HOST_PLACEHOLDER'}
+
+
 def canon(obj, smap):
     """Recursively normalize a node fragment: mask derived ids, drop serialization noise, keep logic."""
     if isinstance(obj, dict):
@@ -591,6 +605,45 @@ def project(node, smap):
             'credentials': canon(node.get('credentials'), smap)}
 
 
+STICKY = 'n8n-nodes-base.stickyNote'
+
+
+def _executable(wf):
+    """Every node but the sticky notes, by name: they document the canvas, they do not execute."""
+    return {n['name']: n for n in wf['nodes'] if n['type'] != STICKY}
+
+
+def content_drift(live, comm, smap):
+    """The node-level half of the parity: executable node sets, then each shared node's normalized projection.
+    Its failure lines, empty when live matches committed. One function, because the deploy helper's post-cutover
+    checks judge a copy against its committed export with exactly this comparison (contract-integrity: one truth)."""
+    lby, cby = _executable(live), _executable(comm)
+    fails = []
+    only_l = sorted(set(lby) - set(cby))
+    only_c = sorted(set(cby) - set(lby))
+    if only_l:
+        fails.append(f'executable nodes only in LIVE: {only_l}')
+    if only_c:
+        fails.append(f'executable nodes only in COMMITTED: {only_c}')
+
+    for nm in sorted(set(lby) & set(cby)):
+        lp, cp = project(lby[nm], smap), project(cby[nm], smap)
+        if json.dumps(lp, sort_keys=True) != json.dumps(cp, sort_keys=True):
+            # find the differing top-level parameter keys for a precise report
+            lk, ck = lp['parameters'], cp['parameters']
+            diff_keys = sorted(k for k in set(lk) | set(ck)
+                               if json.dumps(lk.get(k), sort_keys=True) != json.dumps(ck.get(k), sort_keys=True))
+            extra = [] if lp['credentials'] == cp['credentials'] else ['credentials']
+            # Name the execution flags explicitly, with both values. Reporting a bare "fields []" for a
+            # disabled node tells the operator nothing — and this is precisely the drift the flags were
+            # added to catch, so its message has to be the clearest one in the guard.
+            for flag in ('disabled', 'onError'):
+                if lp[flag] != cp[flag]:
+                    extra.append(f'{flag} (committed={cp[flag]!r} live={lp[flag]!r})')
+            fails.append(f"content DRIFT in '{nm}': fields {diff_keys + extra} differ (committed != live)")
+    return fails
+
+
 def main():
     # SANITISE FIRST — it needs no credentials and no network, so it runs even where the parity half cannot.
     comm_only = json.load(open(COMMITTED, encoding='utf-8'))
@@ -616,11 +669,8 @@ def main():
     # one message they could act on. The sanitise check runs first now; the publish check still decides the exit.
     live_covered = check_live_not_sanitised(live, comm)
     check_published_matches_draft(live)
-    smap = build_smap(live, comm)
-
-    STICKY = 'n8n-nodes-base.stickyNote'
-    lby = {n['name']: n for n in live['nodes'] if n['type'] != STICKY}
-    cby = {n['name']: n for n in comm['nodes'] if n['type'] != STICKY}
+    # Only sanitizer placeholders are masked; any other live≠committed value is drift (see placeholder_smap).
+    smap = placeholder_smap(live, comm)
 
     # SETTINGS are not versioned and were compared nowhere: Main and Reminders carried keys live that their
     # committed exports did not, with this guard green (MIGRATION-PLAN §3r, settings-parity).
@@ -629,28 +679,7 @@ def main():
     is_copy = _is_migration_copy(WF, COMMITTED)
     if is_copy:
         fails += check_copy_settings(live, COMMITTED, fetch, sp)
-    only_l = sorted(set(lby) - set(cby))
-    only_c = sorted(set(cby) - set(lby))
-    if only_l:
-        fails.append(f'executable nodes only in LIVE: {only_l}')
-    if only_c:
-        fails.append(f'executable nodes only in COMMITTED: {only_c}')
-
-    for nm in sorted(set(lby) & set(cby)):
-        lp, cp = project(lby[nm], smap), project(cby[nm], smap)
-        if json.dumps(lp, sort_keys=True) != json.dumps(cp, sort_keys=True):
-            # find the differing top-level parameter keys for a precise report
-            lk, ck = lp['parameters'], cp['parameters']
-            diff_keys = sorted(k for k in set(lk) | set(ck)
-                               if json.dumps(lk.get(k), sort_keys=True) != json.dumps(ck.get(k), sort_keys=True))
-            extra = [] if lp['credentials'] == cp['credentials'] else ['credentials']
-            # Name the execution flags explicitly, with both values. Reporting a bare "fields []" for a
-            # disabled node tells the operator nothing — and this is precisely the drift the flags were
-            # added to catch, so its message has to be the clearest one in the guard.
-            for flag in ('disabled', 'onError'):
-                if lp[flag] != cp[flag]:
-                    extra.append(f'{flag} (committed={cp[flag]!r} live={lp[flag]!r})')
-            fails.append(f"content DRIFT in '{nm}': fields {diff_keys + extra} differ (committed != live)")
+    fails += content_drift(live, comm, smap)
 
     if fails:
         print('CONTENT DRIFT — committed sanitized does not match the live workflow:')
@@ -664,7 +693,7 @@ def main():
     # empty `options` dropped, IF/Switch condition meta stripped, Code bodies line-rstripped. Those are the
     # documented exceptions at the top of this file; calling the result "byte-for-byte" told a reader the
     # guard was stricter than it is.
-    print(f'content parity OK — {len(lby)} executable nodes match live after the documented normalization '
+    print(f'content parity OK — {len(_executable(live))} executable nodes match live after the documented normalization '
           '(sanitize placeholders + n8n serialization noise normalized; sticky notes excluded)')
     print('settings parity OK — the committed settings equal the live settings'
           + ('; the copy\'s live settings equal its original\'s, except allowlisted absences' if is_copy else ''))
