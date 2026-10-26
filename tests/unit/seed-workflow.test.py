@@ -345,8 +345,9 @@ def main():
         recs = {c.strip().split()[0] for c in rec.split(',')}
         ins, sel = ([c.strip() for c in g.split(',')] for g in cols.groups())
         keys = set(mod.payload(action, opt)['rows'][0])
-        case(f'{action}: every payload key is in the recordset, and the INSERT and SELECT lists are the same columns in the same order'
-             f' ({sorted(keys - (recs & set(ins))) or "none missing"})', keys <= recs and keys == set(ins) and ins == sel)
+        case(f'{action}: every payload key is in the recordset, and the INSERT and SELECT lists are the same columns in the same order',
+             keys <= recs and keys == set(ins) and ins == sel,
+             f'missing {sorted(keys - (recs & set(ins)))} · INSERT {ins} · SELECT {sel}')
     # L4: the value class the live check uses travels unchanged
     uni = 'Noor \u0660\u0666\u0666\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667 Q 0\u200b6\u200b6\u200b0 1234567\nzz'
     row = mod.payload('lead-insert', {'message': 'mig-p7 u', 'created_at': '2030-01-01T09:00:00Z', 'name': uni})['rows'][0]

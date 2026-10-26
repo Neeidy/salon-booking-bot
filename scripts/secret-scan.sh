@@ -124,8 +124,11 @@
 # 22. THE CLAUDE CODE FIRST LINE REFUSES THE BYPASSES of git's pre-push hook it can see in a command: `--no-verify` on a
 #     push (and git's abbreviations of it), and core.hooksPath set by `-c`, `--config-env`, a GIT_CONFIG_* environment
 #     entry or `git config` — the gate is the hook, and all of them switch it off (CONVERGE M4; widened after the R4
-#     review measured `--no-verif`, a quoted `-c` and GIT_CONFIG_KEY_0 passing the first cut). Parsed per shell segment
-#     (BYPASS_PY below). A first line only: it reads the command TEXT, so a wrapper script or an alias hides a bypass.
+#     review measured `--no-verif`, a quoted `-c` and GIT_CONFIG_KEY_0 passing the first cut, then `time`/`env -i`/
+#     `-o --`/`bash -c` forms passing the second). Parsed per shell segment (BYPASS_PY below). A first line only: it reads
+#     the command TEXT, so what is not in that text passes — a script or alias that runs the push, an exported or global
+#     git config (GIT_CONFIG_GLOBAL, `-c include.path=…`, `export GIT_CONFIG_*` in an earlier command), a computed
+#     argument (`$(echo --no-verify)`), an edited .git/config. Measured on the forms named in the guard test.
 set -uo pipefail
 SECRET_SCAN_API=3   # scripts/pre-push.sh refuses a scanner without this marker (API 3: --revs + tag messages + R1c)
 : "$SECRET_SCAN_API"
@@ -148,68 +151,145 @@ else
   [[ "$manual" -eq 1 ]] && mode=manual
 fi
 
-# (22) The hook's bypass check: per segment (split on ; & | newlines and parentheses), a `git` invocation — after
-# leading VAR=value assignments or `env` — is refused when: an assignment is GIT_CONFIG_KEY_<n>=core.hooksPath or a
-# GIT_CONFIG_PARAMETERS naming it; a global `-c core.hooksPath…` / `-ccore.hooksPath…` / `--config-env[=]core.hooksPath…`
-# precedes the subcommand; the subcommand is `push` with `--no-veri`, `--no-verif` or `--no-verify` before a `--` (git
-# accepts an unambiguous abbreviation of a long option; `--no-ver` is ambiguous and refused by git itself); or the
-# subcommand is `config` naming core.hooksPath without a read or unset flag. Names compared lower-case (git config keys
-# are case-insensitive). Prints the reason, or nothing.
+# (22) The hook's bypass check (Python, the command on stdin; it holds no single quote, so it sits in this bash string
+# verbatim). ONE shlex token stream per line — quotes keep a `;` inside a commit message whole, `#` starts a comment,
+# `$'…'` is decoded, a `2>&1` redirection is not a separator — split into segments on ; & | ( ) { } ` and newlines. The
+# first token named `git` in a segment — anywhere, so `time`, `timeout 120`, `sudo`, `env -i`, `xargs`, `if`, `!` in
+# front do not hide it — is refused when: any token of the command is GIT_CONFIG_KEY_<n>=core.hooksPath or a
+# GIT_CONFIG_PARAMETERS naming it (an `export` in an earlier segment included); a global `-c` / `--config-env` sets
+# core.hooksPath, or an `alias.*` whose value skips the hook; the subcommand is `push` with `--no-veri`, `--no-verif` or
+# `--no-verify` before the end-of-options `--` (a `--` that is the value of `-o`, `--push-option`, `--repo`,
+# `--receive-pack` or `--exec` is not that end; git accepts an unambiguous abbreviation and refuses the ambiguous
+# `--no-ver` itself); or the subcommand is `config` SETTING core.hooksPath (a value after the key, or set/--add/
+# --replace-all; reads, get and unset pass). A command handed to `sh/bash/zsh/dash/ksh -c` or `eval` is judged too.
+# Lower-case comparison (git config keys are case-insensitive). Prints the reason, or nothing.
 BYPASS_PY='
-import os, re, shlex
-cmd = os.environ.get("SS_CMD", "")
-READ = {"--get", "--get-all", "--get-regexp", "--list", "-l", "--unset", "--unset-all", "--show-origin", "--show-scope"}
+import os, re, shlex, sys
+READ = {"--get", "--get-all", "--get-regexp", "--list", "-l", "--unset", "--unset-all", "--show-origin", "--show-scope",
+        "get", "unset", "list", "get-regexp"}
+SETTERS = {"set", "--add", "--replace-all"}
+VALOPT = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+GVAL = {"--git-dir", "--work-tree", "--namespace", "--attr-source", "--super-prefix"}
+SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+SEP = set(";&|(){}`")
+Q = chr(39)
 def hp(v):
     return v.startswith("core.hookspath")
-for seg in re.split(r"&&|\|\||[;&|\n()]", cmd):
-    try:
-        toks = shlex.split(seg, posix=True)
-    except ValueError:
-        toks = seg.replace("\"", " ").replace("\x27", " ").split()
+def ansi_c(cmd):
+    def dec(m):
+        try:
+            v = m.group(1).encode("utf-8").decode("unicode_escape")
+        except Exception:
+            v = m.group(1)
+        return shlex.quote(v)
+    return re.sub("[$]" + Q + "((?:[^" + Q + "\\\\]|\\\\.)*)" + Q, dec, cmd)
+def segments(cmd):
+    cmd = re.sub("[0-9]*[<>]+&[0-9]*-?", " ", cmd)          # 2>&1, >&2: a redirection, not a separator
+    out, cur = [], []
+    for line in cmd.split("\n"):
+        lx = shlex.shlex(line, posix=True, punctuation_chars=";&|(){}`")
+        lx.whitespace_split = True
+        try:
+            toks = list(lx)
+        except ValueError:
+            toks = line.replace(chr(34), " ").replace(Q, " ").split()
+        for t in toks:
+            if t and set(t) <= SEP:
+                out.append(cur); cur = []
+            else:
+                cur.append(t)
+        out.append(cur); cur = []
+    return [s for s in out if s]
+def segment(toks, exported):
     low = [t.lower() for t in toks]
-    i, env = 0, []
-    while i < len(low) and (re.match(r"^[a-z_][a-z0-9_]*=", low[i]) or low[i] == "env"):
-        env.append(low[i]); i += 1
-    if i >= len(low) or os.path.basename(low[i]) != "git":
-        continue
-    if any(re.match(r"^git_config_key_[0-9]+=core\.hookspath$", e) or (e.startswith("git_config_parameters=") and "core.hookspath" in e) for e in env):
-        print("a GIT_CONFIG environment entry that sets core.hooksPath"); break
-    i += 1
-    bad = None
+    for j, t in enumerate(low):
+        if t == "-c" and j > 0 and os.path.basename(low[j - 1]) in SHELLS and j + 1 < len(toks):
+            r = judge(toks[j + 1])
+            if r: return r
+        if os.path.basename(t) == "eval" and j + 1 < len(toks):
+            r = judge(" ".join(toks[j + 1:]))
+            if r: return r
+    gi = next((k for k, t in enumerate(low) if os.path.basename(t) == "git"), None)
+    if gi is None:
+        return None
+    if exported:
+        return "a GIT_CONFIG environment entry that sets core.hooksPath"
+    i = gi + 1
     while i < len(low) and low[i].startswith("-"):
         t = low[i]
+        v = None
         if t == "-c":
-            if i + 1 < len(low) and hp(low[i + 1]): bad = "a git -c core.hooksPath"
-            i += 2; continue
-        if t.startswith("-c") and hp(t[2:]):
-            bad = "a git -c core.hooksPath"
-        if t.startswith("--config-env"):
+            v = low[i + 1] if i + 1 < len(low) else ""; i += 2
+        elif t.startswith("-c"):
+            v = t[2:]; i += 1
+        elif t.startswith("--config-env"):
             v = t.split("=", 1)[1] if "=" in t else (low[i + 1] if i + 1 < len(low) else "")
-            if hp(v): bad = "a git --config-env core.hooksPath"
-            i += 1 if "=" in t else 2; continue
-        if t in ("--git-dir", "--work-tree", "--namespace", "--exec-path"):   # -C lowercases to -c: skipped above
+            i += 1 if "=" in t else 2
+        elif t in GVAL:
             i += 2; continue
-        i += 1
-    if bad:
-        print(bad); break
+        else:
+            i += 1; continue
+        if hp(v):
+            return "a git -c / --config-env core.hooksPath"
+        if v.startswith("alias.") and ("--no-veri" in v or "core.hookspath" in v):
+            return "a git -c alias that skips the hook"
     sub, rest = (low[i] if i < len(low) else ""), low[i + 1:]
-    if "--" in rest:
-        rest = rest[:rest.index("--")]
-    if sub == "push" and any(re.match(r"^--no-veri(f|fy)?$", t) for t in rest):
-        print("`git push --no-verify`"); break
-    if sub == "config" and "core.hookspath" in rest and not READ & set(rest):
-        print("a git config that sets core.hooksPath"); break
+    if sub == "push":
+        k = 0
+        while k < len(rest):
+            t = rest[k]
+            if t in VALOPT:
+                k += 2; continue
+            if t == "--":
+                break
+            if re.match("^--no-veri(f|fy)?$", t):
+                return "`git push --no-verify`"
+            k += 1
+    if sub == "config" and "core.hookspath" in rest and not (READ & set(rest)):
+        after = rest[rest.index("core.hookspath") + 1:]
+        if SETTERS & set(rest) or after:
+            return "a git config that sets core.hooksPath"
+    return None
+def judge(cmd, depth=[0]):
+    if depth[0] > 4:
+        return "a command nested too deeply to judge"
+    depth[0] += 1
+    try:
+        cmd = ansi_c(cmd)
+        segs = segments(cmd)
+        flat = [t.lower() for s in segs for t in s]
+        exported = any(re.match("^git_config_key_[0-9]+=core[.]hookspath$", t) or
+                       (t.startswith("git_config_parameters=") and "core.hookspath" in t) for t in flat)
+        for s in segs:
+            r = segment(s, exported)
+            if r:
+                return r
+    finally:
+        depth[0] -= 1
+    return None
+r = judge(sys.stdin.read())
+if r:
+    print(r)
 '
 if [[ "$mode" == hook ]]; then
   # CLAUDE CODE HOOK — a first line only (see 7 above); git's pre-push hook is the gate.
   # (22) The bypasses of that gate visible in a command line are refused outright (exit 2 blocks the tool call). Parsed
   # per shell segment with shlex, so quotes, `;`/`&&` and git's own abbreviations do not hide them (review R4).
+  # The command goes on STDIN (an env value is capped at 128 KiB, and a failed exec left the check silently open — review
+  # R4, measured), and a check that could not run BLOCKS: a first line that fails open is no line at all.
   if command -v python3 >/dev/null 2>&1; then
-    why="$(SS_CMD="$cmd" python3 -I -c "$BYPASS_PY")"
+    why="$(printf '%s' "$cmd" | python3 -I -c "$BYPASS_PY")"; prc=$?
+    if [[ "$prc" -ne 0 ]]; then
+      echo "BLOCKED: the hook's bypass check could not run (python3 exit $prc) — refusing rather than passing it unread." >&2
+      exit 2
+    fi
     if [[ -n "$why" ]]; then
       echo "BLOCKED: $why switches off the pre-push secret-scan gate — run it without." >&2
       exit 2
     fi
+  elif [[ "$cmd" == *git* ]]; then
+    echo "BLOCKED: the hook's bypass check needs python3 to read a git command — it will not pass one unread." >&2
+    exit 2
   fi
   [[ "$cmd" == *"git push"* ]] || exit 0
 fi
