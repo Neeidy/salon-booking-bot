@@ -481,7 +481,9 @@ def selftest():
 
     # EDIT phase (7-F1): built from the Main copy export, which carries a Load Config Turnstile literal and a webhook
     # trigger. The edit allowlist is one Code node.
-    mexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json')))
+    # The BEFORE side of the approved deltas: the Main and Owner Actions copy exports as committed before 7-2 R3 promoted
+    # the staged edits (tests/fixtures/7-2-baseline/README.md).
+    mexp = json.load(open(os.path.join(ROOT, 'tests', 'fixtures', '7-2-baseline', 'workflow.main.copy.json')))
     mtrig = [n['name'] for n in mexp['nodes'] if n['type'] == 'n8n-nodes-base.webhook'][0]
     medit = 'Build Owner Alert'
     mother = [n['name'] for n in mexp['nodes'] if n['type'] == 'n8n-nodes-base.code' and n['name'] != medit
@@ -575,7 +577,7 @@ def selftest():
     m['connections'][src_o]['main'][0].reverse()
     dcases.append(('delta: an UNTOUCHED source reorders its edges', m, {medit}, rm_d, False))
     # GATE (2026-10-26, R1c): every security-gate node and every trigger — never allowed, never removed.
-    oexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.owner-actions.copy.sanitized.json')))
+    oexp = json.load(open(os.path.join(ROOT, 'tests', 'fixtures', '7-2-baseline', 'workflow.owner-actions.copy.json')))
     mgate = [g for g in GATE_NODES if any(n['name'] == g for n in mexp['nodes'])]
     ogate = [g for g in GATE_NODES if any(n['name'] == g for n in oexp['nodes'])]
     assert len(mgate) == 18 and len(ogate) == 9 and len(GATE_NODES) == len(set(GATE_NODES)) == 26, f'the gate list and the exports disagree: {mgate} {ogate}'

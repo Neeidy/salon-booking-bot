@@ -63,6 +63,22 @@ if len(sys.argv) > 2:   # a mutant of diff-workflow-copy.py under test: the put 
     H.DIFF = importlib.util.module_from_spec(_ds)
     _ds.loader.exec_module(H.DIFF)
 
+# THE BEFORE SIDE of the two approved deltas (R3): the Main and Owner Actions copy exports as committed before R3 promoted
+# the staged edits. After that promotion HEAD's copy exports ARE the edit, so every "committed export" the tool reads for
+# these two is the baseline fixture here (tests/fixtures/7-2-baseline/README.md); Purge and Reminders read HEAD as before.
+BASELINE = {'n8n/workflow.main.copy.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.main.copy.json',
+            'n8n/workflow.owner-actions.copy.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.owner-actions.copy.json'}
+_real_committed_export = H.committed_export
+
+
+def _committed_or_baseline(path, rev='HEAD'):
+    if rev == 'HEAD' and path in BASELINE:
+        return json.load(open(os.path.join(ROOT, BASELINE[path]), encoding='utf-8'))
+    return _real_committed_export(path, rev)
+
+
+H.committed_export = _committed_or_baseline
+
 E1 = ['Aggregate Leads Total', 'Build Owner Alert (Purge)', 'Count Leads After', 'Count Leads Total', 'Find Old Leads',
       'Leads Purge Sane?', 'Verify Leads Purge']
 E2 = ['Build Owner Alert (Reminders)']
@@ -541,7 +557,7 @@ try:
             H.DIFF.compare = real_compare
 
     def main_export(fn):
-        e = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'), encoding='utf-8'))
+        e = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']), encoding='utf-8'))
         next(n for n in e['nodes'] if n['name'] == 'Build Owner Alert')['parameters']['jsCode'] += '\n// the engine edit under test'
         return fn(e) or e
 
@@ -629,7 +645,7 @@ try:
         H.committed_export = real_ce
     case('M3: the committed export ALREADY says enabled: false — "unchanged" is refused, 0 PUT', rc == 1 and fake.puts() == 0
          and 'Turnstile literal' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
-    oa = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.owner-actions.copy.sanitized.json'), encoding='utf-8'))
+    oa = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.copy.sanitized.json']), encoding='utf-8'))
     oa['nodes'].append({'name': 'Load Config', 'type': 'n8n-nodes-base.code', 'typeVersion': 2, 'position': [0, 0],
                         'parameters': {'jsCode': 'return [{json: {turnstile: { enabled: false, mode: "x" }}}];'}})
     oa2 = copy.deepcopy(oa)
@@ -705,15 +721,15 @@ try:
     TEST_FILES.add(UNT)
     case('put: an untracked delta file (even with the approved content) is refused before any PUT',
          rc == 1 and fake.puts() == 0 and 'untracked' in out, f'rc {rc}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--delta-file', os.path.join(ROOT, DM), '--allow', 'X'],
                                         capture_output=True, text=True)
     case('diff-workflow-copy CLI: --delta-file mixed with --allow → exit 2', dcli.returncode == 2 and 'mutually exclusive' in dcli.stderr, f'rc {dcli.returncode}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--add-node', TAG, '--allow', 'X'],
                                         capture_output=True, text=True)
     case('diff-workflow-copy CLI: --add-node (removed) → exit 2', dcli.returncode == 2, f'rc {dcli.returncode}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--delta-file', os.path.join(ROOT, DM)], capture_output=True, text=True)
     case('diff-workflow-copy CLI: the staged Main export + its delta file → OK', dcli.returncode == 0, f'rc {dcli.returncode} · {dcli.stdout.strip().splitlines()[-1][:80]}')
 
@@ -1129,7 +1145,7 @@ try:
 
     def g1_rb(e):
         e['connections']['Reject Bot Request'] = {'main': [[{'node': 'Check Processed', 'type': 'main', 'index': 0}]]}
-    oa_sig = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.owner-actions.copy.sanitized.json'), encoding='utf-8'))
+    oa_sig = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.copy.sanitized.json']), encoding='utf-8'))
     next(n for n in oa_sig['nodes'] if n['name'] == 'Verify Owner Signature')['parameters']['jsCode'] = 'return [{json: {valid: true}}];'
     nr = main_export(lambda e: None)
     nr['nodes'].append({'name': 'Tag Test', 'type': 'n8n-nodes-base.code', 'typeVersion': 2, 'position': [2464, 4256],

@@ -12,6 +12,10 @@ DELTA-AWARE (7-2 Tur 2 R1b): an edit may add or remove nodes, but only as DECLAR
 equal committed − remove_nodes + add_nodes, and check_sanitised's count must move by exactly that much. A staged export
 without a delta file is refused. APPROVED (ruling FIXED, R1d): the delta file must be EXACTLY its copy's entry in
 diff-workflow-copy.APPROVED_DELTAS (diff-workflow-copy.approved_errs) — the reviewed delta, the one workflow-step applies.
+PROMOTED (7-2 R3): once a staged edit is live and committed as its copy export, the staged file is IDENTICAL to its
+committed counterpart; that is reported as promoted (nothing pending) and the delta check is not applied to it — the
+delta described the step from the old export, which no longer exists at HEAD. A staged file that differs in any byte of
+its parsed content is checked as before.
 Five negative controls run first on every invocation (an undeclared removal, an undeclared addition, a declared removal
 of a node that is not there, a delta key the shared parser refuses, one edge more than the approved delta): each must
 come out RED, or the test fails — a check that cannot go red has measured nothing.
@@ -76,6 +80,11 @@ def node_delta_errs(st, cm, delta, key):
     return errs
 
 
+def promoted(st, cm):
+    """Is the staged export the committed export already (the edit promoted)? Parsed content, key order ignored."""
+    return json.dumps(st, sort_keys=True) == json.dumps(cm, sort_keys=True)
+
+
 def check(staged_path, st=None, delta=None):
     committed_path = os.path.join(ROOT, 'n8n', os.path.basename(staged_path))
     if not os.path.exists(committed_path):
@@ -83,6 +92,8 @@ def check(staged_path, st=None, delta=None):
     if st is None:
         st = json.load(open(staged_path, encoding='utf-8'))
     cm = json.load(open(committed_path, encoding='utf-8'))
+    if promoted(st, cm):
+        return []
     if delta is None:
         dp = delta_path(staged_path)
         if not os.path.exists(dp):
@@ -136,7 +147,10 @@ if __name__ == '__main__':
     for p in paths:
         errs = check(p)
         name = os.path.relpath(p, ROOT)
-        print(('✓ ' if not errs else '✗ ') + name + ('' if not errs else ' — ' + '; '.join(errs)))
+        cm_path = os.path.join(ROOT, 'n8n', os.path.basename(p))
+        note = ' (promoted: identical to the committed export, nothing pending)' if not errs and os.path.exists(cm_path) and \
+            promoted(json.load(open(p, encoding='utf-8')), json.load(open(cm_path, encoding='utf-8'))) else ''
+        print(('✓ ' if not errs else '✗ ') + name + note + ('' if not errs else ' — ' + '; '.join(errs)))
         bad += bool(errs)
     print(f'staged-sanitised: {"FAILED" if bad else "OK"} ({len(paths)} staged export(s))')
     sys.exit(1 if bad else 0)
