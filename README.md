@@ -115,7 +115,7 @@ Phase 7's fix checkpoint instead.
 | **The older v2 / LATER bucket** (unchanged since 2026-09-17): the idempotent replay's stored reply · `messageTemplates` required keys · the transcript lost on navigation · font subsetting · a `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | they improve the product but do not change whether it can be sold (PHASE-7-PLAN → Open items) |
 
 
-**7-2 CONVERGE items deferred (ruled 2026-10-26, 7-2 R4).** Four were fixed instead (the scanner's `++` lines, the n8n encryption key and postgres URL rules, the hook's bypass refusals); these wait:
+**7-2 CONVERGE items deferred (ruled 2026-10-26, 7-2 R4).** Three were fixed instead (the scanner's `++` lines, the n8n encryption key rule, the postgres URL rule); the fourth, a hook refusal of `--no-verify`, was dropped by ruling (see below); these wait:
 
 | Item | Why it waits |
 |---|---|
@@ -141,7 +141,7 @@ Phase 7's fix checkpoint instead.
 | masking: `maskName`'s fallback keeps runs under seven digits whole; a lone `\r`, NEL and U+2028 are not line breaks; test-hygiene notes | below the seven-digit rule by design, or rare input on the owner's screen |
 | Main: a verify read with NO `items` key counts as an empty list | a ruled carve-out (R2); reopened only if Calendar is seen omitting the key |
 | secret scan: the n8n-key rule misses a human-chosen passphrase with dots or spaces; the postgres rule misses `?password=` or a `/` in the password, and blocks placeholder passwords such as `user:password@` | generated keys and URL-embedded passwords are caught; a false block is visible and a committed line can be excepted by fingerprint |
-| secret scan: the Claude Code first line cannot see a bypass that a command's text does not show (a script or alias, a global or earlier-exported git config, a computed argument, an edited `.git/config`) | it reads text by design; git's own pre-push hook is the gate, and every push is audited first |
+| secret scan: the git pre-push gate can be bypassed by `--no-verify` (or a core.hooksPath override); guarded by habit, not by code | ruled 7-2 R4: a command-line check was built in three versions and each later one let through forms an earlier one caught; the habit is written in `remote-operator.md`, and every push is audited by `security-auditor` first |
 | secret scan: busybox awk ends a working-tree line at a NUL byte | manual mode only — the gate reads committed patches in its Python engine; this machine's awk handles NUL (measured by the R4 review) |
 | secret scan: the PLACEHOLDER strip is quadratic on a very long run of key characters | it fails closed (a slow scan blocks the push, never passes it); no such line in the repo |
 | Main: node names still say "Airtable" | a rename is a Main edit; it rides the next one (D6c) |

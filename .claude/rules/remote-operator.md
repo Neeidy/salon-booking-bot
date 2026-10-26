@@ -148,6 +148,11 @@ sessions, the same keystroke can stop something nobody meant to touch.
   its escapes in 7-2 Tur 2 R1b).
 - **Every docker container carries the project label (`--label c72=<purpose>`), sub-agents' containers
   included,** so a leftover is findable by label and removable by id. Never a command to a production container.
+- **Never `--no-verify` on a push, and never a core.hooksPath override** (`-c core.hooksPath=…`, `--config-env`, a
+  GIT_CONFIG_* entry, `git config core.hooksPath`). Git's own pre-push hook is the secret-scan gate, and either one switches
+  it off. **Why it is a habit and not code (ruling, 7-2 R4):** a Claude Code check that refused them was built three times
+  and each version let through forms the previous one caught; the gate's bypass is guarded by this line, not by a parser.
+  (The pre-push `security-auditor` run is an independent CONTENT scan; it cannot see the push command itself.)
 - **If a permission prompt still appears:** measure which mechanism raised it — feed the command's JSON to the hook
   by hand — report it, and change the habit. The hook and the settings are never edited to silence it without a
   ruling (`irreversible-actions.md`: the hook is the push guard).

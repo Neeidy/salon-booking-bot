@@ -43,8 +43,8 @@
 ## 7-2 Tur 2 — CONVERGE list (for Yigitcan's triage after R2)
 Findings OUTSIDE the diffs they were found in, or new LOW/MEDIUM in a diff whose ruling sent them here (R1c's CONVERGE
 rule; R1d's THREAT and G rulings). Not fixed in R1–R1d. Severity is the finder's. Recorded 2026-10-26.
-**DISPOSITION (Yigitcan, 7-2 R4, 2026-10-26):** the three secret-scan MEDIUMs marked ✅ below were FIXED (`1ce20e7`,
-widened after review in `34c9065`); everything else is deferred to v2 with its one-line reason in README → "Not yet —
+**DISPOSITION (Yigitcan, 7-2 R4, 2026-10-26):** the secret-scan items marked ✅ below were FIXED (`1ce20e7`, LOWs
+in `bc07ea8`) and the hook refusal marked ⛔ was DROPPED (`631edcf`); everything else is deferred to v2 with its one-line reason in README → "Not yet —
 deferred to v2" → "7-2 CONVERGE items deferred". The Owner Actions entries stay recorded BOUNDS, the last block stays
 with the end-of-phase security pass, and the RESOLVED line is closed.
 
@@ -79,11 +79,11 @@ with the end-of-phase security pass, and the RESOLVED line is closed.
 
 **Git pre-push gate (lane G)**
 - ✅ FIXED (R4) · MEDIUM · an added line whose content starts with `++` is dropped before scanning (pre-existing, kept byte-for-byte).
-- ✅ FIXED (R4) · MEDIUM · `git push --no-verify` / `-c core.hooksPath=/dev/null` pass the hook (M4) — the Claude Code first
-  line refuses them in every form its command text shows — wrappers in front (`time`, `timeout`, `env -i`, `sudo`), quoted,
-  abbreviated, `$'…'`, `-o --`, `sh -c`/`eval`, GIT_CONFIG_* (also exported earlier), an inline alias — and BLOCKS when it
-  cannot run (`595416f`). What the text does not show still passes (a script or alias, a global or exported git config
-  set before, a computed argument, an edited .git/config): git's own pre-push hook is the gate.
+- ⛔ NOT FIXED — DROPPED by ruling (Yigitcan, 7-2 R4) · MEDIUM · `git push --no-verify` / `-c core.hooksPath=/dev/null` pass
+  the hook (M4): the git pre-push gate can be bypassed by `--no-verify` (or a core.hooksPath override); guarded by habit, not by code (`remote-operator.md`). A Claude Code first line that refused them was built and
+  removed: two security reviews measured each parser version passing forms the previous one caught, and a text rule would
+  block ordinary commands; under THREAT (our own mistakes) its cost exceeded its value. *(This line said it was fixed
+  "in every form its command text shows" — corrected: the security review measured eleven such forms passing.)*
 - ✅ FIXED (R4) for `N8N_ENCRYPTION_KEY` and `postgres://` URLs with a password · MEDIUM · rule coverage: UTF-16 content and a
   key in a file name → v2.
 - MEDIUM (design) · an agent can commit a secret with its own exception line and push; option: exceptions only for

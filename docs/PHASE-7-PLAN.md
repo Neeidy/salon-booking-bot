@@ -412,17 +412,14 @@ import-safe scratchpad drivers; spend ceiling 1.00 USD; not in the Reminders or 
   form maps to the single-line row because a name is printed on one line), the longest digit run after normalisation 4
   (the raw synthetic values give 11: the instrument can go red). Clean: 1 appointment, 1 lead; every p7 count 0; the seed
   workflow 404. One permanent trace, stated: `leads.lead_no` (an identity) advanced by one.
-- **CONVERGE (Yigitcan):** fixed now — the scanner reads content lines starting with `++` (engine and working-tree
-  filter), detects an n8n encryption key and a postgres(ql) URL with a password, and the Claude Code first line refuses
-  `git push --no-verify` and core.hooksPath set by `-c` / `--config-env` / GIT_CONFIG_* / `git config` (`1ce20e7`; the
-  review measured abbreviations, quotes and env forms passing the first cut → per-segment shlex parser, `34c9065`; both
-  reviews of THAT measured 17 wrapper and `-o --` forms passing it, a fail-OPEN when python could not run (a 140 KB
-  command), and false blocks on commit messages → one shlex stream per line, `git` anywhere in a segment, stdin, fail
-  CLOSED, `595416f`; the review's LOWs in `bc07ea8`: a header control that can fail, the `postgresql+asyncpg://` scheme,
-  ordered seed columns). Full history scanned before and after: 0 new hits. Mutants across the four commits:
-  6 + 10 + 4 + 10, each red. The security-auditor's NO-GO on `34c9065` (a regression against the first cut) is what
-  held the push. The rest → v2 (README), including the reviews' remaining LOWs (rule edge cases, busybox NUL, a quadratic
-  strip, what a command's text does not show).
+- **CONVERGE (Yigitcan):** fixed — the scanner reads content lines starting with `++` (engine and working-tree filter)
+  and detects an n8n encryption key and a postgres(ql) URL with a password (`1ce20e7`; the review's LOWs in `bc07ea8`: a
+  header control that can fail, the `postgresql+asyncpg://` scheme, ordered seed columns). Full history scanned before
+  and after: 0 new hits; seven mutants of the kept fixes, each red. **The hook refusal of `--no-verify` / core.hooksPath
+  was built and DROPPED by ruling:** three versions (`1ce20e7`, `34c9065`, `595416f`) each drew a review finding — the
+  last two a security NO-GO, each letting through forms its predecessor caught (11 confirmed end to end with real git) —
+  and a text rule would block ordinary commands; the code and its test are removed (R4 drop commit), and the bypass is
+  guarded by habit (`remote-operator.md`). The rest → v2 (README).
 - **Docs (text only):** claim-first idempotency in booking-integrity §1, DATA-MODEL, the schema comment, FLOW-DIAGRAM,
   the regression suite and the snippet comment (its bundle unchanged: byte-identical rebuild) · the D-c wording (an
   alert never changes the reply but can delay it) in FLOW-DIAGRAM and UX-ARCHITECTURE · the 7-2 alert classes in

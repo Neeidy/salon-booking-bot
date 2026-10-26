@@ -36,8 +36,9 @@ Scan before any push / screenshot / export:
 
 - **push-guard drift:** run `bash scripts/check-hook-drift.sh`. Since 7-2 Tur 2 the push GATE is git's own pre-push
   hook — `.git/hooks/pre-push` plus a copy of `scripts/secret-scan.sh` and `scripts/secret-scan-ignore` beside it,
-  installed FROM HEAD by `scripts/install-pre-push.sh`; `~/.claude/hooks/secret-scan.sh` is the Claude Code first line
-  (it also refuses `git push --no-verify` and `-c core.hooksPath=` since 7-2 R4). The drift check compares all four
+  installed FROM HEAD by `scripts/install-pre-push.sh`; `~/.claude/hooks/secret-scan.sh` is the Claude Code first line.
+  `git push --no-verify` or a core.hooksPath override bypasses the gate — guarded by habit, not by code (ruling 7-2 R4):
+  flag any sign of one in a push's history or commands. The drift check compares all four
   installed copies with their HEAD blobs: non-zero exit = a running guard is not the reviewed guard. Right after a
   commit that changes a guard, drift is EXPECTED until the copies are refreshed from HEAD (standing approval) — judge
   whether that is the ONLY cause. *(Corrected 7-2 R4: this said the CC hook was the guard that runs.)*
