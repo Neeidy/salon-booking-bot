@@ -334,17 +334,19 @@ def main():
          rc == 0 and last[0] == 'lead-insert' and last[2]['p']['rows'][0] == {'name': 'Noor 0660 1234567', 'phone': '+43 660 1234567',
          'source': 'widget', 'message': 'mig-p7-r4 synthetic', 'created_at': '2030-01-07T08:00:00.000Z'} and '1234567' not in out, out[-200:])
     # M1: each payload key of the two inserts is in the recordset definition, the INSERT column list and the SELECT list
+    # (review R4: a set comparison could not see `name, phone` swapped in one list — the ORDER is compared too)
     for action, opt in (('appt-insert', {'session': 'w-mig-p7-u', 'start': '2030-01-07T13:00:00Z', 'created_at': '2030-01-01T09:00:00Z',
                                          'customer_name': 'x'}),
-                        ('lead-insert', {'message': 'mig-p7 x', 'created_at': '2030-01-01T09:00:00Z', 'name': 'x', 'phone': 'y'})):
+                        ('lead-insert', {'message': 'mig-p7 x', 'created_at': '2030-01-01T09:00:00Z', 'name': 'x', 'phone': 'y'}),
+                        ('pm-insert', {'session': 'w-mig-p7-u', 'message_id': 'mig-p7-x', 'created_at': '2030-01-01T09:00:00Z'})):
         q = mod.SQL[action]
         rec = re.search(r'AS x\((.*?)\)\)', q, re.S).group(1)
         cols = re.search(r'INSERT INTO salon\.\w+ \((.*?)\) SELECT (.*?) FROM r', q, re.S)
         recs = {c.strip().split()[0] for c in rec.split(',')}
-        ins, sel = ({c.strip() for c in g.split(',')} for g in cols.groups())
+        ins, sel = ([c.strip() for c in g.split(',')] for g in cols.groups())
         keys = set(mod.payload(action, opt)['rows'][0])
-        case(f'{action}: every payload key is in the recordset, the INSERT and the SELECT ({sorted(keys - (recs & ins & sel)) or "none missing"})',
-             keys <= recs and keys <= ins and keys <= sel)
+        case(f'{action}: every payload key is in the recordset, and the INSERT and SELECT lists are the same columns in the same order'
+             f' ({sorted(keys - (recs & set(ins))) or "none missing"})', keys <= recs and keys == set(ins) and ins == sel)
     # L4: the value class the live check uses travels unchanged
     uni = 'Noor \u0660\u0666\u0666\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667 Q 0\u200b6\u200b6\u200b0 1234567\nzz'
     row = mod.payload('lead-insert', {'message': 'mig-p7 u', 'created_at': '2030-01-01T09:00:00Z', 'name': uni})['rows'][0]

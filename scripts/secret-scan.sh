@@ -317,7 +317,7 @@ RULES = [(n, re.compile(p, re.I)) for n, p in (
     # (21) the key that decrypts every n8n credential; a placeholder of fewer than 16 characters passes
     ('n8n encryption key', r'(?:N8N_ENCRYPTION_KEY|encryptionKey)["\' ]*[:=]["\' ]*[A-Za-z0-9/+_=-]{16,}'),
     # (21) a Postgres URL with a password in it; `${VAR}` / `$VAR` passwords are stripped first and leave no match
-    ('postgres url with credentials', r'postgres(?:ql)?://[^\s:/@\'"]+:[^\s@/\'"]+@'),
+    ('postgres url with credentials', r'postgres(?:ql)?(?:\+[A-Za-z0-9]+)?://[^\s:/@\'"]+:[^\s@/\'"]+@'),
 )]
 
 

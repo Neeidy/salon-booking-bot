@@ -1509,9 +1509,18 @@ def t_r4_plusplus_line_worktree():
 
 
 def t_r4_plusplus_header_not_content():
-    # control: a normal commit's `+++ b/<path>` header is still a header, not scanned as content (no false block)
-    rc, out = _blocked_line('guards-r4c-', 'plain text\n', rel='keys/ordinary.txt')
-    return rc == 0, 'an ordinary commit (its +++ header must not be read as content): exit %d %s' % (rc, out.strip()[-120:])
+    # control: a `+++ b/<path>` header is still a header, never scanned as content. The PATH carries a key shape, so a
+    # filter that read the header as content would block (review R4: a plain path could not tell the two apart).
+    rel = 'keys/%s.txt' % syn_anthropic()
+    rc, out = _blocked_line('guards-r4c-', 'plain text\n', rel=rel)
+    with tempfile.TemporaryDirectory(prefix='guards-r4c2-') as tmp:   # the manual-mode filter (awk) on the same header
+        _, work = mkrepo(tmp)
+        commit(work, rel, 'plain text\n', 'path')
+        git(work, 'push', '-q')
+        write(os.path.join(work, rel), 'plain text\nmore plain text\n')
+        rc2, out2 = manual_scan(work)
+    return rc == 0 and rc2 == 0, ('a key-shaped file PATH (its +++ header must not be read as content): committed exit %d · '
+                                  'working tree exit %d %s' % (rc, rc2, (out + out2).strip()[-120:]))
 
 
 def t_r4_n8n_encryption_key():
@@ -1529,6 +1538,7 @@ def t_r4_postgres_url_with_credentials():
     res = {}
     for label, line, want_block in (('postgresql URL with a password', syn_pg_url(), True),
                                     ('postgres URL with a password', syn_pg_url().replace('ql://', '://'), True),
+                                    ('a driver-qualified scheme', syn_pg_url().replace('ql://', 'ql+asyncpg://'), True),
                                     ('URL without credentials', 'postgres' + '://db.invalid:5432/salon', False),
                                     ('password from the environment', 'postgres' + '://drill:${PGPASSWORD}@db.invalid/salon', False)):
         rc, out = _blocked_line('guards-r4e-', 'DATABASE_URL=%s\n' % line)
