@@ -80,7 +80,10 @@ with the end-of-phase security pass, and the RESOLVED line is closed.
 **Git pre-push gate (lane G)**
 - ✅ FIXED (R4) · MEDIUM · an added line whose content starts with `++` is dropped before scanning (pre-existing, kept byte-for-byte).
 - ✅ FIXED (R4) · MEDIUM · `git push --no-verify` / `-c core.hooksPath=/dev/null` pass the hook (M4) — the Claude Code first
-  line refuses them and their abbreviated, quoted and environment forms; a wrapper script still hides one.
+  line refuses them in every form its command text shows — wrappers in front (`time`, `timeout`, `env -i`, `sudo`), quoted,
+  abbreviated, `$'…'`, `-o --`, `sh -c`/`eval`, GIT_CONFIG_* (also exported earlier), an inline alias — and BLOCKS when it
+  cannot run (`595416f`). What the text does not show still passes (a script or alias, a global or exported git config
+  set before, a computed argument, an edited .git/config): git's own pre-push hook is the gate.
 - ✅ FIXED (R4) for `N8N_ENCRYPTION_KEY` and `postgres://` URLs with a password · MEDIUM · rule coverage: UTF-16 content and a
   key in a file name → v2.
 - MEDIUM (design) · an agent can commit a secret with its own exception line and push; option: exceptions only for

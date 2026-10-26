@@ -141,6 +141,7 @@ Phase 7's fix checkpoint instead.
 | masking: `maskName`'s fallback keeps runs under seven digits whole; a lone `\r`, NEL and U+2028 are not line breaks; test-hygiene notes | below the seven-digit rule by design, or rare input on the owner's screen |
 | Main: a verify read with NO `items` key counts as an empty list | a ruled carve-out (R2); reopened only if Calendar is seen omitting the key |
 | secret scan: the n8n-key rule misses a human-chosen passphrase with dots or spaces; the postgres rule misses `?password=` or a `/` in the password, and blocks placeholder passwords such as `user:password@` | generated keys and URL-embedded passwords are caught; a false block is visible and a committed line can be excepted by fingerprint |
+| secret scan: the Claude Code first line cannot see a bypass that a command's text does not show (a script or alias, a global or earlier-exported git config, a computed argument, an edited `.git/config`) | it reads text by design; git's own pre-push hook is the gate, and every push is audited first |
 | secret scan: busybox awk ends a working-tree line at a NUL byte | manual mode only — the gate reads committed patches in its Python engine; this machine's awk handles NUL (measured by the R4 review) |
 | secret scan: the PLACEHOLDER strip is quadratic on a very long run of key characters | it fails closed (a slow scan blocks the push, never passes it); no such line in the repo |
 | Main: node names still say "Airtable" | a rename is a Main edit; it rides the next one (D6c) |
