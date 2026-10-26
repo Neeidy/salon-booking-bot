@@ -109,6 +109,10 @@
 # 18. THE RULE ENGINE IS A FILE in that temp directory, run with `python3 -I <file>`: the ignore file is validated by the
 #     SAME code that applies it, before anything is extracted, so a malformed exception is visible even when there is
 #     nothing to scan. `-I` keeps the script's own directory and the current directory off the import path, as 11 did.
+# ONE MORE, from the Codex 7-2 R2 recheck (R2b):
+# 19. THE x-RUN STRIP TOOK PART OF A KEY. It deleted every run of four or more x's and rejoined the rest, so a real
+#     key that contained such a run came out below its rule's length and was pushed (AWS- and OpenAI-shaped, both
+#     measured). Only a WHOLE placeholder token is removed now (placeholder_token, in the rule engine below).
 set -uo pipefail
 SECRET_SCAN_API=3   # scripts/pre-push.sh refuses a scanner without this marker (API 3: --revs + tag messages + R1c)
 : "$SECRET_SCAN_API"
@@ -196,15 +200,27 @@ STRIP = [(re.compile(p), r) for p, r in (
     (r'\$credentials(?:\.[A-Za-z0-9_]+)*', ' '),
     (r'<your-[^>\s]*>?', ' '),
 )]
-# A run of four or more x's is the placeholder filler (`sk-ant-xxxx…`). It is removed WITHOUT a separator, so a
-# real value that merely contains such a run is rejoined and still has to clear the rules.
+# A PLACEHOLDER TOKEN is removed WHOLE, and only a whole token is (R2b XRUN; Codex R2, target 4 MEDIUM). The first form
+# deleted every run of four or more x's anywhere and rejoined the rest, so a real key that merely CONTAINS such a run
+# came out shorter than its rule's length and passed (an AWS- and an OpenAI-shaped key, both pushed). A token — a
+# maximal run of key characters — is a placeholder when it holds a run of 4+ x (or X), nothing but x/X and separators
+# follows that run, and at most eight letters/digits precede it (the key prefix: `AKIA`, `sk-ant-`, `ghp_`, `app`).
+# Any other token is left exactly as it is, x's included, for the rules to judge.
+TOKEN = re.compile(r'[A-Za-z0-9_+/-]+')
 XRUN = re.compile(r'x{4,}|X{4,}')
+
+
+def placeholder_token(tok):
+    m = XRUN.search(tok)
+    if not m or re.search(r'[A-WYZa-wyz0-9]', tok[m.end():]):
+        return False
+    return len(re.sub(r'[^A-Za-z0-9]', '', tok[:m.start()])) <= 8
 
 
 def strip(line):
     for rx, repl in STRIP:
         line = rx.sub(repl, line)
-    return XRUN.sub('', line)
+    return TOKEN.sub(lambda m: ' ' if placeholder_token(m.group(0)) else m.group(0), line)
 
 
 # RULES — value SHAPES, case-insensitive (as `grep -i` was).

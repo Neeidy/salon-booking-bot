@@ -13,6 +13,10 @@ R1d: the installer and the drift check work from HEAD, so every installer and dr
 inside its own throwaway repo (stage_scripts(), with the same refusal of any path under this repo) and runs the copy
 there; the t_r1d_* cases cover M-A, M-B, --diff-merges, the hooks-path redirect and LOW-2/3/4.
 
+R2b (Codex 7-2 R2, target 4): a key CONTAINING a run of x (AWS- and OpenAI-shaped, built at run time) is blocked on
+a real push with the installed hook, and whole placeholder tokens still pass; the second-remote case (g5) sets a nested
+remote name through config, so it runs on a newer git (which refuses `git remote add origin/side`) as on an older one.
+
 GUARDS_ROOT (default: this repo) points every script path at another tree, so the same cases can be run against the
 pre-fix scripts (red) and against a mutant of a fix (red) as well as the fixed tree (green).
 
@@ -61,6 +65,19 @@ def syn_anthropic():
 
 def syn_openai_proj():
     return 'sk-' + 'proj-' + 'Zx9_Cv8-Bn7' * 6
+
+
+def syn_aws_xrun():   # R2b XRUN: Codex's AWS-shaped case — a run of X INSIDE a valid-length key
+    return 'AK' + 'IA' + 'ABCD' + 'XX' + 'XX' + 'EFGH1234'
+
+
+def syn_openai_xrun():   # and its OpenAI-shaped case: 33 key characters, four of them a run of x — the old strip left
+    return 'sk' + '-' + 'Ab1Cd2Ef3Gh4' + 'xx' + 'xx' + 'Ij5Kl6Mn7Op8Qr9St'   # 29, below the rule's 32 (review R2b L2)
+
+
+def syn_placeholders():   # documentation placeholders: every one is a WHOLE placeholder token, and must pass
+    return ['AK' + 'IA' + 'X' * 16, 'sk-' + 'ant-' + 'x' * 24, 'sk-' + 'proj-' + 'x' * 24, 'gh' + 'p_' + 'x' * 36,
+            'app' + 'X' * 14]
 
 
 def syn_hex(n):
@@ -584,6 +601,36 @@ def t_pp_install_and_real_push():
                 'installer over a foreign hook exit %d' % (rc_p, before != after, rc_ok, rc_r))
 
 
+# ---- R2b · XRUN: the placeholder strip removes a WHOLE placeholder token, never part of a key --------------------
+def t_r2b_xrun_key_with_x_run_blocked_on_real_push():
+    res = {}
+    for label, key in (('AWS-shaped', syn_aws_xrun()), ('OpenAI-shaped', syn_openai_xrun())):
+        with tempfile.TemporaryDirectory(prefix='guards-r2bx-') as tmp:
+            remote, work = mkrepo(tmp)
+            rc_i, out_i = install_into(work)
+            if rc_i != 0:
+                return False, 'installer exit %d: %s' % (rc_i, out_i[-200:])
+            before = git(remote, 'rev-parse', 'main')
+            commit(work, 'cfg.txt', 'value: %s\n' % key, 'adds a key with an x run')
+            rc, out = run(['git', 'push', '-q', 'origin', 'main'], work)
+            res[label] = (rc != 0, git(remote, 'rev-parse', 'main') == before, key not in out)
+    return all(all(v) for v in res.values()), 'a key CONTAINING a run of x, real push with the installed hook ' \
+        '(blocked, remote unchanged, value not printed): %s' % res
+
+
+def t_r2b_xrun_whole_placeholders_pass_real_push():
+    with tempfile.TemporaryDirectory(prefix='guards-r2bp-') as tmp:
+        remote, work = mkrepo(tmp)
+        rc_i, out_i = install_into(work)
+        if rc_i != 0:
+            return False, 'installer exit %d: %s' % (rc_i, out_i[-200:])
+        commit(work, 'docs.md', ''.join('example: %s\n' % p for p in syn_placeholders()), 'documents placeholders')
+        rc, out = run(['git', 'push', '-q', 'origin', 'main'], work)
+        moved = git(remote, 'rev-parse', 'main') == git(work, 'rev-parse', 'HEAD')
+    return rc == 0 and moved, 'whole placeholder tokens (AWS, Anthropic, OpenAI project, GitHub, Airtable), real push: ' \
+        'exit %d, remote moved=%s · %s' % (rc, moved, out.strip()[-160:])
+
+
 # ---- 9 · check-hook-drift covers the pre-push hook -------------------------------------------------------------
 IGNORE = os.path.join(GROOT, 'scripts', 'secret-scan-ignore')
 
@@ -890,7 +937,15 @@ def _key_on_second_remote(tmp, name):
     remote, work = mkrepo(tmp)
     other = os.path.join(tmp, 'other.git')
     git(tmp, 'init', '-q', '--bare', '-b', 'main', other)
-    git(work, 'remote', 'add', name, other)
+    if '/' in name:
+        # A nested remote name is set up through config: `git remote add origin/side` is refused by newer git (measured
+        # in the audit container: "a subset of existing remote"), while a configured one still pushes and still gets
+        # tracking refs under refs/remotes/origin/side/ — the state this case needs, on every git version (R2b: g5 on the
+        # host's git and the container's newer one).
+        git(work, 'config', 'remote.%s.url' % name, other)
+        git(work, 'config', 'remote.%s.fetch' % name, '+refs/heads/*:refs/remotes/%s/*' % name)
+    else:
+        git(work, 'remote', 'add', name, other)
     base = git(work, 'rev-parse', 'HEAD')
     key_file(work, 'a.txt')
     git(work, 'add', '-A')
