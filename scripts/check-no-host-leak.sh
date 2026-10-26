@@ -60,8 +60,12 @@ set -f   # a target containing a glob metacharacter must never expand against th
          # measured, an unquoted `*.x.test` became a FILENAME and the declared target went unscanned
          # while the guard still said clean (security-auditor, 2026-09-12).
 
+# QUOTES ARE STRIPPED (Codex 7-2 target 4, M3): `NAME_HOST="value"` used to keep its quote characters, passed
+# the declared-vs-parsed count below, and then searched for `"value"` — which a URL containing the host never
+# contains, so the guard said clean. A surrounding pair of quotes is syntax, not part of a hostname.
+unquote() { sed -E "s/^[\"']+//; s/[\"']+\$//"; }
 TARGETS=""
-if [ -n "${N8N_HOST:-}" ]; then TARGETS="$N8N_HOST"; fi
+if [ -n "${N8N_HOST:-}" ]; then TARGETS="$(printf '%s\n' "$N8N_HOST" | unquote)"; fi
 DECLARED=0
 if [ -f CLAUDE.local.md ] && [ ! -r CLAUDE.local.md ]; then
   # Bulgu 3: `grep -c … || true` left DECLARED empty when the file could not be read, the numeric test
@@ -77,7 +81,7 @@ if [ -f CLAUDE.local.md ]; then
   # guard prints its full green sentence and exits 0 over a real leak (measured). A guard that cannot
   # say HOW MANY things it checked cannot distinguish "clean" from "checked nothing".
   DECLARED="$(grep -cE '^[[:space:]]*[A-Za-z0-9_]*[Hh][Oo][Ss][Tt][[:space:]]*=' CLAUDE.local.md || true)"
-  more="$(sed -n 's/^[A-Z0-9_]*HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' CLAUDE.local.md)"
+  more="$(sed -n 's/^[A-Z0-9_]*HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' CLAUDE.local.md | unquote)"
   TARGETS="$(printf '%s\n%s\n' "$TARGETS" "$more" | sed '/^$/d' | sort -u)"
   PARSED="$(printf '%s\n' "$more" | sed '/^$/d' | wc -l | tr -d ' ')"
 fi
@@ -106,10 +110,14 @@ leak=0
 
 # git grep exit codes: 0 = found, 1 = not found, >1 = ERROR. Collapsing >1 into "not found" would turn a
 # broken scan into a green report, so each scan separates the three.
+# CASE-INSENSITIVE, matching AND masking (Codex 7-2 target 4, M3): a DNS name is case-insensitive, so
+# `HTTPS://HOST.EXAMPLE/` is the same leak as the lower-case one — and `git grep -F` without `-i` said "not found".
+# The mask finds each occurrence in a lower-cased copy and cuts the ORIGINAL line at the same offsets, so an
+# upper-case occurrence is masked too instead of being printed in clear.
 scan_one() {
   local label="$1"; local HOST="$2"; shift 2
   local out rc
-  out="$(git grep -nF "$@" -- "$HOST" 2>/dev/null)"; rc=$?
+  out="$(git grep -niF "$@" -- "$HOST" 2>/dev/null)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     echo "HOST LEAK — the production host appears in ${label}:"
     # file:line only, and the matched line is TRUNCATED with the host masked. Printing the full match
@@ -129,8 +137,8 @@ scan_one() {
       BEGIN { n = split(ENVIRON["TARGETS"], T, "\n") }
       { line = $0
         for (i = 1; i <= n; i++) if (T[i] != "") {
-          out = ""; rest = line
-          while ((p = index(rest, T[i])) > 0) {
+          out = ""; rest = line; t = tolower(T[i])
+          while ((p = index(tolower(rest), t)) > 0) {
             out = out substr(rest, 1, p - 1) "<REDACTED-HOST>"
             rest = substr(rest, p + length(T[i]))
           }

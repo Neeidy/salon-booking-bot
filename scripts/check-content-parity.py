@@ -48,8 +48,11 @@ CF_HDRS = ({'CF-Access-Client-Id': os.environ['CF_ACCESS_CLIENT_ID'],
 # where you happen to have credentials is the same class of untested safety net as the inverted test this
 # assertion was written to replace (ARCH-DEC 2026-08-17).
 def _cal_id(node):
-    m = re.search(r'googleCalendarId:\s*"([^"]+)"', (node.get('parameters', {}) or {}).get('jsCode', '') or '')
-    return m.group(1) if m else None
+    # Any JS string quote, and a quoted key: a single-quoted or back-ticked literal carried a primary calendar
+    # address past the double-quote-only pattern (Codex 7-2 target 4, M1).
+    m = re.search(r"""['"]?googleCalendarId['"]?\s*:\s*(['"`])(.+?)\1""",
+                  (node.get('parameters', {}) or {}).get('jsCode', '') or '')
+    return m.group(2) if m else None
 
 
 def _turnstile_secret(node):
@@ -75,9 +78,19 @@ def _turnstile_secret(node):
 #
 # Codex round 4 finding 2 is closed by the LIVE side being broad — `REPLACE_WITH_calendar_id_v2@…` is caught
 # by the shape scan regardless of what this narrow predicate says.
+# ⚠ NARROWED AGAIN (Codex 7-2 target 4, M2): `startswith('REPLACE_WITH') or 'XXXX' in v` still excused a
+# real-format value that merely CONTAINS the shouted run — `app` + `K7XXXXB9nRt4Ls`, a credential id with XXXX in
+# the middle — the same mechanism round 5 closed for lowercase. A value is excused now only when it IS one whole
+# token of a documented sanitiser shape: `REPLACE_WITH_<UPPER/DIGITS/_>` (optionally `@group.calendar.google.com`,
+# the masked calendar id) or an Airtable prefix followed by exactly fourteen X's. Measured over every string leaf
+# of the committed exports: the only values the old predicate excused and this one does not are two
+# `cachedResultUrl` display URLs, which reach the predicate only through the id regex below, as the whole token.
+_PLACEHOLDER_TOKEN = re.compile(r'REPLACE_WITH_[A-Z0-9_]+(?:@group\.calendar\.google\.com)?|(?:app|tbl|viw|rec|fld)X{14}')
+
+
 def _is_known_placeholder(v):
-    """NARROW, case-sensitive. Used only where a value is EXCUSED from the real-value check."""
-    return isinstance(v, str) and (v.startswith('REPLACE_WITH') or 'XXXX' in v)
+    """NARROW, case-sensitive, WHOLE-token. Used only where a value is EXCUSED from the real-value check."""
+    return isinstance(v, str) and _PLACEHOLDER_TOKEN.fullmatch(v) is not None
 
 
 def _walk_ids(obj, out):
@@ -88,27 +101,96 @@ def _walk_ids(obj, out):
                 for cred in v.values():
                     if isinstance(cred, dict) and isinstance(cred.get('id'), str):
                         out.append(('credential id', cred['id']))
-            # SUBSTRING, not fullmatch: a real id pasted inside an httpRequest URL or a Code-node string
-            # literal escaped a fullmatch entirely (flow-reviewer planted both, 2026-09-08). view/record/field
-            # ids are included because `sanitize.md` step 2 covers pinned data and Airtable ids generally.
-            if isinstance(v, str):
-                for m in re.finditer(r'(app|tbl|viw|rec|fld)[A-Za-z0-9]{14}', v):
-                    if not _is_known_placeholder(m.group(0)):
-                        out.append(('airtable id', m.group(0)))
-                for m in re.finditer(r'[0-9a-f]{16,}@group\.calendar\.google\.com', v):
-                    out.append(('google calendar id', m.group(0)))
             _walk_ids(v, out)
     elif isinstance(obj, list):
         for v in obj:
             _walk_ids(v, out)
+    elif isinstance(obj, str):
+        # EVERY string leaf, whatever holds it. Strings were inspected only as dictionary VALUES, so an id placed
+        # directly inside an array was never looked at (Codex 7-2 target 4, M1).
+        # SUBSTRING, not fullmatch: a real id pasted inside an httpRequest URL or a Code-node string
+        # literal escaped a fullmatch entirely (flow-reviewer planted both, 2026-09-08). view/record/field
+        # ids are included because `sanitize.md` step 2 covers pinned data and Airtable ids generally.
+        for m in re.finditer(r'(app|tbl|viw|rec|fld)[A-Za-z0-9]{14}', obj):
+            if not _is_known_placeholder(m.group(0)):
+                out.append(('airtable id', m.group(0)))
+        for m in re.finditer(r'[0-9a-f]{16,}@group\.calendar\.google\.com', obj):
+            out.append(('google calendar id', m.group(0)))
+
+
+# BEARER IDENTIFIERS, found by KEY NAME (Codex 7-2 target 4, H1). A full widget `sender_key` is a bearer
+# credential and a full `gcal_event_id` reverses to one (security-secrets.md); `_alert_sender` carries the same
+# value into the owner alert. Their VALUE has no stable shape (a phone number, a session id, a hex string), so a
+# value-shape rule cannot see them — but their NAME is fixed, and in an export the name only ever holds an n8n
+# expression. A literal under one of these names is a pasted execution sample.
+BEARER_KEYS = ('sender_key', 'gcal_event_id', '_alert_sender')
+# Exact tokens, never patterns. `owner:dashboard` is the fixed actor id Owner Actions records for the owner's own
+# dashboard clicks (workflow.owner-actions.sanitized.json, Record Owner Action Processed) — a constant written by
+# the workflow itself, not any customer's identifier.
+NON_BEARER_LITERALS = {'owner:dashboard'}
+
+
+def _bearer_literal(v):
+    """True for a literal value: not an n8n expression (`=` …), not empty, not a sanitiser placeholder."""
+    if isinstance(v, bool) or v is None:
+        return False
+    if isinstance(v, (int, float)):
+        return True
+    if not isinstance(v, str):
+        return False
+    s = v.strip()
+    return bool(s) and not s.startswith('=') and not _is_known_placeholder(s) and s not in NON_BEARER_LITERALS
+
+
+def _bearer_keys(obj, path, out):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in BEARER_KEYS and _bearer_literal(v):
+                out.append('%s.%s' % (path, k))
+        # n8n `{name, value}` pairs (Set-node assignments, header/body/query parameters) carry the name as DATA
+        if obj.get('name') in BEARER_KEYS and 'value' in obj and _bearer_literal(obj.get('value')):
+            out.append('%s{name=%s}' % (path, obj['name']))
+        for k, v in obj.items():
+            _bearer_keys(v, '%s.%s' % (path, k), out)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            _bearer_keys(v, '%s[%d]' % (path, i), out)
+    elif isinstance(obj, str):
+        # a JSON body held as a string (optionally in expression mode) is parsed and walked like any object
+        t = obj.strip()
+        t = t[1:].lstrip() if t.startswith('=') else t
+        if t[:1] in ('{', '['):
+            try:
+                _bearer_keys(json.loads(t), path + '<json>', out)
+            except ValueError:
+                pass
+
+
+# In sticky-note PROSE the names are legitimately discussed ("sender_key = \"{channel}:{id}\"", "the
+# gcal_event_id for owner cleanup"). What is refused is a name, an optional closing quote/backtick, `:` or `=`,
+# and then a value shaped like an identifier: at least eight characters with a digit or a `channel:` colon, and no
+# template brace. An ellipsis-truncated prefix of at most twelve characters (`widget:w-…`) is the documented
+# redacted form (security-secrets.md) and is allowed.
+_STICKY_BEARER = re.compile(r"""(sender_key|gcal_event_id|_alert_sender)[`'"]?\s*[:=]\s*[`'"]?([^\s`'",;)\]}]+)""")
+
+
+def _sticky_literal(tok):
+    if '{' in tok or tok[:1] in ('<', '$', '=') or _is_known_placeholder(tok) or tok in NON_BEARER_LITERALS:
+        return False
+    for ell in ('…', '...'):
+        if tok.endswith(ell) and len(tok) - len(ell) <= 12:
+            return False
+    return len(tok) >= 8 and (re.search(r'[0-9]', tok) is not None or ':' in tok)
 
 
 def check_sanitised(comm):
     """Committed-side only: no live workflow, no credentials, no network. Exits 1 on a real value.
 
     Covers the classes `.claude/commands/sanitize.md` step 2 names: calendar id (anywhere, not just
-    Load Config), telegram chatId, turnstile secret, Airtable app/tbl/viw/rec/fld ids (as SUBSTRINGS, so an id
-    inside a URL or a code string is caught), credential ids, and pinData. Webhook URLs / tunnel hostnames are
+    Load Config), telegram chatId (string or number), turnstile secret, Airtable app/tbl/viw/rec/fld ids (as
+    SUBSTRINGS of every string leaf, so an id inside a URL, a code string or an array is caught), credential ids,
+    pinData, a non-empty top-level staticData, and a literal under a bearer-identifier key name (`BEARER_KEYS`, in
+    parameters and in sticky-note text). Webhook URLs / tunnel hostnames are
     covered by scripts/check-no-host-leak.sh instead, not here. It used to cover only
     three: a `flow-reviewer` pass on 2026-09-08 planted a real-looking Airtable base id, table id and
     credential id in a copy and the guard went GREEN — and would have stayed green on the credentialled
@@ -116,6 +198,15 @@ def check_sanitised(comm):
     shape as the inverted test this function was written to replace, still open for two classes.
     """
     bad = []
+    # TOP-LEVEL staticData / pinData must be absent, null or empty — checked as the workflow's own KEYS, so the
+    # text `$getWorkflowStaticData('global')` inside a Code node can never trip it. The old pinData check only
+    # looked up pins under a CURRENT node's name, so pins kept under a removed or renamed node passed, and
+    # staticData (n8n's store for `$getWorkflowStaticData`, where the owner-alert throttle keeps full sender keys
+    # live) was not checked at all (Codex 7-2 target 4, H1 + M1). Measured 2026-10-26: none of the committed
+    # exports carries either key, so "empty" is allowed only as the harmless serialisation of "nothing".
+    for key in ('staticData', 'pinData'):
+        if comm.get(key) not in (None, {}, [], ''):
+            bad.append('top-level %s is not empty — it must be stripped before commit (it holds live run data)' % key)
     for n in comm['nodes']:
         ids = []
         _walk_ids(n, ids)
@@ -124,8 +215,16 @@ def check_sanitised(comm):
                 bad.append('%s %r (%s)' % (kind, val[:6] + '…', n['name']))
         # pinData is named in sanitize.md step 2 and had NO automated check at all: pinned test data is the
         # most likely carrier of real customer PII in an export refreshed from live.
-        if n.get('pinData') or (isinstance(comm.get('pinData'), dict) and n['name'] in comm['pinData']):
+        if n.get('pinData'):
             bad.append('pinData present (%s) — pinned data must be stripped before commit' % n['name'])
+        hits = []
+        _bearer_keys(n.get('parameters') or {}, 'parameters', hits)
+        for where in hits:
+            bad.append('literal bearer identifier under %s (%s) — only an n8n expression may sit there' % (where, n['name']))
+        if n.get('type') == 'n8n-nodes-base.stickyNote':
+            for m in _STICKY_BEARER.finditer((n.get('parameters') or {}).get('content') or ''):
+                if _sticky_literal(m.group(2)):
+                    bad.append('sticky note quotes a literal %s value (%s)' % (m.group(1), n['name']))
         v = _cal_id(n)
         if isinstance(v, str) and v and not _is_known_placeholder(v):
             bad.append('googleCalendarId (%s)' % n['name'])
@@ -133,6 +232,10 @@ def check_sanitised(comm):
             ch = (n.get('parameters') or {}).get('chatId')
             if isinstance(ch, str) and ch and not _is_known_placeholder(ch):
                 bad.append('telegram chatId (%s)' % n['name'])
+            # a chat id is a number to Telegram, and n8n stores whatever was typed — a JSON number walked past
+            # the string-only test above (Codex 7-2 target 4, M1)
+            if isinstance(ch, (int, float)) and not isinstance(ch, bool):
+                bad.append('telegram chatId as a number (%s)' % n['name'])
         ts = _turnstile_secret(n)
         if isinstance(ts, str) and ts and not _is_known_placeholder(ts):
             bad.append('turnstile secret (%s)' % n['name'])
@@ -651,7 +754,8 @@ def main():
     if not (API and KEY):
         print('sanitise OK — %d committed nodes carry placeholders for the classes this script checks: '
               'calendar id, telegram chatId, turnstile secret, Airtable app/tbl/viw/rec/fld ids, credential '
-              'ids, pinData. Webhook URLs / hostnames are NOT checked here (check-no-host-leak.sh owns them)'
+              'ids, pinData, top-level staticData, literal sender_key/gcal_event_id/_alert_sender values. '
+              'Webhook URLs / hostnames are NOT checked here (check-no-host-leak.sh owns them)'
               % n_checked)
         print('ERROR: set N8N_API_URL and N8N_API_KEY (n8n public API) to fetch the live workflow '
               '(parity half NOT run)')
