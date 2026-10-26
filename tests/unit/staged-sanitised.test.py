@@ -85,14 +85,14 @@ def promoted(st, cm):
     return json.dumps(st, sort_keys=True) == json.dumps(cm, sort_keys=True)
 
 
-def check(staged_path, st=None, delta=None):
+def check(staged_path, st=None, delta=None, controls=False):
     committed_path = os.path.join(ROOT, 'n8n', os.path.basename(staged_path))
     if not os.path.exists(committed_path):
         return [f'no committed counterpart {os.path.relpath(committed_path, ROOT)}']
     if st is None:
         st = json.load(open(staged_path, encoding='utf-8'))
     cm = json.load(open(committed_path, encoding='utf-8'))
-    if promoted(st, cm):
+    if promoted(st, cm) and not controls:   # a negative control must still exercise the delta check
         return []
     if delta is None:
         dp = delta_path(staged_path)
@@ -138,7 +138,7 @@ if __name__ == '__main__':
                  dict(ctl_delta, add_edges=sorted(set(ctl_delta.get('add_edges') or ()) | {'Approved Control|0|Check Processed|0'})),
                  'not the approved delta')]
     for label, cst, cdelta, want in controls:
-        errs = check(ctl_path, st=cst, delta=cdelta)
+        errs = check(ctl_path, st=cst, delta=cdelta, controls=True)
         if not any(want in e for e in errs):
             print(f'✗ negative control "{label}" stayed GREEN ({errs}) — the delta check is blind')
             sys.exit(1)

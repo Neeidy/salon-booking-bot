@@ -78,6 +78,22 @@ def _committed_or_baseline(path, rev='HEAD'):
 
 
 H.committed_export = _committed_or_baseline
+# ...and the spec as it stood on that baseline: until R3 promoted the edit the Owner Actions spec carried no
+# settings_allow (T-4's exact-value entry arrives WITH the promoted export, whose live copy then holds the value). A
+# pre-edit Owner Actions copy judged against the post-promotion spec would read as drift, which it was not at the time.
+BASELINE_SPEC_DROP = {'owner-actions': ('settings_allow',)}
+_real_target, _real_target_scratch = W.target, W.target_scratch
+
+
+def _baseline_spec(fn):
+    def wrapped(spec_path, wid):
+        spec, committed = fn(spec_path, wid)
+        drop = BASELINE_SPEC_DROP.get(W.spec_key(spec_path), ())
+        return ({k: v for k, v in spec.items() if k not in drop} if drop else spec), committed
+    return wrapped
+
+
+W.target, W.target_scratch = _baseline_spec(_real_target), _baseline_spec(_real_target_scratch)
 
 E1 = ['Aggregate Leads Total', 'Build Owner Alert (Purge)', 'Count Leads After', 'Count Leads Total', 'Find Old Leads',
       'Leads Purge Sane?', 'Verify Leads Purge']
