@@ -240,6 +240,9 @@ def _text(opt, key, flag, cap):
 
 
 def payload(action, opt):
+    stray = sorted(set(k for k, v in opt.items() if v is not None) - ALLOWED.get(action, set()))
+    if stray:
+        raise Refused(f'{action} does not take {stray} (refused rather than ignored)')
     if action == 'clean':
         return None
     if action == 'lead-insert':     # a lead has no session: its guard is the message prefix (the clean-up's own)
@@ -318,7 +321,10 @@ def judge(action, p, body):
     """Errors for an action's response, or [] when it did exactly what was asked."""
     keys = EXPECT[action]
     if not isinstance(body, dict) or any(not isinstance(body.get(k), int) for k in keys):
-        return [f'unexpected response (a SQL error or a wrong path): {str(body)[:160]}']
+        # keys and types only (7-2 R4 review L2): a database error can echo the row it refused, and rows here may hold
+        # synthetic names and phones
+        shape = sorted(body)[:8] if isinstance(body, dict) else type(body).__name__
+        return [f'unexpected response (a SQL error or a wrong path); response keys: {shape}']
     if action in ('appt-insert', 'pm-insert', 'lead-insert'):
         return [] if body['inserted'] == body['sent'] == len(p['rows']) else \
             [f"inserted {body['inserted']} of {body['sent']} (the guard refused; all-or-nothing, so none)"]
@@ -564,6 +570,18 @@ FLAGS = {'--session': 'session', '--start': 'start', '--minutes': 'minutes', '--
          '--name': 'name', '--phone': 'phone', '--message': 'message', '--source': 'source'}
 SWITCHES = {'--bind-target': 'bind_target', '--confirm-turn-null': 'confirm_turn_null',
             '--blank-calendar-id': 'blank_calendar_id', '--fake-gid': 'fake_gid'}
+# Which options each action reads (7-2 R4 review M2): an option another action takes is REFUSED, never swallowed —
+# `lead-insert --customer-name X` used to insert a lead with no name and exit 0, a false green for the export check.
+ALLOWED = {
+    'appt-insert': {'session', 'start', 'minutes', 'created_at', 'gid', 'calendar_id', 'service', 'status', 'customer_name'},
+    'lead-insert': {'message', 'created_at', 'name', 'phone', 'source'},
+    'conv-insert': {'session', 'stage', 'turn_count', 'confirm_turn', 'bind_target', 'last_intent'},
+    'conv-update': {'session', 'stage', 'turn_count', 'confirm_turn', 'confirm_turn_null', 'bind_target'},
+    'appt-update': {'session', 'blank_calendar_id', 'fake_gid'},
+    'appt-delete': {'session'},
+    'pm-insert': {'session', 'message_id', 'created_at'},
+    'clean': set(), 'up': set(), 'down': set(),
+}
 
 
 def main(argv):
@@ -587,6 +605,10 @@ def main(argv):
         else:
             print(f'seed-workflow: unknown or incomplete option {a!r}')
             return 2
+    stray = sorted(set(opt) - ALLOWED[action])
+    if stray:
+        print(f'seed-workflow: {action} does not take {stray} (refused rather than ignored)')
+        return 2
     try:
         if action == 'up':
             return cmd_up()

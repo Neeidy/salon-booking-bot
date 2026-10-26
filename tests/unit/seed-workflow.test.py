@@ -8,6 +8,9 @@ What it proves: `up` and every action refuse to seed when the edge does not refu
 removes the workflow again); an action never goes through a live workflow that is not the committed build; the
 statements are constants, guarded per table, never name bot_metrics; the clean-up takes the mig-p7 rows and the run-d11
 dashboard markers and nothing else; inserts send explicit created_at and unique, prefixed, shape-valid fake event ids.
+7-2 R4: appt-insert's customer_name and lead-insert (name, phone, prefixed message) carry their values — unicode
+included — in the body only, every payload key is named in its statement's recordset, INSERT and SELECT lists (a
+dropped column would insert NULL and exit 0), and an option another action takes is refused, never swallowed.
 
 Run: python3 tests/unit/seed-workflow.test.py   (SEED_WORKFLOW=<path> runs it against another copy of the script —
 a mutant — with every import still resolving to this repo)
@@ -323,13 +326,37 @@ def main():
                            '--created-at', '2030-01-07T08:00:00Z', '--customer-name', 'Mila 0660 1234567'])
     last = [h for h in w.hits if h[1]][-1]
     case('appt-insert --customer-name: the name travels in the row, never printed → exit 0',
-         rc == 0 and last[2]['p']['rows'][0]['customer_name'] == 'Mila 0660 1234567' and '1234567' not in out, out[-200:])
+         rc == 0 and last[2]['p']['rows'][0].get('customer_name') == 'Mila 0660 1234567' and '1234567' not in out, out[-200:])
     rc, out = run(mod, w, ['lead-insert', '--message', 'mig-p7-r4 synthetic', '--created-at', '2030-01-07T08:00:00Z',
                            '--name', 'Noor 0660 1234567', '--phone', '+43 660 1234567'])
     last = [h for h in w.hits if h[1]][-1]
     case('lead-insert: one row (name, phone, prefixed message, explicit created_at), never printed → exit 0',
          rc == 0 and last[0] == 'lead-insert' and last[2]['p']['rows'][0] == {'name': 'Noor 0660 1234567', 'phone': '+43 660 1234567',
          'source': 'widget', 'message': 'mig-p7-r4 synthetic', 'created_at': '2030-01-07T08:00:00.000Z'} and '1234567' not in out, out[-200:])
+    # M1: each payload key of the two inserts is in the recordset definition, the INSERT column list and the SELECT list
+    for action, opt in (('appt-insert', {'session': 'w-mig-p7-u', 'start': '2030-01-07T13:00:00Z', 'created_at': '2030-01-01T09:00:00Z',
+                                         'customer_name': 'x'}),
+                        ('lead-insert', {'message': 'mig-p7 x', 'created_at': '2030-01-01T09:00:00Z', 'name': 'x', 'phone': 'y'})):
+        q = mod.SQL[action]
+        rec = re.search(r'AS x\((.*?)\)\)', q, re.S).group(1)
+        cols = re.search(r'INSERT INTO salon\.\w+ \((.*?)\) SELECT (.*?) FROM r', q, re.S)
+        recs = {c.strip().split()[0] for c in rec.split(',')}
+        ins, sel = ({c.strip() for c in g.split(',')} for g in cols.groups())
+        keys = set(mod.payload(action, opt)['rows'][0])
+        case(f'{action}: every payload key is in the recordset, the INSERT and the SELECT ({sorted(keys - (recs & ins & sel)) or "none missing"})',
+             keys <= recs and keys <= ins and keys <= sel)
+    # L4: the value class the live check uses travels unchanged
+    uni = 'Noor \u0660\u0666\u0666\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667 Q 0\u200b6\u200b6\u200b0 1234567\nzz'
+    row = mod.payload('lead-insert', {'message': 'mig-p7 u', 'created_at': '2030-01-01T09:00:00Z', 'name': uni})['rows'][0]
+    case('lead-insert carries Arabic-Indic digits, U+200B and a line break unchanged', row['name'] == uni)
+    for label, argv in (('lead-insert --customer-name', ['lead-insert', '--message', 'mig-p7 x', '--created-at', '2030-01-07T08:00:00Z',
+                                                         '--customer-name', 'X']),
+                        ('appt-insert --name', ['appt-insert', '--session', 'w-mig-p7-r5-1', '--start', '2030-01-07T13:00:00Z',
+                                                '--created-at', '2030-01-07T08:00:00Z', '--name', 'Y'])):
+        before = len(w.hits)
+        rc, out = run(mod, w, argv)
+        case(f'{label}: an option of another action is REFUSED before any request (exit 2), never swallowed',
+             rc == 2 and len(w.hits) == before, out[-200:])
     before = len(w.hits)
     rc, out = run(mod, w, ['lead-insert', '--message', 'a real customer', '--created-at', '2030-01-07T08:00:00Z'])
     case('lead-insert with a message outside the prefix is refused BEFORE any request (no hit, exit 1)',
