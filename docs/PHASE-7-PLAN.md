@@ -56,7 +56,7 @@ The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) 
    out of them (security-auditor LOW, Round 3b; Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
 12. **The dashboard's Access session is 730 h:** decide a shorter one; and confirm, without printing it, that the policy's
    single email equals the repo author's email (a boolean only) (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, K-6).
-13. **Main's owner alerts print the full `sender_key` into Telegram** (`Build Owner Alert`: `'sender: ' + sender`). On
+13. ✅ **CLOSED 2026-10-26 (7-2 R3, measured live):** every Main owner alert prints the sender MASKED (the dashboard's form; `_alert_sender` stays full for the stamp and never reaches Telegram) — in R3's window the handoff alert reached Telegram without the full session id (§4g). ⚠ The other half of this item's ruling — `sender`/`channel`/`stage` filled from node references for the infra alerts (named item (5)) — is NOT shown done: `Send Error Response` still passes the error item's own fields (read in the committed Main export at 7-2 R4). It stays open as named item (5); with masking in place, filling the sender no longer widens an exposure. *Was:* **Main's owner alerts print the full `sender_key` into Telegram** (`Build Owner Alert`: `'sender: ' + sender`). On
    the widget lane a full `sender_key` is a bearer credential (`security-secrets.md`). Mask it there AND, in the same
    change, fill `sender`/`channel`/`stage` from node references for the infra alerts (named item (5)), because filling
    the sender first would widen this exposure before it is masked (Yigitcan's ruling, 2026-10-25, at the 7-F1 plan
@@ -388,10 +388,46 @@ import-safe scratchpad drivers; spend ceiling 1.00 USD; not in the Reminders or 
 - **Parity after the window:** `check-exports-parity` 10/10 with the 5 pairs as declared; content + settings parity of the
   Main and Owner Actions copies against their NEW exports OK.
 - **The export flag, last:** `DASHBOARD_EXPORT_ENABLED=1` in the unit at **`e899592`**, installed, restarted: both
-  exports answer 200 `text/csv` with the masked-export columns. **⚠ the export's live sample was empty (0 rows in the store): "no unmasked phone in a sample" is recorded as a gap, not counted as closed.** The masking is covered by the dashboard's
+  exports answer 200 `text/csv` with the masked-export columns. ~~**⚠ the export's live sample was empty (0 rows in the store): "no unmasked phone in a sample" is recorded as a gap, not counted as closed.**~~ → **closed in 7-2 R4 (§4h).** The masking is covered by the dashboard's
   offline tests.
 - **Declared:** the handoff turn was not in the brief's drill list; it was added to give item 13 an alert to measure.
   A first content-parity call without a workflow id compared the wrong workflow (red, harmless); repeated with the id.
+
+### §4h · 7-2 R4 — the export gap closed live, CONVERGE disposition, docs, cleanup (brief 2026-10-26)
+*Measured in the session's terminal, output not committed.*
+- **Start, read-only (ruling 2026-10-26):** the Main copy's PUBLISHED graph equals its committed export (content drift
+  0, connections equal; settings differ only in `binaryMode: "separate"`); its DRAFT differs from published only in three
+  sticky sizes (and 179 node positions — the editor's auto-layout, Yigitcan's; non-executable, not compared by parity).
+  `check-exports-parity` red on `workflow.main.copy` for that alone, every other export green; dummy token 403. n8n's
+  `activeVersion` carries no settings, so `binaryMode` applies to the running workflow (behaviour-neutral by the D3
+  reading). Reconciled in D6c (ROADMAP). R4 wrote nothing to Main.
+- **The export gap, closed live.** The seed tool had no lead insert and no customer name: added (`68f3498`), hardened
+  after review (`b0f16c5`: every payload key asserted in the statement's recordset/INSERT/SELECT; per-action options; a
+  red response prints keys only); 10 mutants red; security-auditor GO. Live, through the committed tool, values passed
+  IN-PROCESS (none on a command line): one appointment (`customer_name`: a plain and a zero-width-split phone) and one
+  lead (`name`: an Arabic-Indic and a line-break-split phone; `phone`: +43 spaced), start in 2030 (outside the Reminders
+  window). Read back as `salon_ro`: all three fields NOT NULL, lengths equal to what was sent (41 · 32 · 15 — the unicode
+  survived the jsonb path). Both CSVs via loopback: customer `Mila 06…67 Z. 06…67`, lead name `Noor ٠٦…٦٧ Q. 06…67`, lead
+  phone `'+43…67` — every masked form equal to the token the golden table gives for the same input class (the line-break
+  form maps to the single-line row because a name is printed on one line), the longest digit run after normalisation 4
+  (the raw synthetic values give 11: the instrument can go red). Clean: 1 appointment, 1 lead; every p7 count 0; the seed
+  workflow 404. One permanent trace, stated: `leads.lead_no` (an identity) advanced by one.
+- **CONVERGE (Yigitcan):** fixed now — the scanner reads content lines starting with `++` (engine and working-tree
+  filter), detects an n8n encryption key and a postgres(ql) URL with a password, and the Claude Code first line refuses
+  `git push --no-verify` and core.hooksPath set by `-c` / `--config-env` / GIT_CONFIG_* / `git config` (`1ce20e7`; the
+  review measured abbreviations, quotes and env forms passing the first cut → per-segment shlex parser, `34c9065`; the
+  review's LOWs in `bc07ea8`: a header control that can fail, the `postgresql+asyncpg://` scheme, ordered seed columns).
+  Full history scanned before and after: 0 new hits. Mutants across the three commits: 6 + 10 + 4, each red. The rest
+  → v2 (README), including the review's remaining LOWs (rule edge cases, busybox NUL, a quadratic strip).
+- **Docs (text only):** claim-first idempotency in booking-integrity §1, DATA-MODEL, the schema comment, FLOW-DIAGRAM,
+  the regression suite and the snippet comment (its bundle unchanged: byte-identical rebuild) · the D-c wording (an
+  alert never changes the reply but can delay it) in FLOW-DIAGRAM and UX-ARCHITECTURE · the 7-2 alert classes in
+  UX-ARCHITECTURE, SCREEN-INVENTORY and FLOW-DIAGRAM (`race_lost` alerted now; `dedupe_marker_failed` gone) · handoff
+  (five classes), n8n-conventions (Postgres) · remote-operator (the pre-flight parse now strips quotes like the guard;
+  the live-snapshot lifecycle) · security-auditor (the git pre-push gate, expected drift, NO NETWORK) · eight decision-log
+  rows · OPS-7/8/9 · item 13 closed · README v2 rows · ROADMAP disposition and the Main draft difference.
+- **Not changed, named:** the Owner Actions canvas text `Sticky — 3` lags the release conditions — a live write, it rides
+  D6c's put with the Main reconciliation.
 
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |

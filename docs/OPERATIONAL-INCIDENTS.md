@@ -18,6 +18,47 @@
 
 ---
 
+## OPS-9 · 2026-10-26 · A commit landed after a RED `check-all`, because the command chain did not gate on it
+
+**What happened (7-2 R4).** One shell command ran `check-all`, printed its exit code, and then committed — the commit
+was joined with `;`-style sequencing to the echo, not with `&&` to the check. `check-all` came back **1** and the commit
+(`b0f16c5`, the seed tool's review fixes) was made anyway.
+
+**What it cost: nothing reached the remote, by luck of order.** The red step was `guards-tur2`'s extraction-failure
+case, broken by an UNCOMMITTED scanner change sitting in the same working tree, not by the commit. The commit's own tree
+was then measured alone — the two in-progress files set aside to the scratchpad, HEAD's versions in their place,
+`check-all` → **0** — and the work restored. It was local; the pre-push audit had not run.
+
+**The habit, changed:** the commit is chained to the check with `&&` (or the check's exit code is tested before any
+`git commit`), and a working tree carrying another unit's changes is measured as a tree, not taken as the commit's
+evidence. **How it was noticed:** reading the command's own output (`check-all rc=1` above the commit line).
+
+## OPS-8 · 2026-10-26 · Mutant runners left test artefacts in the repo and in /tmp, and later runs read them
+
+**What happened (7-2 Tur 2 R1d).** Mutant runs of `tests/unit/workflow-step.test.py` that crashed or were cut short left
+`n8n/staged/.wstest-snap.json` (a snapshot file inside the repo, gitignored) and 22 `/tmp/workflow-step-rehearsal-*`
+directories behind. Later runs found the leftover snapshot path taken (the tool creates snapshots O_EXCL) and read red
+for a reason that had nothing to do with the mutant. Nothing was committed: the name is gitignored and the guards saw
+nothing staged.
+
+**Fix:** the leftovers were moved to the scratchpad, inspected, and deleted by literal path; the test now removes its own
+files in `finally`, and every mutant runner sets its own `TMPDIR` under the scratchpad. **How it was noticed:** not recorded at the
+time; written here in R4 from the session's own record, so the detection step is not claimed.
+
+## OPS-7 · 2026-10-26 · An installer test installed the pre-push gate into THIS repository's `.git/hooks`
+
+**What happened (7-2 Tur 2 R1c).** A case of `tests/unit/guards-tur2.test.py` passed `PRE_PUSH_TARGET` to the hook
+installer to aim it at a throwaway repo; the installer had just been confined and ignores that variable by design, so it
+installed into its canonical target — this repo's `.git/hooks` — once. The installed files were the gate itself, so no
+push went unscanned, but a test had written where a real push from this repo reads.
+
+**Fix:** the installed copies were moved out and re-installed from HEAD (`check-hook-drift.sh` 0); the case was rewritten
+to run a COPY of the installer placed inside its temp repo (`install_into()`, which refuses any path under this repo), and
+the test file's header records it. Rule kept: tests never write the real `.git/hooks`. **How it was noticed:** not recorded at
+the time; the account above is the test file's own header (R1c), so the detection step is not claimed.
+
+---
+
 ## OPS-6 · 2026-10-19 · A process listing printed part of the tunnel credential
 
 **What happened.** While measuring how the dashboard runs, I ran a process listing (`ps`) to find

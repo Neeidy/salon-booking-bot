@@ -114,6 +114,38 @@ Phase 7's fix checkpoint instead.
 | **A second owner-alert channel** | owner alerts have one channel (Telegram); if it is down, failures are visible only in the n8n execution log |
 | **The older v2 / LATER bucket** (unchanged since 2026-09-17): the idempotent replay's stored reply · `messageTemplates` required keys · the transcript lost on navigation · font subsetting · a `Customers` table · BULGU-4 · R2 · the W57/W58/W60 text mismatch | they improve the product but do not change whether it can be sold (PHASE-7-PLAN → Open items) |
 
+
+**7-2 CONVERGE items deferred (ruled 2026-10-26, 7-2 R4).** Four were fixed instead (the scanner's `++` lines, the n8n encryption key and postgres URL rules, the hook's bypass refusals); these wait:
+
+| Item | Why it waits |
+|---|---|
+| deploy tool: a snapshot's age is not checked | snapshots are deleted once an edit closes (`remote-operator.md`), and any snapshot must still pass the webhook invariants before a rollback |
+| deploy tool: a snapshot directory inside another git work tree is accepted | snapshots live in the session scratchpad by procedure; only this repo is refused, which is the leak that matters |
+| deploy tool: the helper's `api` raises on an empty curl output | a traceback still stops the run; every next step reads the copy's state before writing |
+| deploy tool: `activate` does not re-check the Turnstile literal | `put` checks the literal on the export and in its live read-back before any activate |
+| deploy tool: spec and ROLES are read from the working tree | `check-all` and the pre-push audit run on a clean tree before every live step |
+| deploy tool: nodes sharing a name are invisible to name-keyed comparisons | no committed export has a repeated node name (counted at 7-2 R4) |
+| deploy tool: put's read-back re-verifies only the trigger's webhookId | only the trigger's id routes inbound traffic; the Telegram nodes' ids are kept by name |
+| deploy tool: `settings` does not enforce running after the probes | the runbook orders it last, and the check after it is a body probe that counts no executions |
+| deploy tool: pre-snapshot parity cannot see an IF/Switch condition's option fields | no gate decision depends on them today (R2b) |
+| secret scan: an agent could commit a secret together with its own exception line | the exception file is a committed, reviewed file, and every push is audited by `security-auditor` first |
+| secret scan: UTF-16 content and a key in a file name are not rules | no UTF-16 file in the repo; file names are read in the pre-push audit |
+| secret scan: replace refs can hide a pushed object | no replace ref exists here (counted at R4); `--no-replace-objects` was measured to work |
+| secret scan: C-quoted path names skip the JSON header-pair check | no tracked path needs C-quoting (counted at R4) |
+| secret scan: `SECRET_SCAN_API=3` also matches `=30`; `--remotes=<name>` trusts that namespace | an internal marker; one remote |
+| secret scan: fingerprint corner cases (a non-UTF-8 path, a path with a space, three shown per rule, a `--no-ff` merge of an old branch) | each fails strict: the hit stays a hit |
+| secret scan: a hard link from an installed copy, a symlinked hooks directory, another worktree's hooksPath, the CC hook's ignore file | the installer writes fresh files from HEAD; one worktree, no symlinked hook (counted at R4); an absent ignore file means no exceptions |
+| secret scan: labels print the file path unmasked; a second secret on a hit line shows as context | paths are repository paths, public already; the shown line redacts every 12+ character token, and the line is blocked either way |
+| secret scan: manual mode resolves paths against the cwd; a long placeholder prefix now blocks | run from the repo root by habit; the placeholder case fails safe |
+| masking: NFKC folds some symbols into letters, non-`Nd` digits are not digits, a 7–8 digit number shows four digits | data minimisation for the owner's own screen, not a security boundary; the golden table covers real phone forms |
+| masking: `maskName`'s fallback keeps runs under seven digits whole; a lone `\r`, NEL and U+2028 are not line breaks; test-hygiene notes | below the seven-digit rule by design, or rare input on the owner's screen |
+| Main: a verify read with NO `items` key counts as an empty list | a ruled carve-out (R2); reopened only if Calendar is seen omitting the key |
+| secret scan: the n8n-key rule misses a human-chosen passphrase with dots or spaces; the postgres rule misses `?password=` or a `/` in the password, and blocks placeholder passwords such as `user:password@` | generated keys and URL-embedded passwords are caught; a false block is visible and a committed line can be excepted by fingerprint |
+| secret scan: busybox awk ends a working-tree line at a NUL byte | manual mode only — the gate reads committed patches in its Python engine; this machine's awk handles NUL (measured by the R4 review) |
+| secret scan: the PLACEHOLDER strip is quadratic on a very long run of key characters | it fails closed (a slow scan blocks the push, never passes it); no such line in the repo |
+| Main: node names still say "Airtable" | a rename is a Main edit; it rides the next one (D6c) |
+| Main: D-c — an alert can run ahead of the reply on a few paths and delay it | bounded and documented (FLOW-DIAGRAM); restoring it is a Main edit |
+
 **What the regression covers on Postgres, stated (ruled 2026-10-25):** the full suite last ran on the Main copy's test path (D4b, 28/28; the cutover diff proves only the path differs); the production path was exercised by the routing smoke (A1), the dashboard write path (A2, 13/13) and the 7-1 window (a truly simultaneous race pair and a DST booking) — live measurements recorded in PHASE-7-PLAN, their raw output not committed; the seeded ⚙ scenarios were not re-run on Postgres — their paths are covered by D4b G1–G3 and the M7 error drills.
 
 **Not tested end to end: the WhatsApp lane (K-5).** The regression drives the widget lane only; Zernio's inbound

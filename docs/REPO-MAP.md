@@ -580,6 +580,7 @@
   - ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
   - ### NEVER TYPE THE LITERAL — not in a file, not in a command you SHOW
   - ### Pre-flight before handing over ANY tunnel command
+  - ### Live workflow snapshots — where they live and when they go (7-2 R3)
   - ## Why
   - ## Related: do not send him a drill you can run yourself
   - ## The capability FACT: this machine HAS a browser, and it is Claude's to drive
@@ -777,6 +778,9 @@
   - ## 11 · Rulings (Yigitcan, 2026-10-19: "onaylıyorum", with Cowork's recommendations)
 
 ### `docs/OPERATIONAL-INCIDENTS.md`
+  - ## OPS-9 · 2026-10-26 · A commit landed after a RED `check-all`, because the command chain did not gate on it
+  - ## OPS-8 · 2026-10-26 · Mutant runners left test artefacts in the repo and in /tmp, and later runs read them
+  - ## OPS-7 · 2026-10-26 · An installer test installed the pre-push gate into THIS repository's `.git/hooks`
   - ## OPS-6 · 2026-10-19 · A process listing printed part of the tunnel credential
   - ## OPS-5 · 2026-10-06 → STILL OPEN at 2026-10-18 · The Airtable monthly API quota ran out and the bot has had no data layer for 12 days
   - ## OPS-1 · 2026-09-09 · A resync step sanitized the LIVE workflow — production broke, and the parity guard stayed GREEN
@@ -807,6 +811,7 @@
   - ### §4e · 7-1 — plan approved 2026-10-25 (rulings K1–K8); Round 1 STOPPED (driver not clean)
   - ### §4f · 7-1 re-shaped and RUN (ruling 2026-10-25): one short window for what is new — ✅ green
   - ### §4g · 7-2 R3 — the live window (brief 2026-10-26, its own ⚠ ONAY) — ✅ green, one gap
+  - ### §4h · 7-2 R4 — the export gap closed live, CONVERGE disposition, docs, cleanup (brief 2026-10-26)
   - ### §4c · Decisions ruled at approval
   - ## §5 · SKELETON
   - ## §6 · INTEGRATIONS

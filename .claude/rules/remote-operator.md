@@ -211,11 +211,22 @@ my own output — reports have no guard and cannot have one (see that script's K
 Do not compose the host from memory or from the n8n URL. Read it:
 
 ```bash
-sed -n 's/^SSH_ORIGIN_HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' CLAUDE.local.md
+sed -n 's/^SSH_ORIGIN_HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' CLAUDE.local.md | sed -E "s/^[\"']+//; s/[\"']+\$//"
 ```
 
-(That is the SAME parse `scripts/check-no-host-leak.sh` uses — deliberately, so the value the guard
-protects and the value handed to Yigitcan can never be two different readings of one line.)
+(That is the SAME parse `scripts/check-no-host-leak.sh` uses — the line's value, then a surrounding pair of quotes
+stripped (its `unquote`) — deliberately, so the value the guard protects and the value handed to Yigitcan can never be
+two different readings of one line. ⚠ *Corrected 7-2 R4: the guard has stripped quotes since Codex 7-2 target 4 (M3),
+and this command did not, so `SSH_ORIGIN_HOST="…"` gave the guard the bare host and this command the host WITH its
+quotes (measured on a synthetic line) — the "same parse" sentence had become false.*)
+
+### Live workflow snapshots — where they live and when they go (7-2 R3)
+`scripts/workflow-step.py put` and `settings` keep the live workflow read immediately before their PUT in a
+`--snapshot FILE`: created new (never over an existing file), mode **0600**, and only **OUTSIDE the repository** (the
+session scratchpad) — it holds live values (credential ids, the chat id, the calendar id). It is the rollback's source,
+so it stays until the edit is CLOSED — promoted, committed, and both parity guards green — and is then deleted with
+`rm` on its literal absolute path (R3 deleted S1–S3 after the records commit). `rehearse-rollback` keeps its own
+snapshots in a temporary directory that it removes in `finally`.
 
 If that returns nothing, say so and stop — do not substitute the proxied hostname "for now". The tunnel
 command a proxied name produces is not a slow path or a partial answer; it simply cannot connect, and it
