@@ -52,6 +52,23 @@ rule; R1d's THREAT and G rulings). Not fixed in R1–R1d. Severity is the finder
 - LOW · spec and ROLES are read from the working tree, not from HEAD.
 - LOW · nodes sharing a name are invisible to the name-keyed comparisons.
 - UNKNOWN until the R3 rehearsal · whether n8n round-trips a snapshot's nodes and settings byte-exactly on PUT.
+- LOW (Codex R2, ruled CONVERGE in R2b) · `settings` checks that the edit is live, not that the probes ran: run
+  straight after `put` it turns off successful-execution saving before the execution-counting probe. The runbook
+  (`docs/n8n-rollback.md`) orders it last; the tool does not enforce the order.
+
+- LOW (security review R2b) · the parity check before a snapshot cannot see an IF/Switch condition's
+  `typeValidation` / `caseSensitive` / `version` options (check-content-parity normalises them): a live gate loosened
+  only there could be kept in a snapshot and restored by a rollback. No gate's decision depends on them today (they
+  test booleans the workflow builds, or lowercase literals). A new gate comparison was ruled out in R2b.
+
+**Owner Actions — recorded bounds (Yigitcan, R2b OA-2; security review R2b)**
+- The release's request-time bound allows one second (ts is whole seconds): a newer handoff written within that second
+  can be released by a resend of the SAME signed body (a new click signs a new ts and id). It assumes the dashboard's
+  and n8n's clocks agree to about a second: a dashboard clock BEHIND refuses, visibly; one AHEAD by s seconds widens that
+  resend window to s + 1 (at most about 301 s, bounded by the signature check's ±300 s). Same host today.
+- A target-read error answers 503 `store_unavailable` with NO owner alert: the owner is the one acting, and the board
+  says "Nothing was written — the store could not be read" on the screen in front of them at that moment, so a
+  Telegram message would tell the same person the same thing a second later (Codex 7-2 R2, target 11, partly closed).
 
 **Git pre-push gate (lane G)**
 - MEDIUM · an added line whose content starts with `++` is dropped before scanning (pre-existing, kept byte-for-byte).
@@ -70,6 +87,10 @@ rule; R1d's THREAT and G rulings). Not fixed in R1–R1d. Severity is the finder
 - LOW · fingerprint and JSON labels print the file path unmasked; a second secret on a hit line is shown as context.
 - LOW · a `--no-ff` merge of a branch forked before the recorded fixture commit shows it under the merge's hash (strict).
 - LOW · manual mode resolves untracked and JSON paths against the cwd.
+- LOW, fails safe (review R2b L3) · a placeholder whose key prefix has more than eight letters/digits before its x
+  run (full-length forms of `sk-ant-api03-xxxx…`, `github_pat_xxxx…`, `sk-svcacct-xxxx…`) is no longer stripped and
+  blocks a push; no line in the repository is judged differently by the new strip (the short mentions here stay below
+  the rules' lengths). The bound trades this against low-entropy keys.
 
 **Dashboard masking (lane D)**
 - LOW · NFKC folds some symbols into letters, which split a run (`066℡012℡345`); non-`\p{Nd}` digits (`⓿❶`) are not
@@ -1867,9 +1888,12 @@ Each CP waits for its own written approval (plan-gate).
   `Reschedule Fresh?` pair. Flip `typeValidation` to `loose` on the new gate and every guard stays green while the
   node's behaviour changes. ~8 lines, same shape as the existing Fresh? block. Recorded, not built — outside this
   round's agreed scope.
-- ☐ **ACCEPTED GAP — Codex finding 2 (change request during confirmation).** If a customer qualifies a different date
-  on the confirm turn and it cannot be resolved, the engine writes the date it SHOWED them in the confirmation text.
-  Wrong but visible. The correct fix is a **product feature** — a change-request-during-confirmation intent with its
+- ☐ **ACCEPTED GAP — Codex finding 2 (change request during confirmation).** If a customer names a different date on
+  the confirm turn — whether or not that date resolves — the engine books the slot it SHOWED them in the confirmation
+  text (the stored slot). Wrong but visible: since 7-2 Tur 2 (staged Main) a clean booking whose confirm turn named
+  another date alerts the owner (`date_changed_on_confirm`, with the date line). *(Corrected 2026-10-26: the scope said
+  "and it cannot be resolved", narrower than the behaviour — Codex 7-2 target 12 reproduced a resolving date booked on
+  the stored day.)* The correct fix is a **product feature** — a change-request-during-confirmation intent with its
   own flow — not a guard on the write path. Own phase, own gate. **Do not close this with another guard.**
 - ☐ **`dateExpr` has no `maxLength` in the committed schema** (`security-auditor`): `stripQualifiers` has quadratic
   backtracking, bounded today only by `max_tokens`. It only ever sees LLM output, never raw customer text (that is a
@@ -2141,7 +2165,7 @@ burada bir kez ve sırayla veriliyor; kopya birleştirildi. Vitrin bunların hep
 | 15 | **Managed modda gizli-container kontrolü (SP4a) temiz koşulmadı** | 6b gate'inin tik içine yazılmış eksiği |
 | 16 | **Site GERÇEKTEN konuşlandığında, SIRAYLA doğrula: (a) hangi platform, (b) root directory değeri, (c) ignore/exclude dosyasının gerçekten UYGULANDIĞI, (d) DEPLOYMENT PROTECTION AÇIK.** ⚠ *(d), Faz 6 planının "6a/6b/6c protection ON ile deploy edilebilir" cümlesinden **taşındı, silinmedi** (2026-09-13): o cümle var olmayan bir platformu tarif ediyordu, ama içindeki niyet — public'e açılmadan önce korumanın açık olması — geçerli. Cümleyi silmek niyeti de silerdi.* Üçü de o güne kadar **ÖLÇÜLEMEZ** — repoda Vercel projesi yok (2026-09-12). `.vercelignore` bu yüzden bir kontrol değil, doğrulanmamış ön-hazırlıktır; `check-deploy-separation.sh` ise repoyu ölçer ve platformdan bağımsızdır. | dashboard'ı public deployment'ın dışında tutan şeyin PLATFORM yarısı; repo yarısı CP 6c-3'te kapandı |
 | 17 | **CF_API_TOKEN İPTAL / Read'e düşürme + BU TURDA SIZAN DÖRT CREDENTIAL'IN ROTASYONU.** Token'ın kapsamı 6d için genişletilmişti ve iş bitti. ⚠ Ayrıca 2026-09-13'te CC'nin bir maskeleme hatası dört gerçek değeri RAPORA bastı (iki CF service token · n8n API key · Telegram chat id); repo görmedi, rapor gördü. **2026-10-18 · YERİ DEĞİŞTİ (Yigitcan'ın kararı):** artık Faz 7 build'inin önünde değil, **Faz 7 sonundaki güvenlik geçişinde**, tek oturumda. Gerekçe: dört kimliğin hiçbiri müşteri yolunda değil, ve sızan değerler aynı değerleri zaten düz metin tutan makinedeki bir transcript'e girdi — yeni maruziyet yok. Madde sevk kapısında AÇIK kalır. | ayrıcalıklı kimlik, işi bitmiş; ve sızmış kimlik rotasyonsuz kapanmaz | ⚠ **2026-09-17 · DENENDİ, 2. ADIMDA DURDU — ölçülmüş yetenek duvarı.** Yeni service token yaratmak `/accounts/{account_id}/...` istiyor ve hesap id'sine **dört yoldan** ulaşılamadı: `/accounts` 0 sonuç · token kendi policy'sini okuyamıyor · hiçbir env dosyasında `CF_ACCOUNT*` yok · 6d-0 artefaktlarında hesap alanı yok. Token'ın kendisi **active** — bu bozuk kimlik değil, KAPSAM duvarı. ⛔ Yaratma olmadığı için **iptal de yapılmadı**: sıra kuralı (yarat→yaz→doğrula→iptal) tersine işletilirse hesap kendini kilitler. **Açan tek satır:** `~/.n8n-api.env`'e `CF_ACCOUNT_ID=<Cloudflare panosu URL'indeki id>`. Ayrıca ölçüldü: **n8n public API bir API key ÜRETEMİYOR** (instance'ın kendi 49 yollu listesinde `key`/`token` içeren yol yok) → o kalem her hâlükârda Yigitcan'da: n8n → Settings → API.
-| 18 | **`Access dashboard'ı koruyor` CÜMLESİ HÂLÂ ÖLÇÜLMEDİ.** CP 6d-0'da kanıtlanan şey *"Access bu hesapta Service Auth'u doğru uyguluyor"* — bu ikisi aynı cümle değil. Access envanterinde `dashboard` adlı bir uygulama **var** ve bir e-posta politikası taşıyor, ama arkasında konuşlanmış bir şey yok; koruduğu ölçülemez. | dashboard konuşlanmadan CRT #9 kapanamaz |
+| 18 | **`Access dashboard'ı koruyor` — K-6'da ÖLÇÜLDÜ (2026-10-24, MIGRATION-PLAN §3t "K-6 after the cutover"; PHASE-7-PLAN #14 DONE).** Dashboard konuşlu: dinleyici yalnız loopback'te, tünelin bir ingress kuralı onu bir dashboard hostname'ine bağlıyor; o hostname'e oturumsuz `/`, `/api/release` ve bir statik dosya isteği **Access giriş sayfasına 302** dönüyor, gövdede dashboard içeriği yok; Access uygulamasının TEK politikası tek bir adlandırılmış e-postaya izin veriyor. *(Düzeltildi 2026-10-26: bu satır "arkasında konuşlanmış bir şey yok, koruduğu ölçülemez" diyordu — K-6 ölçümünden önceki durumdu; Codex 7-2 R2, hedef 9.)* Hâlâ açık olan: Access'in yapılandırması bu repoda değil, ölçüm bir ölçümdür, kod değil. | dashboard konuşlanmadan CRT #9 kapanamaz |
 | 19 | **SAHİBİN PANOYA İNTERNETTEN ERİŞEBİLDİĞİ HİÇ GÖSTERİLMEDİ.** D11 yolu tünelden uçtan uca kanıtlandı — düğme tıklandı, Airtable değişti — ama pano yalnız `127.0.0.1`'e bağlanıp SSH tüneliyle sürüldü. "Sahibi internetten açıp basabiliyor" ayrı bir olgudur ve ÖLÇÜLMEDİ. | konuşlanma olgusu; ürün iddiası bunun üstünde duruyor |
 | 20 | **Loom walkthrough** — K-3 hükmüyle (2026-09-13) sevk kapısına taşındı ve bugüne dek yalnız `CLAUDE.md` ile `.claude/rules/testing.md` düzyazısında yaşıyordu, numaralı listede değil. | Yigitcan'ın sistemi ANLATABİLMESİ, el ile tıklamayla değil artefaktla korunuyor |
 | 21 | **A run with Turnstile UP: Yigitcan's real-browser E2E with a real token.** Defined by [PHASE-7-PLAN.md](PHASE-7-PLAN.md) K-1 and kept by the 2026-10-18 window ruling ("Ship gate 21 … stays as K-1 set it"). Every automated regression runs with the gate LOWERED for the run's duration, so the only proof that the system works with the gate UP is a human browser run. *(Listed here 2026-10-19: the plan assigned this number, but this list stopped at 20. This is an existing item being listed, not a new number.)* | The window protocol tests everything except the protected path itself |

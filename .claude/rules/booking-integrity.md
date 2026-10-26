@@ -32,9 +32,16 @@ Two DISTINCT problems, two DISTINCT guards (do not conflate them):
    A verify read that is paginated or whose calendar timezone differs from the shop's is treated as lost
    (`verify_incomplete`) — an uncertain read never enters the happy path. If the yield itself fails →
    `Build Orphan State` + owner alert.
-   **The known limit, stated rather than hidden:** a truly simultaneous pair can make BOTH writers see the
-   other and BOTH yield — no double booking, but no booking either. The race must be **visible and
-   recoverable** — never pretend a lock exists.
+   **The known limits, stated rather than hidden:**
+   - A truly simultaneous pair whose verify reads SUCCEED can make BOTH writers see the other and BOTH yield — no
+     double booking, but no booking either.
+   - A verify read that FAILS (Calendar unreachable: `Build Verify-Unavailable State` and its reschedule twin) is a
+     different path, and there "no double booking" does NOT hold: the writer cannot tell whether it lost, so it keeps
+     its event and hands off — and two such writers can BOTH keep theirs, leaving two events on one slot. The bound
+     there (ruling R-Q1, staged Main of 7-2 Tur 2): both customers are handed off, and the owner is alerted with the
+     slot and the possible overlap, to keep one event and cancel the other by hand. *(This paragraph used to state the
+     first limit as the only one; Codex 7-2 target 1b showed the second path, R2 found the text still uncorrected.)*
+   The race must be **visible and recoverable** — never pretend a lock exists.
 
 **Timezone:** store times in **UTC**, display in the shop's configured timezone. Handle DST at the boundary.
 
