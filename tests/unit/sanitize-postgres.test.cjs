@@ -65,7 +65,7 @@ function runCopy(mutate) {
 test('the Main copy export as committed passes the sanitise half', () => {
   const pg = JSON.parse(readFileSync(join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'), 'utf8'))
     .nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
-  assert.equal(pg.length, 17, 'the Main copy should carry 17 Postgres nodes');
+  assert.equal(pg.length, 16, 'the Main copy should carry 16 Postgres nodes (17 until 7-2 Tur 2 removed Record Processed)');
   const r = runCopy(() => {});
   assert.doesNotMatch(r.out, /SANITISE FAILURE/, r.out);
 });
