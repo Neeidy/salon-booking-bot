@@ -25,6 +25,9 @@ StartLimitBurst=5
 Type=simple
 WorkingDirectory=%h/salon-booking-bot/web/dashboard
 Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 CLIENT_CONFIG_FILE=../../config/client.config.example.json
+# The owner CSV export (masked) is switched on after the Phase 7-2 audit and its live window (ruling R-Q4, 2026-10-26).
+# It is a release gate, not a security boundary: Cloudflare Access in front of the host decides who may download.
+Environment=DASHBOARD_EXPORT_ENABLED=1
 ExecStart=/bin/sh scripts/serve.sh
 # ⚠ `next start` needs a finished build (`npm run build` in web/dashboard, `.next/`). Without one the server exits 1,
 # which is NOT 78, so it restarts until StartLimitBurst stops it (five tries in 300 s) — visible in the journal, not silent.
