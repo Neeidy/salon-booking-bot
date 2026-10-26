@@ -121,9 +121,11 @@
 #     which decrypts every stored credential) and a postgres:// or postgresql:// URL carrying a password. Measured on the
 #     full history before adding them: 0 hits (the one `N8N_ENCRYPTION_KEY=` line is `.env.example`'s 10-character
 #     placeholder, below the 16-character value the rule needs).
-# 22. THE CLAUDE CODE FIRST LINE REFUSES THE TWO BYPASSES of git's pre-push hook it can see in a command: `--no-verify`
-#     on a push, and `-c core.hooksPath=…` (any case: git config keys are case-insensitive) — the gate is the hook, and
-#     both switch it off (CONVERGE M4). A first line only: it reads the command text, which a wrapper script can hide.
+# 22. THE CLAUDE CODE FIRST LINE REFUSES THE BYPASSES of git's pre-push hook it can see in a command: `--no-verify` on a
+#     push (and git's abbreviations of it), and core.hooksPath set by `-c`, `--config-env`, a GIT_CONFIG_* environment
+#     entry or `git config` — the gate is the hook, and all of them switch it off (CONVERGE M4; widened after the R4
+#     review measured `--no-verif`, a quoted `-c` and GIT_CONFIG_KEY_0 passing the first cut). Parsed per shell segment
+#     (BYPASS_PY below). A first line only: it reads the command TEXT, so a wrapper script or an alias hides a bypass.
 set -uo pipefail
 SECRET_SCAN_API=3   # scripts/pre-push.sh refuses a scanner without this marker (API 3: --revs + tag messages + R1c)
 : "$SECRET_SCAN_API"
@@ -146,17 +148,68 @@ else
   [[ "$manual" -eq 1 ]] && mode=manual
 fi
 
+# (22) The hook's bypass check: per segment (split on ; & | newlines and parentheses), a `git` invocation — after
+# leading VAR=value assignments or `env` — is refused when: an assignment is GIT_CONFIG_KEY_<n>=core.hooksPath or a
+# GIT_CONFIG_PARAMETERS naming it; a global `-c core.hooksPath…` / `-ccore.hooksPath…` / `--config-env[=]core.hooksPath…`
+# precedes the subcommand; the subcommand is `push` with `--no-veri`, `--no-verif` or `--no-verify` before a `--` (git
+# accepts an unambiguous abbreviation of a long option; `--no-ver` is ambiguous and refused by git itself); or the
+# subcommand is `config` naming core.hooksPath without a read or unset flag. Names compared lower-case (git config keys
+# are case-insensitive). Prints the reason, or nothing.
+BYPASS_PY='
+import os, re, shlex
+cmd = os.environ.get("SS_CMD", "")
+READ = {"--get", "--get-all", "--get-regexp", "--list", "-l", "--unset", "--unset-all", "--show-origin", "--show-scope"}
+def hp(v):
+    return v.startswith("core.hookspath")
+for seg in re.split(r"&&|\|\||[;&|\n()]", cmd):
+    try:
+        toks = shlex.split(seg, posix=True)
+    except ValueError:
+        toks = seg.replace("\"", " ").replace("\x27", " ").split()
+    low = [t.lower() for t in toks]
+    i, env = 0, []
+    while i < len(low) and (re.match(r"^[a-z_][a-z0-9_]*=", low[i]) or low[i] == "env"):
+        env.append(low[i]); i += 1
+    if i >= len(low) or os.path.basename(low[i]) != "git":
+        continue
+    if any(re.match(r"^git_config_key_[0-9]+=core\.hookspath$", e) or (e.startswith("git_config_parameters=") and "core.hookspath" in e) for e in env):
+        print("a GIT_CONFIG environment entry that sets core.hooksPath"); break
+    i += 1
+    bad = None
+    while i < len(low) and low[i].startswith("-"):
+        t = low[i]
+        if t == "-c":
+            if i + 1 < len(low) and hp(low[i + 1]): bad = "a git -c core.hooksPath"
+            i += 2; continue
+        if t.startswith("-c") and hp(t[2:]):
+            bad = "a git -c core.hooksPath"
+        if t.startswith("--config-env"):
+            v = t.split("=", 1)[1] if "=" in t else (low[i + 1] if i + 1 < len(low) else "")
+            if hp(v): bad = "a git --config-env core.hooksPath"
+            i += 1 if "=" in t else 2; continue
+        if t in ("--git-dir", "--work-tree", "--namespace", "--exec-path"):   # -C lowercases to -c: skipped above
+            i += 2; continue
+        i += 1
+    if bad:
+        print(bad); break
+    sub, rest = (low[i] if i < len(low) else ""), low[i + 1:]
+    if "--" in rest:
+        rest = rest[:rest.index("--")]
+    if sub == "push" and any(re.match(r"^--no-veri(f|fy)?$", t) for t in rest):
+        print("`git push --no-verify`"); break
+    if sub == "config" and "core.hookspath" in rest and not READ & set(rest):
+        print("a git config that sets core.hooksPath"); break
+'
 if [[ "$mode" == hook ]]; then
   # CLAUDE CODE HOOK — a first line only (see 7 above); git's pre-push hook is the gate.
-  # (22) The two bypasses of that gate visible in a command line are refused outright (exit 2 blocks the tool call).
-  lc="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
-  if [[ "$lc" =~ -c[[:space:]]*core\.hookspath ]] || [[ "$lc" =~ (^|[^a-z0-9_-])--config-env[=[:space:]]*core\.hookspath ]]; then
-    echo "BLOCKED: a git command that sets core.hooksPath switches off the pre-push secret-scan gate — run it without." >&2
-    exit 2
-  fi
-  if [[ "$lc" == *push* && "$lc" =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
-    echo "BLOCKED: \`git push --no-verify\` skips the pre-push secret-scan gate — push without it." >&2
-    exit 2
+  # (22) The bypasses of that gate visible in a command line are refused outright (exit 2 blocks the tool call). Parsed
+  # per shell segment with shlex, so quotes, `;`/`&&` and git's own abbreviations do not hide them (review R4).
+  if command -v python3 >/dev/null 2>&1; then
+    why="$(SS_CMD="$cmd" python3 -I -c "$BYPASS_PY")"
+    if [[ -n "$why" ]]; then
+      echo "BLOCKED: $why switches off the pre-push secret-scan gate — run it without." >&2
+      exit 2
+    fi
   fi
   [[ "$cmd" == *"git push"* ]] || exit 0
 fi
