@@ -136,6 +136,22 @@ process whose command line contains it, and the one you cannot see is the one it
 command line carried the same string. On a host that also runs the production containers and other
 sessions, the same keystroke can stop something nobody meant to touch.
 
+### Command-line habits on this server (Yigitcan's ruling, 2026-10-26)
+- **No key-shaped or secret-shaped string on a command line — not even a synthetic one.** A test key is generated
+  INSIDE a scratchpad script file (or assembled at run time inside the test); the command only runs the script.
+  **Why:** a command line is visible to every process listing on this host, lands in transcripts, and is what the
+  push guard and the harness inspect — a synthetic value there is indistinguishable from a real one to all three.
+- **`rm` only with literal, absolute scratchpad paths** — never a path built from a variable. An empty or wrong
+  variable turns a cleanup into a deletion of something else, and nothing on this list can undo it.
+- **Long probes go into a scratchpad script file run by one short command.** The script is readable afterwards; a
+  long inline command is not, and its quoting is where the mistakes hide (a mutant generator's heredoc broke on
+  its escapes in 7-2 Tur 2 R1b).
+- **Every docker container carries the project label (`--label c72=<purpose>`), sub-agents' containers
+  included,** so a leftover is findable by label and removable by id. Never a command to a production container.
+- **If a permission prompt still appears:** measure which mechanism raised it — feed the command's JSON to the hook
+  by hand — report it, and change the habit. The hook and the settings are never edited to silence it without a
+  ruling (`irreversible-actions.md`: the hook is the push guard).
+
 ## ⛔ SSH NEVER GOES TO A CLOUDFLARE-PROXIED HOSTNAME — and here is WHY, so it is not re-derived
 
 ```

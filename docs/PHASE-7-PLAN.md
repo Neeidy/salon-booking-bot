@@ -423,6 +423,7 @@ the production spend meter and is never deleted; golden-set and jailbreak inputs
 | Q18 alert detail | 7-F1, offline unit test | a readable detail | `[object Object]` |
 | dashboard restart | 7-F1 | the service comes back | — |
 | PII in the export | 7-F2 offline, 7-2 audit | masked columns | a raw phone or name |
+| F6 date said on the confirm turn (7-2 Tur 2) | **needs a LIVE booking** — in dry-run `Build Dry-Run Booked State` runs, which is not a clean booking, so no `date_changed_on_confirm` alert fires (ruling R1c FLOW L2) | `Build Booked State` → `date_changed_on_confirm` with the date line | a second booking on the said date |
 
 ## §11 · AUTOMATION-FIT
 `/goal` only in 7-F2's offline loop (goal: `check-all` 0). Not for gated writes, live windows or audits. `/loop`: none.

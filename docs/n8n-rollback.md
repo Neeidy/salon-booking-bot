@@ -15,15 +15,19 @@ restore source here. Use the two paths below instead.
 
 ## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
 
-> ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d). **Engine edits
-> on Purge and Reminders** (the only copies in scope; Main is not edited before ship) use `scripts/workflow-step.py`,
-> one call per step, each read back, nothing automatic. Each run on a production copy is its own ⚠ ONAY:
-> 1. precheck: content parity green (live == the committed export), so the committed export IS the restore source;
->    `diff-workflow-copy.py <committed export> <staged export> --allow <the edit's nodes> --phase edit` green;
-> 2. `workflow-step.py deactivate SPEC COPY` → `put SPEC COPY <staged export> --allow <nodes>` → `activate SPEC COPY`;
-> 3. if any step or the evidence after it is red: `deactivate` (if active) → `put SPEC COPY
->    <REV>:n8n/workflow.<x>.copy.sanitized.json --allow <the same nodes>` (REV = the commit production held before the
->    edit) → `activate`, and STOP.
+> ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d). Engine edits use
+> `scripts/workflow-step.py`, one call per step, each read back, nothing automatic — on Purge and Reminders (parameter
+> edits, `--allow`) and, since Option A (2026-10-25/26), on Main and Owner Actions with their APPROVED delta file only
+> (`diff-workflow-copy.APPROVED_DELTAS`, ruling FIXED 2026-10-26). Each run on a production copy is its own ⚠ ONAY:
+> 1. precheck: content parity green (live == the committed export); `rehearse-rollback SPEC COPY <staged export>
+>    --delta-file F` green on a scratch (Main / Owner Actions);
+> 2. `workflow-step.py deactivate SPEC COPY` → `put SPEC COPY <staged export> (--allow <nodes> | --delta-file F)
+>    --snapshot S1` (S1: a new file OUTSIDE the repo — the live workflow read immediately before the PUT) → `activate` →
+>    `probe` (webhook copies) → for Owner Actions only: `deactivate` → `settings … --delta-file F --snapshot S2` →
+>    `activate` (ruling T-4: the setting goes last, after the probe);
+> 3. if any step or the evidence after it is red: `deactivate` (if active) → `rollback SPEC COPY S1` (it proves GET ==
+>    the pre-edit snapshot, settings included) → `activate`, and STOP. Delete S1/S2 once the edit is closed: they hold
+>    live values (ruling SNAPSHOT, 2026-10-26; reverse deltas and the REV-export restore are gone).
 > The section below describes the abandoned tool, kept as the record of its design.
 
 Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies
