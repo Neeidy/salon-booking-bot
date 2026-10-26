@@ -1,0 +1,4 @@
+# gitleaks exceptions, one per line, by FINGERPRINT (commit:path:rule:line) — never by path or rule wildcard.
+# real-looking n8n credential id by design (sanitizer test): the test asserts the sanitise check REJECTS a real-looking id.
+# Measured: it matches none of the credential ids the live workflows reference (in-memory check, 7-2 Tur 2). An id, not a secret.
+cb6fd926b47f36c8a2b925211e478edef62f7d57:tests/unit/sanitize-postgres.test.cjs:generic-api-key:76
