@@ -29,6 +29,9 @@ webhooks; N8N_HOST or CLAUDE.local.md's N8N_HOST line). SESSION is a widget sess
   python3 scripts/seed-workflow.py up        create INACTIVE → activate → edge-check every path (red: deactivate+delete)
   python3 scripts/seed-workflow.py appt-insert --session S --start ISO [--minutes 30] --created-at ISO
                                    [--gid valid|blank] [--calendar-id VALUE] [--service Haircut] [--status booked]
+                                   [--customer-name TEXT]
+  python3 scripts/seed-workflow.py lead-insert --message mig-p7… --created-at ISO [--name TEXT] [--phone TEXT]
+                                   [--source widget]      (7-2 R4: synthetic names/phones for the export check)
   python3 scripts/seed-workflow.py conv-insert --session S --stage STAGE --turn-count N [--confirm-turn T]
                                    [--bind-target] [--last-intent I]
   python3 scripts/seed-workflow.py conv-update --session S [--stage STAGE] [--turn-count N]
@@ -74,14 +77,15 @@ SQL = {
     'appt-insert': (
         "WITH r AS (SELECT * FROM jsonb_to_recordset($1::jsonb -> 'rows') AS x(sender_key text, service text, "
         "start_utc timestamptz, end_utc timestamptz, gcal_event_id text, calendar_id text, channel text, status text, "
-        "created_at timestamptz)), "
+        "created_at timestamptz, customer_name text)), "
         "ok AS (SELECT NOT EXISTS (SELECT 1 FROM r AS q WHERE NOT coalesce(q.sender_key LIKE 'widget:w-mig-p7-%' "
         "AND q.created_at IS NOT NULL AND ((q.gcal_event_id LIKE 'migp7%' AND q.gcal_event_id !~ '[^0-9a-v]' "
         "AND length(q.gcal_event_id) BETWEEN 13 AND 64) OR (q.gcal_event_id !~ '[^ ]' "
         "AND length(q.gcal_event_id) BETWEEN 3 AND 8)), false)) AS all_ok), "
         "ins AS (INSERT INTO salon.appointments (sender_key, service, start_utc, end_utc, gcal_event_id, calendar_id, "
-        "channel, status, created_at) SELECT sender_key, service, start_utc, end_utc, gcal_event_id, calendar_id, "
-        "channel, status, created_at FROM r, ok WHERE ok.all_ok AND sender_key LIKE 'widget:w-mig-p7-%' "
+        "channel, status, created_at, customer_name) SELECT sender_key, service, start_utc, end_utc, gcal_event_id, "
+        "calendar_id, channel, status, created_at, customer_name FROM r, ok WHERE ok.all_ok "
+        "AND sender_key LIKE 'widget:w-mig-p7-%' "
         "AND created_at IS NOT NULL RETURNING 1) "
         "SELECT (SELECT count(*) FROM ins)::int AS inserted, (SELECT count(*) FROM r)::int AS sent"),
     'conv-insert': (
@@ -137,6 +141,14 @@ SQL = {
         "SELECT message_id, sender_key, channel, created_at FROM r, ok WHERE ok.all_ok "
         "AND message_id LIKE 'mig-p7-%' AND sender_key LIKE 'widget:w-mig-p7-%' AND created_at IS NOT NULL RETURNING 1) "
         "SELECT (SELECT count(*) FROM ins)::int AS inserted, (SELECT count(*) FROM r)::int AS sent"),
+    'lead-insert': (
+        "WITH r AS (SELECT * FROM jsonb_to_recordset($1::jsonb -> 'rows') AS x(name text, phone text, source text, "
+        "message text, created_at timestamptz)), "
+        "ok AS (SELECT NOT EXISTS (SELECT 1 FROM r AS q WHERE NOT coalesce(q.message LIKE 'mig-p7%' "
+        "AND q.created_at IS NOT NULL, false)) AS all_ok), "
+        "ins AS (INSERT INTO salon.leads (name, phone, source, message, created_at) SELECT name, phone, source, message, "
+        "created_at FROM r, ok WHERE ok.all_ok AND message LIKE 'mig-p7%' AND created_at IS NOT NULL RETURNING 1) "
+        "SELECT (SELECT count(*) FROM ins)::int AS inserted, (SELECT count(*) FROM r)::int AS sent"),
     'clean': (
         "WITH c AS (DELETE FROM salon.conversations WHERE sender_key LIKE 'widget:w-mig-p7-%' RETURNING 1), "
         "a AS (DELETE FROM salon.appointments WHERE sender_key LIKE 'widget:w-mig-p7-%' RETURNING 1), "
@@ -147,7 +159,8 @@ SQL = {
         "(SELECT count(*) FROM p)::int AS processed_messages, (SELECT count(*) FROM l)::int AS leads"),
 }
 EXPECT = {      # the response keys each action must return (ints), and the rule that makes it green
-    'appt-insert': ('inserted', 'sent'), 'pm-insert': ('inserted', 'sent'), 'conv-insert': ('inserted',),
+    'appt-insert': ('inserted', 'sent'), 'pm-insert': ('inserted', 'sent'), 'lead-insert': ('inserted', 'sent'),
+    'conv-insert': ('inserted',),
     'conv-update': ('updated',), 'appt-update': ('updated', 'candidates'), 'appt-delete': ('deleted', 'candidates'),
     'clean': ('conversations', 'appointments', 'processed_messages', 'leads'),
 }
@@ -219,9 +232,26 @@ def fake_gid():
     return 'migp7' + secrets.token_hex(8)
 
 
+def _text(opt, key, flag, cap):
+    v = opt.get(key)
+    if v is not None and (not isinstance(v, str) or len(v) > cap):
+        raise Refused(f'{flag} is text of at most {cap} characters')
+    return v
+
+
 def payload(action, opt):
     if action == 'clean':
         return None
+    if action == 'lead-insert':     # a lead has no session: its guard is the message prefix (the clean-up's own)
+        msg = opt.get('message') or ''
+        if not msg.startswith('mig-p7') or len(msg) > 200:
+            raise Refused("--message must start with 'mig-p7' (the leads guard) and be at most 200 characters")
+        source = opt.get('source') or 'widget'
+        if source not in ('whatsapp', 'widget', 'instagram'):
+            raise Refused('--source must be whatsapp|widget|instagram (the table CHECK)')
+        created = _iso(opt.get('created_at'), '--created-at')
+        return {'rows': [{'name': _text(opt, 'name', '--name', 120), 'phone': _text(opt, 'phone', '--phone', 60),
+                          'source': source, 'message': msg, 'created_at': created.strftime('%Y-%m-%dT%H:%M:%S.000Z')}]}
     sk = _sender(opt.get('session'))
     if action == 'appt-insert':
         start = _iso(opt.get('start'), '--start')
@@ -238,7 +268,8 @@ def payload(action, opt):
                'end_utc': (start + timedelta(minutes=minutes)).strftime('%Y-%m-%dT%H:%M:%SZ'),
                'gcal_event_id': fake_gid() if kind == 'valid' else '   ',
                'calendar_id': opt.get('calendar_id') or '', 'channel': 'widget', 'status': status,
-               'created_at': created.strftime('%Y-%m-%dT%H:%M:%S.000Z')}
+               'created_at': created.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+               'customer_name': _text(opt, 'customer_name', '--customer-name', 120)}
         return {'rows': [row]}
     if action == 'pm-insert':
         if not MESSAGE_RE.match(opt.get('message_id') or ''):
@@ -288,7 +319,7 @@ def judge(action, p, body):
     keys = EXPECT[action]
     if not isinstance(body, dict) or any(not isinstance(body.get(k), int) for k in keys):
         return [f'unexpected response (a SQL error or a wrong path): {str(body)[:160]}']
-    if action in ('appt-insert', 'pm-insert'):
+    if action in ('appt-insert', 'pm-insert', 'lead-insert'):
         return [] if body['inserted'] == body['sent'] == len(p['rows']) else \
             [f"inserted {body['inserted']} of {body['sent']} (the guard refused; all-or-nothing, so none)"]
     if action == 'conv-insert':
@@ -508,6 +539,13 @@ def selftest():
                 case(f'{action} refuses {bad}: NOT refused', False)
             except Refused as e:
                 case(f'{action} refuses {bad} ({str(e)[:60]})', True)
+        for bad, opt in (('a message outside the prefix', {'message': 'real lead', 'created_at': '2030-01-01T09:00:00Z'}),
+                         ('a source outside the CHECK', {'message': 'mig-p7 x', 'source': 'sms', 'created_at': '2030-01-01T09:00:00Z'})):
+            try:
+                payload('lead-insert', opt)
+                case(f'lead-insert refuses {bad}: NOT refused', False)
+            except Refused as e:
+                case(f'lead-insert refuses {bad} ({str(e)[:60]})', True)
         g = payload('appt-insert', {'session': 'w-mig-p7-a', 'start': '2030-01-01T10:00:00Z',
                                     'created_at': '2030-01-01T09:00:00Z'})['rows'][0]['gcal_event_id']
         case('a fake gid is prefixed and passes /^[0-9a-v]{5,1024}$/', g.startswith('migp7')
@@ -522,7 +560,8 @@ def selftest():
 FLAGS = {'--session': 'session', '--start': 'start', '--minutes': 'minutes', '--created-at': 'created_at',
          '--gid': 'gid', '--calendar-id': 'calendar_id', '--service': 'service', '--status': 'status',
          '--stage': 'stage', '--turn-count': 'turn_count', '--confirm-turn': 'confirm_turn',
-         '--last-intent': 'last_intent', '--message-id': 'message_id'}
+         '--last-intent': 'last_intent', '--message-id': 'message_id', '--customer-name': 'customer_name',
+         '--name': 'name', '--phone': 'phone', '--message': 'message', '--source': 'source'}
 SWITCHES = {'--bind-target': 'bind_target', '--confirm-turn-null': 'confirm_turn_null',
             '--blank-calendar-id': 'blank_calendar_id', '--fake-gid': 'fake_gid'}
 

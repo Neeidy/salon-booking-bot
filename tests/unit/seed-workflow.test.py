@@ -189,6 +189,7 @@ def make_handler(world, mod):
                     n = len(p.get('rows') or [])
                     canned = {'appt-insert': {'inserted': 0 if world.guard_refuses else n, 'sent': n},
                               'pm-insert': {'inserted': 0 if world.guard_refuses else n, 'sent': n},
+                              'lead-insert': {'inserted': 0 if world.guard_refuses else n, 'sent': n},
                               'conv-insert': {'inserted': 1}, 'conv-update': {'updated': 1},
                               'appt-update': {'updated': 1, 'candidates': 1}, 'appt-delete': {'deleted': 1, 'candidates': 1},
                               'clean': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0}}
@@ -317,7 +318,25 @@ def main():
          rc == 0 and last[0] == 'appt-insert' and last[2]['p']['rows'][0]['created_at'] == '2030-01-07T08:00:00.000Z'
          and last[2]['p']['rows'][0]['gcal_event_id'].startswith('migp7'), out[-300:])
     case('the calendar id and the gid are never printed', 'cal-fixture' not in out and 'migp7' not in out)
+    # 7-2 R4: synthetic names and phones for the export check — the values travel in the body only, never printed
+    rc, out = run(mod, w, ['appt-insert', '--session', 'w-mig-p7-r4-1', '--start', '2030-01-07T13:00:00Z',
+                           '--created-at', '2030-01-07T08:00:00Z', '--customer-name', 'Mila 0660 1234567'])
+    last = [h for h in w.hits if h[1]][-1]
+    case('appt-insert --customer-name: the name travels in the row, never printed → exit 0',
+         rc == 0 and last[2]['p']['rows'][0]['customer_name'] == 'Mila 0660 1234567' and '1234567' not in out, out[-200:])
+    rc, out = run(mod, w, ['lead-insert', '--message', 'mig-p7-r4 synthetic', '--created-at', '2030-01-07T08:00:00Z',
+                           '--name', 'Noor 0660 1234567', '--phone', '+43 660 1234567'])
+    last = [h for h in w.hits if h[1]][-1]
+    case('lead-insert: one row (name, phone, prefixed message, explicit created_at), never printed → exit 0',
+         rc == 0 and last[0] == 'lead-insert' and last[2]['p']['rows'][0] == {'name': 'Noor 0660 1234567', 'phone': '+43 660 1234567',
+         'source': 'widget', 'message': 'mig-p7-r4 synthetic', 'created_at': '2030-01-07T08:00:00.000Z'} and '1234567' not in out, out[-200:])
+    before = len(w.hits)
+    rc, out = run(mod, w, ['lead-insert', '--message', 'a real customer', '--created-at', '2030-01-07T08:00:00Z'])
+    case('lead-insert with a message outside the prefix is refused BEFORE any request (no hit, exit 1)',
+         rc == 1 and len(w.hits) == before, out[-200:])
     w.guard_refuses = True
+    rc, out = run(mod, w, ['lead-insert', '--message', 'mig-p7-r4 x', '--created-at', '2030-01-07T08:00:00Z'])
+    case('lead-insert: a guard refusal in SQL (inserted 0 of 1) is RED, not OK (exit 1)', rc == 1 and 'RED' in out, out[-200:])
     rc, out = run(mod, w, ['appt-insert', '--session', 'w-mig-p7-r5-1', '--start', '2030-01-07T13:00:00Z',
                            '--created-at', '2030-01-07T08:00:00Z'])
     case('a guard refusal in SQL (inserted 0 of 1) is RED, not OK (exit 1)', rc == 1 and 'RED' in out, out[-200:])
