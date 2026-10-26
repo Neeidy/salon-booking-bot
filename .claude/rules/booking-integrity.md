@@ -11,14 +11,16 @@ Two DISTINCT problems, two DISTINCT guards (do not conflate them):
 1. **Idempotency — same message processed twice.**
    Dedupe on message-ID via a persistent store: the Postgres table `salon.processed_messages`, whose
    `message_id` is **UNIQUE** (`001_init.sql`), plus a 30-day TTL (the Purge workflow deletes older rows).
-   `Check Processed` reads the ID first; if it was seen, `Is Duplicate` → `Idempotent Replay` answers
+   **Claim-first** (7-2 Tur 2, ruling R-1a; live since 7-2 R3): `Check Processed` CLAIMS the ID at the start of the
+   turn in ONE statement — `INSERT … ON CONFLICT (message_id) DO NOTHING RETURNING` — and `Dedupe Gate` reads the
+   result: a returned row means this run owns the message; no row means another delivery already claimed it
+   (sequential redelivery or a concurrent run alike), so `Is Duplicate` → `Idempotent Replay` answers
    `duplicate_ignored` and nothing is booked again. *(It returns no stored copy of the first reply — the
    "Idempotent Replay stored reply" item is in the v2 bucket, PHASE-7-PLAN → "Open items", v2 / LATER row.)*
-   `Record Processed` writes it after `Save State` with `INSERT … ON CONFLICT (message_id) DO NOTHING`, so a
-   second marker for the same ID is a no-op, not an error.
-   ⚠ **The UNIQUE does not close the check-then-record race** (CRT 1a): two deliveries of one message can both
-   pass `Check Processed` before either records. The constraint only stops the second MARKER; it does not stop
-   the second RUN. That race was deliberately left for Phase 7 (ruling Q5, recorded in the schema comment).
+   The UNIQUE on `message_id` is what makes the claim atomic, so the check-then-record race of CRT 1a is CLOSED:
+   two deliveries cannot both claim. `Record Processed` (the end-of-turn marker) and its alert are gone.
+   ⚠ **The cost, stated:** at-most-once. A run that dies AFTER its claim is not retried for that message — node
+   failures still reach their error branches and owner alerts; an engine crash shows only in n8n's execution log.
 
 2. **Concurrency / no-double-book — two DIFFERENT customers, same slot, ~same time.**
    **Google Calendar is the availability source of truth**, and the Calendar write happens **outside any

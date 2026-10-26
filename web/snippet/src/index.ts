@@ -286,13 +286,12 @@ function boot(selfSrc: string | null) {
    *
    * ⚠ BOUND, because the earlier wording ("closes that path") claimed more than the engine guarantees.
    * Read from the committed workflow's connection graph, not assumed:
-   *     Check Processed   <- Validate Payload                        (start of the turn)
-   *     Record Processed  <- Save State, Save State (Post-Write)     (end of the turn)
-   * The id is written only once a turn has COMPLETED. So a retry fired while the first turn is still
-   * in flight finds `Check Processed` empty and is processed as a second turn — dedupe does not engage
-   * there. What bounds that remaining case is not this file: `Build Event Request` derives a
-   * deterministic Calendar event id from the booking key, so the second write collides (409) instead of
-   * creating a second appointment. Narrower claim, and the one that is actually measured.
+   *     Check Processed   <- Validate Payload                        (start of the turn: a CLAIM)
+   * Since 7-2 R3 (ruling R-1a) `Check Processed` claims the id at the START of the turn, so a retry fired
+   * while the first turn is still in flight finds it claimed and is answered `duplicate_ignored` — dedupe
+   * does engage there now. Until R3 the id was written by `Record Processed` at the END of the turn and
+   * that case was processed as a second turn. The deterministic Calendar event id (`Build Event Request`;
+   * a second write collides with 409) stays the guard behind it.
    *
    * The distinction is a STATE, never a guess: `send(retry)` replays a specific failed payload, and it
    * is only ever reached through the button on that failure's own bubble. Anything the visitor types is

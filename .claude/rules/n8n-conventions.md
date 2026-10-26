@@ -4,7 +4,7 @@
 
 - **Node naming:** verb + object (`Extract Intent`, `Check Availability`, `Book Appointment`). No `HTTP Request1`.
 - **Sticky notes are mandatory** on every branch — say what the section does and why. The canvas teaches.
-- **Mandatory error branch — failures are VISIBLE.** Every external call (Zernio, Google Calendar, Airtable,
+- **Mandatory error branch — failures are VISIBLE.** Every external call (Zernio, Google Calendar, Postgres,
   LLM) has an error path that notifies the owner. Silent failure is forbidden.
 - **Infra failure ≠ a normal handoff** — an external-system outage returns a *distinct* response (status
   code + `error:"<system>_unavailable"` flag) from its own node so an owner-alert can hook it; it is one of

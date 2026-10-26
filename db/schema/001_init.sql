@@ -117,9 +117,10 @@ CREATE TABLE salon.leads (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- processed_messages — idempotency. message_id is GLOBALLY unique, as today: Check Processed filters on
--- message_id alone. The UNIQUE makes a second Record Processed a no-op (ON CONFLICT DO NOTHING); it does
--- NOT close CRT 1a's check-then-record race, which goes to Phase 7 (ruling Q5).
+-- processed_messages — idempotency. message_id is GLOBALLY unique. Since 7-2 R3 (ruling R-1a) Check Processed
+-- CLAIMS the id with INSERT … ON CONFLICT (message_id) DO NOTHING RETURNING at the start of a turn, and this
+-- UNIQUE is what makes that claim atomic: CRT 1a's check-then-record race is closed (at-most-once). Until R3 a
+-- Record Processed marker was written at the end of the turn and the race stood (ruling Q5). Comment only.
 CREATE TABLE salon.processed_messages (
   id          text PRIMARY KEY DEFAULT salon.gen_rec_id(),
   message_id  text NOT NULL,

@@ -18,7 +18,7 @@
   will follow up. Never leave the customer in silence.
 - Jailbreak attempts and invalid intent JSON route here. **Error branches are NOT automatically a
   conversational handoff** — see 'Infrastructure failure ≠ conversational handoff' below for the
-  three classes and which one applies.
+  five classes and which one applies. *(Said "three" until 7-2 R4; the table has listed five since 2026-09-09f.)*
 
 **Why:** a wrong booking erodes trust more than an honest "let me get a person" — the handoff is a feature.
 

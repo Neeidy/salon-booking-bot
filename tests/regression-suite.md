@@ -236,6 +236,9 @@ investigate**, not test noise — a "flake" label would wrongly close the invest
   (exec 1101/1103), and there the deterministic booking event-id (409 reconcile) is what actually prevented a
   double-book, i.e. the front-gate idempotency was already best-effort. Phase 7 must decide: record-before-respond
   (adds latency) vs accept-and-document (the event-id is the real no-double-book guard). Do NOT close as flake.
+  **→ DECIDED and live (7-2 Tur 2 ruling R-1a, deployed in 7-2 R3, 2026-10-26): claim-first.** `Check Processed` now
+  claims the id at the START of the turn (`INSERT … ON CONFLICT DO NOTHING RETURNING`), so a duplicate fired while the
+  first turn is still in flight finds it claimed; `Record Processed` is gone. Cost: at-most-once (booking-integrity.md §1).
 - **#27 reschedule-abort — SHARED-CALENDAR TEST ISOLATION (confirm under Phase 7).** Observed: the move-target
   slot was busy during the full run → the product **correctly handed off** (`stage=handoff`) → the next FAQ turn
   hit the handoff-lock, so the assertion ("booking stays") failed. Isolated retry on a clean date/time aborts
@@ -396,7 +399,7 @@ reply alone. **`crypto.timingSafeEqual` is spike-proven unavailable** → plain-
 | M2b | unsigned widget bad-shape (no header) | exec **1452** | `Is Zernio Inbound?` out1 (no header) → widget lane → **400** `bad_request`; Build Owner Alert returned **[]** = NO alert (regression) |
 | L1a | signed body, header = non-hex (`deadbeef`) | exec **1450** | `Verify Signature` type/length validation → `sig_valid:false` → **403**; Build LLM Request MUST-NOT-RUN |
 | L1b | signed body, header = 64-char UPPERCASE hex | HTTP **403** | HEX64 is lowercase-only → `sig_valid:false` → 403 (coercion/format bypass closed) |
-| M1a | `Record Processed` (dedupe marker) write fails — **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
+| M1a | ⛔ **OBSOLETE since 7-2 R3** — `Record Processed` no longer exists (claim-first `Check Processed`; its failure is a `Check Processed` error → 503). Kept as the record: `Record Processed` (dedupe marker) write fails — **REMOVED from the 7-1 window (ruling D6)** — covered by the M7 window evidence (MIGRATION-PLAN §3s D4c) and offline unit tests (Q18, 7-F1) | exec **1453** | only its table broken (Check Processed real) → Save State ok, customer got a normal reply, `Record Processed` out1 (error) → `Build Dedupe-Marker Alert` → owner-alert **`dedupe_marker_failed`** (Telegram 81) |
 
 ### ⚙ CP5e robustness drills (store error-split · purge · reminders overlap lock — exec ids: *Airtable era, not re-run on the copies*)
 

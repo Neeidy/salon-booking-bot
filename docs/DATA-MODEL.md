@@ -132,13 +132,14 @@ at Round 3c's cleanup by ruling).
 | message_id | text | `NOT NULL`, **`UNIQUE`** (`processed_messages_message_id_key`) — the dedupe key, GLOBALLY unique (provider message id: Zernio `platformMessageId`; widget client UUID). `Check Processed` filters on it alone |
 | sender_key | text | `"{channel}:{id}"` (PII) |
 | channel | text | whatsapp \| widget \| instagram (no CHECK) |
-| created_at | timestamptz | `NOT NULL DEFAULT now()` — written by `Record Processed` AFTER `Save State` succeeds |
+| created_at | timestamptz | `NOT NULL DEFAULT now()` — written by `Check Processed`'s claim at the START of the turn (since 7-2 R3) |
 
 Index: `(created_at)`, for the purge.
 
-`Record Processed` inserts with `ON CONFLICT (message_id) DO NOTHING`, so a second marker for one id is a no-op. ⚠ **It
-does NOT close CRT 1a's check-then-record race** — two deliveries can both pass `Check Processed` before either
-records; that goes to Phase 7 (ruling Q5, stated in 001_init.sql).
+`Check Processed` CLAIMS the id with `INSERT … ON CONFLICT (message_id) DO NOTHING RETURNING` (7-2 Tur 2, ruling R-1a;
+live since 7-2 R3): a returned row = this run owns the message, none = a duplicate. Because the UNIQUE makes the claim
+atomic, CRT 1a's check-then-record race is closed; the cost is at-most-once (a run that dies after its claim is not
+retried). `Record Processed` is gone. *(Until R3 the marker was written after `Save State` and the race stood — ruling Q5.)*
 
 **TTL purge (CP5e):** the daily Purge workflow (`MIG COPY — Processed Purge`, renamed at D6c) deletes rows with
 `created_at` older than 30 days (dedupe only needs to outlive the provider retry window = hours). The filter is a

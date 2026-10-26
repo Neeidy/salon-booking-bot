@@ -52,7 +52,7 @@ flowchart TD
   NOK -->|reject| NR[/Respond Normalize Reject<br/>whatsapp 422 + owner-alert · widget 400/]
   NOK -->|ok| VP{Validate Payload<br/>channel enabled · text · len≤1000 · message_id · senderId}
   VP -->|invalid| REJ[/Send Reject Response<br/>400 invalid_payload/]
-  VP -->|valid| CP[Check Processed<br/>Airtable processed_messages]
+  VP -->|valid| CP[Check Processed<br/>Postgres processed_messages · CLAIM]
   CP -.->|Airtable down| ERR[/Send Error Response<br/>503 state_unavailable/]
   CP --> DG[Dedupe Gate<br/>re-attach payload + _duplicate]
   DG --> ISD{Is Duplicate?}
@@ -82,11 +82,12 @@ unauthenticated endpoint must not be an alert-channel DoS primitive).
 **Adapter + IDOR guard (CP4a):** `Normalize Inbound` is the single channel adapter; its widget branch FORCES
 `channel='widget'` (never trusts a payload channel) so the ONLY path to a `whatsapp:` sender_key is a signed
 Zernio message — closing an IDOR where a forged `{channel:'whatsapp', from:<victim>}` would impersonate a customer.
-**Main path:** every message is validated, deduped on `message_id` (a webhook delivered twice **sequentially** →
-one effect; **concurrent** re-delivery and a `Record Processed` marker-write failure are OUT OF SCOPE — an
-accepted T1 limit, since Airtable search→create is not atomic, same family as the CRT #8 concurrency limit;
-ARCH-DEC §5). The deterministic GCal event id is the actual no-double-book guard; front-gate dedupe is
-best-effort, and a marker-write failure now fires a `dedupe_marker_failed` owner-alert (CRT #3/M1a).
+**Main path:** every message is validated, then deduped on `message_id` by a CLAIM (7-2 Tur 2, ruling R-1a; live
+since 7-2 R3): `Check Processed` inserts the id with `ON CONFLICT DO NOTHING RETURNING` at the start of the turn, and a
+second delivery — sequential or concurrent — finds it claimed and answers `duplicate_ignored`. The cost is at-most-once
+(a run that dies after its claim is not retried). The deterministic GCal event id stays the no-double-book guard behind
+it. *(Until R3 the marker was written at the end of the turn on Airtable/Postgres, concurrent re-delivery was out of
+scope, and a marker-write failure fired `dedupe_marker_failed`; that node and class are gone.)*
 Then loaded into conversation state, and — if a human already took over (`stage=handoff`) — the bot stays silent.
 **Error paths (all visible):** unsigned/forged Zernio → **403** `invalid_signature`; bad payload → **400**; Airtable unreachable → **503** `state_unavailable`;
 duplicate → short-circuit **200** `duplicate_ignored` (no LLM cost, no write); locked thread → **200**
@@ -480,10 +481,8 @@ handoff with a visible owner flag; the customer is told the truth). Every failur
 flowchart TD
   SS[Save State<br/>upsert · turn_count+1 · computed_reply via '||'] --> BRP[Build Reply Payload<br/>ADDITIVE: read computed_reply column]
   SPW[Save State Post-Write] --> BRP
-  SS -.->|Airtable down| ERR[/Send Error Response 503/]
-  SPW -.->|Airtable down| BSU[/Booking State-Unsaved Reply<br/>200 · reply kept/]
-  SS --> RP[Record Processed<br/>message_id · AFTER success]
-  SPW --> RP
+  SS -.->|Postgres down| ERR[/Send Error Response 503/]
+  SPW -.->|Postgres down| BSU[/Booking State-Unsaved Reply<br/>200 · reply kept/]
   BRP --> SRO[/Send Reply To Origin<br/>200 reply/]
 ```
 
@@ -491,8 +490,9 @@ Two Save States (pre-write on the conversational path, post-write after a bookin
 write `computed_reply` (`|| ''` — a turn with no reply CLEARS it, so the reader can never replay a previous
 turn). **Build Reply Payload** is a thin reader: `computed_reply` from the column if present (greet only on
 `collecting`), otherwise the original per-intent fallback, and a machine-visible `reply_fallback` flag if even
-that is empty (Refactor #5). `Record Processed` writes the `message_id` **after** a successful Save State, so a
-transient-failure retry is not blocked.
+that is empty (Refactor #5). The `message_id` is claimed at the START of the turn (`Check Processed`, since 7-2 R3),
+not after Save State: a transient failure after the claim is not retried for the same id (at-most-once; the failure
+itself still reaches its error branch and the owner).
 
 **Outbound convergence (CP4b-1) + 5xx/ACK policy (CP4b-3).** All 11 reply branches (the conversational reply +
 the 400/503/guard/duplicate/lock exits) now tag `_outbound_status`/`_outbound_body` (their VERBATIM response) →
@@ -525,8 +525,11 @@ the 400/503/guard/duplicate/lock exits) now tag `_outbound_status`/`_outbound_bo
 ---
 
 ## Owner-alert lane — every failure/handoff reaches a human (CP5a)
-A single fan-in, deliberately OFF the reply path so it can never block or change the customer reply
-(**D-c invariant**). Every failure/handoff source adds ONE extra edge to `Build Owner Alert`:
+A single fan-in, off the reply path, so it can never CHANGE the customer reply (**D-c invariant**) — a failed send or
+stamp is routed to its own terminal. ⚠ It can DELAY it: where `Build Owner Alert` sits above the reply branch (the
+post-write incident builders, `Build Normalize Reject`, `Date Alert?`), executionOrder v1 runs the alert first, and the
+Telegram send has no timeout (corrected 7-2 R4; it said "can never block", the Main sticky has said this since R1c).
+Every failure/handoff source adds ONE extra edge to `Build Owner Alert`:
 
 ```
 <any source: Mark Handoff · Handoff Lock Reply · Build *Orphan/Mirror/Verify/Reconcile* State ·
@@ -542,7 +545,13 @@ A single fan-in, deliberately OFF the reply path so it can never block or change
 - **One place** classifies + throttles (KK1): `class:sender` key, window `config.ownerAlert.throttleMinutes`,
   via `$getWorkflowStaticData` — a repeated same-fault storm pings once per window.
 - **KK2:** a guard-trip pings for **max-turns** only; a **kill-switch** trip is owner-initiated → suppressed.
-- **KK3:** race-lost is a normal "slot taken" outcome → not alerted (orphan IS).
+- **KK3, superseded by 7-2 F2 (live since R3):** a clean race loss IS alerted now (`race_lost` — the customer lost a
+  slot they were shown; a clean loss is still news). Orphan stays its own class.
+- **Classes added by 7-2 Tur 2 (live since R3):** `turnstile_unavailable` (the verifier is down: ONE global throttle key,
+  checked first) · `race_lost` · `cancel_reread_failed` (re-read failed, cancel kept) · `reschedule_insert_unknown`
+  (the new event may exist — check the calendar) · `date_changed_on_confirm` (a confirmation naming another date) ·
+  `event_build_failed` (an error-tagged builder). **Removed:** `dedupe_marker_failed` (the claim replaced the marker).
+  Every alert prints the sender MASKED (final-pass #13, measured live in R3).
 - **Context (D-a):** the alert carries the rolling last-5 `conversations.recent_messages` (PII).
 - **Reminders workflow** has its own `Build Owner Alert (Reminders)` → Telegram off `Reminder Error`.
 - Chat id + bot token live in the `telegram` credential / `$env` / gitignored env — never in git.

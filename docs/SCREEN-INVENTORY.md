@@ -482,7 +482,14 @@ Kaynak: `Build Owner Alert` (main, 21 statik sınıf, **28 kaynak node**) + dina
 | **İşleyiş** | `normalize_drift` · `dedupe_marker_failed` · `reply_fallback` · `cancel_needs_human` | incele |
 | **Arka plan işleri** | `reminder_error` · `purge_error` (+`branch`: `processed_messages`/`conversations_pii`) | temizlik/hatırlatma durdu |
 
-**Alert VERİLMEYENLER** (dashboard bunları beklememeli): `race_lost` (normal sonuç) ·
+**7-2 Tur 2 değişiklikleri (canlı: 7-2 R3, 2026-10-26):** eklenen sınıflar — `race_lost` (artık alarm verilir: müşteri
+gösterilen slotu kaybetti) · `turnstile_unavailable` (doğrulayıcı çökük, tek global throttle) · `cancel_reread_failed` ·
+`reschedule_insert_unknown` (yeni slotta fazladan event olabilir) · `date_changed_on_confirm` · `event_build_failed`;
+kaldırılan — `dedupe_marker_failed` (claim marker'ın yerini aldı). Rozet tasarımı bu sınıfları da karşılamalı; ayrıntı
+ve "sahip ne yapmalı": [UX-ARCHITECTURE.md](UX-ARCHITECTURE.md) alarm tablosunun ek bölümü. Her alarm göndericiyi
+maskeli yazar (final-pass #13).
+
+**Alert VERİLMEYENLER** (dashboard bunları beklememeli): ~~`race_lost` (normal sonuç)~~ *(7-2 F2'den beri verilir)* ·
 kill-switch tripi (sahip kendi açtı) · duplicate · 403 unsigned · 403 Turnstile ·
 widget-lane normalize reddi (DoS primitifi olurdu).
 

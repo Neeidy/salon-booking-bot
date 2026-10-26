@@ -396,7 +396,21 @@ Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, s
 | + | `reminder_error` | reminders wf, **kendi composer'ı**, global throttle (sender başına değil) | hatırlatma turu patladı |
 | + | **`purge_error`** | purge wf, **kendi composer'ı** (**FIX-1**), throttle `purge_error:<branch>` | temizlik durdu — `branch` hangisini söyler: `processed_messages` (dedupe) veya `conversations_pii` (PII scrub) |
 
-**Alert VERİLMEYENLER (bilinçli):** `race_lost` (normal sonuç, KK3) · kill-switch trip'i (sahip
+**7-2 Tur 2 değişiklikleri (canlı: 7-2 R3, 2026-10-26; kaynak: Main kopyasının `Build Owner Alert`'i):**
+
+| Sınıf | Tetikleyen | Sahip ne yapmalı |
+|---|---|---|
+| `race_lost` | `Build Race-Lost State` · reschedule ikizi (F2) | müşteri gösterilen slotu kaybetti — ara, yeni slot öner |
+| `turnstile_unavailable` | `Tag Turnstile Unavailable` (R-Q2) — **önce** bakılır, **tek global** throttle anahtarı | doğrulayıcı (Cloudflare) çökük — herkes etkilenir |
+| `cancel_reread_failed` | iptal sonrası yeniden okuma hatası (F7) | iptal geçerli; durumu elle doğrula |
+| `reschedule_insert_unknown` | yeni event'in insert cevabı kayboldu (F5) | YENİ slotta fazladan event olabilir — takvime bak |
+| `date_changed_on_confirm` | onay turunda başka bir tarih söylendi, booking temiz geçti (F6) | gösterilen ve söylenen tarihi karşılaştır |
+| `event_build_failed` | `Build Event Request` hata etiketi | event kurulamadı — booking yok, müşteriyle konuş |
+
+**Kaldırılan:** `dedupe_marker_failed` (#12) — `Record Processed` ve `Build Dedupe-Marker Alert` yok; mesaj artık turun
+başında `Check Processed` ile claim ediliyor. **Her alarm göndericiyi MASKELİ yazar** (final-pass #13, R3'te canlı ölçüldü).
+
+**Alert VERİLMEYENLER (bilinçli):** ~~`race_lost` (normal sonuç, KK3)~~ *(7-2 F2'den beri alarm VERİLİR, yukarıda)* · kill-switch trip'i (sahip
 kendi açtı, KK2) · duplicate · 403 unsigned · 403 turnstile · widget-lane normalize reject.
 ~~**Alert verilmeyenler (kaza):** `cancel_mirror_failed`~~ → **KAPANDI (FIX-1, 2026-08-30).**
 Artık kendi sınıfıyla alert veriyor (§4c tablosu, sıra 20). Kaza kategorisi **boş**.
@@ -737,11 +751,15 @@ turu" ve Phase 6 planına dağıtılmıştır.
 
 | Alan | İçerik |
 |---|---|
-| `last_alert_class` | son alert'in sınıfı (24 sınıftan biri) |
+| `last_alert_class` | son alert'in sınıfı (24 sınıftan biri; 7-2 R3'ten beri liste yukarıdaki ek tabloyla güncel) |
 | `last_alert_at` | ne zaman düştüğü (UTC) |
 
 Yazım **alert dalından, best-effort** — yani `Build Owner Alert` tarafından, **cevap yolundan
-ayrı**. D-c değişmezi korunur: alert yolundaki bir hata müşteri cevabını asla etkilemez.
+ayrı**. D-c değişmezi: alert yolundaki bir hata müşteri cevabını **değiştirmez** (gönderim ve damga hataları kendi
+uçlarına yönlenir). ⚠ **Geciktirebilir:** `Build Owner Alert`'in cevap dalının üstünde durduğu yollarda (post-write
+olay kurucuları, `Build Normalize Reject`, `Date Alert?`) executionOrder v1 alarmı önce çalıştırır ve Telegram
+gönderiminin zaman aşımı yok. *(7-2 R4'te düzeltildi; "asla etkilemez" diyordu — Main'in sticky'si R1c'den beri
+böyle söylüyor.)*
 
 **Neden C değil (belgenin önerisi reddedildi, gerekçesi kayıt altında):** sebebi göremeyen bir
 devir kuyruğu yarım kalır. Sahip "bu konuşma neden takıldı?" sorusunu Telegram'da aramak zorunda
