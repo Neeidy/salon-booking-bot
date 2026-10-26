@@ -16,9 +16,12 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
                                                   F is a delta file TRACKED AT HEAD and UNMODIFIED (content read from git)
                                                   and must be EXACTLY one of diff-workflow-copy.APPROVED_DELTAS (ruling
                                                   FIXED: every node, edge and setting by identity; --allow alone carries
-                                                  no delta). Immediately before the PUT the live workflow is read and kept
-                                                  in FILE (the SNAPSHOT: outside the repository, created new, mode 0600 —
-                                                  it holds live values; delete it once the edit is closed). The body is
+                                                  no delta). Immediately before the PUT the live workflow is read, must BE
+                                                  its committed export (ruling R2b: the content and settings halves of
+                                                  exports/content parity, parity_errs — so the snapshot, and any rollback
+                                                  to it, is a reviewed state) and is kept in FILE (the SNAPSHOT: outside
+                                                  the repository, created new, mode 0600 — it holds live values; delete
+                                                  it once the edit is closed). The body is
                                                   EXPORT with every sanitize placeholder filled from the live copy at the
                                                   same path (the deploy helper's fill_by_path) and the LIVE settings: put
                                                   never carries a setting (T-4). Read back: live == EXPORT (content_drift
@@ -31,7 +34,8 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
                                                   saveDataSuccessExecution "none", ruling T-4), applied as the LAST step:
                                                   refused unless the copy is INACTIVE, EXPORT IS the approved edit (the
                                                   same diff as put) and the live content already equals EXPORT (the edit
-                                                  is live); snapshot as for put; the body is the live
+                                                  is live) with the committed settings (parity_errs against the edit);
+                                                  snapshot as for put; the body is the live
                                                   draft with exactly those keys set. Read back: nodes, connections and name
                                                   == the snapshot, settings == the snapshot's plus exactly those keys
   rollback   SPEC COPY_ID SNAPSHOT                PUT the snapshot back (name, nodes, connections, settings — the fields
@@ -92,7 +96,8 @@ unchanged. Drill State stays out of scope.
 EXPORT is a file TRACKED AT HEAD and UNMODIFIED in the repo (the staged edit, as committed), read from git (`git show
 HEAD:<path>`, never the working tree; pathspecs literal, so a glob-shaped name never matches another file), or REV:PATH
 — PATH the copy's OWN export, REV `HEAD` or a commit SHA (7–40 hex digits naming a commit; no branch, tag, stash or
-FETCH_HEAD): content that is not in git never reaches production.
+FETCH_HEAD): content that is not in git never reaches production. REV:PATH is NOT a restore route: since R2b put refuses
+a live copy that is not its committed export, so the undo is `rollback` to the put's snapshot.
 
 Every workflow id on the command line must be letters and digits only, or nothing is called. deactivate, activate,
 probe, put, settings, rollback and scratch-create's SOURCE refuse a COPY_ID that ROLES does not pair with this spec's
@@ -413,6 +418,30 @@ def _fresh(copy_id, spec, scratch):
     return cur
 
 
+def parity_errs(spec, copy_id, draft, content_ref, settings_ref, scratch):
+    """Ruling R2b DEPLOY: immediately before a snapshot, the live workflow must BE a reviewed, committed state, so a
+    rollback to that snapshot always returns to one. The halves of exports-parity and content-parity that a copy
+    DEACTIVATED for its edit can pass, for this one workflow: the live draft carries no sanitize placeholder, its
+    content equals `content_ref` (the same projection check-content-parity compares), its settings equal
+    `settings_ref`, and — for a production copy — they match its original's through the spec's allowlist. The pairing
+    and ORDER half is target()'s. The active-state half (ROLES' live side is active) is red by construction while the
+    copy is deactivated for the edit, so it is the one half not asked here; `activate` proves published == draft.
+    A gate made weaker in the live copy by hand — its conditions, code, wiring, flags or credentials — is a content
+    difference and is refused before anything is kept (Codex R2, deploy HIGH). NOT seen, because check-content-parity's
+    projection normalises them away: an IF/Switch condition's `typeValidation`, `caseSensitive` and `version` options,
+    and values behind sanitize placeholders (filled from live by put, so put never changes them and rollback returns
+    them as they were). Recorded in ROADMAP's CONVERGE list (security review R2b, finding 1)."""
+    ref = dict(content_ref, name=draft.get('name')) if scratch else content_ref
+    errs = H.check_not_sanitised(draft, content_ref)
+    errs += H.content_drift(draft, ref, H._ccp().placeholder_smap(draft, ref))
+    errs += H._settings_parity().committed_vs_live(settings_ref, draft.get('settings'))
+    if not scratch:
+        _, roles = H._module('scripts/pair_roles.py', 'pair_roles').load(H.ROLES_FILE)
+        orig = H._read(next(r['orig'] for r in roles if r['copy'] == copy_id)) or {}
+        errs += H._settings_parity().copy_vs_original(orig.get('settings'), draft.get('settings'), spec.get('settings_allow', {}))
+    return errs
+
+
 def _state(after):
     """What the copy reads back as after a write, and the next step from that state (lane T review, R1d)."""
     if after is None:
@@ -462,6 +491,11 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
         if e.code:
             raise Refused('the export is not sanitised: ' + ' '.join(out.getvalue().split())[:200])
     cur = H._draft(_fresh(copy_id, spec, scratch))
+    errs = parity_errs(spec, copy_id, cur, committed, committed.get('settings'), scratch)
+    if errs:
+        raise Refused('the live workflow is not its committed export (exports/content parity, ruling R2b): nothing was '
+                      'kept or written — a rollback must return to a reviewed state; restore parity first: '
+                      + '; '.join(errs[:3]))
     hooks_before = webhook_ids(cur)
     try:
         body = H.fill_by_path(cur, export)
@@ -520,6 +554,10 @@ def settings_step(spec_path, copy_id, export_arg, allow, delta, snapshot, scratc
     if H.content_drift(d, ref, H._ccp().placeholder_smap(d, ref)):
         raise Refused('the live copy does not hold the edit yet: settings are applied LAST, after the edit and its probes')
     cur = H._draft(_fresh(copy_id, spec, scratch))
+    errs = parity_errs(spec, copy_id, cur, export, committed.get('settings'), scratch)
+    if errs:
+        raise Refused('the live workflow is not the approved edit with the committed settings (parity, ruling R2b): '
+                      'nothing was kept or written: ' + '; '.join(errs[:3]))
     body = json.loads(json.dumps(cur))
     body['settings'] = dict(body.get('settings') or {}, **declared)
     snapshot_write(snapshot, copy_id, spec_path, cur)
@@ -659,7 +697,8 @@ def probe(spec_path, copy_id):
     else:
         ok = oa_probe(path, orig, copy_id)
     if not ok:
-        raise Refused('the probe is RED: the copy does not answer as production must; restore it from the committed export')
+        raise Refused('the probe is RED: the copy does not answer as production must; deactivate it and `rollback` from '
+                      "the put's snapshot")
     return 0
 
 

@@ -215,13 +215,21 @@ def strip(node, drop=()):
     return {k: v for k, v in node.items() if k not in IGNORED and k not in drop}
 
 
+def _edge(src, i, e):
+    """One main connection as 'SRC|OUT|DST|IN'. An item under `main` whose own `type` is not `main` gets '|type=<t>'
+    appended (Codex R2, deploy MEDIUM: the type was dropped, so a `main` → `ai_tool` change compared equal); such an
+    edge can never equal a declared one, so the change is red as an undeclared edge. No committed export has one."""
+    t = e.get('type', 'main')
+    return f"{src}|{i}|{e.get('node')}|{e.get('index', 0)}" + ('' if t == 'main' else f'|type={t}')
+
+
 def edge_list(wf):
-    """The main connection graph as a LIST of 'SRC|OUT|DST|IN' strings (a repeated edge appears twice)."""
+    """The main connection graph as a LIST of edge strings (_edge; a repeated edge appears twice)."""
     out = []
     for src, by_type in (wf.get('connections') or {}).items():
         for i, lst in enumerate((by_type or {}).get('main') or []):
             for e in lst or []:
-                out.append(f"{src}|{i}|{e.get('node')}|{e.get('index', 0)}")
+                out.append(_edge(src, i, e))
     return out
 
 
@@ -373,8 +381,8 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, sett
                 continue
             ol, cl = (oc.get(k) or {}).get('main') or [], (cc.get(k) or {}).get('main') or []
             for i in range(max(len(ol), len(cl))):
-                keep_o = [f"{k}|{i}|{x.get('node')}|{x.get('index', 0)}" for x in (ol[i] if i < len(ol) else None) or []]
-                keep_c = [f"{k}|{i}|{x.get('node')}|{x.get('index', 0)}" for x in (cl[i] if i < len(cl) else None) or []]
+                keep_o = [_edge(k, i, x) for x in (ol[i] if i < len(ol) else None) or []]
+                keep_c = [_edge(k, i, x) for x in (cl[i] if i < len(cl) else None) or []]
                 if [e for e in keep_o if e not in rem_e] != [e for e in keep_c if e not in add_e]:
                     errs.append(f"GATE node '{k}' output {i}: its connections changed beyond the declared edges (order included)")
     elif canon(oc) != canon(cc):
@@ -646,6 +654,15 @@ def selftest():
     ocases.append(("gate OA: 'Verify Owner Signature' in --allow, made always-valid", oexp, m, {'Verify Owner Signature'}, {}, False))
     for g in ogate:
         ocases.append((f"gate OA: '{g}' in --allow, UNCHANGED", oexp, _copy.deepcopy(oexp), {g}, {}, False))
+    # CONNECTION TYPE (Codex R2, deploy MEDIUM): an existing gate edge's type changed, beside the ruled delta, and on an
+    # untouched non-gate source — both red
+    m = with_tag(edited(), 'Verify Turnstile', 'Turnstile Valid?')
+    m['connections']['Turnstile Valid?']['main'][0][0]['type'] = 'ai_tool'
+    dcases.append(("type: 'Turnstile Valid?' output 0 changed main → ai_tool beside the ruled delta", m, {medit}, ruled, False))
+    m = with_tag(edited(), 'Verify Turnstile', 'Turnstile Valid?')
+    src_t = next(k for k, v in m['connections'].items() if not is_gate(k, mexp) and k != TAG and (v.get('main') or [[]])[0])
+    m['connections'][src_t]['main'][0][0]['type'] = 'ai_tool'
+    dcases.append((f"type: an untouched source's edge changed main → ai_tool", m, {medit}, ruled, False))
     # POSITION LOCK (M-c): Reject Bot Request moved below the added tag reverses their v1 order on both Turnstile outputs
     m = with_tag(edited(), 'Verify Turnstile', 'Turnstile Valid?'); node(m, 'Reject Bot Request')['position'] = [2464, 4400]
     dcases.append(('position: Reject Bot Request moved below the tag (no delta declares a move)', m, {medit}, ruled, False))

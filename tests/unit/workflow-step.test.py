@@ -21,7 +21,10 @@ file, a path in the repo or a missing directory: refused, 0 PUT; a put refused e
 and reads back == the pre-edit workflow exactly; it is RED when n8n changes a credential id, a setting or the connections,
 or answers 500, and refused (no write) for an active copy, another workflow's or spec's snapshot, a snapshot that fails
 a webhook invariant (Turnstile literal off, trigger path moved — security T-1), a path in the repo (also when the repo
-is reached through a symlink — T-2), a missing or malformed file. T-4: put never sends a setting (the approved delta's setting is not live after put, and a
+is reached through a symlink — T-2), a missing or malformed file. R2b (Codex R2 deploy HIGH/MEDIUM): put and settings
+refuse, before keeping a snapshot, a live copy that is not its committed export (a gate weakened by hand, a drifted
+setting, a placeholder; after an edit, a second put) — so every snapshot is a reviewed state; an edge whose connection
+type changed is refused. T-4: put never sends a setting (the approved delta's setting is not live after put, and a
 setting changing across the PUT is RED); `settings` is refused before the edit is live, on an active copy, for Main's
 delta, an unapproved value and an extra key, applies exactly the approved key with nodes unchanged, is RED when n8n drops
 the value or changes a node, and rollback to the pre-edit snapshot undoes edit and setting. rehearse-rollback runs put →
@@ -328,12 +331,15 @@ try:
         rc, out = run(fake, ['put', P, cid, SP, '--allow', *E1])
         case(f'put is RED when {label}', rc == 1, f'rc {rc}')
 
-    # 5. restore: the copy holds the edit; put the COMMITTED export (REV:PATH) → read back == committed
+    # 5. R2b DEPLOY: put keeps a snapshot only of a REVIEWED state — the live copy must equal its committed export.
+    #    After an edit the copy holds the (uncommitted-as-copy-export) edit, so a second put is refused; the undo is
+    #    `rollback` to the snapshot, never "put the committed export".
     committed, fake, oid, cid = world()
     run(fake, ['put', P, cid, SP, '--allow', *E1])
     rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])
-    dr = drift(fake, cid, committed)
-    case('restore from the committed export reads back == committed', rc == 0 and fake.puts() == 2 and not dr, f'rc {rc} · drift {dr[:1]}')
+    case('R2b: a put while the live copy is NOT its committed export (it holds the edit) → refused, 0 more PUT, no snapshot',
+         rc == 1 and fake.puts() == 1 and 'not its committed export' in out and not os.path.exists(run.last_snap),
+         f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
 
     # 6. an unsanitised export (a real-looking chat id where the chat-id placeholder was, in `parameters` of a node put
     #    into --allow, so ONLY the sanitise check can refuse it) is refused before any PUT
@@ -803,6 +809,48 @@ try:
     case('put: PUT answers 500 → RED and the message names the snapshot to roll back from', rc == 1 and run.last_snap in out
          and os.path.isfile(run.last_snap), f'rc {rc}')
 
+    # 15a. R2b DEPLOY (Codex R2 deploy HIGH): a gate weakened IN THE LIVE COPY by hand (the Turnstile literal still on)
+    #      — put refuses before keeping a snapshot, so no rollback can ever restore it; likewise Owner Actions'
+    #      signature check, a setting drifted live, and a live copy that carries a sanitize placeholder.
+    def live_gate_true(w):
+        n = next(n for n in w['nodes'] if n['name'] == 'Turnstile Valid?')
+        n['parameters'] = dict(n['parameters'], conditions={'options': {}, 'conditions': [], 'combinator': 'and'})
+
+    def live_sig_valid(w):
+        next(n for n in w['nodes'] if n['name'] == 'Verify Owner Signature')['parameters']['jsCode'] = 'return [{json: {valid: true}}];'
+
+    def live_setting(w):
+        w['settings'] = dict(w.get('settings') or {}, saveDataSuccessExecution='none')
+
+    def live_placeholder(w):
+        n = next(n for n in w['nodes'] if n.get('credentials'))
+        k = next(iter(n['credentials']))
+        n['credentials'][k] = dict(n['credentials'][k], id='REPLACE_WITH_POSTGRES_CREDENTIAL_ID')
+    for label, spec, exp, df, fn in (("Main: 'Turnstile Valid?' made always-true in the live copy", M, SM, DM, live_gate_true),
+                                     ("Owner Actions: 'Verify Owner Signature' made always-valid in the live copy", O, SO, DO, live_sig_valid),
+                                     ('Owner Actions: a setting drifted in the live copy', O, SO, DO, live_setting),
+                                     ('Main: the live copy carries a sanitize placeholder', M, SM, DM, live_placeholder)):
+        committed, fake, oid, cid = world(os.path.splitext(os.path.basename(spec))[0])
+        fn(fake.wfs[cid])
+        rc, out = run(fake, ['put', spec, cid, exp, '--delta-file', df])
+        case(f'R2b put refused, 0 PUT, NO snapshot: {label}', rc == 1 and fake.puts() == 0 and 'committed export' in out
+             and not os.path.exists(run.last_snap), f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+    for label, who in (('copy AND original drifted alike (only the committed comparison sees it)', 'both'),
+                       ("the ORIGINAL's settings differ from the copy's (only the copy-vs-original comparison sees it)", 'orig')):
+        committed, fake, oid, cid = world('main')
+        for w in ([fake.wfs[cid], fake.wfs[oid]] if who == 'both' else [fake.wfs[oid]]):
+            w['settings'] = dict(w.get('settings') or {}, timezone='Europe/Vienna')
+        rc, out = run(fake, ['put', M, cid, SM, '--delta-file', DM])
+        case(f'R2b put refused, 0 PUT: settings — {label}', rc == 1 and fake.puts() == 0 and 'settings' in out,
+             f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+    committed, fake, oid, cid = world('owner-actions')
+    run(fake, ['put', O, cid, SO, '--delta-file', DO])
+    live_setting(fake.wfs[cid])   # the edit is live, but a setting moved before the settings step
+    n0 = fake.puts()
+    rc, out = run(fake, ['settings', O, cid, SO, '--delta-file', DO])
+    case('R2b settings refused, 0 PUT, no snapshot: the live settings are not the committed ones before the step',
+         rc == 1 and fake.puts() == n0 and 'parity' in out and not os.path.exists(run.last_snap), f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+
     # 15b. lane T review (R1d): the behaviours no earlier case pinned
     def applied_but(status, fake):   # n8n applies the PUT and still answers `status`
         real = fake.api
@@ -1130,6 +1178,12 @@ try:
     committed, fake, oid, cid = world('main')
     rc, out = run(fake, ['put', M, cid, repo_file(mv), '--delta-file', DM])
     case('M-c put: Reject Bot Request moved below the tag → refused, 0 PUT', rc == 1 and fake.puts() == 0 and 'node moved' in out, f'rc {rc}')
+    ty = copy.deepcopy(em)   # Codex R2 deploy MEDIUM, its exact case: the approved delta unchanged, one edge's type changed
+    ty['connections']['Turnstile Valid?']['main'][0][0]['type'] = 'ai_tool'
+    committed, fake, oid, cid = world('main')
+    rc, out = run(fake, ['put', M, cid, repo_file(ty), '--delta-file', DM])
+    case("R2b put: 'Turnstile Valid?' output 0 changed main → ai_tool with the approved delta → refused, 0 PUT",
+         rc == 1 and fake.puts() == 0 and 'type=ai_tool' in out, f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
 
     # 21. M-b: a POST that returns no usable id (none · malformed · curl's 0) is exit 3 with the find-by-name instruction,
     #     no DELETE, and never "deleted"; a rehearsal refused before the POST says no scratch was created.
