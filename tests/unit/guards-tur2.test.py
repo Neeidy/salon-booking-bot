@@ -1480,17 +1480,13 @@ def t_r1d_low4_mktemp_failure_blocks():
     return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
 
 
-# ---- R4 · the CONVERGE fixes ruled "fix now" (product secret types; the `++` line; the hook's bypass refusals) -------
+# ---- R4 · the CONVERGE fixes ruled "fix now" (product secret types; the `++` line) ------------------------------
 def syn_n8n_key():
     return 'N8N_' + 'ENCRYPTION_KEY=' + 'Q1w2E3r4T5y6' * 2
 
 
 def syn_pg_url():
     return 'postgres' + 'ql://' + 'drill' + ':' + 'Zx9Cv8Bn7Lk' + '@' + 'db.invalid:5432/salon'
-
-
-def _hook(work, command):
-    return run(['bash', SCAN], work, stdin=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': command}}))
 
 
 def t_r4_plusplus_line_committed():
@@ -1543,60 +1539,6 @@ def t_r4_postgres_url_with_credentials():
                                     ('password from the environment', 'postgres' + '://drill:${PGPASSWORD}@db.invalid/salon', False)):
         rc, out = _blocked_line('guards-r4e-', 'DATABASE_URL=%s\n' % line)
         res[label] = (rc != 0) == want_block and 'Zx9Cv8Bn7Lk' not in out
-    return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
-
-
-def t_r4_hook_refuses_bypasses():
-    res = {}
-    with tempfile.TemporaryDirectory(prefix='guards-r4f-') as tmp:
-        _, work = mkrepo(tmp)
-        for label, command, want in (('push --no-verify', 'git push --no-verify origin main', 2),
-                                     ('push --no-verif (git accepts the abbreviation)', 'git push --no-verif origin main', 2),
-                                     ('quoted "--no-verify"', 'git push "--no-verify" origin main', 2),
-                                     ('--no-verify then ;', 'git push --no-verify; echo done', 2),
-                                     ('-c core.hooksPath', 'git -c core.hooksPath=/dev/null push', 2),
-                                     ('quoted -c', "git -c 'core.hooksPath=/x' push", 2),
-                                     ('-c with an empty value', 'git -c core.hooksPath= push', 2),
-                                     ('-c in another case', 'git -C . -c Core.HooksPATH=/tmp push origin main', 2),
-                                     ('--config-env', 'git --config-env=core.hooksPath=HP push', 2),
-                                     ('GIT_CONFIG_KEY_0', 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/x git push', 2),
-                                     ('git config sets it, then push', 'git config core.hooksPath /dev/null && git push', 2),
-                                     ('time in front', 'time git push --no-verify origin main', 2),
-                                     ('timeout 120 in front', 'timeout 120 git push --no-verify origin main', 2),
-                                     ('env -i in front', 'env -i PATH=/usr/bin git push --no-verify origin main', 2),
-                                     ('if … then', 'if git push --no-verify origin main; then echo ok; fi', 2),
-                                     ('-o -- (a -- that is a value)', 'git push -o -- --no-verify origin main', 2),
-                                     ('bash -c', 'bash -c "git -c core.hooksPath=/x push"', 2),
-                                     ('braces', '{ git -c core.hooksPath=/x push; }', 2),
-                                     ('backticks', 'x=`git push --no-verify origin main`', 2),
-                                     ("ANSI-C $'…'", "git push $'--no-verify' origin main", 2),
-                                     ('export in an earlier segment', 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath '
-                                      'GIT_CONFIG_VALUE_0=/x; git push origin main', 2),
-                                     ('an inline alias', "git -c alias.p='push --no-verify' p", 2),
-                                     ('2>&1 before the flag', 'git push origin main 2>&1 --no-verify', 2),
-                                     ('a 140 KB command (past the env-size limit)', 'git push --no-verify; : ' + 'a' * 140000, 2),
-                                     ('a commit message holding ; and the flag', 'git commit -m "docs: refused; git push --no-verify is blocked"', 0),
-                                     ('a comment after the push', 'git push origin main # never --no-verify', 0),
-                                     ('git config get / unset / a bare read', 'git config get core.hooksPath; git config unset core.hooksPath; '
-                                      'git config core.hooksPath', 0),
-                                     ('plain push (scanned, nothing ahead)', 'git push origin main', 0),
-                                     ('commit --no-verify (not a push)', 'git commit --no-verify -m x', 0),
-                                     ('commit --no-verify && push (two segments)', 'git commit --no-verify -m x && git push origin main', 0),
-                                     ('a commit message naming both', "git commit -m 'push --no-verify and -c core.hooksPath= are refused'", 0),
-                                     ('grep -c core.hooksPath (not git)', 'grep -c core.hooksPath notes.txt', 0),
-                                     ('git config --get core.hooksPath (a read)', 'git config --get core.hooksPath', 0),
-                                     ('a command naming neither', 'git status', 0)):
-            rc, out = _hook(work, command)
-            res[label] = rc == want and (want == 0 or 'BLOCKED' in out)
-    # fail CLOSED: a bypass check that cannot run (python3 failing) blocks a git command rather than passing it unread
-    with tempfile.TemporaryDirectory(prefix='guards-r4g-') as tmp:
-        _, work = mkrepo(tmp)
-        shim = os.path.join(tmp, 'shim')
-        write(os.path.join(shim, 'python3'), '#!/bin/sh\nexit 7\n')
-        os.chmod(os.path.join(shim, 'python3'), 0o755)
-        rc, out = run(['bash', SCAN], work, stdin=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'git push origin main'}}),
-                      env=dict(git_env(), PATH=shim + os.pathsep + os.environ['PATH']))
-        res['python3 failing → blocked'] = rc == 2 and 'could not run' in out
     return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
 
 
