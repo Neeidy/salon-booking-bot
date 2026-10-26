@@ -3,6 +3,8 @@
  * O4 the failure texts, and the DEAD post-write marker chain). Offline: the changed Code nodes and expressions run from
  * the STAGED export with fake inputs; the graph claims are read from it.
  * WHICH FILE: n8n/staged/workflow.owner-actions.copy.sanitized.json; argv[2] overrides it, for mutants.
+ * R2b OA-1 (Codex R2, target 11): the marker is written only inside the release statement and only when its UPDATE
+ * released a row; a replay is "the marker exists"; a request does not release a handoff written after its signed ts.
  * What it does NOT prove: the statement's behaviour on Postgres under concurrency — tests/db/claim-race.test.sh runs
  * that SQL verbatim, in two sessions, as salon_app.
  */
@@ -22,13 +24,23 @@ const expr = (v) => String(v).replace(/^=\{\{/, '').replace(/\}\}$/, '');
 const evalExpr = (v, $json, refs = {}) => new Function('$', '$json', `return (${expr(v)});`)(stub(refs), $json);
 const CTX = { action: 'release_handoff', record_id: 'recAAAAAAAAAAAAAA', messageId: 'd11-1-abc', ts: 1 };
 
-test('O1: one statement — claim, then release only if claimed AND still the same handoff, else one sentinel row', () => {
+test('O1 (R2b OA-1): one statement — release only if unmarked, still the same handoff and not newer than the request; the marker ONLY on a release', () => {
   const p = node('Release Handoff Lock').parameters;
-  assert.match(p.query, /^WITH claim AS \(INSERT INTO salon\.processed_messages \(message_id, sender_key, channel\) VALUES \(\$3, 'owner:dashboard', 'owner'\) ON CONFLICT \(message_id\) DO NOTHING RETURNING 1\)/);
-  assert.match(p.query, /UPDATE salon\.conversations SET stage = 'new', last_intent = '' WHERE id = \$1 AND stage = 'handoff' AND salon\.at_ts\(last_updated\) = \$2 AND EXISTS \(SELECT 1 FROM claim\)/);
-  assert.match(p.query, /UNION ALL SELECT NULL::text AS id, NULL::text AS "createdTime", jsonb_build_object\('released', false, 'conflict', CASE WHEN EXISTS \(SELECT 1 FROM claim\) THEN 'state_changed' ELSE 'replay' END\) AS fields WHERE NOT EXISTS \(SELECT 1 FROM upd\)$/);
+  assert.match(p.query, /^WITH upd AS \(UPDATE salon\.conversations SET stage = 'new', last_intent = '' WHERE id = \$1 AND stage = 'handoff' AND salon\.at_ts\(last_updated\) = \$2 AND last_updated <= to_timestamp\(\$4::double precision\) \+ interval '1 second' AND NOT EXISTS \(SELECT 1 FROM salon\.processed_messages WHERE message_id = \$3\) RETURNING id,/);
+  assert.match(p.query, /mark AS \(INSERT INTO salon\.processed_messages \(message_id, sender_key, channel\) SELECT \$3, 'owner:dashboard', 'owner' FROM upd ON CONFLICT \(message_id\) DO NOTHING RETURNING 1\)/,
+    'the marker is inserted FROM upd: no released row, no marker');
+  assert.doesNotMatch(p.query, /VALUES \(\$3/, 'no unconditional claim insert anywhere in the statement');
+  assert.match(p.query, /UNION ALL SELECT NULL::text AS id, NULL::text AS "createdTime", jsonb_build_object\('released', false, 'conflict', CASE WHEN EXISTS \(SELECT 1 FROM salon\.processed_messages WHERE message_id = \$3\) THEN 'replay' ELSE 'state_changed' END\) AS fields WHERE NOT EXISTS \(SELECT 1 FROM upd\)$/);
   assert.doesNotMatch(p.query, /SET[^W]*last_updated\s*=/, 'no last_updated bump: the purge 30-day clock reads it');
-  assert.equal(p.options.queryReplacement, '={{ [$json.target_record, $json.target_last_updated, $json.messageId] }}');
+  assert.equal(p.options.queryReplacement, '={{ [$json.target_record, $json.target_last_updated, $json.messageId, $json.ts] }}');
+});
+test('O1 (R2b): the signed ts reaches Release Handoff Lock — every node between the signature check and it spreads its input', () => {
+  const sig = node('Verify Owner Signature').parameters.jsCode;
+  assert.match(sig, /ts: Number\.isFinite\(ts\) \? ts : null/);
+  assert.match(node('Validate Owner Action').parameters.jsCode, /return \[\{ json: \{ \.\.\.j,/);
+  const row = vrt([{ id: 'recAAAAAAAAAAAAAA', fields: { stage: 'handoff', last_updated: new Date().toISOString() } }]);
+  assert.equal(row.ts, CTX.ts, 'Validate Release Target carries ts');
+  assert.match(node('Owner Replay Seen?').parameters.jsCode, /return \[\{ json: \{ \.\.\.ctx,/);
 });
 test('O1: the sentinel row does NOT satisfy Release Wrote?; a released row does; an error item does not', () => {
   const cond = node('Release Wrote?').parameters.conditions.conditions[0].leftValue;
@@ -64,7 +76,10 @@ const failText = ($json, refs) => new Function('$', '$json', node('Build Release
 test('O4: three honest texts — written-but-unverified, nothing-written (replay / changed), write failed', () => {
   assert.match(failText({ error: { message: 'read failed' } }, { 'Re-read Released Conversation': {} }), /WRITTEN but could not be verified/);
   assert.match(failText({ id: null, fields: { released: false, conflict: 'replay' } }, {}), /duplicate of a request already handled/);
-  assert.match(failText({ id: null, fields: { released: false, conflict: 'state_changed' } }, {}), /changed after the dashboard read it/);
+  const changed = failText({ id: null, fields: { released: false, conflict: 'state_changed' } }, {});
+  assert.match(changed, /changed after the dashboard read it/);
+  assert.match(changed, /same request sent at the same moment released it/, 'R2b M3: a concurrent duplicate that released is named too');
+  assert.match(changed, /nothing was written by this request/);
   assert.match(failText({ error: { message: 'permission denied' } }, {}), /write FAILED — the lock was NOT opened/);
 });
 test('DEAD: the post-write marker chain is gone; a verified release goes straight to the success alert', () => {
@@ -76,6 +91,11 @@ test('DEAD: the post-write marker chain is gone; a verified release goes straigh
   assert.ok(!JSON.stringify(wf).includes('marker_unwritten'));
   assert.deepEqual(wf.connections['Write Verified?'].main[0].map((e) => e.node), ['Build Owner Alert (Release)']);
   assert.deepEqual(wf.connections['Write Verified?'].main[1].map((e) => e.node), ['Build Release Failure Alert']);
+});
+test('R2b M2: no note on the canvas still describes the old claim (an INSERT before the release)', () => {
+  const s = JSON.stringify(wf);
+  assert.ok(!s.includes('CLAIMS the message id'), 'the old claim wording survives somewhere');
+  assert.match(node('Sticky — 4').parameters.content, /writes the marker ONLY when that UPDATE released a row/);
 });
 test('DEAD: no note still calls the release safe because the write is idempotent', () => {
   const s4 = node('Sticky — 4').parameters.content;

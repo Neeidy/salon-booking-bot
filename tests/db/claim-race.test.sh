@@ -2,13 +2,14 @@
 # claim-race.test.sh — Phase 7-2 Tur 2: the two claims a unit test cannot make, measured on a real Postgres.
 #   F1 (Main, R-1a): `Check Processed`'s claim. Two sessions insert the SAME message id at once: exactly one gets the
 #      row; the second WAITS for the first to commit and then gets none (it does not also read "absent").
-#   O1 (Owner Actions): `Release Handoff Lock`'s one statement. A release, then a NEWER handoff written by Main, then a
-#      delayed duplicate (same message id) and a stale request (other message id, old last_updated): neither writes;
-#      each gets the sentinel row (`replay` / `state_changed`). Two different ids racing on one handoff: one release.
+#   O1 (Owner Actions): `Release Handoff Lock`'s one statement (R2b OA-1: the marker only when its UPDATE released a
+#      row; replay = the marker exists; no handoff written after the signed request's ts). A release, then a NEWER
+#      handoff: a delayed duplicate gets `replay`, a stale request `state_changed` and no marker; a request refused
+#      `state_changed` and retried stays `state_changed`; the same request twice at once releases once; two ids, once.
 # The SQL is read from the STAGED exports and run verbatim (PREPARE … AS <query>), as `salon_app` (the n8n role,
 # DML only), never as the superuser, on 001+002+003 applied to an empty database.
-# Each scenario has a mutant that must go RED: the pre-Tur-2 read-then-insert (F1) and the release without the
-# version token (O1). Not in check-all: it needs Docker. Run: bash tests/db/claim-race.test.sh [IMAGE]
+# Each scenario has a mutant that must go RED: the pre-Tur-2 read-then-insert (F1); the release without the version
+# token, without the request-time bound, and with the marker written on the sentinel path too (O1). Not in check-all: it needs Docker. Run: bash tests/db/claim-race.test.sh [IMAGE]
 #
 # The container is throwaway: labelled, no network, local-socket `trust` auth, removed on exit. The role passwords
 # 002 requires are generated at run time and passed by name (see below); nothing connects over a network.
@@ -50,7 +51,15 @@ EOF
 CLAIM_Q="$(q "$ROOT/n8n/staged/workflow.main.copy.sanitized.json" 'Check Processed')"
 REL_Q="$(q "$ROOT/n8n/staged/workflow.owner-actions.copy.sanitized.json" 'Release Handoff Lock')"
 OLD_CHECK_Q="SELECT id FROM salon.processed_messages WHERE message_id = \$1"            # the pre-Tur-2 read
-REL_NO_TOKEN_Q="${REL_Q//AND salon.at_ts(last_updated) = \$2 /}"                         # the O1 mutant
+REL_NO_TOKEN_Q="${REL_Q//AND salon.at_ts(last_updated) = \$2 /}"                         # O1 mutant: no version token
+TS_BOUND='AND last_updated <= to_timestamp($4::double precision) + interval '"'"'1 second'"'"' '
+MARK_FROM_UPD='SELECT $3, '"'"'owner:dashboard'"'"', '"'"'owner'"'"' FROM upd'
+MARK_ALWAYS='VALUES ($3, '"'"'owner:dashboard'"'"', '"'"'owner'"'"')'
+MARK_CHECK='AND NOT EXISTS (SELECT 1 FROM salon.processed_messages WHERE message_id = $3) '
+REL_NO_MARK_Q="${REL_Q//"$MARK_CHECK"/}"                                 # R2b mutant: no marker check in the UPDATE
+REL_NO_TS_Q="${REL_Q//"$TS_BOUND"/}"                                     # R2b mutant: no request-time bound
+REL_MARK_ANY_Q="${REL_Q//"$MARK_FROM_UPD"/"$MARK_ALWAYS"}"               # R2b mutant: the marker on the sentinel path too
+[ "$REL_NO_TS_Q" != "$REL_Q" ] && [ "$REL_MARK_ANY_Q" != "$REL_Q" ] && [ "$REL_NO_MARK_Q" != "$REL_Q" ] || { echo "claim-race: an R2b mutant did not apply (query text changed?)"; exit 2; }
 [ "$REL_NO_TOKEN_Q" != "$REL_Q" ] || { echo "claim-race: the O1 mutant did not apply (query text changed?)"; exit 2; }
 
 # ── F1: two sessions claim the same id ───────────────────────────────────────────────────────────────────────
@@ -81,38 +90,81 @@ wait "$mp"
 [ "$mb" = 0 ] && ok "F1 mutant (read-then-record): the second run ALSO reads absent → would process again (RED as expected)" \
   || bad "F1 mutant did not reproduce the race (second read found $mb)"
 
-# ── O1: the delayed duplicate and the stale request ──────────────────────────────────────────────────────────
+# ── O1 (R2b OA-1): the marker only on a real release; replay = the marker exists; no handoff newer than the request ──
 su -c "INSERT INTO salon.conversations (id, sender_key, stage, last_intent, last_updated) VALUES
        ('recCRTEST00000001','widget:w-claim-race','handoff','handoff','2030-01-01T10:00:00.000Z'),
-       ('recCRTEST00000002','widget:w-claim-race2','handoff','handoff','2030-01-01T10:00:00.000Z')" >/dev/null
-rel() { # rel <query> <record> <token> <message id> → "<id or NULL>|<fields>"
-  printf "PREPARE x(text,text,text) AS %s;\nEXECUTE x('%s','%s','%s');\n" "$1" "$2" "$3" "$4" | app -F '|' \
+       ('recCRTEST00000002','widget:w-claim-race2','handoff','handoff','2030-01-01T10:00:00.000Z'),
+       ('recCRTEST00000003','widget:w-claim-race3','handoff','handoff','2030-01-01T10:00:00.000Z')" >/dev/null
+rel() { # rel <query> <record> <token> <message id> <ts> → "<id or empty>|<fields>"
+  printf "PREPARE x(text,text,text,text) AS %s;\nEXECUTE x('%s','%s','%s','%s');\n" "$1" "$2" "$3" "$4" "$5" | app -F '|' \
     | python3 -c "import sys; l=[x for x in sys.stdin.read().splitlines() if x]; print(l[-1] if l else 'NO-ROW')" | cut -d'|' -f1,3
 }
-TOK='2030-01-01T10:00:00.000Z'
-r1="$(rel "$REL_Q" recCRTEST00000001 "$TOK" cr-o1-A)"
-[[ "$r1" == recCRTEST00000001\|* ]] && ok "O1: the first signed release writes and returns the row" || bad "O1: first release returned '$r1'"
-su -c "UPDATE salon.conversations SET stage='handoff', last_intent='handoff', last_updated='2030-01-01T11:00:00.000Z' WHERE id='recCRTEST00000001'" >/dev/null
-r2="$(rel "$REL_Q" recCRTEST00000001 "$TOK" cr-o1-A)"
-r3="$(rel "$REL_Q" recCRTEST00000001 "$TOK" cr-o1-B)"
-st="$(su -c "SELECT stage FROM salon.conversations WHERE id='recCRTEST00000001'")"
-[[ "$r2" == *'"conflict": "replay"'* ]] && ok "O1: the delayed duplicate (same id) gets the sentinel 'replay'" || bad "O1: delayed duplicate returned '$r2'"
-[[ "$r3" == *'"conflict": "state_changed"'* ]] && ok "O1: a stale request (old last_updated) gets the sentinel 'state_changed'" || bad "O1: stale request returned '$r3'"
-[ "$st" = handoff ] && ok "O1: the NEWER handoff is still locked after both" || bad "O1: the newer handoff became '$st'"
+marks() { su -c "SELECT count(*) FROM salon.processed_messages WHERE message_id = '$1'"; }
+stage() { su -c "SELECT stage FROM salon.conversations WHERE id = '$1'"; }
+epoch() { python3 -c "import datetime,sys; print(int(datetime.datetime.fromisoformat(sys.argv[1]).timestamp()))" "$1"; }
+TOK='2030-01-01T10:00:00.000Z'; NEW='2030-01-01T11:00:00.000Z'
+TS="$(epoch 2030-01-01T10:30:00+00:00)"     # the click: after the first handoff, before the newer one
+TS2="$(epoch 2030-01-01T11:30:00+00:00)"    # a later click: after the newer handoff
+newer() { su -c "UPDATE salon.conversations SET stage='handoff', last_intent='handoff', last_updated='$NEW' WHERE id='$1'" >/dev/null; }
+
+r1="$(rel "$REL_Q" recCRTEST00000001 "$TOK" cr-o1-A "$TS")"
+[[ "$r1" == recCRTEST00000001\|* ]] && [ "$(marks cr-o1-A)" = 1 ] && ok "O1: a signed release writes, returns the row, and leaves ONE marker" \
+  || bad "O1: first release returned '$r1', markers $(marks cr-o1-A)"
+newer recCRTEST00000001
+r2="$(rel "$REL_Q" recCRTEST00000001 "$NEW" cr-o1-A "$TS")"
+[[ "$r2" == *'"conflict": "replay"'* ]] && [ "$(stage recCRTEST00000001)" = handoff ] \
+  && ok "O1: a delayed duplicate after a real release (fresh token) → 'replay', the newer handoff stays locked" || bad "O1: delayed duplicate returned '$r2'"
+# ONLY the marker can refuse this one (R2b review M1): the same message id again, with a ts AFTER the newer handoff and
+# the fresh token — stage, token and the ts bound all admit it.
+r2m="$(rel "$REL_Q" recCRTEST00000001 "$NEW" cr-o1-A "$TS2")"
+[[ "$r2m" == *'"conflict": "replay"'* ]] && [ "$(stage recCRTEST00000001)" = handoff ] \
+  && ok "O1: the released id again with a LATER ts and the fresh token → 'replay' (only the marker refuses it)" || bad "O1: released id with a later ts returned '$r2m'"
+r3="$(rel "$REL_Q" recCRTEST00000001 "$TOK" cr-o1-B "$TS2")"
+[[ "$r3" == *'"conflict": "state_changed"'* ]] && [ "$(marks cr-o1-B)" = 0 ] \
+  && ok "O1: a stale request (old token) → 'state_changed' and NO marker" || bad "O1: stale request returned '$r3', markers $(marks cr-o1-B)"
 [[ "${r2%%|*}" == "" ]] && [[ "${r3%%|*}" == "" ]] && ok "O1: the sentinel carries no id (Release Wrote? reads !!\$json.id)" || bad "O1: a sentinel carried an id ('$r2' / '$r3')"
-# Mutant: no version token → the stale request releases the newer handoff.
-m3="$(rel "$REL_NO_TOKEN_Q" recCRTEST00000001 "$TOK" cr-o1-C)"
-[[ "$m3" == recCRTEST00000001\|* ]] && ok "O1 mutant (no last_updated condition): the stale request RELEASES the newer handoff (RED as expected)" \
-  || bad "O1 mutant did not reproduce the defect ('$m3')"
-# Two different ids racing on one handoff: one release, one 'state_changed'.
-( { printf "PREPARE x(text,text,text) AS %s;\nBEGIN;\nEXECUTE x('recCRTEST00000002','%s','cr-o1-R1');\nSELECT pg_sleep(2);\nCOMMIT;\n" "$REL_Q" "$TOK"; } | app >/dev/null ) &
+# THE CODEX R2 CASE: request C validated the first handoff; a release + a newer handoff land before C writes.
+newer recCRTEST00000003
+c1="$(rel "$REL_Q" recCRTEST00000003 "$TOK" cr-o1-C "$TS")"     # C's own attempt: its token is the old one
+c2="$(rel "$REL_Q" recCRTEST00000003 "$NEW" cr-o1-C "$TS")"     # C again: Find Target now reads the NEWER token
+[[ "$c1" == *'"conflict": "state_changed"'* ]] && [[ "$c2" == *'"conflict": "state_changed"'* ]] && [ "$(marks cr-o1-C)" = 0 ] \
+  && [ "$(stage recCRTEST00000003)" = handoff ] \
+  && ok "O1 (R2b): state_changed, then the SAME request again → state_changed (not ok), no marker, the newer handoff stays locked" \
+  || bad "O1 (R2b): retry after state_changed → '$c1' then '$c2', markers $(marks cr-o1-C), stage $(stage recCRTEST00000003)"
+m1="$(rel "$REL_MARK_ANY_Q" recCRTEST00000003 "$TOK" cr-o1-M "$TS")"
+m2="$(rel "$REL_MARK_ANY_Q" recCRTEST00000003 "$NEW" cr-o1-M "$TS")"
+[[ "$m2" == *'"conflict": "replay"'* ]] && ok "R2b mutant (marker written on the sentinel path): the retry reads as a REPLAY — 200 ok, nothing released (RED as expected)" \
+  || bad "R2b mutant (marker on the sentinel path) did not reproduce the defect ('$m1' / '$m2')"
+m3="$(rel "$REL_NO_TS_Q" recCRTEST00000003 "$NEW" cr-o1-N "$TS")"
+[[ "$m3" == recCRTEST00000003\|* ]] && ok "R2b mutant (no request-time bound): the retry RELEASES the newer handoff it never saw (RED as expected)" \
+  || bad "R2b mutant (no request-time bound) did not reproduce the defect ('$m3')"
+su -c "UPDATE salon.conversations SET stage='handoff', last_updated='$NEW' WHERE id='recCRTEST00000003'" >/dev/null
+m5="$(rel "$REL_NO_MARK_Q" recCRTEST00000001 "$NEW" cr-o1-A "$TS2")"
+[[ "$m5" == recCRTEST00000001\|* ]] && ok "R2b mutant (no marker check): the released id with a later ts RELEASES the newer handoff (RED as expected)" \
+  || bad "R2b mutant (no marker check) did not reproduce the defect ('$m5')"
+su -c "UPDATE salon.conversations SET stage='handoff', last_intent='handoff', last_updated='$NEW' WHERE id='recCRTEST00000001'" >/dev/null
+m4="$(rel "$REL_NO_TOKEN_Q" recCRTEST00000001 "$TOK" cr-o1-T "$TS2")"
+[[ "$m4" == recCRTEST00000001\|* ]] && ok "O1 mutant (no version token): a stale request with a later ts RELEASES the newer handoff (RED as expected)" \
+  || bad "O1 mutant (no version token) did not reproduce the defect ('$m4')"
+# Concurrent pair: the SAME request twice at once → exactly one release, one marker.
+( { printf "PREPARE x(text,text,text,text) AS %s;\nBEGIN;\nEXECUTE x('recCRTEST00000002','%s','cr-o1-P','%s');\nSELECT pg_sleep(2);\nCOMMIT;\n" "$REL_Q" "$TOK" "$TS"; } | app >/dev/null ) &
 rp=$!
 sleep 0.5
-rB="$(rel "$REL_Q" recCRTEST00000002 "$TOK" cr-o1-R2)"
+pB="$(rel "$REL_Q" recCRTEST00000002 "$TOK" cr-o1-P "$TS")"
 wait "$rp"
-st2="$(su -c "SELECT stage FROM salon.conversations WHERE id='recCRTEST00000002'")"
-[[ "$rB" == *'"conflict": "state_changed"'* ]] && [ "$st2" = new ] && ok "O1: two ids racing on one handoff → one release; the waiter re-checks and gets 'state_changed'" \
-  || bad "O1: racing pair → second '$rB', row '$st2'"
+[[ "${pB%%|*}" == "" ]] && [ "$(marks cr-o1-P)" = 1 ] && [ "$(stage recCRTEST00000002)" = new ] \
+  && ok "O1: the same request twice at once → exactly ONE release and one marker; the waiter gets the sentinel ('${pB#*|}')" \
+  || bad "O1: concurrent pair → second '$pB', markers $(marks cr-o1-P), stage $(stage recCRTEST00000002)"
+# Two DIFFERENT ids racing on one handoff: one release, the waiter re-checks and gets 'state_changed'.
+su -c "UPDATE salon.conversations SET stage='handoff', last_updated='$TOK' WHERE id='recCRTEST00000002'" >/dev/null
+( { printf "PREPARE x(text,text,text,text) AS %s;\nBEGIN;\nEXECUTE x('recCRTEST00000002','%s','cr-o1-R1','%s');\nSELECT pg_sleep(2);\nCOMMIT;\n" "$REL_Q" "$TOK" "$TS"; } | app >/dev/null ) &
+rp=$!
+sleep 0.5
+rB="$(rel "$REL_Q" recCRTEST00000002 "$TOK" cr-o1-R2 "$TS")"
+wait "$rp"
+[[ "$rB" == *'"conflict": "state_changed"'* ]] && [ "$(stage recCRTEST00000002)" = new ] && [ "$(marks cr-o1-R2)" = 0 ] \
+  && ok "O1: two ids racing on one handoff → one release; the waiter gets 'state_changed' and leaves no marker" \
+  || bad "O1: racing pair → second '$rB', stage $(stage recCRTEST00000002), markers $(marks cr-o1-R2)"
 
 echo "claim-race: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
