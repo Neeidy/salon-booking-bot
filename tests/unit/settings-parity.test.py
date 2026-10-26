@@ -15,6 +15,7 @@ MAIN = {'availableInMCP': True, 'binaryMode': 'separate', 'callerPolicy': 'workf
         'executionOrder': 'v1', 'timeSavedMode': 'fixed'}
 ALLOW = {'binaryMode': {'covers': 'absent', 'ruling': 'test ruling'},
          'availableInMCP': {'covers': 'absent', 'ruling': 'test ruling'}}
+CARRY = {'saveDataSuccessExecution': {'covers': 'value', 'value': 'none', 'ruling': 'test ruling'}}
 without = lambda d, *ks: {k: v for k, v in d.items() if k not in ks}
 
 cases = [
@@ -34,7 +35,7 @@ cases = [
     # the copy a different value, which the value check caught instead: the rule itself was never measured).
     ('mutant 6: an availableInMCP allowlist entry that is not "absent"',
      SP.copy_vs_original(MAIN, without(MAIN, 'availableInMCP'), {'availableInMCP': {'covers': 'false', 'ruling': 'test ruling'}}), True,
-     'must cover "absent" only'),
+     'must cover "absent" or "value"'),
     # D4-1 (2026-10-23): the allowlist names what a copy LACKS. An EQUAL value used to pass, so a Main copy created
     # with `availableInMCP: true` was exactly as exposed as Main while the guard stayed green.
     ('mutant 7: the copy carries availableInMCP true, equal to the original (allowlisted as absent)',
@@ -47,6 +48,25 @@ cases = [
      SP.copy_vs_original(MAIN, without(MAIN, 'executionOrder', 'binaryMode', 'availableInMCP'), ALLOW), True,
      "'executionOrder' is missing on the copy"),
     ('extra: a key on the copy that the original lacks', SP.copy_vs_original(without(MAIN, 'timeSavedMode'), MAIN, {}), True, "'timeSavedMode' is on the copy"),
+    # T-4 (2026-10-26): a "value" entry — the copy must carry EXACTLY one value its original may lack (narrower copy).
+    ('control: a value entry and the copy carries exactly it',
+     SP.copy_vs_original(MAIN, dict(MAIN, saveDataSuccessExecution='none'), CARRY), False),
+    ('value 1: the copy lacks the carried key', SP.copy_vs_original(MAIN, dict(MAIN), CARRY), True, "must carry exactly 'none'"),
+    ('value 2: the copy carries another value', SP.copy_vs_original(MAIN, dict(MAIN, saveDataSuccessExecution='all'), CARRY), True,
+     "must carry exactly 'none'"),
+    ('value 3: type-strict — 1 is not True', SP.copy_vs_original({}, {'flag': 1}, {'flag': {'covers': 'value', 'value': True, 'ruling': 'r'}}),
+     True, 'must carry exactly True'),
+    ('value 4: a value entry without a value', SP.copy_vs_original(MAIN, dict(MAIN), {'k': {'covers': 'value', 'ruling': 'r'}}), True,
+     'names no single scalar value'),
+    ('value 5: a value entry whose value is a list (a range in disguise)',
+     SP.copy_vs_original(MAIN, dict(MAIN), {'k': {'covers': 'value', 'value': ['none', 'all'], 'ruling': 'r'}}), True,
+     'names no single scalar value'),
+    ('value 6: a value entry without a ruling',
+     SP.copy_vs_original(MAIN, dict(MAIN, saveDataSuccessExecution='none'), {'saveDataSuccessExecution': {'covers': 'value', 'value': 'none'}}),
+     True, 'names no ruling'),
+    ('value 7: absent_keys / carried split the kinds',
+     [] if (SP.absent_keys(dict(ALLOW, **CARRY)) == set(ALLOW) and SP.carried(dict(ALLOW, **CARRY)) == {'saveDataSuccessExecution': 'none'})
+     else ['split wrong'], False),
 ]
 ok = True
 for label, errs, expect_red, *why in cases:

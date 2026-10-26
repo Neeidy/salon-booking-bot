@@ -174,6 +174,14 @@ def _settings_parity():
     return _MODS['sp']
 
 
+def copy_settings(settings, spec):
+    """A copy's settings from its original's: the spec's "absent" keys dropped, its "value" keys set to exactly that value."""
+    sp, allow = _settings_parity(), spec.get('settings_allow') or {}
+    out = {k: v for k, v in (settings or {}).items() if k not in sp.absent_keys(allow)}
+    out.update(sp.carried(allow))
+    return out
+
+
 def check_not_sanitised(live_copy, generated):
     out = io.StringIO()
     try:
@@ -234,9 +242,9 @@ def assemble(generated, live_orig, spec, pg_credential):
             n['webhookId'] = str(uuid.uuid4())
         nodes.append(n)
     # Keys the spec allowlists as ABSENT are never sent: the guard now reds a copy that carries one (D4-1), and
-    # sending Main's `availableInMCP: true` would create the copy exactly as exposed as Main.
-    allow = spec.get('settings_allow') or {}
-    settings = {k: v for k, v in (live_orig.get('settings') or generated.get('settings') or {}).items() if k not in allow}
+    # sending Main's `availableInMCP: true` would create the copy exactly as exposed as Main. Keys it allowlists as a
+    # VALUE are sent with exactly that value (T-4, 2026-10-26): the copy must be narrower than its original.
+    settings = copy_settings(live_orig.get('settings') or generated.get('settings') or {}, spec)
     return {'name': generated['name'], 'nodes': nodes, 'connections': generated['connections'], 'settings': settings}
 
 
@@ -315,7 +323,7 @@ def swap_patch(live_copy, live_orig, spec):
     if temp:
         out['nodes'] = [n for n in out['nodes'] if n['name'] != temp]
         (out.get('connections') or {}).pop(temp, None)
-    out['settings'] = {k: v for k, v in (out.get('settings') or {}).items() if k not in (spec.get('settings_allow') or {})}
+    out['settings'] = copy_settings(out.get('settings') or {}, spec)
     return out
 
 
@@ -744,7 +752,7 @@ def run(spec_path, original_id, update=None, verify_only=None, turnstile=None, s
         if not turnstile_swapped:
             # Test phase only: after the cutover the body keeps the live settings as they are, and an allowlisted key
             # on the live copy is red in the settings parity before the write instead of being dropped silently.
-            wf['settings'] = {k: v for k, v in (wf.get('settings') or {}).items() if k not in (spec.get('settings_allow') or {})}
+            wf['settings'] = copy_settings(wf.get('settings') or {}, spec)
         # Check BEFORE the write. The first version PUT first and checked after, so a red copy (or a copy in the
         # wrong phase) was already written with its gate lowered by the time the check said so.
         errs = check(wf)
@@ -1080,6 +1088,20 @@ def _simulated_live_copy(spec_file):
 
 def selftest():
     ok = True
+    # T-4 (2026-10-26): copy_settings drops the "absent" keys and sets the "value" keys to exactly their value. No real
+    # spec carries a value entry until R3, so it is checked here on a synthetic allowlist.
+    syn = {'settings_allow': {'binaryMode': {'covers': 'absent', 'ruling': 'selftest'},
+                              'saveDataSuccessExecution': {'covers': 'value', 'value': 'none', 'ruling': 'selftest'}}}
+    for label, got, want in [
+            ('copy_settings: absent dropped, value set, the rest kept',
+             copy_settings({'executionOrder': 'v1', 'binaryMode': 'separate', 'saveDataSuccessExecution': 'all'}, syn),
+             {'executionOrder': 'v1', 'saveDataSuccessExecution': 'none'}),
+            ('copy_settings: the value is set even when the original lacks the key',
+             copy_settings({'executionOrder': 'v1'}, syn), {'executionOrder': 'v1', 'saveDataSuccessExecution': 'none'}),
+            ('copy_settings: no allowlist → unchanged', copy_settings({'executionOrder': 'v1'}, {}), {'executionOrder': 'v1'})]:
+        good = got == want
+        ok &= good
+        print(f"{'✓' if good else '✗'} {label}" + ('' if good else f' — got {got!r}'))
     specs = sorted(glob.glob(os.path.join(ROOT, 'db', 'copies', '*.json')))
     assert specs, 'no copy specs under db/copies/'
     for f in specs:
@@ -1111,7 +1133,7 @@ def selftest():
                  ('a data node still carrying the credential placeholder', data_ph, False),
                  ('the ORIGINAL itself passed as the copy', _copy.deepcopy(live_orig), False),
                  ("a placeholder inside a data node's parameters", data_param_ph, False)]
-        for key in spec.get('settings_allow', {}):           # the clean copy is assemble()'s output, so it LACKS each key
+        for key in sorted(_settings_parity().absent_keys(spec.get('settings_allow', {}))):   # assemble()'s output LACKS each
             if key in (clean.get('settings') or {}):
                 cases.append((f"assemble() sent the allowlisted '{key}'", clean, False))
             kept = _copy.deepcopy(clean)                       # what the helper produced before D4-1, if the original has it
@@ -1213,7 +1235,7 @@ def selftest():
                      pvariant(lambda w: w['settings'].pop('executionOrder', None)), False),
                     ('post-cutover: the ORIGINAL itself passed as the copy', _copy.deepcopy(live_orig), False),
                     ('post-cutover: the test-phase deployed copy (assembled from the original)', clean, not (spec.get('trigger') or spec.get('temp_trigger')))]
-        for key in spec.get('settings_allow', {}):
+        for key in sorted(_settings_parity().absent_keys(spec.get('settings_allow', {}))):
             pc_cases.append((f"post-cutover: settings: allowlisted '{key}' present on the copy",
                              pvariant(lambda w, key=key: w['settings'].__setitem__(key, (osets or {}).get(key, '__x__'))), False))
         if spec.get('trigger'):
@@ -1224,7 +1246,7 @@ def selftest():
                              pvariant(lambda w: w['nodes'].append({'name': spec['temp_trigger']['name'], 'type': 'n8n-nodes-base.webhook',
                                                                    'parameters': {'path': 'temp'}, 'id': 'tmp'})), False))
         pc_cases = [(label, wf, committed, plive, want) for label, wf, want in pc_cases]
-        for key in spec.get('settings_allow', {}):           # equal on both sides: only the settings parity that stays sees it
+        for key in sorted(_settings_parity().absent_keys(spec.get('settings_allow', {}))):   # equal on both sides: only the settings parity sees it
             both = lambda w, key=key: dict(w, settings=dict(w['settings'], **{key: (osets or {}).get(key, '__x__')}))
             pc_cases.append((f"post-cutover: the export AND the copy both carry the allowlisted '{key}'", both(plive), both(committed), plive, False))
         # Round B's shape (ccp's projection cannot see this one): the export lacks alwaysOutputData on a node where the
