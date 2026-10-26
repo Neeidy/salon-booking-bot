@@ -31,6 +31,12 @@ set -u -o pipefail
 STATE_RE='^([a-z_]*\|[a-z_]*\|([0-9]+|\?)|NOT-FOUND(\|[0-9]+)?|NO-STORE)$'
 # [[ =~ ]] anchors ^/$ to the WHOLE string; `grep` would have matched any ONE line of a multi-line body.
 is_state_error() { [[ $1 =~ $STATE_RE ]] && return 1; return 0; }
+unchanged_verdict() { # unchanged_verdict <before> <now> → ok | moved | error | unmeasured   (pure: the selftest checks it)
+  if is_state_error "$2"; then echo error; return; fi
+  # Two NO-STORE readings are EQUAL and prove nothing: no state route was configured, so nothing was read.
+  if [ "$2" = "NO-STORE" ] || [ "$1" = "NO-STORE" ]; then echo unmeasured; return; fi
+  if [ "$2" = "$1" ]; then echo ok; else echo moved; fi
+}
 # The direct-read route's parser, shared by state_of and the selftest so the selftest checks THIS code.
 # Since D5 (MIGRATION-PLAN §3t) the direct route reads Postgres as salon_ro, not Airtable with a PAT. Its reader
 # prints one JSON object: {"error": <code>} on any failure, else {"row": null|{stage, last_intent}, "markers": n}.
@@ -51,6 +57,35 @@ const r=await c.query("SELECT stage, last_intent FROM salon.conversations WHERE 
 const m=await c.query("SELECT count(*)::int AS n FROM salon.processed_messages WHERE message_id = $1",[process.env.RUN_D11_MID]);
 console.log(JSON.stringify({row:r.rows[0]||null,markers:m.rows[0].n}));}
 catch(e){console.log(JSON.stringify({error:String(e.code||"unknown")}));}finally{await c.end().catch(()=>{});}})();'
+# RELEASES ARE COUNTED WHERE THEY HAPPEN (7-2 Tur 2): the Owner Actions copy's executions since the run started, in which
+# `Release Handoff Lock` returned a REAL row (its sentinel carries no id). The parser lives here, once, so the selftest
+# checks the same code the live run uses. Prints "COUNT n" or "ERROR <reason>"; never a body, never an id.
+RELEASES_PY='
+import json,sys
+since=sys.argv[1]
+try: d=json.load(sys.stdin)
+except Exception: print("ERROR unreadable"); sys.exit()
+if not isinstance(d,dict) or not isinstance(d.get("data"),list): print("ERROR no-executions-list"); sys.exit()
+n=0
+for e in d["data"]:
+    if str(e.get("startedAt") or "")[:19] < since: continue
+    run=((e.get("data") or {}).get("resultData") or {}).get("runData") or {}
+    for r in run.get("Release Handoff Lock") or []:
+        items=(((r.get("data") or {}).get("main") or [[]])[0]) or []
+        if any(isinstance(i,dict) and (i.get("json") or {}).get("id") for i in items): n+=1
+print("COUNT %d" % n)'
+release_count() { # release_count <ISO start, UTC, no zone> → "COUNT n" | "ERROR …"
+  local wid hdr host
+  [ -n "${N8N_API_KEY:-}" ] || { echo "ERROR N8N_API_KEY not set"; return; }
+  host="${N8N_HOST:-$(sed -n 's/^N8N_HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$(dirname "$0")/../CLAUDE.local.md" 2>/dev/null)}"
+  [ -n "$host" ] || { echo "ERROR no n8n host"; return; }
+  wid="$(cd "$(dirname "$0")/.." && python3 -c 'import importlib.util as u; s=u.spec_from_file_location("p","scripts/pair_roles.py"); m=u.module_from_spec(s); s.loader.exec_module(m); pairs,roles=m.load(); print(next(r["copy"] for r in roles if pairs[r["copy"]].endswith("workflow.owner-actions.copy.sanitized.json")))' 2>/dev/null)"
+  [ -n "$wid" ] || { echo "ERROR no Owner Actions copy in ROLES"; return; }
+  hdr="$(mktemp)"; chmod 600 "$hdr"
+  printf 'X-N8N-API-KEY: %s\nCF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$N8N_API_KEY" "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}" > "$hdr"
+  curl -s -4 -m 30 -H "@$hdr" "https://$host/api/v1/executions?workflowId=$wid&includeData=true&limit=50" | python3 -c "$RELEASES_PY" "$1"
+  rm -f "$hdr"
+}
 # A 200 IS NOT A CLEAN PASS WHEN ITS BODY SAYS "degraded" (ruling, 2026-10-20). At D3b a copy answered every
 # successful release with {"ok":true,"degraded":"alert_undelivered"}, and this file stayed 13/13 because it read
 # codes, state and the marker count but never a body. The classifier lives here, once, so the selftest below
@@ -65,7 +100,7 @@ is_degraded() { python3 -c "$DEGRADED_PY" < "$1"; }   # is_degraded <body file> 
 if [ "${1:-}" = "--selftest-state" ]; then
   rc=0
   tmpb="$(mktemp)"
-  for b in '{"ok":true,"degraded":"alert_undelivered"}' '{"ok":true,"degraded":"marker_unwritten"}'; do
+  for b in '{"ok":true,"degraded":"alert_undelivered"}' '{"ok":true,"degraded":"anything_else"}'; do
     printf '%s' "$b" > "$tmpb"; is_degraded "$tmpb" || { echo "✗ a degraded body was NOT caught: $b"; rc=1; }; done
   for b in '{"ok":true}' '{"ok":false,"error":"not_locked"}' 'not json'; do
     printf '%s' "$b" > "$tmpb"; is_degraded "$tmpb" && { echo "✗ a clean body WAS flagged degraded: $b"; rc=1; }; done
@@ -84,7 +119,27 @@ if [ "${1:-}" = "--selftest-state" ]; then
     [ "$got" = "${pair#*=}" ] || { echo "✗ direct-read parser turned '${pair%%=*}' into '$got' (want '${pair#*=}')"; rc=1; }
     is_state_error "$got" && [ "${pair#*=}" != "READ-FAILED" ] && { echo "✗ the parser's reading '$got' is not a state"; rc=1; }
   done
-  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK (3 failures and a count-less body → READ-FAILED, 3 readings) · degraded-body check OK (2 caught, 3 passed)"
+  for v in 'handoff|handoff|0 handoff|handoff|0=ok' 'handoff|handoff|0 new||1=moved' 'NO-STORE NO-STORE=unmeasured' \
+           'handoff|handoff|0 NO-STORE=unmeasured' 'handoff|handoff|0 READ-FAILED=error'; do
+    got="$(unchanged_verdict ${v%%=*})"
+    [ "$got" = "${v#*=}" ] || { echo "✗ unchanged_verdict ${v%%=*} → '$got' (want '${v#*=}')"; rc=1; }
+  done
+  rel() { printf '{"data":[%s]}' "$1"; }
+  ex() { printf '{"startedAt":"%s","data":{"resultData":{"runData":{"Release Handoff Lock":[{"data":{"main":[[{"json":%s}]]}}]}}}}' "$1" "$2"; }
+  R='{"id":"recAAAAAAAAAAAAAA","fields":{"stage":"new"}}'; SNT='{"id":null,"fields":{"released":false,"conflict":"replay"}}'
+  for pair in "$(ex 2030-01-01T10:00:01.000Z "$R"),$(ex 2030-01-01T10:00:01.500Z "$SNT")=COUNT 1" \
+              "$(ex 2030-01-01T10:00:01.000Z "$R"),$(ex 2030-01-01T10:00:02.000Z "$R")=COUNT 2" \
+              "$(ex 2030-01-01T10:00:01.000Z "$SNT")=COUNT 0" \
+              "$(ex 2030-01-01T09:59:00.000Z "$R")=COUNT 0" \
+              '{"startedAt":"2030-01-01T10:00:05.000Z","data":{"resultData":{"runData":{"Respond Owner Replayed":[{}]}}}}=COUNT 0'; do
+    got="$(rel "${pair%%=*}" | python3 -c "$RELEASES_PY" 2030-01-01T10:00:00)"
+    [ "$got" = "${pair#*=}" ] || { echo "✗ release counter: got '$got', want '${pair#*=}'"; rc=1; }
+  done
+  for bodyx in 'not json' '{"message":"unauthorized"}'; do
+    got="$(printf '%s' "$bodyx" | python3 -c "$RELEASES_PY" 2030-01-01T10:00:00)"
+    case "$got" in ERROR*) ;; *) echo "✗ release counter read '$bodyx' as '$got'"; rc=1 ;; esac
+  done
+  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK (3 failures and a count-less body → READ-FAILED, 3 readings) · degraded-body check OK (2 caught, 3 passed) · release counter OK (5 readings, 2 non-readings → ERROR) · unchanged verdict OK (5 cases; two empty readings are not a pass)"
   exit "$rc"
 fi
 
@@ -105,20 +160,19 @@ say()  { printf '%-58s %s\n' "$1" "$2"; }
 ok()   { PASS=$((PASS+1)); say "$1" "✓ $2"; }
 bad()  { FAIL=$((FAIL+1)); say "$1" "✗ $2"; }
 
-sign() { printf '%s' "$1" | openssl dgst -sha256 -hmac "$SEC" -r | cut -d' ' -f1; }
+# The HMAC secret never reaches an argv (a process list is readable by other local users): Python reads it from the env.
+sign() { printf '%s' "$1" | RUN_D11_SEC="$SEC" python3 -c 'import hmac,hashlib,os,sys; print(hmac.new(os.environ["RUN_D11_SEC"].encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest())'; }
 
 # post <body> <signature> [--no-token]   (the response body lands in $LAST_BODY for not_degraded)
 LAST_BODY="$(mktemp)"; trap 'rm -f "$LAST_BODY"' EXIT
 post() {
-  local body="$1" sig="$2" notok="${3:-}"
-  if [ "$notok" = "--no-token" ]; then
-    curl -s -4 -o "$LAST_BODY" -m 25 -w '%{http_code}' -X POST "$URL" \
-      -H 'Content-Type: application/json' -H "X-Owner-Signature: $sig" --data "$body"
-  else
-    curl -s -4 -o "$LAST_BODY" -m 25 -w '%{http_code}' -X POST "$URL" \
-      -H 'Content-Type: application/json' -H "X-Owner-Signature: $sig" \
-      -H "CF-Access-Client-Id: $CID" -H "CF-Access-Client-Secret: $CSE" --data "$body"
-  fi
+  local body="$1" sig="$2" notok="${3:-}" hdr code
+  hdr="$(mktemp)"; chmod 600 "$hdr"     # the Access secret travels in a 0600 header file, never on curl's argv
+  printf 'Content-Type: application/json\nX-Owner-Signature: %s\n' "$sig" > "$hdr"
+  [ "$notok" = "--no-token" ] || printf 'CF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$CID" "$CSE" >> "$hdr"
+  code="$(curl -s -4 -o "$LAST_BODY" -m 25 -w '%{http_code}' -X POST "$URL" -H "@$hdr" --data "$body")"
+  rm -f "$hdr"
+  printf '%s' "$code"
 }
 
 not_degraded() { # not_degraded <case label> <code> — FAILS a 200 whose body declares itself degraded; never adds a pass
@@ -145,12 +199,12 @@ state_of() { # state_of [messageId]  -> "stage|last_intent|markerCount"
   if [ -n "${STATE_URL:-}" ]; then
     local body sig
     body="$(printf '{"action":"read_drill_state","record_id":"%s","messageId":"%s"}' "$TGT" "$mid")"
-    sig="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$SEC" -r | cut -d' ' -f1)"
-    curl -s -4 -m 25 -X POST "$STATE_URL" -H 'Content-Type: application/json' \
-      -H "X-Owner-Signature: $sig" \
-      ${CF_OWNER_ACCESS_CLIENT_ID:+-H "CF-Access-Client-Id: $CF_OWNER_ACCESS_CLIENT_ID"} \
-      ${CF_OWNER_ACCESS_CLIENT_SECRET:+-H "CF-Access-Client-Secret: $CF_OWNER_ACCESS_CLIENT_SECRET"} \
-      --data "$body"
+    sig="$(sign "$body")"
+    local hdr; hdr="$(mktemp)"; chmod 600 "$hdr"
+    printf 'Content-Type: application/json\nX-Owner-Signature: %s\n' "$sig" > "$hdr"
+    [ -n "${CF_OWNER_ACCESS_CLIENT_ID:-}" ] && printf 'CF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$CF_OWNER_ACCESS_CLIENT_ID" "${CF_OWNER_ACCESS_CLIENT_SECRET:-}" >> "$hdr"
+    curl -s -4 -m 25 -X POST "$STATE_URL" -H "@$hdr" --data "$body"
+    rm -f "$hdr"
     return
   fi
   [ -n "${PGHOST:-}" ] && [ -n "${PGDATABASE:-}" ] && [ -n "${PGUSER:-}" ] && [ -n "${PGPASSWORD:-}" ] \
@@ -164,17 +218,15 @@ state_of() { # state_of [messageId]  -> "stage|last_intent|markerCount"
 # therefore followed by this.
 assert_unchanged() { # assert_unchanged <case label> <expected state>
   local now; now="$(state_of)"
-  if is_state_error "$now"; then
-    bad "  ↳ $1" "the state oracle returned a STORE ERROR ('${now%%|*}') — 'unchanged' cannot be judged"; return
-  fi
-  if [ "$now" = "$2" ]; then
-    ok "  ↳ $1" "target row UNCHANGED after the refusal"
-  else
-    bad "  ↳ $1" "the refusal still MOVED the row: '$2' -> '$now'"
-  fi
+  case "$(unchanged_verdict "$2" "$now")" in
+    ok)         ok "  ↳ $1" "target row UNCHANGED after the refusal" ;;
+    error)      bad "  ↳ $1" "the state oracle returned a STORE ERROR ('${now%%|*}') — 'unchanged' cannot be judged" ;;
+    unmeasured) bad "  ↳ $1" "no state route configured — 'unchanged' cannot be judged (two empty readings are not a pass)" ;;
+    *)          bad "  ↳ $1" "the refusal still MOVED the row: '$2' -> '$now'" ;;
+  esac
 }
 
-echo "run-d11 — eight cases, tag $RUN"
+echo "run-d11 — nine cases, tag $RUN"
 echo "target record: ${TGT:0:3}…  (masked — security-secrets.md redacts record ids to a bare rec…)"
 BEFORE="$(state_of)"; echo "state before: $BEFORE"
 if is_state_error "$BEFORE"; then
@@ -243,19 +295,38 @@ not_degraded "4b malformed record id" "$c4b"
                    || bad "4b malformed record id" "got $c4b, expected 400"
 assert_unchanged "4b malformed record id" "$BEFORE"
 
-# 5 + 6 — the real release, then the replay.
-# ⚠ THE COUNTER, NOT THE STATE. An earlier version compared AFTER2 with AFTER1 and called that a replay
-# proof. It is not: `stage='new'` written twice leaves the row IDENTICAL, so two writes and one write are
-# indistinguishable by state — the assertion could not go red for the defect it existed to catch (Codex
-# CRT #11, 2026-09-13). One complete pass writes exactly ONE dedupe marker, so the MARKER COUNT is what
-# actually discriminates. State equality is kept as a second, weaker check, not as the proof.
-c5a="$(post "$B_OK" "$S_OK")"
-not_degraded "5a the real release" "$c5a"
+# 5 + 6 — the real release, raced against its own duplicate (7-2 Tur 2, Codex CRT 11 MEDIUM).
+# ⚠ WHAT THE OLD CASE COULD NOT SHOW. It released, then sent the same request again and counted dedupe MARKERS
+# (1 -> 1). Two faults: the marker statement was an upsert, so one marker survives any number of releases; and the
+# sequential replay never reached the replay check at all — `Target Locked?` runs BEFORE `Check Owner Replay`, so the
+# released row answered 409 first. A real duplicate is CONCURRENT: both requests pass the lock gate before either
+# writes. So the same signed request is sent twice AT ONCE, and RELEASES are counted where they happen — the n8n
+# executions in which `Release Handoff Lock` returned a real row (not its sentinel). Statuses are asserted, not printed.
+B1="$(mktemp)"; B2="$(mktemp)"; trap 'rm -f "$LAST_BODY" "$B1" "$B2"' EXIT
+RUN_START="$(date -u +%Y-%m-%dT%H:%M:%S)"
+( LAST_BODY="$B1"; post "$B_OK" "$S_OK" > "$B1.code" ) &
+( LAST_BODY="$B2"; post "$B_OK" "$S_OK" > "$B2.code" ) &
+wait
+c5a="$(cat "$B1.code")"; c5b="$(cat "$B2.code")"; rm -f "$B1.code" "$B2.code"
+sleep 4   # the executions are persisted after the responses
 AFTER1="$(state_of "d11-$RUN")"
-c5b="$(post "$B_OK" "$S_OK")"
-not_degraded "5b the replay" "$c5b"
+REL="$(release_count "$RUN_START")"
+clean_200() { [ "$1" = "200" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("ok") is True and "degraded" not in d else 1)' "$2" 2>/dev/null; }
+if { clean_200 "$c5a" "$B1" && { [ "$c5b" = "200" ] || [ "$c5b" = "502" ]; }; } || { clean_200 "$c5b" "$B2" && { [ "$c5a" = "200" ] || [ "$c5a" = "502" ]; }; }; then
+  ok "5 statuses (the duplicate pair)" "$c5a / $c5b — one clean 200; the duplicate 200 (replayed) or 502 (sentinel)"
+else
+  bad "5 statuses (the duplicate pair)" "got $c5a / $c5b — expected one clean 200 and the other 200 or 502"
+fi
+case "$REL" in
+  "COUNT 1") ok "5 releases (the duplicate pair)" "exactly ONE execution wrote the release; the duplicate wrote nothing" ;;
+  COUNT*)    bad "5 releases (the duplicate pair)" "${REL#COUNT } executions wrote a release (expected exactly 1)" ;;
+  *)         bad "5 releases (the duplicate pair)" "releases cannot be counted ($REL) — a status code is not evidence of a write" ;;
+esac
+# 5b — a SEQUENTIAL replay of the released request meets the lock gate first: 409, nothing written.
+c5c="$(post "$B_OK" "$S_OK")"
+[ "$c5c" = "409" ] && ok "5b sequential replay after the release" "409 not_locked (the lock gate answers before the replay check)" \
+                   || bad "5b sequential replay after the release" "got $c5c, expected 409"
 AFTER2="$(state_of "d11-$RUN")"
-M1="${AFTER1##*|}"; M2="${AFTER2##*|}"
 for st in "$A4" "$AFTER1" "$AFTER2"; do
   is_state_error "$st" && bad "state read during cases 4–6" "the state oracle returned a STORE ERROR ('${st%%|*}')"
 done
@@ -268,17 +339,7 @@ elif [ "${AFTER1%|*}" = "new|" ]; then
 else
   bad "6 released state" "expected 'new|…', got '$AFTER1'"
 fi
-
-# 5 — the replay must not write a second time. The discriminator is the WRITE COUNT.
-if [ "$AFTER1" = "NO-STORE" ]; then
-  bad "5 replay (same messageId)" "no state route — cannot count writes, only statuses ($c5a/$c5b)"
-elif [ "$M1" = "?" ] || [ "$M2" = "?" ]; then
-  bad "5 replay (same messageId)" "the state route returned no marker count, so writes cannot be counted"
-elif [ "$M1" = "1" ] && [ "$M2" = "1" ]; then
-  ok "5 replay (same messageId)" "codes $c5a/$c5b · dedupe markers 1 -> 1, so the second call wrote NOTHING"
-else
-  bad "5 replay (same messageId)" "marker count moved $M1 -> $M2 (expected 1 -> 1): the replay wrote again"
-fi
+[ "$AFTER2" = "$AFTER1" ] || bad "6 state after the sequential replay" "the row moved: '$AFTER1' -> '$AFTER2'"
 
 echo
 echo "DISCRIMINATION CHECK — the reason this file exists:"

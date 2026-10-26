@@ -1,0 +1,34 @@
+{
+ "_doc": "The DECLARED DELTA of n8n/staged/workflow.owner-actions.copy.sanitized.json against the committed copy export: 7-2 Tur 2, the single Owner Actions edit (O1, O3, O4 and the DEAD post-write marker chain) + ruling T-4: save execution data on error only (a successful run's data holds the Access JWT and a cookie). Read by tests/unit/staged-sanitised.test.py (the node set must equal committed - remove_nodes + add_nodes) and by scripts/workflow-step.py put --delta-file, so the reviewed delta and the one sent to n8n are the same file.",
+ "allow": [
+  "Build Release Failure Alert",
+  "Owner Replay Seen?",
+  "Reject Missing Target",
+  "Release Handoff Lock",
+  "Sticky — 4",
+  "Validate Release Target"
+ ],
+ "add_nodes": [],
+ "remove_nodes": [
+  "Build Marker Failure Alert",
+  "Marker Written?",
+  "Record Owner Action Processed",
+  "Respond Owner OK (Marker Unwritten)",
+  "Send Marker Failure Alert (Telegram)"
+ ],
+ "add_edges": [
+  "Write Verified?|0|Build Owner Alert (Release)|0"
+ ],
+ "remove_edges": [
+  "Build Marker Failure Alert|0|Send Marker Failure Alert (Telegram)|0",
+  "Marker Written?|0|Build Owner Alert (Release)|0",
+  "Marker Written?|1|Build Marker Failure Alert|0",
+  "Record Owner Action Processed|0|Marker Written?|0",
+  "Send Marker Failure Alert (Telegram)|0|Respond Owner OK (Marker Unwritten)|0",
+  "Send Marker Failure Alert (Telegram)|1|Respond Owner OK (Marker Unwritten)|0",
+  "Write Verified?|0|Record Owner Action Processed|0"
+ ],
+ "settings": {
+  "saveDataSuccessExecution": "none"
+ }
+}
