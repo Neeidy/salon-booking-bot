@@ -13,7 +13,29 @@ import { releaseHandoff } from '../../../lib/ownerAction.ts';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The CSRF gate (Codex CRT #9, ruling R-CSRF). A `text/plain` POST is a CORS "simple request": a page on
+ * another origin can send it, cookie and all, with no preflight, and this handler used to parse it and sign
+ * a release. Two header checks close that, and neither needs a host or origin value configured anywhere:
+ *   - the PARSED media type must be `application/json` — not a CORS-safelisted type, so a cross-origin page
+ *     must pass a preflight to send it. Next answers OPTIONS here on its own, but only with an `Allow`
+ *     header (its bundled docs, `route.md`), and nothing in this app sets an `Access-Control-Allow-*`
+ *     header, so that preflight grants nothing. (The browser side is CORS behaviour, not measured here.)
+ *   - `Sec-Fetch-Site`, when the browser sends it, must be `same-origin`. `same-site` is refused too: a
+ *     sibling sub-domain is not this board. It is optional because a non-browser caller does not send it.
+ * Both run BEFORE the body is read, so a refused request is never parsed and never reaches the signer.
+ */
+function isSameOriginJson(request: Request): boolean {
+  const mediaType = (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') return false;
+  const site = request.headers.get('sec-fetch-site');
+  return site === null || site === 'same-origin';
+}
+
 export async function POST(request: Request): Promise<Response> {
+  if (!isSameOriginJson(request)) {
+    return Response.json({ ok: false, reason: 'forbidden' }, { status: 403 });
+  }
   let payload: unknown;
   try {
     payload = await request.json();

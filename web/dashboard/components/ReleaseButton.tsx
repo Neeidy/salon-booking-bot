@@ -13,6 +13,7 @@
  * (CRT #10b). The bound is kept by hand, here, in writing, because nothing else keeps it.
  */
 import { useState } from 'react';
+import { screenReason } from '../lib/releaseReason.ts';
 
 type Phase = 'idle' | 'confirming' | 'sending' | 'done' | 'failed';
 
@@ -31,12 +32,18 @@ const MESSAGE: Record<string, string> = {
   // A 502: the engine reported the release write as failed, or the edge answered on its own. Neither proves
   // the lock is still closed, so the line says "may not" and sends the owner to look before trying again.
   release_failed: 'The release may not have happened (502). Reload and check this conversation before pressing again.',
+  // A 503 whose body names the store: the engine could not read it and stopped before any write. This is the
+  // one failure that can honestly say nothing changed; every other 503 is `unreachable` above.
+  store_unavailable: 'Nothing was written — the store could not be read. Try again in a moment.',
   misconfigured: 'This board is not configured to write. Nothing was sent.',
   bad_request: 'The request was malformed and was not sent.',
+  // The route's own same-origin check refused the request before reading it; the engine was never called.
+  forbidden: 'This board refused the request as not coming from its own page. Nothing was sent.',
   // A DEGRADED success. The lock IS open — saying only "released" would hide the half that failed, and the
   // owner is the one person who needs to know the notification never arrived.
   released_no_alert: 'Released — but the owner notification could not be delivered, so nobody was told by message.',
-  released_no_marker: 'Released — but the duplicate-guard record was not written, so pressing again could write a second time.',
+  // Any other degraded value — an engine that still reports the old marker failure, or one newer than this board.
+  released_degraded: 'Released — but part of the follow-up did not complete. Check the engine alert.',
 };
 
 export function ReleaseButton({ recordId, label }: { recordId: string; label: string }) {
@@ -57,9 +64,7 @@ export function ReleaseButton({ recordId, label }: { recordId: string; label: st
       // and must not be read as a success by default.
       let data: { ok?: boolean; reason?: string; degraded?: string } = {};
       try { data = (await res.json()) as typeof data; } catch { data = {}; }
-      setReason(data.degraded === 'alert_undelivered' ? 'released_no_alert'
-              : data.degraded === 'marker_unwritten' ? 'released_no_marker'
-              : data.reason ?? 'unreachable');
+      setReason(screenReason(data));
       setPhase(data.ok === true ? 'done' : 'failed');
     } catch {
       setReason('unreachable');
