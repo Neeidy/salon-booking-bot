@@ -23,7 +23,9 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
                                                   the repository, created new, mode 0600 — it holds live values; delete
                                                   it once the edit is closed). The body is
                                                   EXPORT with every sanitize placeholder filled from the live copy at the
-                                                  same path (the deploy helper's fill_by_path) and the LIVE settings: put
+                                                  same path (the deploy helper's fill_by_path; a live webhookId is kept by
+                                                  node name, and only a NON-trigger node in the approved remove_nodes may
+                                                  drop one — ruling R3) and the LIVE settings: put
                                                   never carries a setting (T-4). Read back: live == EXPORT (content_drift
                                                   incl. alwaysOutputData/executeOnce/retryOnFail and the connections,
                                                   placeholder-only mask) and == the body sent, not sanitised, settings
@@ -498,7 +500,7 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
                       + '; '.join(errs[:3]))
     hooks_before = webhook_ids(cur)
     try:
-        body = H.fill_by_path(cur, export)
+        body = H.fill_by_path(cur, export, removable=delta.get('remove_nodes') or ())   # approved: checked above
     except ValueError as e:
         raise Refused(str(e))
     # ruling T-4: put never carries a setting. fill_by_path already returns the live settings; set here once more so

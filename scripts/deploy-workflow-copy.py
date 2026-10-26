@@ -511,7 +511,7 @@ def _shaped(v):
     return any(re.search(pat, v, re.I) for pat in _ccp().PLACEHOLDER_SHAPES)
 
 
-def fill_by_path(live, committed):
+def fill_by_path(live, committed, removable=()):
     """The --engine-edit / --restore PUT body. THE RULE: an engine edit never changes a masked value — a credential, a
     chat id, the Turnstile secret, the calendar id are operator/credential operations, not engine edits. So every
     sanitize placeholder in the target export is replaced by the LIVE copy's value at the SAME path (node name + key
@@ -520,7 +520,11 @@ def fill_by_path(live, committed):
     which must occur exactly once there. Refused (ValueError) when a placeholder has no live counterpart at its path
     (a new node needing a credential: an operator step) or the live value there is itself placeholder-shaped (except
     the exact token check-content-parity exempts as live by design). Also: every live node's webhookId kept by node
-    name, and an export that renames or drops a node carrying one is refused; settings: live, as they are."""
+    name, and an export that renames or drops a node carrying one is refused — except a node named in `removable` (the
+    approved delta's remove_nodes, passed by workflow-step put; ruling 2026-10-26, R3) that is NOT a trigger: n8n gives
+    Telegram nodes a webhookId too, and the approved Owner Actions delta removes one. A trigger (diff-workflow-copy's own
+    _is_trigger, the one definition: webhook, `…Trigger` and the legacy trigger types) is never removable here;
+    settings: live, as they are."""
     ph_re = re.compile(r'REPLACE_WITH_[A-Za-z0-9_]+(?:@[A-Za-z0-9.\-]+)?|(?:app|tbl|viw|rec|fld)[A-Za-z0-9]*X{4,}[A-Za-z0-9]*')
     L = {n['name']: n for n in live['nodes']}
     nodes, missing = _copy.deepcopy(committed['nodes']), []
@@ -559,7 +563,9 @@ def fill_by_path(live, committed):
         raise ValueError('an engine edit never changes a masked value, and these cannot be filled from the live copy '
                          '(an operator step): ' + '; '.join(missing[:4]))
     hooks = {n['name']: n['webhookId'] for n in live['nodes'] if n.get('webhookId')}
-    gone = sorted(set(hooks) - {n['name'] for n in nodes})
+    rm = set(removable)
+    droppable = {n['name'] for n in live['nodes'] if n['name'] in rm and not DIFF._is_trigger(n)}
+    gone = sorted(set(hooks) - {n['name'] for n in nodes} - droppable)
     if gone:
         raise ValueError(f'the export renames or drops node(s) carrying a live webhookId: {gone}')
     for n in nodes:

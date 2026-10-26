@@ -50,6 +50,7 @@ import os
 import re
 import sys
 import tempfile
+import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'scripts', 'workflow-step.py')
@@ -177,8 +178,22 @@ def roles_file(live='copy'):
     return t.name
 
 
+HOOK_TYPES = ('n8n-nodes-base.webhook', 'n8n-nodes-base.telegram')
+
+
+def live_hooks(wf):
+    """The webhookIds n8n gives a live workflow: the sanitized exports carry none, and measured on the live Owner
+    Actions copy (R3, 2026-10-26) the webhook trigger AND every Telegram node carry one. Without them the fake could not
+    produce the R3 defect (the approved delta drops a Telegram node; put refused it live and passed here)."""
+    for n in wf['nodes']:
+        if n.get('type') in HOOK_TYPES:
+            n['webhookId'] = str(uuid.uuid5(uuid.NAMESPACE_URL, 'wstest-hook:' + n['name']))
+    return wf
+
+
 def world(spec='purge', copy_active=False, orig_active=False, **fake_kw):
     committed, live = H._simulated_live_copy(f'db/copies/{spec}.json')
+    live = live_hooks(live)
     oid, cid = IDS[spec]
     orig = dict(copy.deepcopy(live), name='original', active=orig_active)
     cp = dict(copy.deepcopy(live), active=copy_active)
@@ -673,6 +688,55 @@ try:
             rc, out = run(fake, ['put', O, cid, repo_file(exp), '--allow', 'Respond Owner OK'])
         case(f'webhook invariant in put (diff blind): an Owner Actions export gaining {label} → refused, 0 PUT',
              rc == 1 and fake.puts() == 0 and needle in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+
+    # 12b. A LIVE webhookId on a node the edit drops (R3, ruling 2026-10-26). The fake live carries real-shaped ids on the
+    #      trigger and every Telegram node (live_hooks). put passes the approved delta's remove_nodes to fill_by_path;
+    #      only a NON-trigger node named there may drop its id. Each half is shown by a case that only it can fail.
+    committed, fake, oid, cid = world('owner-actions')
+    TGX = 'Send Marker Failure Alert (Telegram)'
+    kept = {n['name']: n['webhookId'] for n in fake.wfs[cid]['nodes'] if n.get('webhookId') and n['name'] != TGX}
+    rc, out = run(fake, ['put', O, cid, SO, '--delta-file', DO])
+    after = {n['name']: n.get('webhookId') for n in fake.wfs[cid]['nodes']}
+    case(f'R3: Owner Actions put drops {TGX!r} (live webhookId, in the approved remove_nodes) — every other live id kept',
+         rc == 0 and fake.puts() == 1 and TGX not in after and all(after.get(k) == v for k, v in kept.items()) and len(kept) == 3,
+         f'rc {rc} · kept {len(kept)} · {out.strip().splitlines()[-1][:90]}')
+    lo = live_hooks(H._simulated_live_copy(O)[1])
+    trig = next(n['name'] for n in lo['nodes'] if n['type'] == 'n8n-nodes-base.webhook')
+    tg_other = 'Send Owner Alert (Telegram)'
+
+    def without(wf, *names):
+        return dict(copy.deepcopy(wf), nodes=[n for n in copy.deepcopy(wf['nodes']) if n['name'] not in names])
+    rm = sorted(H.DIFF.APPROVED_DELTAS['owner-actions']['remove_nodes'])
+    for label, exp, removable, want_ok in (
+            ('the approved removal of the Telegram node', without(lo, TGX), rm, True),
+            ('a Telegram node OUTSIDE the delta dropped', without(lo, TGX, tg_other), rm, False),
+            ('the webhook trigger dropped, even when named removable', without(lo, trig), [trig], False),
+            ('a Telegram node dropped with no removable list (the helper\'s own callers)', without(lo, TGX), (), False)):
+        try:
+            H.fill_by_path(lo, exp, removable=removable)
+            got = True
+        except ValueError as e:   # refused for THIS reason, or the case fails
+            got = False if 'webhookId' in str(e) else f'refused for another reason: {str(e)[:60]}'
+        case(f'R3 fill_by_path: {label} → {"allowed" if want_ok else "refused"}', got is want_ok,
+             f'got {"allowed" if got is True else "refused" if got is False else got}')
+    tt = copy.deepcopy(lo)
+    next(n for n in tt['nodes'] if n['name'] == TGX)['type'] = 'n8n-nodes-base.telegramTrigger'
+    try:
+        H.fill_by_path(tt, without(tt, TGX), removable=rm)
+        got = True
+    except ValueError as e:   # refused for THIS reason, or the case fails
+        got = False if 'webhookId' in str(e) else f'refused for another reason: {str(e)[:60]}'
+    case('R3 fill_by_path: a Telegram TRIGGER named in remove_nodes → refused (no trigger is removable)', got is False,
+         f'got {"allowed" if got is True else "refused" if got is False else got}')
+    legacy = sorted(H.DIFF.LEGACY_TRIGGER_TYPES)[0]
+    next(n for n in tt['nodes'] if n['name'] == TGX)['type'] = legacy
+    try:
+        H.fill_by_path(tt, without(tt, TGX), removable=rm)
+        got = True
+    except ValueError as e:   # refused for THIS reason, or the case fails
+        got = False if 'webhookId' in str(e) else f'refused for another reason: {str(e)[:60]}'
+    case(f'R3 fill_by_path: a legacy trigger type ({legacy.split(".")[-1]}) named in remove_nodes → refused (diff-workflow-copy\'s '
+         'one trigger definition, not a copy)', got is False, f'got {"allowed" if got is True else "refused" if got is False else got}')
 
     # 13. ids from argv are letters and digits only (lane T M2): refused before ANY call
     committed, fake, oid, cid = world('main')
