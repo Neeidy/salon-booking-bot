@@ -26,8 +26,14 @@ restore source here. Use the two paths below instead.
 >    `probe` (webhook copies) → for Owner Actions only: `deactivate` → `settings … --delta-file F --snapshot S2` →
 >    `activate` (ruling T-4: the setting goes last, after the probe);
 > 3. if any step or the evidence after it is red: `deactivate` (if active) → `rollback SPEC COPY S1` (it proves GET ==
->    the pre-edit snapshot, settings included) → `activate`, and STOP. Delete S1/S2 once the edit is closed: they hold
->    live values (ruling SNAPSHOT, 2026-10-26; reverse deltas and the REV-export restore are gone).
+>    the pre-edit snapshot: nodes, connections, credential ids and settings — except the one FORWARD-ONLY Owner Actions
+>    setting `saveDataSuccessExecution: "none"`, which a rollback after `settings` leaves set, by ruling 2026-10-26: in
+>    the R3 rehearsal the rollback read back with ONLY the settings different from the snapshot, read as the PUT not
+>    undoing the key; the value itself was not printed) → `activate`, and STOP. ⚠ After such a rollback the copy is not
+>    its committed export (the key is live, not committed): parity is red on it and a retry of the edit is refused until
+>    it is resolved by ruling. `probe` counts executions, so it does not run after `settings`. Delete S1/S2 once the
+>    edit is closed: they hold live values (ruling SNAPSHOT, 2026-10-26; reverse deltas and the REV-export restore are
+>    gone).
 > The section below describes the abandoned tool, kept as the record of its design.
 
 Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies

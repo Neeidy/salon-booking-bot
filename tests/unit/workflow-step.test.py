@@ -27,12 +27,14 @@ setting, a placeholder; after an edit, a second put) — so every snapshot is a 
 type changed is refused. T-4: put never sends a setting (the approved delta's setting is not live after put, and a
 setting changing across the PUT is RED); `settings` is refused before the edit is live, on an active copy, for Main's
 delta, an unapproved value and an extra key, applies exactly the approved key with nodes unchanged, is RED when n8n drops
-the value or changes a node, and rollback to the pre-edit snapshot undoes edit and setting. rehearse-rollback runs put →
+the value or changes a node, and rollback to the pre-edit snapshot undoes the edit (and the setting under a fake that
+replaces settings; under one that MERGES them, as the R3 rehearsal read live n8n, the FORWARD-ONLY Owner Actions key is
+left and named, any other leftover key/value/spec is RED). rehearse-rollback runs put →
 settings (Owner Actions) → rollback on a scratch, the scratch ending exactly as built, production untouched, snapshots
 removed; a rollback n8n does not keep is RED. Lane T review (R1d): `settings` with the committed export as EXPORT on an
 unedited copy, and a settings-only delta for Purge, are refused; a copy that comes back ACTIVE is RED with a message that
 says ACTIVE (put, settings, rollback); a rollback answered 502 but applied is reported from the read-back; n8n changing a
-credential id across put, merging settings or renaming on rollback is RED; put re-reads the copy immediately before
+credential id across put, or renaming on rollback is RED; put re-reads the copy immediately before
 its PUT; a valid snapshot inside the repo is refused for where it is; the scratch is deleted in `finally` (a 500 PUT, a red scratch read-back, an
 exception) with exit 3 when the delete is not proven. Kept from R1c: ids not letters/digits refused before any call;
 the scratch deleted only on an exact 404 and never activated (by its live name); M-a in a throwaway git repo; M-b; the
@@ -108,8 +110,9 @@ class FakeN8n:
     does nothing; every later GET of that id answers that status: 500, an Access 403, curl's 0). execs: {id: [startedAt]}
     for GET /executions. create_mangle: applied to the workflow a POST /workflows stores (a scratch that reads back wrong)."""
     def __init__(self, wfs, mangle=None, flip_ok=True, stale_published=False, put_status=200, delete_mode='gone',
-                 create_mangle=None, create_answer=None):
+                 create_mangle=None, create_answer=None, merge_settings=False):
         self.wfs, self.mangle, self.calls = wfs, mangle, []
+        self.merge_settings = merge_settings   # True: a PUT adds/overwrites settings keys and never removes one (R3, live)
         self.flip_ok, self.stale_published, self.put_status = flip_ok, stale_published, put_status
         self.delete_mode, self.create_mangle, self.deleted, self.broken, self.execs = delete_mode, create_mangle, set(), {}, {}
         self.create_answer = create_answer   # (status, body) a POST /workflows answers instead of the id (it still stores one)
@@ -156,7 +159,10 @@ class FakeN8n:
             b = copy.deepcopy(body)
             if self.mangle:
                 self.mangle(b)
+            before = copy.deepcopy(w.get('settings'))
             w.update({k: b[k] for k in ('name', 'nodes', 'connections', 'settings')})
+            if self.merge_settings:
+                w['settings'] = {**(before or {}), **(b.get('settings') or {})}
             if '_active' in b:
                 w['active'] = b['_active']
             return 200, {}
@@ -997,10 +1003,46 @@ try:
     run(fake, ['put', O, cid, SO, '--delta-file', DO])
     S1o = run.last_snap
     run(fake, ['settings', O, cid, SO, '--delta-file', DO])
-    fake.mangle = lambda b: b['settings'].__setitem__('saveDataSuccessExecution', 'none')   # n8n MERGES settings
+    fake.merge_settings = True   # n8n MERGES settings on PUT: the R3 rehearsal's reading (only the settings differed)
     rc, out = run(fake, ['rollback', O, cid, S1o])
-    case('rollback is RED when n8n merges settings instead of replacing them (the T-4 key would stay live)',
-         rc == 1 and 'settings differ' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    case('FORWARD-ONLY (ruling 2026-10-26): Owner Actions rollback after `settings`, n8n keeping saveDataSuccessExecution '
+         '"none" → green, the key named as left live', rc == 0 and 'FORWARD-ONLY' in out and 'saveDataSuccessExecution' in out
+         and fake.wfs[cid]['settings'].get('saveDataSuccessExecution') == 'none', f'rc {rc} · {out.strip().splitlines()[-1][:140]}')
+    for label, extra in (('another leftover key beside it', {'saveDataSuccessExecution': 'none', 'saveManualExecutions': True}),
+                         ('another key left alone', {'saveDataErrorExecution': 'none'}),
+                         ('saveDataSuccessExecution left with a DIFFERENT value', {'saveDataSuccessExecution': 'all'})):
+        committed, fake, oid, cid = world('owner-actions')
+        run(fake, ['put', O, cid, SO, '--delta-file', DO])
+        S1x = run.last_snap
+        run(fake, ['settings', O, cid, SO, '--delta-file', DO])
+        fake.mangle = lambda b, e=extra: b['settings'].update(e)   # what n8n keeps after the rollback PUT
+        rc, out = run(fake, ['rollback', O, cid, S1x])
+        case(f'FORWARD-ONLY is exactly one case: {label} → rollback RED, naming the key(s)', rc == 1 and 'settings differ' in out
+             and all(k in out for k in extra if k != 'saveDataSuccessExecution' or extra[k] != 'none'),
+             f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    committed, fake, oid, cid = world('main')
+    run(fake, ['put', M, cid, SM, '--delta-file', DM])
+    S1mx = run.last_snap
+    fake.mangle = lambda b: b['settings'].__setitem__('saveDataSuccessExecution', 'none')
+    rc, out = run(fake, ['rollback', M, cid, S1mx])
+    case('FORWARD-ONLY is Owner Actions only: the same key left on MAIN after a rollback → RED', rc == 1 and 'settings differ' in out,
+         f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    fo = W.FORWARD_ONLY_SETTINGS['owner-actions']
+    base = {'executionOrder': 'v1'}
+    for label, got, want, want_err in (
+            ('key left "none", absent from the snapshot', {**base, 'saveDataSuccessExecution': 'none'}, base, False),
+            ('both hold "none" (the S1 of an edit after the promotion)', {**base, 'saveDataSuccessExecution': 'none'},
+             {**base, 'saveDataSuccessExecution': 'none'}, False),
+            ('key "none" live, the snapshot holding "all"', {**base, 'saveDataSuccessExecution': 'none'},
+             {**base, 'saveDataSuccessExecution': 'all'}, True),
+            ('key gone live, the snapshot holding "none"', base, {**base, 'saveDataSuccessExecution': 'none'}, True),
+            ('another key changed beside the exempt one', {'executionOrder': 'v0', 'saveDataSuccessExecution': 'none'}, base, True)):
+        e = W.snapshot_errs({'nodes': [], 'connections': {}, 'settings': got, 'name': 'x'},
+                            {'nodes': [], 'connections': {}, 'settings': want, 'name': 'x'}, fo)
+        case(f'snapshot_errs FORWARD-ONLY: {label} → {"RED" if want_err else "equal"}', bool(e) == want_err, f'{e}')
+    e = W.snapshot_errs({'nodes': [], 'connections': {}, 'settings': {**base, 'saveDataSuccessExecution': 'none'}, 'name': 'x'},
+                        {'nodes': [], 'connections': {}, 'settings': base, 'name': 'x'})
+    case('snapshot_errs with NO forward-only list (the settings read-back) → the leftover key is RED', bool(e), f'{e}')
     committed, fake, oid, cid = world('owner-actions')
     rc, out = run(fake, ['settings', O, cid, 'HEAD:n8n/workflow.owner-actions.copy.sanitized.json', '--delta-file', DO])
     case('settings with EXPORT = the committed export on an UNEDITED copy → refused (EXPORT is not the approved edit), 0 PUT',
@@ -1125,6 +1167,13 @@ try:
     fake.delete_mode, fake.broken = 'gone', {}
     rc, out = run(fake, ['scratch-delete', M, sid])
     case('scratch-delete: DELETE, read back exactly 404', rc == 0 and sid not in fake.wfs, f'rc {rc}')
+
+    for spec, exp, df, x, needle in ((O, SO, DO, 'owner-actions', 'FORWARD-ONLY'), (M, SM, DM, 'main', None)):
+        committed, fake, oid, cid = world(x, merge_settings=True)
+        rc, out = run(fake, ['rehearse-rollback', spec, cid, exp, '--delta-file', df])
+        case(f'rehearse-rollback {x} under an n8n that MERGES settings (the R3 rehearsal\'s reading): green'
+             + (', the forward-only key named' if needle else ' (no settings step, so nothing to leave)'),
+             rc == 0 and ((needle in out) if needle else 'FORWARD-ONLY' not in out), f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
 
     # 18. rehearse-rollback, end to end: scratch from the live copy → put (S0) → settings (Owner Actions only) → rollback to
     #     S0, proven equal → scratch deleted in `finally` (404) and the snapshots removed

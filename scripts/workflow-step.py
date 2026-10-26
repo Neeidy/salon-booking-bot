@@ -43,7 +43,9 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
   rollback   SPEC COPY_ID SNAPSHOT                PUT the snapshot back (name, nodes, connections, settings — the fields
                                                   the API takes) to the INACTIVE copy the snapshot was taken from, and
                                                   prove GET == snapshot: every node (credential ids listed on their own),
-                                                  the connections and the settings, exactly. For Main and Owner Actions a
+                                                  the connections and the settings, exactly — except FORWARD_ONLY_SETTINGS
+                                                  (Owner Actions' saveDataSuccessExecution "none" left live while absent
+                                                  from the snapshot — the R3 rehearsal's reading; see R3 ORDER). For Main and Owner Actions a
                                                   snapshot that fails the webhook invariants below (Turnstile literal not
                                                   `enabled: true`, a trigger not as committed) is refused: a stale or
                                                   already-wrong snapshot never restores a weaker gate
@@ -78,7 +80,17 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
                                                   POST with no usable id, exits 3.
 
 R3 ORDER, per copy: deactivate → put --snapshot S1 → activate → probe → (Owner Actions) deactivate → settings --snapshot
-S2 → activate. A red step: deactivate (if active) → rollback S1 (it holds the pre-edit settings too) → activate.
+S2 → activate. A red step: deactivate (if active) → rollback S1 → activate. Rollback restores nodes, connections and
+credential ids exactly. Measured in the R3 rehearsal on a scratch (2026-10-26): after
+`settings` set `saveDataSuccessExecution`, the rollback PUT of a snapshot without it read back with nodes, connections
+and credential ids == the snapshot and ONLY the settings different (that n8n kept the key is the reading of this; the
+value was not printed). So that one setting is
+FORWARD-ONLY (ruling 2026-10-26: privacy hardening, applied last, nothing after it needs rollback), and rollback's settings
+equality ignores exactly FORWARD_ONLY_SETTINGS — that key, that live value, absent from the snapshot; anything else is RED,
+naming the differing setting KEYS (never values). ⚠ After such a rollback the copy is NOT its committed export: the key
+is live and not committed, so exports/content parity is red on it and a second `put` is refused (parity_errs) until it
+is resolved by ruling. And `probe` counts executions, so it is not run after `settings` (a successful run is no longer
+saved).
 
 GATE (Yigitcan, 2026-10-26; R1c ruling), kept as defence in depth beside the approved deltas: every security-gate node
 (diff-workflow-copy.GATE_NODES: Main's and Owner Actions' admission path, incl. `Load Config`, which holds the Turnstile
@@ -289,11 +301,24 @@ def _cred_ids(wf):
     return sorted((n.get('name'), t, (c or {}).get('id')) for n in wf.get('nodes') or [] for t, c in (n.get('credentials') or {}).items())
 
 
-def snapshot_errs(got, want):
+# (spec key → (setting, live value)) a rollback may leave behind — only when the snapshot lacks the key (ruling 2026-10-26).
+FORWARD_ONLY_SETTINGS = {'owner-actions': (('saveDataSuccessExecution', 'none'),)}
+
+
+def forward_only_left(got_settings, want_settings, forward_only):
+    """The forward-only keys the read-back still holds: each exactly its declared value AND absent from the snapshot."""
+    g, w = got_settings or {}, want_settings or {}
+    return sorted(k for k, v in forward_only if k in g and g[k] == v and k not in w)
+
+
+def snapshot_errs(got, want, forward_only=()):
     """GET == snapshot, exactly: every node (as a whole, order-free), the credential ids (listed on their own), the
-    connections, the settings and the name. [] when equal."""
+    connections, the settings and the name. [] when equal. `forward_only` (rollback only): those (key, value) pairs left
+    live while absent from the snapshot are not a difference — the R3 rehearsal read as a PUT not removing that key.
+    A settings difference names the differing KEYS only (a value may be live data)."""
     canon = lambda o: json.dumps(o, sort_keys=True)
     errs = []
+    left = forward_only_left(got.get('settings'), want.get('settings'), forward_only)
     gn, wn = [canon(n) for n in got.get('nodes') or []], [canon(n) for n in want.get('nodes') or []]
     if sorted(gn) != sorted(wn):
         G = {n.get('name'): canon(n) for n in got.get('nodes') or []}
@@ -304,8 +329,11 @@ def snapshot_errs(got, want):
         errs.append('credential ids differ from the snapshot')
     if canon(got.get('connections') or {}) != canon(want.get('connections') or {}):
         errs.append('connections differ from the snapshot')
-    if canon(got.get('settings') or {}) != canon(want.get('settings') or {}):
-        errs.append('settings differ from the snapshot')
+    gs = {k: v for k, v in (got.get('settings') or {}).items() if k not in left}
+    ws = want.get('settings') or {}
+    if canon(gs) != canon(ws):
+        keys = sorted(k for k in set(gs) | set(ws) if canon(gs.get(k)) != canon(ws.get(k)) or (k in gs) != (k in ws))
+        errs.append(f'settings differ from the snapshot (keys: {keys[:6]})')
     if got.get('name') != want.get('name'):
         errs.append('the name differs from the snapshot')
     return errs
@@ -583,7 +611,8 @@ def settings_step(spec_path, copy_id, export_arg, allow, delta, snapshot, scratc
 
 
 def rollback(spec_path, copy_id, snapshot, scratch=False):
-    """PUT the pre-edit snapshot back and prove GET == snapshot (nodes incl. credential ids, connections, settings). For the
+    """PUT the pre-edit snapshot back and prove GET == snapshot (nodes incl. credential ids, connections, settings — except
+    FORWARD_ONLY_SETTINGS, see R3 ORDER in the module docstring). For the
     webhook copies the snapshot must first pass the same webhook invariants put checks on an export (Turnstile literal
     `enabled: true`, the triggers as committed): a snapshot is restored, never trusted (T+D security review T-1, R1d —
     a leftover snapshot, or a live copy already wrong when it was taken, would otherwise go back green)."""
@@ -606,8 +635,11 @@ def rollback(spec_path, copy_id, snapshot, scratch=False):
     after = H._read(copy_id)
     if after is None:
         raise Refused(f'rollback PUT [{st}]: {_state(after)}; the snapshot {snapshot} is unchanged — retry the rollback')
+    fwd = FORWARD_ONLY_SETTINGS.get(spec_key(spec_path), ())
+    left = []
     try:
-        errs = snapshot_errs(H._draft(after), body)
+        errs = snapshot_errs(H._draft(after), body, fwd)
+        left = forward_only_left(H._draft(after).get('settings'), body.get('settings'), fwd)
     except Exception as e:
         errs = [f'the read-back could not be compared ({type(e).__name__})']
     if after.get('active') is not False:
@@ -620,7 +652,8 @@ def rollback(spec_path, copy_id, snapshot, scratch=False):
         raise Refused(f'ROLLBACK READ-BACK RED (the copy holds what n8n kept; {_state(after)}; the snapshot {snapshot} is '
                       'unchanged): ' + '; '.join(errs[:4]))
     print(f"  rollback: [{st}] · read back == the snapshot: {len(body['nodes'])} nodes, {len(_cred_ids(body))} credential "
-          f"id(s), connections, settings · still inactive{' · SCRATCH' if scratch else ''}")
+          f"id(s), connections, settings" + (f" (except the FORWARD-ONLY {left}, left as applied — ruling 2026-10-26)" if left else '')
+          + f" · still inactive{' · SCRATCH' if scratch else ''}")
     return 0
 
 
