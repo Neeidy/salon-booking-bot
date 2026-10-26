@@ -54,6 +54,10 @@ n8n/**/*.json
 # 7-F1 Round A: engine edits PREPARED for Round B, kept beside (not in place of) the live copies' reference
 # exports, so both parity guards stay true while live is unchanged. Same suffix rule: sanitized files only.
 !n8n/staged/workflow.*.sanitized.json
+# 7-2 Tur 2 R1b: each staged edit's DECLARED DELTA — node names, edges, and at most a workflow-settings key with its
+# scalar value (Owner Actions: saveDataSuccessExecution "none", ruling T-4); no node parameters, nothing masked. Read by
+# staged-sanitised.test.py and by `workflow-step.py put/settings --delta-file`, which refuses an untracked one.
+!n8n/staged/workflow.*.copy.delta.json
 
 # Real per-client config — only the .example is committed
 config/client.config.json

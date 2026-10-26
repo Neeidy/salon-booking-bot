@@ -1,5 +1,5 @@
 {
-  "_doc": "D4 (MIGRATION-PLAN §3s): the Main copy. Seventeen data nodes change; every one receives a single item, so all keep the default `single` batching (Q18 covers only the four multi-item writes). Upserts SET exactly the columns the Airtable node mapped, `created_at` included (D4-4). `Record Processed` stays DO NOTHING (Q17). The one webhook moves to a test path behind Access; both lanes (widget, whatsapp) move with it. `availableInMCP` and `binaryMode` are created ABSENT on the copy (D4-1).",
+  "_doc": "D4 (MIGRATION-PLAN §3s): the Main copy. Seventeen data nodes changed at D4 (sixteen since 7-2 Tur 2 removed `Record Processed`); every one receives a single item, so all keep the default `single` batching (Q18 covers only the four multi-item writes). Upserts SET exactly the columns the Airtable node mapped, `created_at` included (D4-4). `Check Processed` CLAIMS the message id in one statement (`INSERT … ON CONFLICT DO NOTHING RETURNING`; 7-2 Tur 2, ruling R-1a), so the post-run `Record Processed` marker is gone from the copy. The one webhook moves to a test path behind Access; both lanes (widget, whatsapp) move with it. `availableInMCP` and `binaryMode` are created ABSENT on the copy (D4-1).",
   "original": "n8n/workflow.sanitized.json",
   "name": "MIG COPY — Main",
   "trigger": {
@@ -34,12 +34,8 @@
       "params": ["$('Build Event Request').first().json.sender_key", "$('Build Event Request').first().json.booking.serviceName", "$('Build Event Request').first().json.booking.startUTC", "$('Build Event Request').first().json.booking.endUTC", "$json.gcal_event_id", "$('Build Event Request').first().json.channel", "$('Build Event Request').first().json.booking.customerName || ''", "$now.toUTC().toISO()", "$('Build Event Request').first().json.booking.calId"]
     },
     "Check Processed": {
-      "query": "SELECT @@shape(processed_messages)@@ FROM salon.processed_messages WHERE message_id = $1",
-      "params": ["$json.message_id"]
-    },
-    "Record Processed": {
-      "query": "INSERT INTO salon.processed_messages (message_id, sender_key, channel, created_at) VALUES ($1, $2, $3, $4::timestamptz) ON CONFLICT (message_id) DO NOTHING RETURNING @@shape(processed_messages)@@",
-      "params": ["$('Normalize Inbound').first().json.message_id", "$('Normalize Inbound').first().json.sender_key", "$('Normalize Inbound').first().json.channel", "$now.toUTC().toISO()"]
+      "query": "INSERT INTO salon.processed_messages (message_id, sender_key, channel) VALUES ($1, $2, $3) ON CONFLICT (message_id) DO NOTHING RETURNING @@shape(processed_messages)@@",
+      "params": ["$json.message_id", "$json.sender_key", "$json.channel"]
     },
     "Save State (Post-Write)": {
       "query": "INSERT INTO salon.conversations (sender_key, stage, turn_count, last_updated, last_intent, slot_service, slot_date, slot_time, gcal_event_id, cancel_target_id, confirm_turn, computed_reply, recent_messages) VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (sender_key) DO UPDATE SET stage = EXCLUDED.stage, turn_count = EXCLUDED.turn_count, last_updated = EXCLUDED.last_updated, last_intent = EXCLUDED.last_intent, slot_service = EXCLUDED.slot_service, slot_date = EXCLUDED.slot_date, slot_time = EXCLUDED.slot_time, gcal_event_id = EXCLUDED.gcal_event_id, cancel_target_id = EXCLUDED.cancel_target_id, confirm_turn = EXCLUDED.confirm_turn, computed_reply = EXCLUDED.computed_reply, recent_messages = EXCLUDED.recent_messages RETURNING @@shape(conversations)@@",

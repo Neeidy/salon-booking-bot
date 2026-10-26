@@ -1,0 +1,54 @@
+{
+ "_doc": "The DECLARED DELTA of n8n/staged/workflow.main.copy.sanitized.json against the committed copy export: 7-2 Tur 2, the single Main edit (plan v2 + rulings R-1a, R-Q1, R-Q2, CLAIM-RETRY, DEAD, F2-F8, R1b: H1, M1, M2, ITEM13, L8; R1c: RACE, ALERT-ORDER, FLOW L1/L4). Build Reschedule Orphan State is E3 (BASE), committed separately. Read by tests/unit/staged-sanitised.test.py (the node set must equal committed - remove_nodes + add_nodes) and by scripts/workflow-step.py put --delta-file, so the reviewed delta and the one sent to n8n are the same file.",
+ "allow": [
+  "Alert Record Failed",
+  "Build Cancel-Aborted State",
+  "Build Event Request",
+  "Build Owner Alert",
+  "Build Reply Payload",
+  "Build Reschedule Event Request",
+  "Build Reschedule Insert-Failed State",
+  "Build Reschedule Orphan State",
+  "CP5e error-split note",
+  "Calendar Unavailable Reply",
+  "Cancel Delete Unavailable Reply",
+  "Check Processed",
+  "Check Race",
+  "Check Race (Reschedule)",
+  "Classify Reconcile Failure",
+  "Compute Availability",
+  "Compute Reschedule Availability",
+  "Confirm Live?",
+  "Dedupe Gate",
+  "LLM Unavailable Reply",
+  "Lead Unavailable Reply",
+  "Owner Alert Failed",
+  "Send Error Response",
+  "Sticky Note",
+  "Sticky Note CP1",
+  "Sticky Note CP2c-i",
+  "Sticky Note CP2c-ii",
+  "Sticky Note2",
+  "Sticky — Alert class stamp",
+  "Sticky — Outbound"
+ ],
+ "add_nodes": [
+  "Sticky — Tag Turnstile Unavailable",
+  "Tag Turnstile Unavailable"
+ ],
+ "remove_nodes": [
+  "Build Dedupe-Marker Alert",
+  "Record Processed"
+ ],
+ "add_edges": [
+  "Tag Turnstile Unavailable|0|Build Owner Alert|0",
+  "Turnstile Valid?|1|Tag Turnstile Unavailable|0",
+  "Verify Turnstile|1|Tag Turnstile Unavailable|0"
+ ],
+ "remove_edges": [
+  "Build Dedupe-Marker Alert|0|Build Owner Alert|0",
+  "Record Processed|1|Build Dedupe-Marker Alert|0",
+  "Save State (Post-Write)|0|Record Processed|0",
+  "Save State|0|Record Processed|0"
+ ]
+}

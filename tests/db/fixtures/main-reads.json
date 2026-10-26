@@ -1,5 +1,5 @@
 {
- "_doc": "D4a (MIGRATION-PLAN §3s): the Main copy's eight read nodes. Every value is fake (mig-d4). A case with \"fixture\" reads those rows through the table's own row type; a case without one reads the REAL table, which is empty in D4a, so it proves only that the exact text runs as salon_ro with these parameter types. The seeded real-table run is D4b's.",
+ "_doc": "D4a (MIGRATION-PLAN §3s): the Main copy's seven read nodes (eight until 7-2 Tur 2: `Check Processed` now CLAIMS with an INSERT, so salon_ro cannot run it; tests/db/claim-race.test.sh measures it as salon_app). Every value is fake (mig-d4). A case with \"fixture\" reads those rows through the table's own row type; a case without one reads the REAL table, which is empty in D4a, so it proves only that the exact text runs as salon_ro with these parameter types. The seeded real-table run is D4b's.",
  "Load State": [
   {
    "params": [
@@ -1088,80 +1088,6 @@
   {
    "params": [
     "widget:w-mig-d4-full"
-   ],
-   "rows": 0
-  }
- ],
- "Check Processed": [
-  {
-   "params": [
-    "mig-d4-pm-full"
-   ],
-   "rows": 1,
-   "fixture": [
-    {
-     "id": "recMIGd4pf0000000",
-     "message_id": "mig-d4-pm-full",
-     "sender_key": "widget:w-mig-d4-full",
-     "channel": "widget",
-     "created_at": "2026-10-23T10:00:00Z"
-    },
-    {
-     "id": "recMIGd4ps0000000",
-     "message_id": "mig-d4-pm-sparse",
-     "sender_key": "",
-     "channel": "",
-     "created_at": "2026-10-23T10:01:00Z"
-    }
-   ]
-  },
-  {
-   "params": [
-    "mig-d4-pm-sparse"
-   ],
-   "rows": 1,
-   "fixture": [
-    {
-     "id": "recMIGd4pf0000000",
-     "message_id": "mig-d4-pm-full",
-     "sender_key": "widget:w-mig-d4-full",
-     "channel": "widget",
-     "created_at": "2026-10-23T10:00:00Z"
-    },
-    {
-     "id": "recMIGd4ps0000000",
-     "message_id": "mig-d4-pm-sparse",
-     "sender_key": "",
-     "channel": "",
-     "created_at": "2026-10-23T10:01:00Z"
-    }
-   ]
-  },
-  {
-   "params": [
-    "mig-d4-pm-full--"
-   ],
-   "rows": 0,
-   "fixture": [
-    {
-     "id": "recMIGd4pf0000000",
-     "message_id": "mig-d4-pm-full",
-     "sender_key": "widget:w-mig-d4-full",
-     "channel": "widget",
-     "created_at": "2026-10-23T10:00:00Z"
-    },
-    {
-     "id": "recMIGd4ps0000000",
-     "message_id": "mig-d4-pm-sparse",
-     "sender_key": "",
-     "channel": "",
-     "created_at": "2026-10-23T10:01:00Z"
-    }
-   ]
-  },
-  {
-   "params": [
-    "mig-d4-pm-full"
    ],
    "rows": 0
   }
