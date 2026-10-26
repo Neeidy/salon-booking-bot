@@ -1,28 +1,42 @@
 {
-  "_doc": "D3b (MIGRATION-PLAN §3r): the Owner Actions copy. Five data nodes change; the replay marker takes the Q17 (a) form; the webhook moves to a test path behind Access.",
+  "_doc": "D3b (MIGRATION-PLAN §3r): the Owner Actions copy. Five data nodes change; the replay marker takes the Q17 (a) form; the webhook moves to a test path behind Access. 7-2 Tur 2 (live in R3): `Record Owner Action Processed` is gone — the release statement writes its own marker — so four data nodes remain; and the copy saves execution data on error only.",
   "original": "n8n/workflow.owner-actions.sanitized.json",
   "name": "MIG COPY — Owner Actions (D11)",
-  "trigger": {"node": "Receive Owner Action", "test_path": "owner-mig-release"},
+  "trigger": {
+    "node": "Receive Owner Action",
+    "test_path": "owner-mig-release"
+  },
   "nodes": {
     "Find Target Conversation": {
       "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE id = $1",
-      "params": ["$json.record_id"]
+      "params": [
+        "$json.record_id"
+      ]
     },
     "Check Owner Replay": {
       "query": "SELECT @@shape(processed_messages)@@ FROM salon.processed_messages WHERE message_id = $1",
-      "params": ["$json.messageId"]
+      "params": [
+        "$json.messageId"
+      ]
     },
     "Release Handoff Lock": {
       "query": "UPDATE salon.conversations SET stage = 'new', last_intent = '' WHERE id = $1 RETURNING @@shape(conversations)@@",
-      "params": ["$json.target_record"]
+      "params": [
+        "$json.target_record"
+      ]
     },
     "Re-read Released Conversation": {
       "query": "SELECT @@shape(conversations)@@ FROM salon.conversations WHERE id = $1",
-      "params": ["$('Owner Replay Seen?').first().json.target_record"]
-    },
-    "Record Owner Action Processed": {
-      "query": "INSERT INTO salon.processed_messages (message_id, sender_key, channel, created_at) VALUES ($1, 'owner:dashboard', 'owner', $2::timestamptz) ON CONFLICT (message_id) DO UPDATE SET message_id = EXCLUDED.message_id RETURNING @@shape(processed_messages)@@",
-      "params": ["$('Owner Replay Seen?').first().json.messageId", "$now.toUTC().toISO()"]
+      "params": [
+        "$('Owner Replay Seen?').first().json.target_record"
+      ]
+    }
+  },
+  "settings_allow": {
+    "saveDataSuccessExecution": {
+      "covers": "value",
+      "value": "none",
+      "ruling": "T-4 (7-2 Tur 2, applied live in R3): a successful run's execution data holds the Access JWT and a cookie, so the copy saves execution data on error only; the parked original keeps n8n's default"
     }
   }
 }
