@@ -349,6 +349,50 @@ through main's reviewed `scripts/turnstile-window.py`, an import-safe scratchpad
   row is kept (the spend meter).
 - **Not re-run, labelled (README):** the seeded ⚙ scenarios — their paths are covered by D4b G1–G3 and M7.
 
+### §4g · 7-2 R3 — the live window (brief 2026-10-26, its own ⚠ ONAY) — ✅ green, one gap
+*Measured in the session's terminal, output not committed. Every live step through the committed tools
+(`scripts/workflow-step.py`, `scripts/turnstile-window.py`, `scripts/seed-workflow.py`, `tests/run-d11.sh`) and three
+import-safe scratchpad drivers; spend ceiling 1.00 USD; not in the Reminders or Purge windows; no manual execution (Q13).*
+- **Prelude** `a0a337d` (a missing edge type refused · the DOC12 sentence · §9 rows), prep `6deb684`/`eca838d` (the delta
+  tests keep a baseline across the promotion; a two-stage promotion simulated clean first).
+- **Two tool defects the rehearsal found before any production write, each fixed by ruling:**
+  - `acba229` — the deploy helper refused the APPROVED Owner Actions delta: n8n gives Telegram nodes a webhookId and
+    `fill_by_path` refused any dropped node carrying one. Ruling: only a NON-trigger node in the approved `remove_nodes`
+    may drop it (the trigger test is diff-workflow-copy's own). The offline fake had no webhookIds on these nodes (the
+    Owner Actions exports carry none), so it could not produce the defect; it carries them now.
+  - `f635477` — the rollback after `settings` read back with ONLY the settings different from the snapshot (read as a PUT
+    not undoing `saveDataSuccessExecution`; the value was not printed). Ruling: that setting is FORWARD-ONLY; rollback's
+    settings equality ignores exactly that key, value "none", absent from the snapshot, Owner Actions only. Consequence,
+    stated: after such a rollback the copy is not its committed export; and `probe` counts executions, so the check after
+    `settings` is a body probe (ruling: unsigned 403 `invalid_signature`, signed unknown record 404 `not_found`, 0 new
+    executions on the original).
+- **Dashboard:** rebuilt and restarted; loopback 200 · bound to 127.0.0.1 only · cross-site `text/plain` POST 403 ·
+  same-origin JSON `{}` 400 · export 404 with the flag off.
+- **Owner Actions:** rehearsal on a scratch green (put · settings · rollback == snapshot except the forward-only key —
+  which measured that key as the ONLY leftover) → deactivate → put (snapshot S1) → activate → probe (unsigned 403,
+  signed unknown record 404, copy 2 executions, original 0) → one seeded `stage=handoff` conversation → `run-d11`
+  **15/15** (the duplicate pair: exactly one execution wrote the release; the ts in the signed body reaches `Release
+  Handoff Lock` as the same integer) → deactivate → settings (S2) → activate → body probe (403 · 404 · original 0; the
+  copy saved 0 executions — success data off) → promoted at **`43754f8`**.
+- **Main:** rehearsal on a scratch green → deactivate → put (S3) → activate → dummy-token probe 403 → promoted at
+  **`784cdd8`** (before the window: its precheck compares the live copy with the committed export) → **one Turnstile window,
+  72 s**: booking → reschedule → cancel in one session (the A1 routing smoke plus the three actions) and one explicit
+  handoff turn in another; every request's `processed_messages` row read as `salon_ro` (8/8); booked rows 1 → 1 → 0;
+  0.020 USD. Closed by the script, restored and measured both ways (published literal true, dummy token 403 through the
+  copy, none through the original).
+- **After the window:** 8 executions in it, all this run's (no foreign traffic) · Zernio 0 · no Calendar quota error ·
+  events written 2 (booking, reschedule) = deleted 2 (the old slot, the cancel) · the handoff alert reached Telegram with
+  its sender MASKED (the full session id not in the text — item 13) · 0 booked rows left under the run prefix.
+- **Clean-up:** the seed tool's `clean` removed 3 conversations, 1 appointment, 9 processed markers, 0 leads; the seed
+  workflow deleted (GET 404); every p7 count 0. The snapshots S1–S3 deleted after the records.
+- **Parity after the window:** `check-exports-parity` 10/10 with the 5 pairs as declared; content + settings parity of the
+  Main and Owner Actions copies against their NEW exports OK.
+- **The export flag, last:** `DASHBOARD_EXPORT_ENABLED=1` in the unit at **`e899592`**, installed, restarted: both
+  exports answer 200 `text/csv` with the masked-export columns. **⚠ the export's live sample was empty (0 rows in the store): "no unmasked phone in a sample" is recorded as a gap, not counted as closed.** The masking is covered by the dashboard's
+  offline tests.
+- **Declared:** the handoff turn was not in the brief's drill list; it was added to give item 13 an alert to measure.
+  A first content-parity call without a workflow id compared the wrong workflow (red, harmless); repeated with the id.
+
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |
 |---|---|---|
