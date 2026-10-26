@@ -60,16 +60,28 @@ catch(e){console.log(JSON.stringify({error:String(e.code||"unknown")}));}finally
 # RELEASES ARE COUNTED WHERE THEY HAPPEN (7-2 Tur 2): the Owner Actions copy's executions since the run started, in which
 # `Release Handoff Lock` returned a REAL row (its sentinel carries no id). The parser lives here, once, so the selftest
 # checks the same code the live run uses. Prints "COUNT n" or "ERROR <reason>"; never a body, never an id.
+# FAIL-CLOSED on incomplete evidence (R2b D11; Codex R2, target 11): an execution inside the window whose run data is
+# missing or empty counted ZERO, and a page with more results pending was read as complete — either way one release
+# could certify "exactly one". Now: such an execution, or a further page while this page's oldest run is still inside
+# the window, is ERROR. ASSUMES the API lists executions newest first (not measured here): a page that already reaches
+# back past the window start leaves nothing in-window on the next one.
 RELEASES_PY='
-import json,sys
+import json,sys,datetime
 since=sys.argv[1]
+def iso(x):
+    try: datetime.datetime.fromisoformat(x); return True
+    except (TypeError, ValueError): return False
 try: d=json.load(sys.stdin)
 except Exception: print("ERROR unreadable"); sys.exit()
 if not isinstance(d,dict) or not isinstance(d.get("data"),list): print("ERROR no-executions-list"); sys.exit()
+starts=[str(e.get("startedAt") or "")[:19] for e in d["data"] if isinstance(e,dict)]
+if len(starts)!=len(d["data"]) or any(len(x)!=19 or x[10]!="T" or not iso(x) for x in starts): print("ERROR malformed-execution"); sys.exit()
+if d.get("nextCursor") and (not starts or min(starts) >= since): print("ERROR more-pages"); sys.exit()
 n=0
 for e in d["data"]:
     if str(e.get("startedAt") or "")[:19] < since: continue
-    run=((e.get("data") or {}).get("resultData") or {}).get("runData") or {}
+    run=((e.get("data") or {}).get("resultData") or {}).get("runData")
+    if not isinstance(run,dict) or not run: print("ERROR missing-execution-data"); sys.exit()
     for r in run.get("Release Handoff Lock") or []:
         items=(((r.get("data") or {}).get("main") or [[]])[0]) or []
         if any(isinstance(i,dict) and (i.get("json") or {}).get("id") for i in items): n+=1
@@ -96,6 +108,14 @@ try: d=json.load(sys.stdin)
 except Exception: sys.exit(1)
 sys.exit(0 if isinstance(d,dict) and "degraded" in d else 1)'
 is_degraded() { python3 -c "$DEGRADED_PY" < "$1"; }   # is_degraded <body file> -> 0 when the body declares itself degraded
+clean_200() { [ "$1" = "200" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("ok") is True and "degraded" not in d else 1)' "$2" 2>/dev/null; }
+# THE DUPLICATE PAIR'S STATUSES (R2b D11; Codex R2, target 11 LOW): one request is a clean 200; the other answers 200
+# (it read the marker: replayed), 502 (the statement's sentinel) or 409 — launched together, the second lookup can
+# legitimately see the row the first already released, and `Target Locked?` refuses it. All three wrote nothing.
+dup_other() { [ "$1" = "200" ] || [ "$1" = "502" ] || [ "$1" = "409" ]; }
+dup_pair_ok() { # dup_pair_ok <code A> <code B> <body A> <body B>
+  { clean_200 "$1" "$3" && dup_other "$2"; } || { clean_200 "$2" "$4" && dup_other "$1"; }
+}
 
 if [ "${1:-}" = "--selftest-state" ]; then
   rc=0
@@ -135,11 +155,27 @@ if [ "${1:-}" = "--selftest-state" ]; then
     got="$(rel "${pair%%=*}" | python3 -c "$RELEASES_PY" 2030-01-01T10:00:00)"
     [ "$got" = "${pair#*=}" ] || { echo "✗ release counter: got '$got', want '${pair#*=}'"; rc=1; }
   done
-  for bodyx in 'not json' '{"message":"unauthorized"}'; do
+  for bodyx in 'not json' '{"message":"unauthorized"}' \
+               "{\"data\":[$(ex 2030-01-01T10:00:01.000Z "$R"),{\"startedAt\":\"2030-01-01T10:00:02.000Z\"}]}" \
+               "{\"data\":[$(ex 2030-01-01T10:00:01.000Z "$R"),{\"startedAt\":\"2030-01-01T10:00:02.000Z\",\"data\":{\"resultData\":{\"runData\":{}}}}]}" \
+               "{\"data\":[$(ex 2030-01-01T10:00:01.000Z "$R")],\"nextCursor\":\"abc\"}" \
+               "{\"data\":[$(ex 2030-01-01T10:00:01.000Z "$R"),{\"startedAt\":null,\"data\":{\"resultData\":{\"runData\":{\"x\":[]}}}}]}" \
+               "{\"data\":[$(ex 2030-13-45T99:99:99.000Z "$R")]}"; do
     got="$(printf '%s' "$bodyx" | python3 -c "$RELEASES_PY" 2030-01-01T10:00:00)"
-    case "$got" in ERROR*) ;; *) echo "✗ release counter read '$bodyx' as '$got'"; rc=1 ;; esac
+    case "$got" in ERROR*) ;; *) echo "✗ release counter read '${bodyx:0:90}…' as '$got' (incomplete evidence must be ERROR)"; rc=1 ;; esac
   done
-  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK (3 failures and a count-less body → READ-FAILED, 3 readings) · degraded-body check OK (2 caught, 3 passed) · release counter OK (5 readings, 2 non-readings → ERROR) · unchanged verdict OK (5 cases; two empty readings are not a pass)"
+  got="$(printf '{"data":[%s,%s],"nextCursor":"abc"}' "$(ex 2030-01-01T10:00:01.000Z "$R")" "$(ex 2030-01-01T09:00:00.000Z "$R")" | python3 -c "$RELEASES_PY" 2030-01-01T10:00:00)"
+  [ "$got" = "COUNT 1" ] || { echo "✗ release counter: a further page past the window start was refused ('$got')"; rc=1; }
+  pb="$(mktemp)"; pr="$(mktemp)"; pd="$(mktemp)"
+  printf '{"ok":true}' > "$pb"; printf '{"ok":true,"replayed":true}' > "$pr"; printf '{"ok":true,"degraded":"x"}' > "$pd"
+  for v in "200 409 $pb $pr=ok" "409 200 $pr $pb=ok" "200 502 $pb $pr=ok" "200 200 $pb $pr=ok" \
+           "200 500 $pb $pr=bad" "502 409 $pr $pb=bad" "200 409 $pd $pr=bad" "409 409 $pb $pb=bad"; do
+    set -- ${v%%=*}
+    if dup_pair_ok "$1" "$2" "$3" "$4"; then got=ok; else got=bad; fi
+    [ "$got" = "${v#*=}" ] || { echo "✗ duplicate pair $1/$2 judged '$got' (want '${v#*=}')"; rc=1; }
+  done
+  rm -f "$pb" "$pr" "$pd"
+  [ "$rc" = 0 ] && echo "run-d11 selftest: state classifier OK (9 non-readings caught, 7 readings passed through) · direct-read parser OK (3 failures and a count-less body → READ-FAILED, 3 readings) · degraded-body check OK (2 caught, 3 passed) · release counter OK (6 readings, 7 non-readings → ERROR: incl. missing run data, a further in-window page, a missing or unparseable start) · duplicate pair OK (4 accepted incl. a 409, 4 refused) · unchanged verdict OK (5 cases; two empty readings are not a pass)"
   exit "$rc"
 fi
 
@@ -311,11 +347,10 @@ c5a="$(cat "$B1.code")"; c5b="$(cat "$B2.code")"; rm -f "$B1.code" "$B2.code"
 sleep 4   # the executions are persisted after the responses
 AFTER1="$(state_of "d11-$RUN")"
 REL="$(release_count "$RUN_START")"
-clean_200() { [ "$1" = "200" ] && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("ok") is True and "degraded" not in d else 1)' "$2" 2>/dev/null; }
-if { clean_200 "$c5a" "$B1" && { [ "$c5b" = "200" ] || [ "$c5b" = "502" ]; }; } || { clean_200 "$c5b" "$B2" && { [ "$c5a" = "200" ] || [ "$c5a" = "502" ]; }; }; then
-  ok "5 statuses (the duplicate pair)" "$c5a / $c5b — one clean 200; the duplicate 200 (replayed) or 502 (sentinel)"
+if dup_pair_ok "$c5a" "$c5b" "$B1" "$B2"; then
+  ok "5 statuses (the duplicate pair)" "$c5a / $c5b — one clean 200; the duplicate 200 (replayed), 502 (sentinel) or 409 (saw it released)"
 else
-  bad "5 statuses (the duplicate pair)" "got $c5a / $c5b — expected one clean 200 and the other 200 or 502"
+  bad "5 statuses (the duplicate pair)" "got $c5a / $c5b — expected one clean 200 and the other 200, 502 or 409"
 fi
 case "$REL" in
   "COUNT 1") ok "5 releases (the duplicate pair)" "exactly ONE execution wrote the release; the duplicate wrote nothing" ;;
