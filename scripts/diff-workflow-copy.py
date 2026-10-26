@@ -218,8 +218,10 @@ def strip(node, drop=()):
 def _edge(src, i, e):
     """One main connection as 'SRC|OUT|DST|IN'. An item under `main` whose own `type` is not `main` gets '|type=<t>'
     appended (Codex R2, deploy MEDIUM: the type was dropped, so a `main` → `ai_tool` change compared equal); such an
-    edge can never equal a declared one, so the change is red as an undeclared edge. No committed export has one."""
-    t = e.get('type', 'main')
+    edge can never equal a declared one, so the change is red as an undeclared edge. A MISSING type is not read as
+    `main` (ruling TYPE, R3; Codex R2b: deleting the key passed) — it becomes '|type=missing' and is red the same way.
+    No committed export has either (1055 connection items, measured 2026-10-26)."""
+    t = e.get('type', 'missing')
     return f"{src}|{i}|{e.get('node')}|{e.get('index', 0)}" + ('' if t == 'main' else f'|type={t}')
 
 
@@ -663,6 +665,9 @@ def selftest():
     src_t = next(k for k, v in m['connections'].items() if not is_gate(k, mexp) and k != TAG and (v.get('main') or [[]])[0])
     m['connections'][src_t]['main'][0][0]['type'] = 'ai_tool'
     dcases.append((f"type: an untouched source's edge changed main → ai_tool", m, {medit}, ruled, False))
+    m = with_tag(edited(), 'Verify Turnstile', 'Turnstile Valid?')
+    del m['connections']['Turnstile Valid?']['main'][0][0]['type']
+    dcases.append(("type: 'Turnstile Valid?' output 0 with its type key DELETED beside the ruled delta (R3 TYPE)", m, {medit}, ruled, False))
     # POSITION LOCK (M-c): Reject Bot Request moved below the added tag reverses their v1 order on both Turnstile outputs
     m = with_tag(edited(), 'Verify Turnstile', 'Turnstile Valid?'); node(m, 'Reject Bot Request')['position'] = [2464, 4400]
     dcases.append(('position: Reject Bot Request moved below the tag (no delta declares a move)', m, {medit}, ruled, False))

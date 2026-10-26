@@ -1184,6 +1184,13 @@ try:
     rc, out = run(fake, ['put', M, cid, repo_file(ty), '--delta-file', DM])
     case("R2b put: 'Turnstile Valid?' output 0 changed main → ai_tool with the approved delta → refused, 0 PUT",
          rc == 1 and fake.puts() == 0 and 'type=ai_tool' in out, f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+    for spec_, exp_, df_, src_ in ((M, em, DM, 'Turnstile Valid?'), (O, eo, DO, 'Write Verified?')):   # Codex R2b: both its cases
+        nt = copy.deepcopy(exp_)
+        del nt['connections'][src_]['main'][0][0]['type']
+        committed, fake, oid, cid = world(os.path.splitext(os.path.basename(spec_))[0])
+        rc, out = run(fake, ['put', spec_, cid, repo_file(nt), '--delta-file', df_])
+        case(f"R3 TYPE put: '{src_}' output 0 with its type key DELETED, approved delta → refused, 0 PUT",
+             rc == 1 and fake.puts() == 0 and 'type=missing' in out, f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
 
     # 21. M-b: a POST that returns no usable id (none · malformed · curl's 0) is exit 3 with the find-by-name instruction,
     #     no DELETE, and never "deleted"; a rehearsal refused before the POST says no scratch was created.

@@ -1890,8 +1890,10 @@ Each CP waits for its own written approval (plan-gate).
   round's agreed scope.
 - ☐ **ACCEPTED GAP — Codex finding 2 (change request during confirmation).** If a customer names a different date on
   the confirm turn — whether or not that date resolves — the engine books the slot it SHOWED them in the confirmation
-  text (the stored slot). Wrong but visible: since 7-2 Tur 2 (staged Main) a clean booking whose confirm turn named
-  another date alerts the owner (`date_changed_on_confirm`, with the date line). *(Corrected 2026-10-26: the scope said
+  text (the stored slot). Since 7-2 Tur 2 (staged Main), a confirmation that names another date which resolves to a
+  different day raises the owner alert (`date_changed_on_confirm`, with the date line); a date that cannot be extracted
+  is booked silently on the stored slot — the accepted gap. *(Ruling DOC12, R3: the previous sentence said every
+  confirmation naming another date alerts, which Codex R2b showed false for an unextracted one.)* *(Corrected 2026-10-26: the scope said
   "and it cannot be resolved", narrower than the behaviour — Codex 7-2 target 12 reproduced a resolving date booked on
   the stored day.)* The correct fix is a **product feature** — a change-request-during-confirmation intent with its
   own flow — not a guard on the write path. Own phase, own gate. **Do not close this with another guard.**
