@@ -124,7 +124,7 @@ export function HandoffQueue({ page }: { page: Page<HandoffRow> }) {
                   <strong>{who}</strong>
                   <span className="sw">{alertLabel(st)}</span>
                 </div>
-                <p>{safeText(r.recent_messages)}</p>
+                <p className="q-text">{safeText(r.recent_messages)}</p>
                 <span className="tech">
                   waiting {waitedFor(r.last_updated)} · {r.turn_count ?? 0} turns
                   {r.last_intent ? ` · last read as "${r.last_intent}"` : ''}

@@ -177,6 +177,13 @@ test('csvCell: every formula start is neutralised, quotes are doubled, ordinary 
   assert.equal(ex.csvCell(''), '""');
 });
 
+test('a cell holding a newline (LF, CRLF) stays ONE quoted cell — maskFreeText now keeps \\n (ruling 2026-10-26, M1)', () => {
+  // The CSV files carry no free text today (maskName / maskPhone only); this pins that the quoting would hold if one did.
+  assert.equal(ex.csvCell('first 06…67\nsecond'), '"first 06…67\nsecond"');
+  const rows = parseCsv(ex.toCsv(['a', 'b'], [['line one\nline two', 'x'], ['l1\r\nl2 "q"', 'y']]));
+  assert.deepEqual(rows, [['a', 'b'], ['line one\nline two', 'x'], ['l1\r\nl2 "q"', 'y']]);
+});
+
 test('a truncated page says so inside the file', () => {
   const page = { rows: [{ id: 'recL1', name: 'Bo Li', phone: '+43 660 1234567' }], truncated: true };
   const rows = parseCsv(ex.leadsCsv(page));
@@ -185,7 +192,7 @@ test('a truncated page says so inside the file', () => {
 });
 
 test('a value that fails the masking check is withheld, not written', () => {
-  // No input makes today's maskers emit a 5-digit run, so the guard is driven with a mask that is broken on
+  // No known input makes today's maskers emit a run `assertMasked` refuses, so the guard is driven with a mask that is broken on
   // purpose: the property is that whatever a mask returns, assertMasked stands between it and the file.
   const broken = () => 'Bo 1234567';
   assert.equal(ex.maskedCell(broken, 'x', 'lead phone'), '— (withheld: it did not pass the masking check)');
@@ -210,5 +217,35 @@ test('a failed read is a 503 (or 500 for configuration) whose body and log carry
     assert.ok(logged.some((l) => l.includes('StoreError ECONNREFUSED')), `the log must carry the class: ${logged.join(' | ')}`);
   } finally {
     console.error = saved;
+  }
+});
+
+// ── Codex CRT #9 (7-2 Tur 1): the three name shapes that reached BOTH files unmasked ──────────────────────────
+test('a surname beside digits or an email, and a number in other digits or split by invisible characters, reach neither file', async () => {
+  const split = (sep: string) => [...'06601234567'].join(sep);
+  const shapes = ['Vera Quellbrunn 1234567', 'Omar ٠٦٦٠١٢٣٤٥٦٧', `Lena ${split('\u200B')}`,
+    `Cara ${split('\u034F')}`, `Dora ${split('\uFE0F')}`, `Elsa ${split('\u3164')}`,
+    `Fynn ${[...'06601234567'].map((d) => `${d}\uFE0F\u20E3`).join('')}`,
+    'Vera Quellbrunn/vera@example.com', 'Vera Quellbrunn:v@b.co', 'Vera Quellbrunn@'];
+  // `Elsa`: the Hangul filler is a LETTER (`Lo`), so the run count does not see a number there (the stated bound of
+  // `maskDigitRuns`); the name rule still reduces that token to its first character, so the number does not leak.
+  const expected = ['Vera Q. 12…67', 'Omar ٠٦…٦٧', 'Lena 06…67', 'Cara 06…67', 'Dora 06…67', 'Elsa 0.', 'Fynn 06…67',
+    'Vera Q./v…@example.com', 'Vera Q.:v…@b.co', 'Vera Q.'];
+  served = {
+    appointments: shapes.map((n, i) => ({ id: `recX${i}`, fields: { start_utc: iso(NOW + (i + 2) * DAY), service: 'Cut', channel: 'widget', status: 'booked', customer_name: n } })),
+    leads: shapes.map((n, i) => ({ id: `recY${i}`, fields: { name: n, phone: '', source: 'widget', status: 'new' } })),
+  };
+  for (const [route, col] of [[appointmentsRoute, 2], [leadsRoute, 0]] as const) {
+    const r = await download(route, '1');
+    assert.equal(r.status, 200);
+    const text = await bodyOf(r);
+    assert.ok(!text.includes('Quellbrunn'), 'the surname reached the file');
+    const cells = parseCsv(text).slice(1).map((row) => row[col]);
+    // The leak check COUNTS the digits in each name cell, whatever sits between them. The first version folded
+    // NFKC + \p{Cf} and then looked for a 5-run, so it shared the implementation's blind spot and could not see a
+    // run split by a character outside \p{Cf} (Lane D review). A masked name keeps at most four digits.
+    for (const c of cells) assert.ok([...c.replace(/\P{Nd}/gu, '')].length <= 4, `digits leaked: ${JSON.stringify(c)}`);
+    // Control: each name is in the file in its masked form, so "not leaked" is not "withheld" or "dropped".
+    for (const e of expected) assert.ok(cells.includes(e), `${e} missing from ${JSON.stringify(cells)}`);
   }
 });

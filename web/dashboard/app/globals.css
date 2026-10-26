@@ -151,6 +151,8 @@
   .sender-key{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
   .q-meta{font-size:11.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
   .q-msgs{font-size:13px;font-style:italic;color:var(--ink);border-left:2px solid var(--rule);padding-left:10px;margin:8px 0;display:flex;flex-direction:column;gap:3px}
+  /* maskFreeText output keeps one customer message per line (\n, ruling 2026-10-26 M1): render the breaks */
+  .q-text{white-space:pre-line}
   details.q-detail{margin-top:8px}
   details.q-detail summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   details.q-detail summary::-webkit-details-marker{display:none}
