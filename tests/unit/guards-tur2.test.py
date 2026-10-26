@@ -888,13 +888,14 @@ def _shim(d, tool, token):
 def t_g4_extraction_failure_blocks():
     header_wf = json.dumps({'nodes': [{'name': 'Call API', 'parameters': {'headerParameters': {'parameters': [
         {'name': 'Authorization', 'value': 'Bearer ' + syn_hex(16)}]}}}]}, indent=2) + '\n'
-    # R1d: committed patches are split by the rule engine itself (it needs their commit and path), so grep now runs only
-    # on the manual-mode WORKING TREE — that stage is driven there. Every stage must name the extraction failure, not
+    # R1d: committed patches are split by the rule engine itself (it needs their commit and path), so the added-line
+    # filter runs only on the manual-mode WORKING TREE — that stage is driven there (an awk state machine since R4, which
+    # keeps a content line starting with `++`; it was a grep pair). Every stage must name the extraction failure, not
     # merely block: a key the rules find would block too, and prove nothing about the stage.
     stages = {   # stage -> (tool, token, where the ONLY detectable secret sits)
         'git log -p': ('git', '-p', 'content'), 'git log %B': ('git', '--format=%B', 'message'),
         'git log --name-only': ('git', '--name-only', 'header'), 'git cat-file': ('git', 'cat-file', 'header'),
-        'grep (manual-mode working tree)': ('grep', None, 'worktree')}
+        'awk (manual-mode working tree)': ('awk', None, 'worktree')}
     res = {}
     for stage, (tool, token, where) in stages.items():
         with tempfile.TemporaryDirectory(prefix='guards-g4-') as tmp:
@@ -1476,6 +1477,78 @@ def t_r1d_low4_mktemp_failure_blocks():
             rc, out = revs_scan(work, *args, env=dict(git_env(), PATH=shim + os.pathsep + os.environ['PATH']))
             res[name] = rc == 2 and 'temp directory' in out
             os.makedirs(existing, exist_ok=True)
+    return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
+
+
+# ---- R4 · the CONVERGE fixes ruled "fix now" (product secret types; the `++` line; the hook's bypass refusals) -------
+def syn_n8n_key():
+    return 'N8N_' + 'ENCRYPTION_KEY=' + 'Q1w2E3r4T5y6' * 2
+
+
+def syn_pg_url():
+    return 'postgres' + 'ql://' + 'drill' + ':' + 'Zx9Cv8Bn7Lk' + '@' + 'db.invalid:5432/salon'
+
+
+def _hook(work, command):
+    return run(['bash', SCAN], work, stdin=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': command}}))
+
+
+def t_r4_plusplus_line_committed():
+    rc, out = _blocked_line('guards-r4a-', '++ %s\n' % syn_anthropic())
+    return rc != 0 and syn_anthropic() not in out, 'a committed line whose content starts with ++: exit %d' % rc
+
+
+def t_r4_plusplus_line_worktree():
+    with tempfile.TemporaryDirectory(prefix='guards-r4b-') as tmp:
+        _, work = mkrepo(tmp)
+        commit(work, 'notes.txt', 'line\n', 'base2')
+        git(work, 'push', '-q')
+        write(os.path.join(work, 'notes.txt'), 'line\n++%s\n' % syn_anthropic())
+        rc, out = manual_scan(work)
+    return rc == 2 and 'possible secret' in out, 'a working-tree line starting with ++ (manual mode): exit %d' % rc
+
+
+def t_r4_plusplus_header_not_content():
+    # control: a normal commit's `+++ b/<path>` header is still a header, not scanned as content (no false block)
+    rc, out = _blocked_line('guards-r4c-', 'plain text\n', rel='keys/ordinary.txt')
+    return rc == 0, 'an ordinary commit (its +++ header must not be read as content): exit %d %s' % (rc, out.strip()[-120:])
+
+
+def t_r4_n8n_encryption_key():
+    res = {}
+    for label, line, want_block in (('env assignment', syn_n8n_key(), True),
+                                    ('json config key', '{"encryption' + 'Key": "%s"}' % ('Ab12Cd34Ef56' * 2), True),
+                                    ('.env.example placeholder', 'N8N_' + 'ENCRYPTION_KEY=REPLACE_ME', False),
+                                    ('env reference', 'N8N_' + 'ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}', False)):
+        rc, out = _blocked_line('guards-r4d-', line + '\n')
+        res[label] = (rc != 0) == want_block and 'Q1w2E3r4T5y6' not in out
+    return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
+
+
+def t_r4_postgres_url_with_credentials():
+    res = {}
+    for label, line, want_block in (('postgresql URL with a password', syn_pg_url(), True),
+                                    ('postgres URL with a password', syn_pg_url().replace('ql://', '://'), True),
+                                    ('URL without credentials', 'postgres' + '://db.invalid:5432/salon', False),
+                                    ('password from the environment', 'postgres' + '://drill:${PGPASSWORD}@db.invalid/salon', False)):
+        rc, out = _blocked_line('guards-r4e-', 'DATABASE_URL=%s\n' % line)
+        res[label] = (rc != 0) == want_block and 'Zx9Cv8Bn7Lk' not in out
+    return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
+
+
+def t_r4_hook_refuses_bypasses():
+    res = {}
+    with tempfile.TemporaryDirectory(prefix='guards-r4f-') as tmp:
+        _, work = mkrepo(tmp)
+        for label, command, want in (('push --no-verify', 'git push --no-verify origin main', 2),
+                                     ('-c core.hooksPath', 'git -c core.hooksPath=/dev/null push', 2),
+                                     ('-c in another case', 'git -C . -c Core.HooksPATH=/tmp push origin main', 2),
+                                     ('--config-env', 'git --config-env=core.hooksPath=HP push', 2),
+                                     ('plain push (scanned, nothing ahead)', 'git push origin main', 0),
+                                     ('commit --no-verify (not a push)', 'git commit --no-verify -m x', 0),
+                                     ('a command naming neither', 'git status', 0)):
+            rc, out = _hook(work, command)
+            res[label] = rc == want and (want == 0 or 'BLOCKED' in out)
     return all(res.values()), ' · '.join('%s=%s' % kv for kv in res.items())
 
 

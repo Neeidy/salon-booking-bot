@@ -113,6 +113,17 @@
 # 19. THE x-RUN STRIP TOOK PART OF A KEY. It deleted every run of four or more x's and rejoined the rest, so a real
 #     key that contained such a run came out below its rule's length and was pushed (AWS- and OpenAI-shaped, both
 #     measured). Only a WHOLE placeholder token is removed now (placeholder_token, in the rule engine below).
+# THREE MORE, from the 7-2 CONVERGE list (R4, ruled "fix now": product secret types on a public repo):
+# 20. AN ADDED LINE WHOSE CONTENT STARTS WITH `++` was dropped: in a patch it reads `+++…`, and every such line was taken
+#     for a `+++ b/<path>` file header. A header only ever appears between `diff --git` and the first `@@`; inside a hunk
+#     every `+` line is content. Both filters now follow that state (patch_lines in the engine, added_lines below).
+# 21. TWO SHAPES THIS PRODUCT HOLDS were not rules: the n8n encryption key (`N8N_ENCRYPTION_KEY=` / `encryptionKey:`,
+#     which decrypts every stored credential) and a postgres:// or postgresql:// URL carrying a password. Measured on the
+#     full history before adding them: 0 hits (the one `N8N_ENCRYPTION_KEY=` line is `.env.example`'s 10-character
+#     placeholder, below the 16-character value the rule needs).
+# 22. THE CLAUDE CODE FIRST LINE REFUSES THE TWO BYPASSES of git's pre-push hook it can see in a command: `--no-verify`
+#     on a push, and `-c core.hooksPath=…` (any case: git config keys are case-insensitive) — the gate is the hook, and
+#     both switch it off (CONVERGE M4). A first line only: it reads the command text, which a wrapper script can hide.
 set -uo pipefail
 SECRET_SCAN_API=3   # scripts/pre-push.sh refuses a scanner without this marker (API 3: --revs + tag messages + R1c)
 : "$SECRET_SCAN_API"
@@ -137,6 +148,16 @@ fi
 
 if [[ "$mode" == hook ]]; then
   # CLAUDE CODE HOOK — a first line only (see 7 above); git's pre-push hook is the gate.
+  # (22) The two bypasses of that gate visible in a command line are refused outright (exit 2 blocks the tool call).
+  lc="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$lc" =~ -c[[:space:]]*core\.hookspath ]] || [[ "$lc" =~ (^|[^a-z0-9_-])--config-env[=[:space:]]*core\.hookspath ]]; then
+    echo "BLOCKED: a git command that sets core.hooksPath switches off the pre-push secret-scan gate — run it without." >&2
+    exit 2
+  fi
+  if [[ "$lc" == *push* && "$lc" =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
+    echo "BLOCKED: \`git push --no-verify\` skips the pre-push secret-scan gate — push without it." >&2
+    exit 2
+  fi
   [[ "$cmd" == *"git push"* ]] || exit 0
 fi
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -240,6 +261,10 @@ RULES = [(n, re.compile(p, re.I)) for n, p in (
     ('bearer token', r'\bbearer\s+[A-Za-z0-9._~+/-]{20,}=*'),
     ('secret assigned a real value',
      r'(?:api[_-]?key|secret|token|password|passwd|auth[_-]?key)["\' ]*[:=]["\' ]*[A-Za-z0-9/+_-]{24,}'),
+    # (21) the key that decrypts every n8n credential; a placeholder of fewer than 16 characters passes
+    ('n8n encryption key', r'(?:N8N_ENCRYPTION_KEY|encryptionKey)["\' ]*[:=]["\' ]*[A-Za-z0-9/+_=-]{16,}'),
+    # (21) a Postgres URL with a password in it; `${VAR}` / `$VAR` passwords are stripped first and leave no match
+    ('postgres url with credentials', r'postgres(?:ql)?://[^\s:/@\'"]+:[^\s@/\'"]+@'),
 )]
 
 
@@ -298,7 +323,8 @@ MARK = re.compile(rb'@@C ([0-9a-f]{40,64})')
 
 def patch_lines(path):
     """(commit, path, line) for every ADDED line of the committed patches. The filter is the one added_lines() applies
-    in bash — a line starting with `+`, minus EVERY line starting with `+++` — on `\n` boundaries, as grep sees them.
+    in bash — a `+` line inside a hunk; a `+++ ` line only between `diff --git` and the first `@@` is a header (20) —
+    on `\n` boundaries, as grep sees them.
     The commit comes from the `@@C` marker; the path from the `+++ ` header between `diff --git` and the first `@@`."""
     commit = fpath = None
     header = False
@@ -319,7 +345,7 @@ def patch_lines(path):
                 elif b.startswith(b'@@'):
                     header = False
                 continue
-            if b.startswith(b'+') and not b.startswith(b'+++'):
+            if b.startswith(b'+'):    # (20) past the header every `+` line is content, `+++…` included
                 yield commit, fpath, b.decode('utf-8', 'replace')
 
 
@@ -446,15 +472,13 @@ fi
 # That is a claim about the settings measured and named in this header — not about every setting git has.
 gitx() { git -c core.quotePath=false -c diff.relative=false -c log.showRoot=true -c i18n.logOutputEncoding=UTF-8 \
              -c diff.noprefix=false -c diff.mnemonicPrefix=false "$@"; }
-# Keep a patch's added lines, minus its `+++ <file>` headers. grep exit 1 = no line matched (fine); above 1 = error.
-# Used for the manual-mode WORKING TREE only, whose lines carry no commit and so are never excepted (15). Committed
-# patches go to the rule engine whole and are split there with the SAME `+`/`+++` filter, plus their provenance.
+# Keep a patch's added lines: every `+` line inside a hunk, none of the file header between `diff --git` and the first
+# `@@` (20 — a content line `++x` reads `+++x` and used to be dropped as a header). Used for the manual-mode WORKING TREE
+# only, whose lines carry no commit and so are never excepted (15). Committed patches go to the rule engine whole and are
+# split there with the SAME state, plus their provenance.
 added_lines() {   # <patch file>
-  local rc
-  grep -a -E '^[+]' "$1" > "$tmp/added"; rc=$?
-  [[ "$rc" -le 1 ]] || fail_extract "grep for added lines, exit $rc"
-  grep -a -v -E '^[+][+][+]' "$tmp/added" >> "$tmp/raw"; rc=$?
-  [[ "$rc" -le 1 ]] || fail_extract "grep dropping file headers, exit $rc"
+  LC_ALL=C awk '/^diff --git /{h=1; next} h && /^@@/{h=0; next} h{next} /^[+]/{print}' "$1" >> "$tmp/raw" \
+    || fail_extract "awk for added lines, exit $?"
 }
 extract_revs() {
   # `@@C <commit>` starts each commit's patch (no patch line can begin with it: content lines begin with ' ', '+', '-'
