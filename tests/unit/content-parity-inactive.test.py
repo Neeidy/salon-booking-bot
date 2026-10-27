@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""check-content-parity.py's inactive-workflow rule (MIGRATION-PLAN §3r, ruling 2026-10-20; DECLARED since §3t,
-decision 9): a workflow may be inactive ONLY when the ROLES array in check-exports-parity.sh declares the OTHER one of
-its pair live, and only against its own PAIRS export: a parked copy before the cutover, a parked original after it.
-Any other inactive workflow is RED (exit 1); an active workflow whose published graph cannot be seen stays "could not measure"
-(exit 2). Runs the guard's own function on fake live responses: no network, no credentials.
+"""check-content-parity.py's two workflow rules since D6c (2026-10-27, the copy↔original pairing ended):
+  · check_listed: the id must be the one WORKFLOWS (check-exports-parity.sh) lists for the export — exit 1 when it is
+    another workflow's id, exit 2 when the path is not a workflow export at all;
+  · check_published_matches_draft: a listed workflow is a production role, so an INACTIVE one is RED (exit 1); an active
+    one whose published graph cannot be seen is "could not measure" (exit 2).
+Runs the guard's own functions, and then the whole guard end to end against a stand-in for the n8n API on 127.0.0.1
+(its success path once printed a name D6c had removed, which no function-level case reaches). No network, no credentials.
 
 Run: python3 tests/unit/content-parity-inactive.test.py   (GUARD=<path> runs it against another copy of the guard)
 """
@@ -18,71 +20,82 @@ try:
 except SystemExit:
     pass
 sys.argv = argv
+sys.path.insert(0, os.path.join(ROOT, 'scripts'))
+import workflows  # noqa: E402
 
-src = open(os.path.join(ROOT, 'scripts', 'check-exports-parity.sh'), encoding='utf-8').read()
-pairs = [l.strip().strip('"').split('"')[0].split(':') for l in src[src.index('PAIRS=('):].split('\n)')[0].splitlines()[1:]
-         if l.strip().startswith('"')]
-copy = next(p for p in pairs if p[1].endswith('.copy.sanitized.json'))
-orig = next(p for p in pairs if not p[1].endswith('.copy.sanitized.json'))
+listed = workflows.load()
+by_key = {workflows.key_of(e): w for w, e in listed.items()}
+DS, MAIN = by_key['drill-state'], by_key['main']
+EXP = lambda k: os.path.join(ROOT, 'n8n', f'workflow.{k}.sanitized.json')
 
 
-def run(wf, committed, live):
-    m.WF, m.COMMITTED = wf, os.path.join(ROOT, committed)
+def run(fn, *a):
     try:
         with contextlib.redirect_stdout(io.StringIO()):
-            m.check_published_matches_draft(live)
+            fn(*a)
         return 'pass'
     except SystemExit as e:
         return f'exit {e.code}'
 
 
-# These six cases are the rule as it stood BEFORE the cutover, so the declaration is pinned to `original` for every
-# pair here instead of read from the committed file (which says `copy` since D6b, Round 3c). The flipped cases below
-# hand in their own declaration the same way.
-import types
-real_pr = m._pair_roles()
-pairs_d, roles_d = real_pr.load()
-m._pair_roles = lambda: types.SimpleNamespace(may_be_inactive=real_pr.may_be_inactive,
-                                              load=lambda: (pairs_d, [dict(r, live='original') for r in roles_d]))
-
+nodes = [{'name': 'A', 'type': 'n8n-nodes-base.code', 'parameters': {'jsCode': '1'}}]
 CASES = [
-    ('an inactive paired copy', copy, {'active': False, 'nodes': []}, 'pass'),
-    ('an inactive original', orig, {'active': False, 'nodes': []}, 'exit 1'),
-    ('an inactive original that still shows a published graph', orig, {'active': False, 'nodes': [], 'activeVersion': {'nodes': []}}, 'exit 1'),
-    ('an active workflow with no visible published graph', orig, {'active': True, 'nodes': []}, 'exit 2'),
-    ('a copy-named export with an unpaired id', ('Zzzzzzzzzzzzzzzz', copy[1]), {'active': False, 'nodes': []}, 'exit 1'),
-    ("a copy's id on a non-copy export", (copy[0], orig[1]), {'active': False, 'nodes': []}, 'exit 1'),
+    ('listed: the id WORKFLOWS lists for the export', (m.check_listed, DS, EXP('drill-state')), 'pass'),
+    ("listed: another listed workflow's id on this export", (m.check_listed, MAIN, EXP('drill-state')), 'exit 1'),
+    ('listed: an id nobody lists', (m.check_listed, 'Zzzzzzzzzzzzzzzz', EXP('drill-state')), 'exit 1'),
+    ('listed: a path that is not a workflow export', (m.check_listed, DS, os.path.join(ROOT, 'db', 'copies', 'main.json')), 'exit 2'),
+    ('an inactive listed workflow', (m.check_published_matches_draft, {'active': False, 'nodes': []}), 'exit 1'),
+    ('an inactive workflow that still shows a published graph',
+     (m.check_published_matches_draft, {'active': False, 'nodes': nodes, 'activeVersion': {'nodes': nodes}}), 'exit 1'),
+    ('an active workflow with no visible published graph', (m.check_published_matches_draft, {'active': True, 'nodes': nodes}), 'exit 2'),
+    ('an active workflow whose published graph equals the draft',
+     (m.check_published_matches_draft, {'active': True, 'nodes': nodes, 'activeVersion': {'nodes': nodes}}), 'pass'),
 ]
 ok = True
-for label, (wf, committed), live, want in CASES:
-    got = run(wf, committed, live)
+for label, (fn, *a), want in CASES:
+    got = run(fn, *a)
     ok = ok and got == want
     print(f"{'✓' if got == want else '✗'} {label}: expected {want}, got {got}")
 
-# The DECLARED role inversion (MIGRATION-PLAN §3t, decision 9): the same guard, with the ROLES declaration flipped
-# for the pair under test, as D6b's commit will flip it. The guard reads ROLES through _pair_roles(), so the flipped
-# declaration is handed in there; the real file is not touched.
-role = next(r for r in roles_d if pairs_d[r['copy']] == copy[1])
-o_pair = (role['orig'], pairs_d[role['orig']])
+# END TO END: the guard as a process, against live workflows simulated from the committed exports (every placeholder
+# replaced by a real-looking value, as the deploy helper's own simulation does). Main carries binaryMode live, which its
+# spec allowlists; the same live value on Drill State, which allowlists nothing, is drift.
+import http.server, json, subprocess, threading  # noqa: E402
+_hs = importlib.util.spec_from_file_location('dwc', os.path.join(ROOT, 'scripts', 'deploy-workflow-copy.py'))
+H = importlib.util.module_from_spec(_hs); _hs.loader.exec_module(H)
+LIVE = {}
 
 
-def with_roles(live_side):
-    flipped = [dict(r, live=live_side) if r is role else dict(r, live='original') for r in roles_d]
-    fake = types.SimpleNamespace(may_be_inactive=real_pr.may_be_inactive, load=lambda: (pairs_d, flipped))
-    m._pair_roles = lambda: fake
+class Fake(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        w = LIVE[self.path.rsplit('/', 1)[-1]]
+        raw = json.dumps(dict(w, activeVersion={'nodes': w['nodes'], 'connections': w['connections']})).encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers(); self.wfile.write(raw)
 
 
-ROLE_CASES = [
-    ('declared cut over: the inactive ORIGINAL is parked', 'copy', o_pair, 'pass'),
-    ('declared cut over: an inactive COPY is red (it is declared live)', 'copy', copy, 'exit 1'),
-    ('declared original: the inactive copy is parked', 'original', copy, 'pass'),
-    ('declared original: an inactive ORIGINAL is red', 'original', o_pair, 'exit 1'),
-]
-for label, side, (wf, committed), want in ROLE_CASES:
-    with_roles(side)
-    got = run(wf, committed, {'active': False, 'nodes': []})
-    ok = ok and got == want
-    print(f"{'✓' if got == want else '✗'} {label}: expected {want}, got {got}")
-m._pair_roles = lambda: real_pr
-print('content-parity inactive rule:', 'OK' if ok else 'FAILED', f'({len(CASES) + len(ROLE_CASES)} cases)')
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Fake)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+env = {k: v for k, v in os.environ.items() if k not in ('N8N_WORKFLOW_ID', 'SANITIZED_PATH', 'CF_ACCESS_CLIENT_ID', 'CF_ACCESS_CLIENT_SECRET')}
+env.update(N8N_API_URL=f'http://127.0.0.1:{srv.server_address[1]}', N8N_API_KEY='fake-test-key')
+for label, key, extra, want_rc, want_out in (
+        ('end to end: Main, binaryMode "separate" live (allowlisted)', 'main', {'binaryMode': 'separate'}, 0, "except the allowlisted live-only key(s) ['binaryMode']"),
+        ('end to end: Main, binaryMode "combined" live', 'main', {'binaryMode': 'combined'}, 1, "allowlisted live only as exactly 'separate'"),
+        ('end to end: Drill State, settings equal', 'drill-state', {}, 0, 'settings parity OK'),
+        ('end to end: Drill State, binaryMode live (not allowlisted there)', 'drill-state', {'binaryMode': 'separate'}, 1, "'binaryMode' is live but not")):
+    comm = json.load(open(EXP(key), encoding='utf-8'))
+    live = H._simulated_live(comm, keep=m.EXEMPT)
+    live.update(active=True, settings=dict(comm.get('settings') or {}, **extra))
+    wid = by_key[key]
+    LIVE.clear(); LIVE[wid] = live
+    r = subprocess.run([sys.executable, GUARD, EXP(key)], cwd=ROOT, env=dict(env, N8N_WORKFLOW_ID=wid), capture_output=True,
+                       text=True, timeout=60, stdin=subprocess.DEVNULL)
+    good = r.returncode == want_rc and want_out in r.stdout
+    ok = ok and good
+    CASES.append(label)
+    print(f"{'✓' if good else '✗'} {label}: exit {r.returncode}" + ('' if good else f" · {r.stdout.strip()[-200:]} {r.stderr.strip()[-200:]}"))
+srv.shutdown()
+print('content-parity workflow rules:', 'OK' if ok else 'FAILED', f'({len(CASES)} cases)')
 sys.exit(0 if ok else 1)

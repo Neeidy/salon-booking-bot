@@ -16,7 +16,7 @@
  * Fake data only.
  *
  * WHICH FILE: the STAGED Main export (n8n/staged/, 7-F1 Round A). ⚠ Round B promotes it and repoints EXPORT below at
- * `n8n/workflow.main.copy.sanitized.json`. argv[2] overrides it, for mutants.
+ * `n8n/workflow.main.sanitized.json`. argv[2] overrides it, for mutants.
  *
  * ⚠ Same accepted security note as validate-intent.test.cjs: this runs `jsCode` from an export via `new Function`.
  *
@@ -28,7 +28,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { DateTime } = require(join(__dirname, '../../scripts/node_modules/luxon'));
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'staged', 'workflow.main.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.main.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const body = (name) => wf.nodes.find((n) => n.name === name).parameters.jsCode;
 const orphanState = new Function('$', 'DateTime', body('Build Reschedule Orphan State'));

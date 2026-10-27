@@ -1,10 +1,10 @@
 ---
-description: Strip secrets + PII from an n8n export and produce n8n/workflow.sanitized.json.
+description: Strip secrets + PII from an n8n export and produce its n8n/workflow.<key>.sanitized.json.
 ---
 
 # /sanitize
 
-Run before committing any n8n work. The ONLY workflow file that may be committed is the sanitized one.
+Run before committing any n8n work. The ONLY workflow files that may be committed are the sanitized exports, one per production workflow.
 
 1. Take the raw n8n export (gitignored) as input.
 2. Remove/replace **by name** — this list exists because a value that is not named here gets forgotten:
@@ -20,7 +20,8 @@ Run before committing any n8n work. The ONLY workflow file that may be committed
    the values above) from the live workflow silently reintroduces the real value — that is exactly how a real
    Google Calendar id reached the committed export on 2026-09-07. After any refresh, re-apply the placeholders
    and re-run the guard.
-3. Write the result to `n8n/workflow.sanitized.json`.
+3. Write the result to that workflow's `n8n/workflow.<key>.sanitized.json` — the path `scripts/check-exports-parity.sh`
+   lists for its id in `WORKFLOWS`.
 4. Re-open it and confirm: no secret patterns, no real PII, no real hostnames.
    `scripts/check-content-parity.py` now FAILS loudly (`SANITISE FAILURE`) when the committed export carries a
    real value for any of the three named literals above. Before 2026-09-07 it could not: the masks were applied

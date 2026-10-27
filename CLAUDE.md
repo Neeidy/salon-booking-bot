@@ -50,7 +50,7 @@ L1 **Claude Code** (self-check) · L2 **repo agents** (`code-reviewer` · `qa-te
   the repo holds only `.env.example` (names + fake placeholders).
 - **PII** (customer names, phone numbers, message content) is treated like a secret: never committed;
   sanitize before any export.
-- n8n: only `workflow.sanitized.json` is ever committed. Failures must be **VISIBLE** (error branch), never silent.
+- n8n: only the sanitized exports `n8n/workflow.<key>.sanitized.json` (one per production workflow) are ever committed. Failures must be **VISIBLE** (error branch), never silent.
 
 ## Definition of Done (per phase)
 built · tested (happy + key edge) · cleaned · **sanitized (secrets AND PII)** · README / case-study · pushed ·

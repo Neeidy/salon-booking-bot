@@ -43,7 +43,7 @@ live Main is the Postgres copy, and the parked original is only the rollback pat
 """
 import json, re, sys, os
 
-PATH = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.main.copy.sanitized.json')
+PATH = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('SANITIZED_PATH', 'n8n/workflow.main.sanitized.json')
 
 CONVERGE = ['Send Reply To Origin','Handoff Reply','Handoff Lock Reply','Idempotent Replay',
  'Booking State-Unsaved Reply','Send Reject Response','Send Error Response','LLM Unavailable Reply',

@@ -48,8 +48,8 @@ w = json.load(open(sys.argv[1], encoding='utf-8'))
 print(next(n for n in w['nodes'] if n['name'] == sys.argv[2])['parameters']['query'])
 EOF
 }
-CLAIM_Q="$(q "$ROOT/n8n/staged/workflow.main.copy.sanitized.json" 'Check Processed')"
-REL_Q="$(q "$ROOT/n8n/staged/workflow.owner-actions.copy.sanitized.json" 'Release Handoff Lock')"
+CLAIM_Q="$(q "$ROOT/n8n/workflow.main.sanitized.json" 'Check Processed')"
+REL_Q="$(q "$ROOT/n8n/workflow.owner-actions.sanitized.json" 'Release Handoff Lock')"
 OLD_CHECK_Q="SELECT id FROM salon.processed_messages WHERE message_id = \$1"            # the pre-Tur-2 read
 REL_NO_TOKEN_Q="${REL_Q//AND salon.at_ts(last_updated) = \$2 /}"                         # O1 mutant: no version token
 TS_BOUND='AND last_updated <= to_timestamp($4::double precision) + interval '"'"'1 second'"'"' '

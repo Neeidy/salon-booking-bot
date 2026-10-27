@@ -4,7 +4,7 @@
  *
  * WHY IT EXECUTES THE COMMITTED NODE INSTEAD OF A COPY: `.claude/rules/contract-integrity.md` — a
  * hand-mirrored copy of the logic would be a second truth that drifts silently. This file extracts the
- * `jsCode` of `Resolve Date` from `n8n/workflow.main.copy.sanitized.json` and runs it with the same globals
+ * `jsCode` of `Resolve Date` from `n8n/workflow.main.sanitized.json` and runs it with the same globals
  * n8n gives a Code node: `$json`, `$('<node>')` and `DateTime`. So a green run here is a statement about the COMMITTED
  * node, not about a snippet someone pasted into a test.
  *
@@ -32,11 +32,10 @@ const fs = require('fs');
 const path = require('path');
 const { DateTime } = require(path.join(__dirname, '../../scripts/node_modules/luxon'));
 
-// The Main COPY export, not the parked original: since the D6b cutover the live Main is the Postgres copy, and
-// the original (`n8n/workflow.sanitized.json`) is kept only as the rollback path until D6c. A test that kept
-// reading the original would go on passing while the node that actually runs drifted away from it.
+// The committed export of the live Main (D6c; until then the copy export, beside a parked Airtable original). A
+// test reading any other file would go on passing while the node that actually runs drifted away from it.
 // argv[2] points it at another export, for mutation runs.
-const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.copy.sanitized.json');
+const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.sanitized.json');
 const src = JSON.parse(fs.readFileSync(WF, 'utf8')).nodes.find(n => n.name === 'Resolve Date').parameters.jsCode;
 
 const TZ = 'Europe/Vienna';

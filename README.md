@@ -123,7 +123,7 @@ Phase 7's fix checkpoint instead.
 | deploy tool: a snapshot directory inside another git work tree is accepted | snapshots live in the session scratchpad by procedure; only this repo is refused, which is the leak that matters |
 | deploy tool: the helper's `api` raises on an empty curl output | a traceback still stops the run; every next step reads the copy's state before writing |
 | deploy tool: `activate` does not re-check the Turnstile literal | `put` checks the literal on the export and in its live read-back before any activate |
-| deploy tool: spec and ROLES are read from the working tree | `check-all` and the pre-push audit run on a clean tree before every live step |
+| deploy tool: spec and WORKFLOWS are read from the working tree | `check-all` and the pre-push audit run on a clean tree before every live step |
 | deploy tool: nodes sharing a name are invisible to name-keyed comparisons | no committed export has a repeated node name (counted at 7-2 R4) |
 | deploy tool: put's read-back re-verifies only the trigger's webhookId | only the trigger's id routes inbound traffic; the Telegram nodes' ids are kept by name |
 | deploy tool: `settings` does not enforce running after the probes | the runbook orders it last, and the check after it is a body probe that counts no executions |
@@ -144,7 +144,7 @@ Phase 7's fix checkpoint instead.
 | secret scan: the git pre-push gate can be bypassed by `--no-verify` (or a core.hooksPath override); guarded by habit, not by code | ruled 7-2 R4: a command-line check was built in three versions and each later one let through forms an earlier one caught; the habit is written in `remote-operator.md`, and every push is audited by `security-auditor` first |
 | secret scan: busybox awk ends a working-tree line at a NUL byte | manual mode only — the gate reads committed patches in its Python engine; this machine's awk handles NUL (measured by the R4 review) |
 | secret scan: the PLACEHOLDER strip is quadratic on a very long run of key characters | it fails closed (a slow scan blocks the push, never passes it); no such line in the repo |
-| Main: node names still say "Airtable" | a rename is a Main edit; it rides the next one (D6c) |
+| Main: node names still say "Airtable" | a node rename is a Main edit; it rides the next one (D6c's Main put renames the workflow only) |
 | Main: D-c — an alert can run ahead of the reply on a few paths and delay it | bounded and documented (FLOW-DIAGRAM); restoring it is a Main edit |
 
 **What the regression covers on Postgres, stated (ruled 2026-10-25):** the full suite last ran on the Main copy's test path (D4b, 28/28; the cutover diff proves only the path differs); the production path was exercised by the routing smoke (A1), the dashboard write path (A2, 13/13) and the 7-1 window (a truly simultaneous race pair and a DST booking) — live measurements recorded in PHASE-7-PLAN, their raw output not committed; the seeded ⚙ scenarios were not re-run on Postgres — their paths are covered by D4b G1–G3 and the M7 error drills.
@@ -263,11 +263,11 @@ blocking) is drilled headless, and the drill sheet says which is which.
 
 | Path | What |
 |---|---|
-| [`n8n/`](n8n/) | the engine — **sanitized** workflow exports only: the five live Postgres workflows (`*.copy.sanitized.json`) and the five parked Airtable originals, kept as the rollback path until D6c |
+| [`n8n/`](n8n/) | the engine — **sanitized** workflow exports only: one `workflow.<key>.sanitized.json` per live Postgres workflow (five), listed with its id in `scripts/check-exports-parity.sh`; the Airtable originals' exports were removed at D6c and stay in git history |
 | [`db/`](db/) | `schema/` — the Postgres DDL, roles and the large-object revoke · `ops/` — the nightly backup and its restore check |
 | [`schemas/`](schemas/) | JSON Schemas — the intent contract and the client config contract |
 | [`prompts/`](prompts/) | versioned LLM prompts (the canonical system prompt) |
-| [`scripts/`](scripts/) | validator compiler + drift check · the SQL-parameter gate · workflow copy / parity guards · repo map generator |
+| [`scripts/`](scripts/) | validator compiler + drift check · the SQL-parameter gate · workflow deploy / parity guards · repo map generator |
 | [`config/`](config/) | per-client `client.config.json` (mock example committed) |
 | [`docs/`](docs/) | architecture decisions · data model · live roadmap · repo map |
 | [`design/`](design/) | Phase-1 mockups + flow diagram |

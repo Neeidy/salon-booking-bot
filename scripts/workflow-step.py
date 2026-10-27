@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""workflow-step.py — API calls, each read back, for an engine edit on a post-cutover copy (7-F1 Round B, final shape,
-ruling 2026-10-25; extended to the webhook copies in 7-2 Tur 2; shrunk to the approved deltas by the R1d rulings,
-2026-10-26). No signal handling, no automatic recovery: a red step leaves the copy where its read-back says it is, and
-the operator decides the next step.
+"""workflow-step.py — API calls, each read back, for an engine edit on a production workflow (7-F1 Round B, final shape,
+ruling 2026-10-25; extended to the webhook workflows in 7-2 Tur 2; shrunk to the approved deltas by the R1d rulings,
+2026-10-26; one workflow per committed export since D6c, 2026-10-27, when the copy↔original pairing ended). No signal
+handling, no automatic recovery: a red step leaves the workflow where its read-back says it is, and the operator decides
+the next step. ("COPY_ID" below is the workflow id WORKFLOWS lists for the spec; the name is the migration's.)
 
 THREAT (Yigitcan, 2026-10-26): this tool guards against OUR mistakes, not an adversary. It (a) applies only the approved
 deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live snapshot taken before the PUT.
@@ -50,21 +51,22 @@ deltas, (b) never weakens a gate, (c) undoes reliably — by restoring the live 
                                                   `enabled: true`, a trigger not as committed) is refused: a stale or
                                                   already-wrong snapshot never restores a weaker gate
   activate   SPEC COPY_ID                         refused if the workflow's LIVE NAME starts with "SCRATCH — " (read back
-                                                  first, whatever ROLES says about the id); POST activate → read back
+                                                  first, whatever WORKFLOWS says about the id); POST activate → read back
                                                   active == true and published == draft
   probe      SPEC COPY_ID                         an ACTIVE webhook copy answers as production must, judged on the n8n BODY,
                                                   on the path of the COMMITTED export's one webhook trigger (refused if the
                                                   live draft's trigger differs from it): Main → a dummy Turnstile token is
-                                                  403 turnstile_failed, executed by the copy and not by the original; Owner
+                                                  403 turnstile_failed, executed by it, and it is the path's ONLY active
+                                                  holder (workflows.holder; D6c: there is no original to stay silent); Owner
                                                   Actions (behind Access: the service token is sent) → unsigned 403
                                                   invalid_signature, and a SIGNED request for a well-formed record that does
                                                   not exist → 404 not_found or 503 store_unavailable (printed as "signature
-                                                  path alive, store unavailable"), with ≥ 1 execution by the copy and none by
-                                                  the original. It counts executions, so it runs BEFORE `settings` (after
+                                                  path alive, store unavailable"), with ≥ 1 execution and the path's only
+                                                  active holder. It counts executions, so it runs BEFORE `settings` (after
                                                   T-4 a successful run is not saved). Main has NO positive probe without a
                                                   real Turnstile token: its forward path is proven by the live booking
                                                   inside a Turnstile window.
-  scratch-create SPEC SOURCE_COPY_ID              POST an INACTIVE copy of the live copy's draft, named "SCRATCH — <spec name>";
+  scratch-create SPEC SOURCE_COPY_ID              POST an INACTIVE copy of the live draft, named "SCRATCH — <its live name>";
                                                   its id is printed MASKED as soon as the POST returns it; never activated. A
                                                   POST that returns no usable id (none, malformed, curl's 0) exits 3: a
                                                   scratch MAY exist — find it by name and delete it by hand
@@ -98,14 +100,21 @@ literal) and EVERY trigger are never in --allow or a removal, and a declared edg
 refused unless it is one of the two R-Q2 edges (diff-workflow-copy.RULED_GATE_EDGES) — refused by put itself before the
 PUT AND by diff-workflow-copy --phase edit.
 
-SCOPE: Purge and Reminders, and — since Option A (Yigitcan, 2026-10-25/26) lifted "Main is not edited before ship" so
-that every 7-2 finding is fixed before ship — the two WEBHOOK copies, Main and Owner Actions. For them put also checks
+SCOPE: the five listed workflows (D6c: Drill State joined for its rename). For every workflow with a webhook trigger
+(Main, Owner Actions, Drill State) put also checks
 DIRECTLY on EXPORT, before the PUT and independent of the diff: Load Config holds no malformed Turnstile literal
 (_ts_shape_errs); the literal reads `enabled: true` in BOTH the committed export and EXPORT when the committed export has
 one (so an export that is "unchanged" but already off is refused), and EXPORT adds none when it has none; every webhook
 trigger's httpMethod/path/responseMode/rawBody equal the committed export's. Across the PUT the content read-back must
 equal EXPORT, and each webhook trigger's live webhookId — which the content read-back does not compare — must be
-unchanged. Drill State stays out of scope.
+unchanged.
+
+RENAME (D6c, ruling 2026-10-26): a delta file that is exactly `{"rename": {"from": OLD, "to": NEW}}` and equals
+diff-workflow-copy.APPROVED_RENAMES[key] renames the live workflow: the committed export already carries NEW (so EXPORT
+is the committed export and the content diff is empty), the live workflow must carry exactly OLD (a scratch: behind its
+prefix), and the body sends NEW. While a rename is approved, both names are accepted on every read (names()); the
+parity before the snapshot compares content with the live name, and rollback accepts a snapshot named OLD against a
+workflow named NEW. Without a rename, the live name must already be the export's.
 
 EXPORT is a file TRACKED AT HEAD and UNMODIFIED in the repo (the staged edit, as committed), read from git (`git show
 HEAD:<path>`, never the working tree; pathspecs literal, so a glob-shaped name never matches another file), or REV:PATH
@@ -114,19 +123,20 @@ FETCH_HEAD): content that is not in git never reaches production. REV:PATH is NO
 a live copy that is not its committed export, so the undo is `rollback` to the put's snapshot.
 
 Every workflow id on the command line must be letters and digits only, or nothing is called. deactivate, activate,
-probe, put, settings, rollback and scratch-create's SOURCE refuse a COPY_ID that ROLES does not pair with this spec's
-export and declare live, or whose original is not parked (the deploy helper's pairing and ORDER guard, imported);
-scratch-delete instead requires a target that ROLES does NOT know, named "SCRATCH — <spec name>", inactive. No n8n
-version id is selected, kept or printed; a workflow id is printed only masked.
+probe, put, settings, rollback and scratch-create's SOURCE refuse an id that is not the workflow WORKFLOWS lists for this
+spec (scripts/check-exports-parity.sh, read through scripts/workflows.py); scratch-delete instead requires a target that
+WORKFLOWS does NOT list, named "SCRATCH — <one of its names>", inactive. No n8n version id is selected, kept or printed; a
+workflow id is printed only masked.
 
 Usage (env: N8N_API_KEY, CF_ACCESS_CLIENT_ID/SECRET; N8N_HOST or CLAUDE.local.md; the Owner Actions probe also needs
 OWNER_HMAC_SECRET and CF_OWNER_ACCESS_CLIENT_ID/SECRET — names only, never printed):
   python3 scripts/workflow-step.py deactivate db/copies/purge.json COPY_ID
-  python3 scripts/workflow-step.py put db/copies/purge.json COPY_ID n8n/staged/workflow.purge.copy.sanitized.json --allow "Node A" "Node B" --snapshot /OUTSIDE/THE/REPO/s1.json
-  python3 scripts/workflow-step.py put db/copies/main.json COPY_ID n8n/staged/workflow.main.copy.sanitized.json --delta-file DELTA.json --snapshot /OUTSIDE/THE/REPO/s1.json
-  python3 scripts/workflow-step.py settings db/copies/owner-actions.json COPY_ID n8n/staged/workflow.owner-actions.copy.sanitized.json --delta-file DELTA.json --snapshot /OUTSIDE/THE/REPO/s2.json
+  python3 scripts/workflow-step.py put db/copies/purge.json COPY_ID n8n/staged/workflow.purge.sanitized.json --allow "Node A" "Node B" --snapshot /OUTSIDE/THE/REPO/s1.json
+  python3 scripts/workflow-step.py put db/copies/purge.json COPY_ID HEAD:n8n/workflow.purge.sanitized.json --delta-file RENAME.json --snapshot /OUTSIDE/THE/REPO/s1.json
+  python3 scripts/workflow-step.py put db/copies/main.json COPY_ID n8n/staged/workflow.main.sanitized.json --delta-file n8n/staged/workflow.main.delta.json --snapshot /OUTSIDE/THE/REPO/s1.json
+  python3 scripts/workflow-step.py settings db/copies/owner-actions.json COPY_ID n8n/staged/workflow.owner-actions.sanitized.json --delta-file DELTA.json --snapshot /OUTSIDE/THE/REPO/s2.json
   python3 scripts/workflow-step.py rollback db/copies/main.json COPY_ID /OUTSIDE/THE/REPO/s1.json
-  python3 scripts/workflow-step.py rehearse-rollback db/copies/main.json COPY_ID n8n/staged/workflow.main.copy.sanitized.json --delta-file DELTA.json
+  python3 scripts/workflow-step.py rehearse-rollback db/copies/main.json COPY_ID HEAD:n8n/workflow.main.sanitized.json --delta-file n8n/staged/workflow.main.rename.delta.json
   python3 scripts/workflow-step.py activate db/copies/purge.json COPY_ID
   python3 scripts/workflow-step.py probe db/copies/main.json COPY_ID
   (offline test: tests/unit/workflow-step.test.py)
@@ -155,7 +165,7 @@ _spec = importlib.util.spec_from_file_location('deploy_workflow_copy', os.path.j
 H = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(H)   # import-safe: the deploy helper keeps every live call under its main()
 SHA_RE = re.compile(r'[0-9a-f]{7,40}')                    # REV of REV:PATH is HEAD or a commit SHA, nothing else (T MED-3)
-WEBHOOK_SPECS = {'main', 'owner-actions'}                # the webhook copies Option A brought into scope
+WORKFLOWS_FILE = None   # None = scripts/workflows.py's default, the committed check-exports-parity.sh; tests point it at a fixture
 SCRATCH_PREFIX = 'SCRATCH — '
 ID_RE = re.compile(r'[A-Za-z0-9]+')   # an n8n workflow id: anything else could be re-spelt by curl's path handling
 PROBE_WAIT_S = 5                      # an execution appears in the API a few seconds after the webhook answers
@@ -185,7 +195,37 @@ def spec_key(spec_path):
 
 
 def export_path(spec_path):
-    return f'n8n/workflow.{spec_key(spec_path)}.copy.sanitized.json'
+    return f'n8n/workflow.{spec_key(spec_path)}.sanitized.json'
+
+
+def _workflows():
+    return H._module('scripts/workflows.py', 'workflows')
+
+
+def is_webhook(committed):
+    """A workflow entered through a webhook trigger: its trigger identity and webhook ids are invariants of every write."""
+    return any(n.get('type') == 'n8n-nodes-base.webhook' for n in committed.get('nodes') or [])
+
+
+def names(spec, scratch=False):
+    """The names the target may carry live: its committed export's name, and — while its approved rename is pending
+    (diff-workflow-copy.APPROVED_RENAMES, D6c) — the name it is renamed FROM. A scratch carries them behind the prefix."""
+    out = {spec['name']} | ({spec['_former']} if spec.get('_former') else set())
+    return {SCRATCH_PREFIX + n for n in out} if scratch else out
+
+
+def _spec(spec_path):
+    full = os.path.realpath(os.path.join(ROOT, spec_path))
+    if os.path.dirname(full) != os.path.join(ROOT, 'db', 'copies') or not os.path.isfile(full):
+        raise Refused('SPEC must be a file in db/copies/')
+    spec = json.load(open(full, encoding='utf-8'))
+    try:
+        committed = H.committed_export(export_path(spec_path))
+    except (ValueError, OSError) as e:
+        raise Refused(str(e))
+    key = spec_key(spec_path)
+    spec = dict(spec, name=committed.get('name'), _key=key, _former=(H.DIFF.APPROVED_RENAMES.get(key) or (None,))[0])
+    return spec, committed
 
 
 def trigger_identity(wf):
@@ -204,48 +244,33 @@ def webhook_ids(wf):
 
 
 def target(spec_path, copy_id):
-    """(spec, committed export) for a COPY_ID that ROLES pairs with this spec's export and declares live, its original
-    parked, and inside the tool's scope: Purge, Reminders, or one of the WEBHOOK_SPECS (Drill State is refused)."""
-    full = os.path.realpath(os.path.join(ROOT, spec_path))
-    if os.path.dirname(full) != os.path.join(ROOT, 'db', 'copies') or not os.path.isfile(full):
-        raise Refused('SPEC must be a file in db/copies/')
-    spec = json.load(open(full, encoding='utf-8'))
+    """(spec, committed export) for the workflow WORKFLOWS lists for this spec (scripts/workflows.py; D6c ended the
+    copy↔original pairing, so there is no original to check)."""
+    spec, committed = _spec(spec_path)
     try:
-        H.copy_export_path(spec_path, copy_id)
-        _, roles = H._module('scripts/pair_roles.py', 'pair_roles').load(H.ROLES_FILE)
-        committed = H.committed_export(export_path(spec_path))
-    except (ValueError, OSError) as e:
+        listed = _workflows().id_for(_workflows().load(WORKFLOWS_FILE), spec['_key'])
+    except ValueError as e:
         raise Refused(str(e))
-    if (spec.get('trigger') or H._ts_literal(committed)) and spec_key(spec_path) not in WEBHOOK_SPECS:
-        raise Refused('this copy has a webhook trigger or a Turnstile gate and is not Main or Owner Actions: outside this tool\'s scope')
-    role = next((r for r in roles if r['copy'] == copy_id), None)
-    if role is None:
-        raise Refused('ROLES has no line for this copy')
-    why = H.check_swap_declared(role['orig'], copy_id, (H._read(role['orig']) or {}).get('active'))
-    if why:
-        raise Refused(why)
+    if copy_id != listed:
+        raise Refused(f"this id is not the workflow WORKFLOWS lists for '{spec['_key']}'")
     return spec, committed
 
 
 def target_scratch(spec_path, scratch_id):
-    """A rehearsal target: an INACTIVE workflow named "SCRATCH — <spec name>" that ROLES does NOT know. It is never
-    production, so the pairing and ORDER guards do not apply; every other put check does."""
-    full = os.path.realpath(os.path.join(ROOT, spec_path))
-    if os.path.dirname(full) != os.path.join(ROOT, 'db', 'copies') or not os.path.isfile(full):
-        raise Refused('SPEC must be a file in db/copies/')
-    spec = json.load(open(full, encoding='utf-8'))
+    """A rehearsal target: an INACTIVE workflow named "SCRATCH — <one of names(spec)>" that WORKFLOWS does NOT list. It is
+    never production; every put check applies."""
+    spec, committed = _spec(spec_path)
     try:
-        pairs, _ = H._module('scripts/pair_roles.py', 'pair_roles').load(H.ROLES_FILE)
-        committed = H.committed_export(export_path(spec_path))
-    except (ValueError, OSError) as e:
+        listed = _workflows().load(WORKFLOWS_FILE)
+    except ValueError as e:
         raise Refused(str(e))
-    if scratch_id in pairs:
-        raise Refused('this id is a production workflow in ROLES, not a scratch')
+    if scratch_id in listed:
+        raise Refused('this id is a production workflow listed in WORKFLOWS, not a scratch')
     d = H._read(scratch_id)
     if d is None:
         raise Refused('the scratch does not read back (GET failed)')
-    if d.get('name') != SCRATCH_PREFIX + spec['name']:
-        raise Refused(f"the target is not the workflow named '{SCRATCH_PREFIX + spec['name']}'")
+    if d.get('name') not in names(spec, scratch=True):
+        raise Refused(f"the target is not a workflow named '{SCRATCH_PREFIX + spec['name']}'")
     if d.get('active') is not False:
         raise Refused('the scratch reads back ACTIVE: a scratch is never activated')
     return spec, committed
@@ -254,8 +279,8 @@ def target_scratch(spec_path, scratch_id):
 def read_copy(copy_id, spec):
     d = H._read(copy_id)
     if d is None:
-        raise Refused('the copy does not read back (GET failed)')
-    if d.get('name') != spec['name']:
+        raise Refused('the workflow does not read back (GET failed)')
+    if d.get('name') not in names(spec):
         raise Refused(f"the target is not the workflow named '{spec['name']}'")
     return d
 
@@ -442,8 +467,7 @@ def _fresh(copy_id, spec, scratch):
     cur = H._read(copy_id)
     if cur is None:
         raise Refused('the copy does not read back (GET failed) immediately before the PUT: nothing was written')
-    want = SCRATCH_PREFIX + spec['name'] if scratch else spec['name']
-    if cur.get('name') != want or cur.get('active') is not False:
+    if cur.get('name') not in names(spec, scratch) or cur.get('active') is not False:
         raise Refused('immediately before the PUT the copy no longer reads back as the inactive target: nothing was written')
     return cur
 
@@ -452,23 +476,21 @@ def parity_errs(spec, copy_id, draft, content_ref, settings_ref, scratch):
     """Ruling R2b DEPLOY: immediately before a snapshot, the live workflow must BE a reviewed, committed state, so a
     rollback to that snapshot always returns to one. The halves of exports-parity and content-parity that a copy
     DEACTIVATED for its edit can pass, for this one workflow: the live draft carries no sanitize placeholder, its
-    content equals `content_ref` (the same projection check-content-parity compares), its settings equal
-    `settings_ref`, and — for a production copy — they match its original's through the spec's allowlist. The pairing
-    and ORDER half is target()'s. The active-state half (ROLES' live side is active) is red by construction while the
-    copy is deactivated for the edit, so it is the one half not asked here; `activate` proves published == draft.
+    content equals `content_ref` (the same projection check-content-parity compares), and its settings equal
+    `settings_ref` up to the spec's allowlist (settings_parity.committed_vs_live; D6c: no original). The listing
+    half is target()'s (the id WORKFLOWS lists). The active-state half (the listed workflow is active) is red by
+    construction while it is deactivated for the edit, so it is the one half not asked here; `activate` proves published
+    == draft.
     A gate made weaker in the live copy by hand — its conditions, code, wiring, flags or credentials — is a content
     difference and is refused before anything is kept (Codex R2, deploy HIGH). NOT seen, because check-content-parity's
     projection normalises them away: an IF/Switch condition's `typeValidation`, `caseSensitive` and `version` options,
     and values behind sanitize placeholders (filled from live by put, so put never changes them and rollback returns
     them as they were). Recorded in ROADMAP's CONVERGE list (security review R2b, finding 1)."""
-    ref = dict(content_ref, name=draft.get('name')) if scratch else content_ref
+    # the name: the target may still carry the name its approved rename starts from (D6c), or a scratch's prefixed name
+    ref = dict(content_ref, name=draft.get('name')) if draft.get('name') in names(spec, scratch) else content_ref
     errs = H.check_not_sanitised(draft, content_ref)
     errs += H.content_drift(draft, ref, H._ccp().placeholder_smap(draft, ref))
-    errs += H._settings_parity().committed_vs_live(settings_ref, draft.get('settings'))
-    if not scratch:
-        _, roles = H._module('scripts/pair_roles.py', 'pair_roles').load(H.ROLES_FILE)
-        orig = H._read(next(r['orig'] for r in roles if r['copy'] == copy_id)) or {}
-        errs += H._settings_parity().copy_vs_original(orig.get('settings'), draft.get('settings'), spec.get('settings_allow', {}))
+    errs += H._settings_parity().committed_vs_live(settings_ref, draft.get('settings'), spec.get('settings_allow'))
     return errs
 
 
@@ -481,6 +503,31 @@ def _state(after):
     return 'it reads back inactive'
 
 
+STICKY = 'n8n-nodes-base.stickyNote'
+
+
+def raw_changes(cur, body):
+    """Every node whose STORED content the PUT changes, by name — non-executable ones included. The parity projection
+    leaves sticky notes (and normalised option fields) out, so without this a PUT could rewrite them unannounced: the
+    body is built from the export, so whatever live held there differently goes back to the export's text (code-reviewer
+    M2, D6c: the Owner Actions rename carries the corrected "Sticky — 3")."""
+    c = {n.get('name'): json.dumps(n, sort_keys=True) for n in cur.get('nodes') or []}
+    b = {n.get('name'): json.dumps(n, sort_keys=True) for n in body.get('nodes') or []}
+    return sorted(k for k in set(c) | set(b) if c.get(k) != b.get(k))
+
+
+def sticky_errs(a, body):
+    """The sticky notes read back exactly as sent (text, size, position): the projection does not compare them."""
+    sent = {n['name']: n for n in body.get('nodes') or [] if n.get('type') == STICKY}
+    got = {n['name']: n for n in a.get('nodes') or [] if n.get('type') == STICKY}
+    errs = [f'sticky {k!r} is not read back' for k in sorted(set(sent) - set(got))]
+    errs += [f'sticky {k!r} is read back but was not sent' for k in sorted(set(got) - set(sent))]
+    errs += [f'sticky {k!r} did not land as sent' for k in sorted(set(sent) & set(got))
+             if any(json.dumps(sent[k].get(f), sort_keys=True) != json.dumps(got[k].get(f), sort_keys=True)
+                    for f in ('parameters', 'position'))]
+    return errs
+
+
 def _webhook_errs(a, hooks_before, webhook):
     return ['a webhook id changed across the PUT'] if webhook and webhook_ids(a) != hooks_before else []
 
@@ -491,7 +538,7 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
     live = H._read(copy_id) if scratch else read_copy(copy_id, spec)
     if live.get('active') is not False:
         raise Refused('the copy is not INACTIVE: deactivate it first (a PUT to an active workflow publishes at once)')
-    webhook = spec_key(spec_path) in WEBHOOK_SPECS
+    webhook = is_webhook(committed)
     errs = H.DIFF.approved_errs(spec_key(spec_path), delta)
     if errs:
         raise Refused('not an approved delta (ruling FIXED: only the reviewed deltas are applied): ' + '; '.join(errs[:3]))
@@ -511,6 +558,20 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
     errs = H.DIFF.compare(committed, export, set(allow), phase='edit', delta=delta)
     if errs:
         raise Refused('outside the edit allowlist (diff-workflow-copy --phase edit): ' + '; '.join(errs[:4]))
+    # THE NAME (D6c): without a rename the workflow keeps its name, and it must already be its export's; with the approved
+    # rename it must carry exactly `from` now, the export must carry `to`, and the body sends `to`.
+    pre = SCRATCH_PREFIX if scratch else ''
+    rename = delta.get('rename')
+    if rename:
+        if export.get('name') != rename[1] or rename[1] != spec['name']:
+            raise Refused(f"the export is not named the rename's target {rename[1]!r}")
+        if live.get('name') != pre + rename[0]:
+            raise Refused(f"the live workflow is not named the rename's source {pre + rename[0]!r}: nothing to rename")
+        new_name = pre + rename[1]
+    else:
+        if live.get('name') != pre + export.get('name', ''):
+            raise Refused(f"the live name is not the export's name {pre + str(export.get('name'))!r}: a rename needs its approved delta")
+        new_name = live['name']
     for line in H.DIFF.sibling_order_lines(export, delta):
         print('  put: ' + line)
     out = io.StringIO()
@@ -532,8 +593,13 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
     except ValueError as e:
         raise Refused(str(e))
     # ruling T-4: put never carries a setting. fill_by_path already returns the live settings; set here once more so
-    # the body never depends on that helper's choice.
+    # the body never depends on that helper's choice. The name is the one decided above (fill_by_path keeps the live one).
     body['settings'] = json.loads(json.dumps(cur.get('settings') or {}))
+    body['name'] = new_name
+    changed = raw_changes(cur, body)
+    stick = {n.get('name') for n in body.get('nodes') or [] if n.get('type') == STICKY}
+    print(f"  put: nodes whose stored content this PUT changes ({len(changed)}): "
+          + (', '.join(f"{k}{' (sticky)' if k in stick else ''}" for k in changed) or 'none'))
     snapshot_write(snapshot, copy_id, spec_path, cur)
     st, _ = H.api('PUT', f'/workflows/{copy_id}', body)
     after = H._read(copy_id)
@@ -541,11 +607,12 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
         raise Refused(f'PUT [{st}]: {_state(after)}; then restore it with `rollback` from the snapshot {snapshot}')
     try:
         a = H._draft(after)
-        ref = dict(export, name=SCRATCH_PREFIX + spec['name']) if scratch else export   # a scratch keeps its own name
+        ref = dict(export, name=new_name)                # the name sent: a scratch keeps its prefix, a rename lands `to`
         errs = H.content_drift(a, ref, H._ccp().placeholder_smap(a, ref)) + H.content_drift(a, body, smap={})
         errs += H._settings_parity().committed_vs_live(cur.get('settings'), a.get('settings'))
         errs += H.check_not_sanitised(a, export)
         errs += _webhook_errs(a, hooks_before, webhook)   # content_drift compares parameters and code, not webhookId
+        errs += sticky_errs(a, body)                      # ...and leaves sticky notes out entirely
     except Exception as e:   # a read-back of an unexpected shape is a red read-back, never a traceback after a write
         errs = [f'the read-back could not be compared ({type(e).__name__})']
     if after.get('active') is not False:
@@ -556,7 +623,9 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
     n_delta = sum(len(delta.get(k) or ()) for k in H.DIFF.DELTA_KEYS)
     print(f"  put: [{st}] · inside the edit allowlist ({len(allow)} node(s), approved delta {n_delta}) · read back == export"
           f" and == the body sent (executable projection) · settings unchanged · still inactive"
-          + (' · webhook ids unchanged' if webhook else '') + (' · SCRATCH' if scratch else '')
+          + (' · webhook ids unchanged' if webhook else '') + ' · sticky notes read back as sent'
+          + (' · SCRATCH' if scratch else '')
+          + (f' · renamed {rename[0]!r} → {rename[1]!r}' if rename else '')
           + f' · pre-PUT snapshot kept at {snapshot}')
     return 0
 
@@ -579,8 +648,8 @@ def settings_step(spec_path, copy_id, export_arg, allow, delta, snapshot, scratc
     errs = H.DIFF.compare(committed, export, set(allow), phase='edit', delta=delta)
     if errs:
         raise Refused('EXPORT is not the approved edit (diff-workflow-copy --phase edit): ' + '; '.join(errs[:3]))
-    ref = dict(export, name=SCRATCH_PREFIX + spec['name']) if scratch else export
     d = H._draft(live)
+    ref = dict(export, name=d.get('name')) if d.get('name') in names(spec, scratch) else export
     if H.content_drift(d, ref, H._ccp().placeholder_smap(d, ref)):
         raise Refused('the live copy does not hold the edit yet: settings are applied LAST, after the edit and its probes')
     cur = H._draft(_fresh(copy_id, spec, scratch))
@@ -621,9 +690,10 @@ def rollback(spec_path, copy_id, snapshot, scratch=False):
     if live.get('active') is not False:
         raise Refused('the copy is not INACTIVE: deactivate it first (a PUT to an active workflow publishes at once)')
     want = snapshot_read(snapshot, copy_id, spec_path)
-    if want['name'] != live.get('name'):
-        raise Refused('the snapshot names another workflow than the live copy')
-    if spec_key(spec_path) in WEBHOOK_SPECS:
+    # the same workflow by name — or the two ends of its approved rename (D6c: the snapshot holds `from`, live `to`)
+    if want['name'] != live.get('name') and not {want['name'], live.get('name')} <= names(spec, scratch):
+        raise Refused('the snapshot names another workflow than the live one')
+    if is_webhook(committed):
         try:
             errs = webhook_invariant_errs(committed, want)
         except Exception as e:   # a snapshot of an unexpected shape is refused, never half-checked
@@ -684,9 +754,30 @@ def executions_since(wid, since):
     return sum(1 for e in d.get('data') or [] if (e.get('startedAt') or '') >= since)
 
 
-def oa_probe(path, orig, copy_id):
-    """Owner Actions sits behind Access: the service token is sent, so a 403 is n8n's, judged on its body. Like Main's
-    probe, the copy must have executed and the original must not."""
+def holder_errs(path, wid):
+    """[] when the ONE active workflow listening on `path` is `wid` (workflows.holder over n8n's workflow list). Since D6c
+    this replaces "the original did not execute": a second active holder of the path is what that check guarded against."""
+    st, d = H.api('GET', '/workflows?limit=250')
+    if st != 200 or not isinstance(d, dict) or d.get('nextCursor'):
+        return [f'the workflow listing did not read completely ({st}): which workflow holds the path is NOT MEASURED']
+    inst = []
+    for w in d.get('data') or []:
+        if w.get('active') and w.get('nodes') is None:          # a listing without nodes: read the active ones whole
+            full = H._read(w.get('id'))
+            if not full:                                         # an unread active workflow could be the second holder
+                return [f"an active workflow ({mask_id(str(w.get('id')))}) did not read back: which workflow holds the path is NOT MEASURED"]
+            w = full
+        inst.append(w)
+    try:
+        hid, _ = _workflows().holder(inst, path, _workflows().load(WORKFLOWS_FILE))
+    except ValueError as e:
+        return [str(e)]
+    return [] if hid == wid else [f'the path is held by {mask_id(hid)}, not by this workflow']
+
+
+def oa_probe(path, copy_id):
+    """Owner Actions sits behind Access: the service token is sent, so a 403 is n8n's, judged on its body. The workflow
+    must have executed, and it must be the path's only active holder."""
     need = ('OWNER_HMAC_SECRET', 'CF_OWNER_ACCESS_CLIENT_ID', 'CF_OWNER_ACCESS_CLIENT_SECRET')
     if any(not os.environ.get(k) for k in need):
         raise Refused('the Owner Actions probe needs ' + ', '.join(need) + ' in the environment: NOT MEASURED')
@@ -703,34 +794,32 @@ def oa_probe(path, orig, copy_id):
     err2 = b2.get('error') if isinstance(b2, dict) else None
     signed_ok = (st2, err2) in ((404, 'not_found'), (503, 'store_unavailable'))
     time.sleep(PROBE_WAIT_S)
-    ec, eo = executions_since(copy_id, since), executions_since(orig, since)
-    served = ec >= 1 and eo == 0
+    ec, herrs = executions_since(copy_id, since), holder_errs(path, copy_id)
+    served = ec >= 1 and not herrs
     ok = unsigned_ok and signed_ok and served
     note = ' · signature path alive, store unavailable' if ok and st2 == 503 else ''
     print(f"  probe: unsigned → {st1} {b1.get('error') if isinstance(b1, dict) else '-'} · signed, unknown record → {st2} {err2}"
-          f" · copy executions {ec} · original executions {eo}{note} · {'OK' if ok else 'RED'}")
+          f" · executions {ec} · the path's only holder: {'yes' if not herrs else herrs[0]}{note} · {'OK' if ok else 'RED'}")
     return ok
 
 
 def probe(spec_path, copy_id):
     spec, committed = target(spec_path, copy_id)
     live = read_copy(copy_id, spec)
-    if spec_key(spec_path) not in WEBHOOK_SPECS:
-        raise Refused('probe is for the webhook copies (Main, Owner Actions)')
+    if spec_key(spec_path) not in ('main', 'owner-actions'):
+        raise Refused('probe is for Main and Owner Actions (their answers are known: a dummy token 403, a signed unknown record 404)')
     if live.get('active') is not True:
-        raise Refused('the copy is not ACTIVE: nothing answers on its path')
+        raise Refused('the workflow is not ACTIVE: nothing answers on its path')
     ti = trigger_identity(committed)          # the path comes from the COMMITTED export, never from the live draft
     if len(ti) != 1:
         raise Refused(f'the committed export has {len(ti)} webhook triggers, not one: no single path to probe')
     if trigger_identity(H._draft(live)) != ti:
         raise Refused('the live copy\'s webhook trigger differs from the committed export: not probed')
     path = next(iter(ti.values()))[1]
-    _, roles = H._module('scripts/pair_roles.py', 'pair_roles').load(H.ROLES_FILE)
-    orig = next(r['orig'] for r in roles if r['copy'] == copy_id)
     if spec_key(spec_path) == 'main':
-        ok, _ = H.turnstile_probe(path, orig, copy_id)
+        ok, _ = H.turnstile_probe(path, copy_id)
     else:
-        ok = oa_probe(path, orig, copy_id)
+        ok = oa_probe(path, copy_id)
     if not ok:
         raise Refused('the probe is RED: the copy does not answer as production must; deactivate it and `rollback` from '
                       "the put's snapshot")
@@ -741,10 +830,9 @@ def scratch_post(spec_path, source_id):
     """POST the scratch and read it back → its id. Its MASKED id is printed the moment the POST returns one, and any
     red step after that raises ScratchRed carrying the id, so a scratch is never left without a way to find it."""
     spec, _ = target(spec_path, source_id)
-    if spec_key(spec_path) not in WEBHOOK_SPECS:
-        raise Refused('a scratch rehearsal is for the webhook copies')
-    src = H._draft(read_copy(source_id, spec))
-    body = {'name': SCRATCH_PREFIX + spec['name'], 'nodes': src['nodes'], 'connections': src['connections'],
+    live = read_copy(source_id, spec)
+    src = H._draft(live)
+    body = {'name': SCRATCH_PREFIX + live['name'], 'nodes': src['nodes'], 'connections': src['connections'],
             'settings': src.get('settings') or {}}
     st, d = H.api('POST', '/workflows', body)
     sid = d.get('id') if isinstance(d, dict) else None
@@ -829,15 +917,15 @@ def rehearse_rollback(spec_path, source_id, export_arg, allow, delta):
 
 
 def refuse_scratch_name(wid):
-    """Read the live name back: a workflow named "SCRATCH — …" is never activated, whatever ROLES says about its id."""
+    """Read the live name back: a workflow named "SCRATCH — …" is never activated, whatever WORKFLOWS says about its id."""
     name = (H._read(wid) or {}).get('name')
     if isinstance(name, str) and name.startswith(SCRATCH_PREFIX):
         raise Refused('the target is a SCRATCH (its live name starts with "SCRATCH — "): a scratch is never activated')
 
 
 def activate(spec_path, copy_id):
+    spec, _ = target(spec_path, copy_id)        # the declaration first: an unlisted id is refused before any call
     refuse_scratch_name(copy_id)
-    spec, _ = target(spec_path, copy_id)
     read_copy(copy_id, spec)
     st, _ = H.api('POST', f'/workflows/{copy_id}/activate')
     after = H._read(copy_id) or {}

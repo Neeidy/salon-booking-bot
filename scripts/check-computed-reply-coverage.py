@@ -15,7 +15,7 @@
 # Exit 0 = OK, 1 = a builder is missing computed_reply. Run at every close gate / pre-push.
 import json, sys, collections
 
-PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.main.copy.sanitized.json'
+PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.main.sanitized.json'
 SAVE_NODES = ('Save State', 'Save State (Post-Write)')
 
 w = json.load(open(PATH, encoding='utf-8'))

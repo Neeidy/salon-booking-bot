@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Drift-guard for Refactor #4 — the cancel-validation rules are DUPLICATED across nodes (n8n Code nodes
 # can't share a helper), so a single source of truth is enforced by this check instead. If any copy drifts
-# (a regex bound weakened, a rule dropped), the guard FAILs. Static; reads the committed COPY exports only
-# (Main, Reminders and Purge `*.copy.sanitized.json`): since the D6b cutover the live workflows are the
-# Postgres copies, and the parked originals are only the rollback path until D6c.
+# (a regex bound weakened, a rule dropped), the guard FAILs. Static; reads the committed exports of the live
+# workflows (Main, Reminders and Purge `n8n/workflow.<key>.sanitized.json`; until D6c these were the
+# `*.copy.sanitized.json` files, beside the parked Airtable originals).
 #
 # Concepts guarded:
 #   1. gid shape regex  ^[0-9a-v]{5,1024}$  — MUST be identical everywhere; 5x
@@ -26,7 +26,7 @@
 # Exit 0 = parity OK, 1 = drift. Run at every close gate / pre-push (with the #5 coverage guard).
 import json, sys, re, collections, os
 
-PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.main.copy.sanitized.json'
+PATH = sys.argv[1] if len(sys.argv) > 1 else 'n8n/workflow.main.sanitized.json'
 w = json.load(open(PATH, encoding='utf-8'))
 by = {n['name']: n for n in w['nodes']}
 
@@ -143,7 +143,7 @@ if missing_ctx:
 #    (each workflow is compared only to its OWN committed file, never to the other one). We hit this drift
 #    class once (repo <-> Load-Config node). Kill-switch especially must be one truth — a bot halted on the
 #    inbound side but still firing reminders is exactly the split this forbids.
-REM_PATH = os.environ.get('REMINDERS_SANITIZED', 'n8n/workflow.reminders.copy.sanitized.json')
+REM_PATH = os.environ.get('REMINDERS_SANITIZED', 'n8n/workflow.reminders.sanitized.json')
 
 
 def load_config_shared(jscode):
@@ -178,7 +178,7 @@ else:
 #     MUST be one truth across all three: if `enabled:false` silences the main + reminders alerts but NOT
 #     purge, the kill is not a kill — a switch that does not stop everything cannot be trusted. Content-parity
 #     cannot catch this (each workflow is compared only to its OWN committed file, never to the others).
-PURGE_PATH = os.environ.get('PURGE_SANITIZED', 'n8n/workflow.purge.copy.sanitized.json')
+PURGE_PATH = os.environ.get('PURGE_SANITIZED', 'n8n/workflow.purge.sanitized.json')
 try:
     purge_by = {n['name']: n for n in json.load(open(PURGE_PATH, encoding='utf-8'))['nodes']}
     purge_lc = (purge_by.get('Load Config (Purge)', {}).get('parameters', {}) or {}).get('jsCode', '')

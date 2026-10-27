@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """scripts/turnstile-window.py, offline: a stand-in for the n8n public API AND the webhook on 127.0.0.1 (loopback
-only, remote-operator.md), and a fake deploy helper that flips the copy's Turnstile literal through that stand-in.
+only, remote-operator.md), and a fake deploy helper that flips the workflow's Turnstile literal through that stand-in.
 The window's own HTTP layer (the real curl) and its precheck run for real against it; the precheck's prediction uses
-the REAL deploy helper's pure checks on workflows built from the committed exports (as the helper's own selftest does):
-the copy simulated from its own committed export at HEAD, its reference since ruling K1.
+the REAL deploy helper's pure checks on a workflow simulated from the committed Main export. The helper's
+committed_export is pointed at the working-tree file (in a clean check-all run that is HEAD; before the commit that
+moves an export it is the file about to be committed). Workflow ids are fixture ids from a fixture WORKFLOWS file.
 
 What it proves: the window closes and restores in `finally` when the command fails, times out, cannot start, is
 interrupted (KeyboardInterrupt) or the process gets SIGTERM; it refuses to open (nothing touched, no helper call) when
-ROLES declares the original, the original is active, the literal is not true, the copy differs from its committed
-export (a second literal included), or a dummy token is not 403; and it NEVER re-activates a copy whose draft literal
-is not true (SAFETY exit 3), even when the helper fails half-way.
+WORKFLOWS lists no workflow for the spec, the listed workflow is inactive, a SECOND active workflow listens on the
+production path, the literal is not true, the workflow differs from its committed export (a second literal included),
+or a dummy token is not 403; a second active holder appearing before the closing probe is a SAFETY exit (restore not
+proven); and it NEVER re-activates a workflow whose draft literal is not true (SAFETY exit 3), even when the helper
+fails half-way.
 
 Run: python3 tests/unit/turnstile-window.test.py   (TURNSTILE_WINDOW=<path> runs it against another copy of the
 script — a mutant — with every import still resolving to this repo)
@@ -78,16 +81,23 @@ def helper_module():
 
 
 class World:
-    """The fake instance's state. Ids are fixture ids (O1/C1): no real workflow id is used or written."""
+    """The fake instance's state. Ids are fixture ids (C1, X2): no real workflow id is used or written."""
 
-    def __init__(self, orig, copy_wf):
-        self.wf = {'O1': dict(copy.deepcopy(orig), active=False, published=None),
-                   'C1': dict(copy.deepcopy(copy_wf), active=True, published=copy.deepcopy(copy_wf['nodes']))}
-        self.execs = {'O1': [], 'C1': []}
+    def __init__(self, copy_wf):
+        self.wf = {'C1': dict(copy.deepcopy(copy_wf), active=True, published=copy.deepcopy(copy_wf['nodes']))}
+        self.execs = {'C1': []}
+        self.second_at_close = False   # a second active holder appears when C1 is re-activated by the close
+        self.activations = 0
         self.log = []                # ('activate'|'deactivate'|'helper', id or state)
         self.force_dummy = {}        # probe number (1-based) → status the webhook answers instead
         self.probes = 0
         self.lock = threading.Lock()
+
+    def add_second(self, active=True):
+        """An UNLISTED workflow listening on the same production path (the one a holder check must see)."""
+        c = copy.deepcopy(self.wf['C1'])
+        self.wf['X2'] = dict(c, name='Unlisted second holder', active=active, published=copy.deepcopy(c['nodes']) if active else None)
+        self.execs['X2'] = []
 
     def literal(self, nodes):
         code = next((n for n in nodes or [] if n['name'] == 'Load Config'), {}).get('parameters', {}).get('jsCode', '')
@@ -141,6 +151,10 @@ def make_handler(world):
                     w['active'] = m.group(2) == 'activate'
                     if w['active']:
                         w['published'] = copy.deepcopy(w['nodes'])
+                        if m.group(1) == 'C1':
+                            world.activations += 1
+                            if world.second_at_close and world.activations == 2:
+                                world.add_second()
                     return self.reply(200, {'id': m.group(1), 'active': w['active']})
                 if self.path == '/__test/helper-call':
                     world.log.append(('helper', body['state']))
@@ -167,33 +181,30 @@ def make_handler(world):
     return H
 
 
-def roles_fixture(d, line):
-    p = os.path.join(d, f'roles-{abs(hash(line))}.sh')
+def workflows_fixture(d, lines):
+    p = os.path.join(d, f'workflows-{abs(hash(lines))}.sh')
     with open(p, 'w') as f:
-        f.write('PAIRS=(\n  "O1:n8n/workflow.sanitized.json"\n  "C1:n8n/workflow.main.copy.sanitized.json"\n)\n\n'
-                f'ROLES=(\n  "{line}"\n)\n')
+        f.write('WORKFLOWS=(\n' + ''.join(f'  "{l}"\n' for l in lines) + ')\n')
     return p
 
 
 def main():
     X = helper_module()
-    spec = json.load(open(os.path.join(ROOT, 'db', 'copies', 'main.json'), encoding='utf-8'))
-    orig = X._simulated_live(json.load(open(os.path.join(ROOT, spec['original']), encoding='utf-8')))
-    # After the cutover the copy's reference is its OWN committed export (ruling K1), so the live copy is simulated
-    # from that export at HEAD, not assembled from the original.
+    # The live Main workflow simulated from its committed export (its reference).
     _, swapped = X._simulated_live_copy(os.path.join(ROOT, 'db', 'copies', 'main.json'))
-    orig = {k: orig.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
     swapped = {k: swapped.get(k) for k in ('name', 'nodes', 'connections', 'settings')}
 
     tmp = tempfile.mkdtemp(prefix='tw-test-')
     fake_helper = os.path.join(tmp, 'fake_helper.py')
     open(fake_helper, 'w').write(FAKE_HELPER)
-    roles_copy, roles_orig = roles_fixture(tmp, 'O1:C1:copy'), roles_fixture(tmp, 'O1:C1:original')
+    wf_main = workflows_fixture(tmp, ('C1:n8n/workflow.main.sanitized.json', 'C3:n8n/workflow.purge.sanitized.json'))
+    wf_nomain = workflows_fixture(tmp, ('C3:n8n/workflow.purge.sanitized.json',))
+    wf_x2 = workflows_fixture(tmp, ('C1:n8n/workflow.main.sanitized.json', 'X2:n8n/workflow.purge.sanitized.json'))
 
     pid = os.getpid()
     PY = sys.executable
     cases = [
-        # label, command, timeout, setup(world, env) → roles file, want exit, want final copy (active, draft, published), want helper calls
+        # label, command, timeout, setup(world, env) → workflows file, want exit, want final C1 (active, draft, published), want helper calls
         ('green: command exits 0', [PY, '-c', 'pass'], 60, {'text': 'predicted GREEN'}, 0, (True, ['true'], ['true']), ['off', 'on']),
         ('command FAILS (exit 1): closed and restored', [PY, '-c', 'import sys; sys.exit(1)'], 60, {}, 1,
          (True, ['true'], ['true']), ['off', 'on']),
@@ -206,9 +217,16 @@ def main():
         ('SIGTERM to the window process mid-command: closed and restored',
          [PY, '-c', f'import os, signal, time; os.kill({pid}, signal.SIGTERM); time.sleep(30)'], 60, {}, 1,
          (True, ['true'], ['true']), ['off', 'on']),
-        ('REFUSED: ROLES declares the original live', [PY, '-c', 'pass'], 60, {'roles': roles_orig, 'text': 'ROLES declares the original live'}, 2,
-         (True, ['true'], ['true']), []),
-        ('REFUSED: the original is ACTIVE', [PY, '-c', 'pass'], 60, {'orig_active': True, 'text': "order guard refuses"}, 2, (True, ['true'], ['true']), []),
+        ('REFUSED: WORKFLOWS lists no workflow for this spec', [PY, '-c', 'pass'], 60,
+         {'workflows': wf_nomain, 'text': "lists 0 workflows for 'main'"}, 2, (True, ['true'], ['true']), []),
+        ('REFUSED: the listed workflow is INACTIVE', [PY, '-c', 'pass'], 60, {'inactive': True, 'text': 'must be the ACTIVE one'}, 2,
+         (False, ['true'], ['true']), []),
+        ('REFUSED: a SECOND (unlisted) active workflow listens on the production path — before any webhook', [PY, '-c', 'pass'], 60,
+         {'second': True, 'text': 'active workflows listen', 'no_probe': True}, 2, (True, ['true'], ['true']), []),
+        ('REFUSED: ANOTHER listed workflow holds the production path — before any webhook', [PY, '-c', 'pass'], 60,
+         {'other_holder': True, 'workflows': wf_x2, 'text': 'not C1', 'no_probe': True}, 2, (True, ['true'], ['true']), []),
+        ('a second active holder appears before the closing probe: restore NOT proven (SAFETY)', [PY, '-c', 'pass'], 60,
+         {'second_at_close': True, 'text': 'restore NOT proven'}, 3, (True, ['true'], ['true']), ['off', 'on']),
         ('REFUSED: the literal is not true (published and draft false)', [PY, '-c', 'pass'], 60, {'literal': 'false', 'text': 'Turnstile literal is not true'}, 2,
          (True, ['false'], ['false']), []),
         ('REFUSED: a dummy token is not 403 (200)', [PY, '-c', 'pass'], 60, {'force': {1: 200}, 'text': 'does not answer a dummy token 403'}, 2,
@@ -228,9 +246,15 @@ def main():
     ]
     ok = True
     for label, cmd, timeout, setup, want_rc, (want_active, want_draft, want_pub), want_helper in cases:
-        world = World(orig, swapped)
-        if setup.get('orig_active'):
-            world.wf['O1']['active'], world.wf['O1']['published'] = True, copy.deepcopy(world.wf['O1']['nodes'])
+        world = World(swapped)
+        if setup.get('inactive'):
+            world.wf['C1']['active'] = False
+        if setup.get('second') or setup.get('other_holder'):
+            world.add_second()
+        if setup.get('other_holder'):            # C1's trigger moved elsewhere; X2 (listed, for another key) holds the path
+            for nodes in (world.wf['C1']['nodes'], world.wf['C1']['published']):
+                next(n for n in nodes if n['name'] == TRIG)['parameters']['path'] = 'elsewhere' 
+        world.second_at_close = bool(setup.get('second_at_close'))
         if setup.get('literal'):
             world.set_literal('C1', setup['literal'], published=True)
         if setup.get('drift'):
@@ -249,7 +273,8 @@ def main():
                            'N8N_HOST': 'host.invalid', 'FAKE_HELPER_MODE': setup.get('mode', 'ok'),
                            'CF_ACCESS_CLIENT_ID': 'fake-id', 'CF_ACCESS_CLIENT_SECRET': 'fake-secret'})
         tw = load_script()
-        tw.HELPER, tw.ROLES_FILE = fake_helper, setup.get('roles', roles_copy)
+        tw.HELPER, tw.WORKFLOWS_FILE = fake_helper, setup.get('workflows', wf_main)
+        tw.helper_module().committed_export = lambda path, rev='HEAD': json.load(open(os.path.join(ROOT, path), encoding='utf-8'))
         if setup.get('raise'):
             exc = setup['raise']
 
@@ -283,6 +308,8 @@ def main():
             good = good and [e[0] for e in world.log if e[0] == 'activate'] == ['activate']
         if setup.get('text'):
             good = good and setup['text'] in out.getvalue()   # refused for THIS reason, not another
+        if setup.get('no_probe'):
+            good = good and world.probes == 0                 # refused BEFORE a webhook request was sent
         if want_rc == 3:
             good = good and 'SAFETY' in out.getvalue()
         if 'TIMES OUT' in label:
@@ -293,7 +320,7 @@ def main():
         print(f"{'✓' if good else '✗'} {label}: exit {rc} · copy active {final[0]}, draft {final[1]}, published {final[2]}"
               f" · helper {helper_calls} · {len(touched)} (de)activations"
               + ('' if good else '\n    ' + '\n    '.join(out.getvalue().strip().splitlines()[-8:])))
-    for p in (fake_helper, roles_copy, roles_orig):
+    for p in (fake_helper, wf_main, wf_nomain, wf_x2):
         os.unlink(p)
     os.rmdir(tmp)
     print('turnstile-window:', 'OK' if ok else 'FAILED', f'({len(cases)} cases)')

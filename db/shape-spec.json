@@ -1,8 +1,8 @@
 {
   "_doc": [
     "The Airtable record shape, built in SQL (MIGRATION-PLAN §3b, §3q, §3r). ONE source for every consumer:",
-    "tests/db/contract-run.cjs reads it to check the real database, and scripts/build-workflow-copy.py reads it",
-    "to write each copy's SQL. `kinds` maps a column kind to the SQL that yields Airtable's form (an empty",
+    "tests/db/contract-run.cjs reads it to check the real database (scripts/build-workflow-copy.py read it to write",
+    "each copy's SQL until D6c removed the generator; the SQL now lives in the committed exports). `kinds` maps a column kind to the SQL that yields Airtable's form (an empty",
     "string or a false checkbox becomes NULL, which jsonb_strip_nulls then omits, as Airtable omits an empty",
     "field). `{c}` is the column. Field names are DATA-MODEL's; leads' `id` is the autonumber (§3b)."
   ],

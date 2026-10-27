@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Live <-> committed structural parity for the n8n workflow.
 #
-# WHY: n8n/workflow.sanitized.json is now hand-maintained (surgical, sanitized-preserving
+# WHY: the committed export (n8n/workflow.main.sanitized.json since D6c) is hand-maintained (surgical, sanitized-preserving
 # edits — a raw full export is unreliable here: the compiled ajv validator in "Validate Intent"
 # bloats/mangles). A hand-built artifact can silently drift from the live workflow. Codex (L3)
 # audits the COMMITTED file, so drift means we audit something that is not the running system.
@@ -12,21 +12,20 @@
 # USAGE:
 #   N8N_API_URL="https://<n8n-host>" N8N_API_KEY="<key>" python3 scripts/check-live-parity.py [workflow_id]
 #   workflow_id defaults to $N8N_WORKFLOW_ID, else to THE ACTIVE WORKFLOW LISTENING ON `barber-inbound` — the
-#   production bot, whichever of Main's pair holds it (MIGRATION-PLAN §3t, decision 9): the original before the
-#   cutover, the copy after it. The committed file is then that workflow's own PAIRS export (SANITIZED_PATH wins).
-#   It used to default to Main original's id, which after the cutover would compare an inactive workflow.
+#   production bot — which must be the one active holder of that path and listed in WORKFLOWS (scripts/workflows.py,
+#   D6c). The committed file is then that workflow's own export (SANITIZED_PATH wins).
 # Host + key come from env only — nothing sensitive is hardcoded (this is a public template).
 # Exit 0 = parity OK, 1 = DRIFT (or error). Run at every refactor step's close gate.
 import os, sys, json, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import pair_roles  # noqa: E402
+import workflows  # noqa: E402
 
 PROD_PATH = 'barber-inbound'
 WF  = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('N8N_WORKFLOW_ID')
 API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
-COMMITTED = os.environ.get('SANITIZED_PATH', 'n8n/workflow.sanitized.json')
+COMMITTED = os.environ.get('SANITIZED_PATH', 'n8n/workflow.main.sanitized.json')
 
 # Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise).
 # `/api` is CF-Access "Bypass" today (n8n API key alone); this lets the SAME guard keep working after the
@@ -67,7 +66,7 @@ def main():
                                      headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
         listed = json.load(urllib.request.urlopen(req, timeout=30)).get('data') or []
         try:
-            WF, own = pair_roles.holder(listed, PROD_PATH, pair_roles.load()[0])
+            WF, own = workflows.holder(listed, PROD_PATH, workflows.load())
         except ValueError as e:
             print(f'NO SINGLE PRODUCTION HOLDER — {e}.')
             sys.exit(1)

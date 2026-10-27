@@ -1,65 +1,47 @@
 #!/usr/bin/env python3
-"""diff-workflow-copy.py — a migration copy may differ from its original ONLY in its data layer
-(docs/MIGRATION-PLAN.md §4.1, rulings Q2 and Q13).
+"""diff-workflow-copy.py — an engine edit may change ONLY what was approved (the EDIT phase; 7-F1, ruling 2026-10-25).
 
-The migration swaps each Airtable node for a Postgres node IN PLACE: same node name, same connections, so
-every `$('Load State')` reference and every error branch survives untouched. That is the only reason
-"no new bug" can be proven mechanically, and this tool is the proof. Given an original and its copy, it
-FAILS when:
-  · a node is added or removed (a renamed data node counts as both);
-  · a node OUTSIDE --allow differs in anything but its id/position/webhookId;
-  · an --allow node differs in anything other than type, typeVersion, parameters or credentials
-    (its onError and alwaysOutputData must stay exactly as they were: they ARE the error branches);
-  · the connection graph differs;
-  · the workflow settings differ. Offline (two committed files) this is strict equality. In live mode (the
-    deploy helper passes the copy spec's `settings_allow`) a key the spec allowlists may be ABSENT on the copy,
-    and nothing else (scripts/settings_parity.py; MIGRATION-PLAN §3r, settings-parity).
-The EDIT phase (7-F1, ruling 2026-10-25) is the same comparison turned into a per-edit ALLOWLIST for an engine edit
-after the cutover: COMMITTED copy export vs the edited (staged) export. Only the --allow nodes may differ, and in them
-only `parameters` and `alwaysOutputData` (an engine edit changes code, SQL and that one flag; type, typeVersion,
-credentials, onError, disabled and every other key stay); a trigger can never be in an edit's --allow. Everything
-else is red exactly as in the swap phase: a node added or removed, any other node changed, the connections, the
-settings (strict), pinData. The temporary-trigger and test-path exceptions do not exist in this phase.
-A DECLARED DELTA (7-2 Tur 2, rulings R-1a/DEAD, R-Q2) widens the edit phase by exactly what is named and nothing else,
-and it exists only as a delta FILE (--delta-file F: allow + the four lists of DELTA_KEYS + an optional `settings` map;
-load_delta_file, `_doc` ignored, any other key refused; mutually exclusive with --allow): add_nodes / remove_nodes (a
-trigger can never be added or removed) and add_edges / remove_edges "SRC|OUT|DST|IN" (main connections). The committed
-edge set minus the removed edges plus the added edges must EQUAL the staged edge set; an edge touching an added or
-removed node exists on one side only, so it must be declared too; a declared item that is not actually there (a node
-"added" that the committed export already has, an edge "removed" that never existed) is red, so a declaration cannot sit
-unused beside the change it was meant to describe. An added node must be of an ADDABLE_TYPES type (logic and notes); a
-repeated edge and an edge to a missing node are red; a touched source's non-main connections stay exact.
+Given a workflow's COMMITTED export and the edited (staged) export, it FAILS when anything differs beyond what the edit
+names: only the --allow nodes may differ, and in them only `parameters` and `alwaysOutputData` (code, SQL and that one
+flag; type, typeVersion, credentials, onError, disabled and every other key stay); a node added or removed, any other
+node changed, the connections, the settings (strict), pinData, the workflow NAME (strict since D6c) — all red. A trigger
+is never in --allow. *History:* until D6c (2026-10-27) the tool also compared a migration copy with its Airtable
+original (the TEST and SWAP phases, data-node swaps, the temporary-trigger and test-path exceptions); those went with the
+copy↔original pairing.
+A DECLARED DELTA (7-2 Tur 2, rulings R-1a/DEAD, R-Q2) widens the edit by exactly what is named and nothing else, and it
+exists only as a delta FILE (--delta-file F: allow + the four lists of DELTA_KEYS + an optional `settings` map + an
+optional `rename`; load_delta_file, `_doc` ignored, any other key refused; mutually exclusive with --allow): add_nodes /
+remove_nodes (a trigger can never be added or removed) and add_edges / remove_edges "SRC|OUT|DST|IN" (main connections).
+The committed edge set minus the removed edges plus the added edges must EQUAL the staged edge set; an edge touching an
+added or removed node exists on one side only, so it must be declared too; a declared item that is not actually there is
+red, so a declaration cannot sit unused beside the change it was meant to describe. An added node must be of an
+ADDABLE_TYPES type (logic and notes); a repeated edge and an edge to a missing node are red; a touched source's non-main
+connections stay exact.
 APPROVED DELTAS (ruling FIXED, Yigitcan 2026-10-26): this tool checks that a staged export matches a delta; WHICH deltas
-may be applied at all is APPROVED_DELTAS below — the two reviewed 7-2 Tur 2 edits, by exact identity. workflow-step.py
-refuses a delta file that is not exactly one of them (approved_errs), and tests/unit/staged-sanitised.test.py holds the
-committed delta files to them. A new delta is a change to this list, reviewed as code.
+may be applied at all is APPROVED_DELTAS / APPROVED_RENAMES below, by exact identity. workflow-step.py refuses a delta file
+that is not exactly one of them (approved_errs). A new delta is a change to this list, reviewed as code.
+A RENAME (D6c, ruling 2026-10-26) is `"rename": {"from": OLD, "to": NEW}` alone (no allow, no other item): the committed
+export ALREADY carries NEW, so it is not a difference between the two files — it is the difference between the LIVE
+workflow (still named OLD) and the export, and workflow-step.py checks that side. Here it must equal APPROVED_RENAMES[key]
+exactly; the two exports must carry the same name like everything else.
 DECLARED SETTINGS (ruling T-4): `settings` maps workflow-settings keys to exact JSON scalars (no object, array, null; not
 empty); the staged settings must equal the committed settings updated with exactly that map, and `executionOrder` is
 never declared (it is sibling order, i.e. behaviour). Without it, settings stay strictly equal. workflow-step put never
 sends them: its `settings` command applies them as the last step.
-GATE (Yigitcan, 2026-10-26; widened to every security-gate node by the R1c ruling), EDIT phase: the GATE_NODES (Main's
-and Owner Actions' admission path, listed below) and every trigger (type webhook, *Trigger, or a LEGACY_TRIGGER_TYPES
-type) are red in --allow (even unchanged) and in remove_nodes. A DECLARED edge (added or removed) that touches a gate
-node, as source or target, is red unless it is one of RULED_GATE_EDGES (ruling R-Q2: the two Tag Turnstile Unavailable
-edges). An UNDECLARED change of a gate node's connections is red like any other: an untouched source compares exactly,
-and a gate source touched by a ruled edge keeps every other edge, in its committed order.
-POSITION LOCK (R1c, M-c), EDIT phase: under executionOrder v1 the targets of one output run in canvas order (top to
-bottom, then left to right), so a node present on both sides keeps its `position` — a move is red; no delta declares
-one (the approved deltas move nothing). sibling_order_lines() reports the resulting v1 order of every output an added
-node joins beside other targets (printed by main() and by workflow-step put).
-Two exceptions exist, and only in the TEST phase:
-  · --temp-trigger NAME: a declared temporary webhook trigger (Q13's only test route for schedule-
-    triggered copies) may exist, together with the edges that leave it, and those edges must be exactly
-    what a real trigger of the original feeds (so a drill cannot enter past a kill-switch or a guard). In
-    the SWAP phase its presence is a failure: it must be gone before the copy goes live;
-  · --trigger NAME: the copy's real trigger may sit on a TEST path (parameters.path). In the SWAP phase the
-    path must equal the original's.
+GATE (Yigitcan, 2026-10-26; widened to every security-gate node by the R1c ruling): the GATE_NODES (Main's and Owner
+Actions' admission path, listed below) and every trigger (type webhook, *Trigger, or a LEGACY_TRIGGER_TYPES type) are red
+in --allow (even unchanged) and in remove_nodes. A DECLARED edge (added or removed) that touches a gate node, as source or
+target, is red unless it is one of RULED_GATE_EDGES (ruling R-Q2: the two Tag Turnstile Unavailable edges). An UNDECLARED
+change of a gate node's connections is red like any other: an untouched source compares exactly, and a gate source
+touched by a ruled edge keeps every other edge, in its committed order.
+POSITION LOCK (R1c, M-c): under executionOrder v1 the targets of one output run in canvas order (top to bottom, then left
+to right), so a node present on both sides keeps its `position` — a move is red; no delta declares one.
+sibling_order_lines() reports the resulting v1 order of every output an added node joins beside other targets (printed by
+main() and by workflow-step put).
 
-Usage: python3 scripts/diff-workflow-copy.py ORIGINAL COPY --allow "Node A" "Node B" … \\
-           [--phase test|swap] [--temp-trigger NAME] [--trigger NAME]
-       python3 scripts/diff-workflow-copy.py COMMITTED_COPY_EXPORT STAGED_EXPORT --allow "Node A" … --phase edit
-       python3 scripts/diff-workflow-copy.py COMMITTED_COPY_EXPORT STAGED_EXPORT --phase edit --delta-file DELTA.json
-       python3 scripts/diff-workflow-copy.py --selftest      (positive control, built from a committed export)
+Usage: python3 scripts/diff-workflow-copy.py COMMITTED_EXPORT STAGED_EXPORT --allow "Node A" …
+       python3 scripts/diff-workflow-copy.py COMMITTED_EXPORT STAGED_EXPORT --delta-file DELTA.json
+       python3 scripts/diff-workflow-copy.py --selftest      (positive and negative controls, built from committed exports)
 """
 import argparse
 import copy as _copy
@@ -71,7 +53,6 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IGNORED = {'id', 'position', 'webhookId'}            # n8n assigns these per workflow; never behaviour
-ALLOWED_ON_DATA_NODE = {'type', 'typeVersion', 'parameters', 'credentials'}
 ALLOWED_ON_EDITED_NODE = {'parameters', 'alwaysOutputData'}   # the EDIT phase: code, SQL, and the flag item (2) removes
 
 
@@ -130,11 +111,32 @@ APPROVED_DELTAS = {
 }
 
 
+# D6c (ruling 2026-10-26): each workflow's ONE approved rename, from its migration name to its clean name. Removed once the
+# five renames are live (the D6c records commit), after which a rename is a new ruling like any other delta.
+APPROVED_RENAMES = {
+    'main': ('MIG COPY — Main', 'Salon Booking Bot — Main'),
+    'owner-actions': ('MIG COPY — Owner Actions (D11)', 'Salon Booking Bot — Owner Actions (D11)'),
+    'purge': ('MIG COPY — Processed Purge', 'Salon Booking Bot — Processed Purge'),
+    'reminders': ('MIG COPY — Reminders', 'Salon Booking Bot — Reminders'),
+    'drill-state': ('MIG COPY — Drill State Read', 'Salon Booking Bot — Drill State Read'),
+}
+
+
 def approved_errs(key, delta):
     """[] when `delta` (parse_delta's dict) is EXACTLY APPROVED_DELTAS[key] — every list and the settings map, items
     compared by identity, settings type-strict — or carries nothing at all (no list item, no setting: a plain --allow
     edit). Anything else lists what is extra and what is missing."""
     delta = delta or {}
+    if delta.get('rename') is not None:
+        rn, want_rn = delta['rename'], APPROVED_RENAMES.get(key)
+        errs = []
+        if want_rn is None:
+            errs.append(f"'{key}' has no approved rename")
+        elif tuple(rn) != want_rn:
+            errs.append(f"rename {tuple(rn)!r} is not the approved rename {want_rn!r} for '{key}'")
+        if any(delta.get(k) for k in (*DELTA_KEYS, 'settings')):
+            errs.append('a rename travels alone: no node, edge or setting beside it')
+        return errs
     if not any(delta.get(k) for k in (*DELTA_KEYS, 'settings')):
         return []
     want = APPROVED_DELTAS.get(key)
@@ -177,7 +179,7 @@ def parse_delta(d):
     an object not of that shape, raises ValueError. (workflow-step.py hands in the content read from git HEAD.)"""
     if not isinstance(d, dict):
         raise ValueError('the delta file is not a JSON object')
-    unknown = sorted(set(d) - {'_doc', 'allow', 'settings', *DELTA_KEYS})
+    unknown = sorted(set(d) - {'_doc', 'allow', 'settings', 'rename', *DELTA_KEYS})
     if unknown:
         raise ValueError(f'the delta file has unknown key(s): {unknown}')
     for k in ('allow', *DELTA_KEYS):
@@ -186,7 +188,14 @@ def parse_delta(d):
             raise ValueError(f"the delta file's '{k}' is not a list of non-empty strings")
         if len(set(v)) != len(v):
             raise ValueError(f"the delta file's '{k}' repeats an entry")
-    if not d.get('allow'):
+    rn = d.get('rename')
+    if 'rename' in d:
+        if not (isinstance(rn, dict) and set(rn) == {'from', 'to'} and all(isinstance(rn[k], str) and rn[k].strip() for k in rn)
+                and rn['from'] != rn['to']):
+            raise ValueError("the delta file's 'rename' is not {\"from\": OLD, \"to\": NEW} with two different non-empty names")
+        if d.get('allow') or any(d.get(k) for k in DELTA_KEYS) or 'settings' in d:
+            raise ValueError('a rename delta carries nothing else: no allow, node, edge or setting')
+    elif not d.get('allow'):
         raise ValueError("the delta file's 'allow' is missing or empty")
     bad = [e for k in ('add_edges', 'remove_edges') for e in d.get(k, []) if not EDGE_RE.fullmatch(e)]
     if bad:
@@ -195,7 +204,10 @@ def parse_delta(d):
     if 'settings' in d and not (isinstance(st, dict) and st and all(
             k and isinstance(v, (str, bool, int, float)) for k, v in st.items())):
         raise ValueError("the delta file's 'settings' is not a non-empty object of workflow-settings keys to JSON scalars")
-    return list(d['allow']), dict({k: set(d.get(k, [])) for k in DELTA_KEYS}, settings=dict(st))
+    out = dict({k: set(d.get(k, [])) for k in DELTA_KEYS}, settings=dict(st))
+    if 'rename' in d:
+        out['rename'] = (rn['from'], rn['to'])
+    return list(d.get('allow', [])), out
 
 
 def _settings_parity():
@@ -272,92 +284,58 @@ ADDABLE_TYPES = {'n8n-nodes-base.code', 'n8n-nodes-base.if', 'n8n-nodes-base.set
                  'n8n-nodes-base.noOp', 'n8n-nodes-base.stickyNote', 'n8n-nodes-base.merge', 'n8n-nodes-base.filter'}
 
 
-def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, settings_allow=None, delta=None):
+def compare(orig, cp, allow, phase='edit', delta=None):
+    if phase != 'edit':
+        return [f"phase '{phase}' is gone (D6c): only the EDIT phase exists"]
     errs = []
+    if orig.get('name') != cp.get('name'):
+        errs.append(f"the workflow name differs ({orig.get('name')!r} -> {cp.get('name')!r}): a name never changes between the exports")
     O = {n['name']: n for n in orig['nodes']}
     C = {n['name']: n for n in cp['nodes']}
     added, removed = set(C) - set(O), set(O) - set(C)
     delta = delta or {}
-    if any(delta.get(k) for k in (*DELTA_KEYS, 'settings')) and phase != 'edit':
-        return ['a declared delta exists only in the EDIT phase']
-    if phase == 'edit':
-        errs += [f"'{n}' is a GATE node (a security-gate node or a trigger): never in --allow"
-                 for n in sorted(allow) if is_gate(n, orig, cp)]
-        errs += [f"'{n}' is a GATE node (a security-gate node or a trigger): never removed"
-                 for n in sorted(set(delta.get('remove_nodes') or ())) if is_gate(n, orig)]
-        errs += [f"declared edge '{e}' touches a GATE node and is not a ruled edge (R-Q2)"
-                 for e in sorted(set(delta.get('add_edges') or ()) | set(delta.get('remove_edges') or ()))
-                 if e not in RULED_GATE_EDGES and any(x and is_gate(x, orig, cp) for x in _ends(e))]
-        errs += [f"node moved: '{n}' (its position orders sibling branches under v1; an engine edit moves nothing)"
-                 for n in sorted(set(O) & set(C)) if canon(O[n].get('position')) != canon(C[n].get('position'))]
-        for n in sorted(set(delta.get('add_nodes') or ())):
-            if n not in added:
-                errs.append(f"declared added node '{n}' is not new in the staged export")
-            elif _is_trigger(C[n]):
-                errs.append(f"declared added node '{n}' is a trigger: an engine edit never adds one")
-            elif C[n].get('type') not in ADDABLE_TYPES:
-                errs.append(f"declared added node '{n}' is of type {C[n].get('type')}: only logic and note nodes may be declared")
-        for n in sorted(set(delta.get('remove_nodes') or ())):
-            if n not in removed:
-                errs.append(f"declared removed node '{n}' is not gone from the staged export")
-            elif _is_trigger(O[n]):
-                errs.append(f"declared removed node '{n}' is a trigger: an engine edit never removes one")
-        added -= set(delta.get('add_nodes') or ())
-        removed -= set(delta.get('remove_nodes') or ())
-    if phase == 'edit':
-        settings_allow = None   # strict settings: the live-mode absence allowlist is a migration exception (the test-phase
-                                # trigger exceptions are keyed on phase == 'test' and cannot apply here)
-        errs += [f"'{n}' is in --allow but is not a node of the committed export" for n in sorted(set(allow) - set(O))]
-    if temp_trigger and temp_trigger in added:
-        if phase == 'test':
-            added.discard(temp_trigger)
-        else:
-            errs.append(f"temporary trigger '{temp_trigger}' is still present in the SWAP phase")
-            added.discard(temp_trigger)
+    errs += [f"'{n}' is a GATE node (a security-gate node or a trigger): never in --allow"
+             for n in sorted(allow) if is_gate(n, orig, cp)]
+    errs += [f"'{n}' is a GATE node (a security-gate node or a trigger): never removed"
+             for n in sorted(set(delta.get('remove_nodes') or ())) if is_gate(n, orig)]
+    errs += [f"declared edge '{e}' touches a GATE node and is not a ruled edge (R-Q2)"
+             for e in sorted(set(delta.get('add_edges') or ()) | set(delta.get('remove_edges') or ()))
+             if e not in RULED_GATE_EDGES and any(x and is_gate(x, orig, cp) for x in _ends(e))]
+    errs += [f"node moved: '{n}' (its position orders sibling branches under v1; an engine edit moves nothing)"
+             for n in sorted(set(O) & set(C)) if canon(O[n].get('position')) != canon(C[n].get('position'))]
+    for n in sorted(set(delta.get('add_nodes') or ())):
+        if n not in added:
+            errs.append(f"declared added node '{n}' is not new in the staged export")
+        elif _is_trigger(C[n]):
+            errs.append(f"declared added node '{n}' is a trigger: an engine edit never adds one")
+        elif C[n].get('type') not in ADDABLE_TYPES:
+            errs.append(f"declared added node '{n}' is of type {C[n].get('type')}: only logic and note nodes may be declared")
+    for n in sorted(set(delta.get('remove_nodes') or ())):
+        if n not in removed:
+            errs.append(f"declared removed node '{n}' is not gone from the staged export")
+        elif _is_trigger(O[n]):
+            errs.append(f"declared removed node '{n}' is a trigger: an engine edit never removes one")
+    added -= set(delta.get('add_nodes') or ())
+    removed -= set(delta.get('remove_nodes') or ())
+    errs += [f"'{n}' is in --allow but is not a node of the committed export" for n in sorted(set(allow) - set(O))]
     errs += [f"node added: '{n}'" for n in sorted(added)]
     errs += [f"node removed: '{n}'" for n in sorted(removed)]
     for name in sorted(set(O) & set(C)):
         o, c = O[name], C[name]
-        if name in allow and phase == 'edit':
+        if name in allow:
             if _is_trigger(o) or _is_trigger(c):
                 errs.append(f"'{name}' is a trigger: an engine edit never changes a trigger")
             for k in sorted((set(o) | set(c)) - IGNORED - ALLOWED_ON_EDITED_NODE):
                 if canon(o.get(k)) != canon(c.get(k)):
                     errs.append(f"edited node '{name}': '{k}' changed (only parameters/alwaysOutputData may)")
             continue
-        if name in allow:
-            if o.get('type') not in ('n8n-nodes-base.airtable', 'n8n-nodes-base.postgres'):
-                errs.append(f"'{name}' is in --allow but is not a data-layer node in the original ({o.get('type')})")
-                continue
-            if o.get('type') != c.get('type') and not (o.get('type') == 'n8n-nodes-base.airtable'
-                                                        and c.get('type') == 'n8n-nodes-base.postgres'):
-                errs.append(f"data node '{name}': type {o.get('type')} -> {c.get('type')} (only airtable -> postgres is a data-layer swap)")
-            for k in sorted((set(o) | set(c)) - IGNORED - ALLOWED_ON_DATA_NODE):
-                if canon(o.get(k)) != canon(c.get(k)):
-                    errs.append(f"data node '{name}': '{k}' changed (only type/typeVersion/parameters/credentials may)")
-            continue
         so, sc = strip(o), strip(c)
-        if name == trigger and phase == 'test':
-            so = _copy.deepcopy(so); sc = _copy.deepcopy(sc)
-            so.get('parameters', {}).pop('path', None); sc.get('parameters', {}).pop('path', None)
         if canon(so) != canon(sc):
             keys = sorted(k for k in set(so) | set(sc) if canon(so.get(k)) != canon(sc.get(k)))
-            where = 'the edit allowlist' if phase == 'edit' else 'the data layer'
-            errs.append(f"node outside {where} changed: '{name}' ({', '.join(keys)})")
+            errs.append(f"node outside the edit allowlist changed: '{name}' ({', '.join(keys)})")
     oc = _copy.deepcopy(orig.get('connections', {}))
     cc = _copy.deepcopy(cp.get('connections', {}))
-    if temp_trigger and phase == 'test' and temp_trigger in C:
-        # A temporary trigger stands in for the real one, so it must feed EXACTLY what a real trigger of the
-        # original feeds. Otherwise it could enter the flow past a kill-switch, a concurrency guard or a
-        # signature check, and the drill would test a path production never takes (found at D3c, 2026-10-20:
-        # a temp trigger wired past Reminders' kill-switch passed this tool).
-        real = [canon(oc.get(n['name'], {})) for n in orig['nodes']
-                if n.get('type') == 'n8n-nodes-base.webhook' or str(n.get('type', '')).endswith('Trigger')]
-        if canon(cc.get(temp_trigger, {})) not in real:
-            errs.append(f"temporary trigger '{temp_trigger}' does not feed what a real trigger of the original feeds")
-    if temp_trigger and phase == 'test':
-        cc.pop(temp_trigger, None)
-    if phase == 'edit' and any(delta.get(k) for k in DELTA_KEYS):
+    if any(delta.get(k) for k in DELTA_KEYS):
         oe, ce = edges(orig), edges(cp)
         add_e, rem_e = set(delta.get('add_edges') or ()), set(delta.get('remove_edges') or ())
         dup = sorted(e for e, k in Counter(edge_list(cp)).items() if k > 1 and Counter(edge_list(orig)).get(e, 0) < k)
@@ -391,93 +369,23 @@ def compare(orig, cp, allow, phase='swap', temp_trigger=None, trigger=None, sett
         diff = sorted(k for k in set(oc) | set(cc) if canon(oc.get(k)) != canon(cc.get(k)))
         errs.append(f"connections differ (from: {', '.join(diff)})")
     declared = dict(delta.get('settings') or {})
-    if phase == 'edit' and declared:   # a DECLARED settings change (ruling T-4): committed settings + exactly the map.
+    if declared:   # a DECLARED settings change (ruling T-4): committed settings + exactly the map.
         # executionOrder is behaviour, not configuration: it decides the order sibling branches run in.
         if 'executionOrder' in declared:
             errs.append("a declared settings change may not touch 'executionOrder' (it decides sibling branch order)")
         base = dict(orig.get('settings') or {})
         if canon(cp.get('settings') or {}) != canon(dict(base, **declared)):
             errs.append('workflow settings differ from the committed settings plus exactly the declared settings change')
-    elif settings_allow is None:            # offline: two committed files, strict equality
-        if canon(orig.get('settings')) != canon(cp.get('settings')):
-            errs.append('workflow settings differ')
-    else:                                   # live (deploy helper): the copy spec's allowlist, absences only
-        errs += _settings_parity().copy_vs_original(orig.get('settings'), cp.get('settings'), settings_allow)
+    elif canon(orig.get('settings')) != canon(cp.get('settings')):   # two committed files: strict equality
+        errs.append('workflow settings differ')
     if cp.get('pinData'):
-        errs.append('the copy carries pinData (pinned data changes what a node returns)')
+        errs.append('the staged export carries pinData (pinned data changes what a node returns)')
     return errs
 
 
 def selftest():
-    src = os.path.join(ROOT, 'n8n', 'workflow.drill-state.sanitized.json')
-    orig = json.load(open(src))
-    data = [n['name'] for n in orig['nodes'] if n['type'] == 'n8n-nodes-base.airtable']
-    trig = [n['name'] for n in orig['nodes'] if n['type'] == 'n8n-nodes-base.webhook'][0]
-    assert data, 'the source export has no Airtable node to swap'
-
-    def swapped():
-        cp = _copy.deepcopy(orig)
-        for n in cp['nodes']:
-            n['id'] = 'copy-' + n['name']                      # a copy gets new ids: must not matter
-            if n['name'] in data:
-                n['type'], n['typeVersion'] = 'n8n-nodes-base.postgres', 2.6
-                n['parameters'] = {'operation': 'executeQuery', 'query': 'SELECT 1', 'options': {}}
-                n['credentials'] = {'postgres': {'id': 'REPLACE_WITH_POSTGRES_CREDENTIAL_ID', 'name': 'Salon Postgres'}}
-        return cp
-
     def node(cp, name):
         return [n for n in cp['nodes'] if n['name'] == name][0]
-
-    def with_temp(cp):
-        cp['nodes'].append({'name': 'TEMP Test Trigger', 'type': 'n8n-nodes-base.webhook', 'typeVersion': 2,
-                            'parameters': {'path': 'owner-test-x', 'httpMethod': 'POST'}})
-        cp['connections']['TEMP Test Trigger'] = _copy.deepcopy(orig['connections'][trig])   # feeds what the real trigger feeds
-        return cp
-
-    other = [n['name'] for n in orig['nodes'] if n['name'] not in data and n['type'] == 'n8n-nodes-base.code'][0]
-    cases = []                                                 # (label, copy, phase, expect_pass, kwargs)
-    cases.append(('clean data-layer swap', swapped(), 'swap', True, {}))
-    m = swapped(); node(m, other)['parameters']['jsCode'] += '\n// drift'
-    cases.append(('a node outside the data layer changed', m, 'swap', False, {}))
-    m = swapped(); src_node = data[0]; m['connections'][src_node]['main'][0] = []
-    cases.append(('a connection changed', m, 'swap', False, {}))
-    m = swapped(); node(m, data[0])['name'] = data[0] + ' (pg)'
-    cases.append(('a data node renamed', m, 'swap', False, {}))
-    m = swapped(); node(m, data[0])['onError'] = 'stopWorkflow'
-    cases.append(("a data node's onError changed", m, 'swap', False, {}))
-    m = swapped(); node(m, data[0])['alwaysOutputData'] = not node(m, data[0]).get('alwaysOutputData', False)
-    cases.append(("a data node's alwaysOutputData changed", m, 'swap', False, {}))
-    cases.append(('declared temp trigger, TEST phase', with_temp(swapped()), 'test', True, {'temp_trigger': 'TEMP Test Trigger'}))
-    cases.append(('declared temp trigger, SWAP phase', with_temp(swapped()), 'swap', False, {'temp_trigger': 'TEMP Test Trigger'}))
-    cases.append(('UNdeclared extra trigger, TEST phase', with_temp(swapped()), 'test', False, {}))
-    m = swapped(); node(m, trig)['parameters']['path'] = 'owner-drill-state-pg-test'
-    cases.append(('trigger on a test path, TEST phase', m, 'test', True, {'trigger': trig}))
-    m2 = _copy.deepcopy(m)
-    cases.append(('trigger still on the test path, SWAP phase', m2, 'swap', False, {'trigger': trig}))
-    m = swapped(); m['nodes'].append({'name': 'Stray Node', 'type': 'n8n-nodes-base.noOp', 'typeVersion': 1, 'parameters': {}})
-    cases.append(('an extra node with NO connections', m, 'swap', False, {}))   # only the "added" check sees it
-    m = swapped(); m['nodes'] = [n for n in m['nodes'] if n['type'] != 'n8n-nodes-base.stickyNote']
-    cases.append(('a node with NO connections deleted', m, 'swap', False, {}))   # only the "removed" check sees it
-    m = with_temp(swapped()); m['connections'].pop('TEMP Test Trigger')
-    cases.append(('edge-less temp trigger left in, SWAP phase', m, 'swap', False, {'temp_trigger': 'TEMP Test Trigger'}))
-    m = with_temp(swapped()); m['connections']['TEMP Test Trigger'] = {'main': [[{'node': data[0], 'type': 'main', 'index': 0}]]}
-    cases.append(('temp trigger wired past the real entry (straight to a data node), TEST phase', m, 'test', False, {'temp_trigger': 'TEMP Test Trigger'}))
-    m = swapped(); node(m, data[0])['type'] = 'n8n-nodes-base.code'; node(m, data[0])['parameters'] = {'jsCode': 'return []'}
-    cases.append(('a data node turned into a Code node', m, 'swap', False, {}))
-    m = swapped(); node(m, other)['parameters']['jsCode'] = 'return [$input.first()];'
-    cases.append(('a NON-data node smuggled into --allow and rewritten', m, 'swap', False, {'allow_extra': other}))
-    m = swapped(); m['pinData'] = {data[0]: [{'json': {'id': 'recAAAAAAAAAAAAAA'}}]}
-    cases.append(('the copy carries pinData', m, 'swap', False, {}))
-    m = swapped(); m['settings'] = dict(m.get('settings') or {}, executionOrder='v0')
-    cases.append(('workflow settings changed', m, 'swap', False, {}))
-    o2 = dict(orig.get('settings') or {}, binaryMode='separate')
-    AB = {'binaryMode': {'covers': 'absent', 'ruling': 'selftest'}}
-    m = swapped(); m['settings'] = {k: v for k, v in o2.items() if k != 'binaryMode'}
-    cases.append(('settings: allowlisted key absent on the copy (live mode)', m, 'swap', True, {'settings_allow': AB, '_orig_settings': o2}))
-    m = swapped(); m['settings'] = dict(o2, binaryMode='combined')
-    cases.append(('settings: allowlisted key with a DIFFERENT value (live mode)', m, 'swap', False, {'settings_allow': AB, '_orig_settings': o2}))
-    m = swapped(); m['settings'] = {k: v for k, v in o2.items() if k != 'binaryMode'}
-    cases.append(('settings: key absent and NOT allowlisted (live mode)', m, 'swap', False, {'settings_allow': {}, '_orig_settings': o2}))
 
     # EDIT phase (7-F1): built from the Main copy export, which carries a Load Config Turnstile literal and a webhook
     # trigger. The edit allowlist is one Code node.
@@ -675,7 +583,7 @@ def selftest():
     dcases.append(('position: Reject Bot Request moved below the tag (no delta declares a move)', m, {medit}, ruled, False))
     m = edited(); node(m, medit)['position'] = [0, 0]
     dcases.append(('position: an --allow node moved', m, {medit}, {}, False))
-    pexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.purge.copy.sanitized.json')))
+    pexp = json.load(open(os.path.join(ROOT, 'n8n', 'workflow.purge.sanitized.json')))
     ptrig = [n['name'] for n in pexp['nodes'] if str(n['type']).endswith('Trigger')][0]
     m = _copy.deepcopy(pexp); node(m, ptrig)['parameters']['rule'] = {'interval': [{'field': 'minutes'}]}
     pcase = ('edit: a schedule trigger smuggled into --allow and re-timed', m, {ptrig}, False)
@@ -689,8 +597,7 @@ def selftest():
     ok &= bool(perrs)
     print(f"{'✓' if perrs else '✗'} {pcase[0]}: {'RED — ' + perrs[0] if perrs else 'pass'}")
     for label, e, allow, expect_pass in ecases:
-        errs = compare(mexp, e, allow, 'edit', temp_trigger='Temporary Test Trigger', trigger=mtrig,
-                       settings_allow={'executionOrder': {'covers': 'absent', 'ruling': 'selftest'}})
+        errs = compare(mexp, e, allow, 'edit')
         good = (not errs) == expect_pass
         ok &= good
         print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0]}")
@@ -746,19 +653,50 @@ def selftest():
     errs = approved_errs('purge', {'remove_nodes': {'Find Old Leads'}})
     ok &= bool(errs)
     print(f"{'✓' if errs else '✗'} approved: a delta for a copy with no approved delta (purge): {'RED — ' + errs[0] if errs else 'pass'}")
-    dw = compare(orig, swapped(), set(data), 'swap', delta=add_d)
-    ok &= bool(dw)
-    print(f"{'✓' if dw else '✗'} delta: a declared delta outside the EDIT phase: {'RED — ' + dw[0] if dw else 'pass'}")
-    for label, cp, phase, expect_pass, kw in cases:
-        kw = dict(kw); allow = set(data) | ({kw.pop('allow_extra')} if 'allow_extra' in kw else set())
-        o = dict(orig, settings=kw.pop('_orig_settings')) if '_orig_settings' in kw else orig
-        errs = compare(o, cp, allow, phase, **kw)
-        good = (not errs) == expect_pass
-        ok &= good
-        print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0]}")
+    # RENAME (D6c): the approved rename alone passes; anything else beside it, another name, the same name, a key with no
+    # rename, and an unapproved key are refused — in approved_errs and in parse_delta
+    rcount = 0
+    for key, (frm, to) in APPROVED_RENAMES.items():
+        for label, d, expect in ((f'rename {key}: exactly the approved rename', {'rename': (frm, to)}, True),
+                                 (f'rename {key}: another new name', {'rename': (frm, to + ' 2')}, False),
+                                 (f'rename {key}: another old name', {'rename': ('Someone else', to)}, False),
+                                 (f'rename {key}: with a node removed beside it', {'rename': (frm, to), 'remove_nodes': {'X'}}, False),
+                                 (f'rename {key}: with a setting beside it', {'rename': (frm, to), 'settings': {'k': 'v'}}, False)):
+            errs = approved_errs(key, d)
+            good = (not errs) == expect
+            ok &= good; rcount += 1
+            print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0][:100]}")
+    errs = approved_errs('no-such-workflow', {'rename': ('a', 'b')})
+    ok &= bool(errs); rcount += 1
+    print(f"{'✓' if errs else '✗'} rename: a key with no approved rename: {'RED — ' + errs[0] if errs else 'pass'}")
+    for label, d in (('rename with an allow beside it', {'rename': {'from': 'a', 'to': 'b'}, 'allow': ['X']}),
+                     ('rename from == to', {'rename': {'from': 'a', 'to': 'a'}}),
+                     ('rename missing "to"', {'rename': {'from': 'a'}}),
+                     ('rename with an empty name', {'rename': {'from': 'a', 'to': ' '}}),
+                     ('rename not an object', {'rename': ['a', 'b']}),
+                     ('rename with settings beside it', {'rename': {'from': 'a', 'to': 'b'}, 'settings': {'k': 'v'}}),
+                     ('no allow and no rename', {})):
+        try:
+            parse_delta(d)
+            got = 'accepted'
+        except ValueError:
+            got = 'refused'
+        ok &= got == 'refused'; rcount += 1
+        print(f"{'✓' if got == 'refused' else '✗'} parse_delta: {label}: {got}")
+    al, dd = parse_delta({'rename': {'from': 'a', 'to': 'b'}})
+    good = al == [] and dd.get('rename') == ('a', 'b') and not any(dd[k] for k in DELTA_KEYS)
+    ok &= good; rcount += 1
+    print(f"{'✓' if good else '✗'} parse_delta: a rename alone parses to no allow and the (from, to) pair")
+    rn = _copy.deepcopy(mexp); rn['name'] = 'Another name'
+    errs = compare(mexp, rn, set(), 'edit')
+    ok &= any('name differs' in x for x in errs); rcount += 1
+    print(f"{'✓' if errs else '✗'} compare: the two exports carry different names: {'RED — ' + errs[0] if errs else 'pass'}")
+    errs = compare(mexp, _copy.deepcopy(mexp), set(), 'swap')
+    ok &= bool(errs); rcount += 1
+    print(f"{'✓' if errs else '✗'} compare: a phase other than edit: {'RED — ' + errs[0] if errs else 'pass'}")
     print('diff-workflow-copy selftest:', 'OK' if ok else 'FAILED',
-          f'({len(cases)} cases built from {os.path.basename(src)}, {len(ecases) + 1} edit-phase and {len(dcases) + len(ocases) + len(rcases) + 3} '
-          f'declared-delta cases from the Main, Owner Actions and Purge copy exports, {n_appr} approved-delta cases)')
+          f'({len(ecases) + 1} edit-phase and {len(dcases) + len(ocases) + len(rcases) + 3} declared-delta cases from the Main, '
+          f'Owner Actions and Purge exports, {n_appr} approved-delta cases, {rcount} rename cases)')
     return 0 if ok else 1
 
 
@@ -768,8 +706,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('original'); ap.add_argument('copy')
     ap.add_argument('--allow', nargs='+', action='extend', default=[])
-    ap.add_argument('--phase', choices=['test', 'swap', 'edit'], default='swap')
-    ap.add_argument('--temp-trigger'); ap.add_argument('--trigger')
+    ap.add_argument('--phase', choices=['edit'], default='edit')   # kept for the callers that name it; the only phase
     ap.add_argument('--delta-file')
     a = ap.parse_args()
     if a.delta_file and a.allow:
@@ -784,16 +721,15 @@ def main():
     else:
         allow, delta = a.allow, {}
     cp = json.load(open(a.copy))
-    errs = compare(json.load(open(a.original)), cp, set(allow), a.phase, a.temp_trigger, a.trigger, delta=delta)
-    for line in sibling_order_lines(cp, delta) if a.phase == 'edit' else []:
+    errs = compare(json.load(open(a.original)), cp, set(allow), 'edit', delta=delta)
+    for line in sibling_order_lines(cp, delta):
         print('  ' + line)
     if errs:
         print('diff-workflow-copy: FAILED')
         for e in errs:
             print('  - ' + e)
         return 1
-    what = 'allowed node(s) may' if a.phase == 'edit' else 'data-layer node(s)'
-    print(f'diff-workflow-copy: OK — only the {len(allow)} {what} differ ({a.phase} phase)')
+    print(f'diff-workflow-copy: OK — only the {len(allow)} allowed node(s) may differ (edit phase)')
     return 0
 
 

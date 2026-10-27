@@ -2,7 +2,7 @@
  * The single Owner Actions edit of Phase 7-2 Tur 2 (Codex 7-2 CRT 11: O1 the delayed duplicate, O3 the lookup error,
  * O4 the failure texts, and the DEAD post-write marker chain). Offline: the changed Code nodes and expressions run from
  * the STAGED export with fake inputs; the graph claims are read from it.
- * WHICH FILE: n8n/staged/workflow.owner-actions.copy.sanitized.json; argv[2] overrides it, for mutants.
+ * WHICH FILE: n8n/workflow.owner-actions.sanitized.json (the Tur 2 edit, live since 7-2 R3); argv[2] overrides it, for mutants.
  * R2b OA-1 (Codex R2, target 11): the marker is written only inside the release statement and only when its UPDATE
  * released a row; a replay is "the marker exists"; a request does not release a handoff written after its signed ts.
  * What it does NOT prove: the statement's behaviour on Postgres under concurrency — tests/db/claim-race.test.sh runs
@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'staged', 'workflow.owner-actions.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.owner-actions.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const node = (name) => wf.nodes.find((n) => n.name === name);
 const stub = (refs) => (name) => {

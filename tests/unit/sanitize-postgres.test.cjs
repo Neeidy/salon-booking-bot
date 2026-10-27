@@ -51,7 +51,7 @@ test('the placeholder passes the sanitise half', () => {
 // D5 (MIGRATION-PLAN §3t): the same property on a REAL copy export, not a planted node. The Main copy carries 17
 // Postgres nodes, all on the placeholder; swapping ONE of them for a real-looking id must be caught, by name.
 function runCopy(mutate) {
-  const wf = JSON.parse(readFileSync(join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'), 'utf8'));
+  const wf = JSON.parse(readFileSync(join(ROOT, 'n8n', 'workflow.main.sanitized.json'), 'utf8'));
   mutate(wf);
   const dir = mkdtempSync(join(tmpdir(), 'sanitize-pg-copy-'));
   const f = join(dir, 'export.json');
@@ -63,7 +63,7 @@ function runCopy(mutate) {
 }
 
 test('the Main copy export as committed passes the sanitise half', () => {
-  const pg = JSON.parse(readFileSync(join(ROOT, 'n8n', 'workflow.main.copy.sanitized.json'), 'utf8'))
+  const pg = JSON.parse(readFileSync(join(ROOT, 'n8n', 'workflow.main.sanitized.json'), 'utf8'))
     .nodes.filter((n) => n.type === 'n8n-nodes-base.postgres');
   assert.equal(pg.length, 16, 'the Main copy should carry 16 Postgres nodes (17 until 7-2 Tur 2 removed Record Processed)');
   const r = runCopy(() => {});

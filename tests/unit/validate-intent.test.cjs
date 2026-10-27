@@ -11,7 +11,7 @@
  * and every case below removes the key entirely.
  *
  * WHY IT EXECUTES THE COMMITTED NODE AND THE COMMITTED IF EXPRESSION: `.claude/rules/contract-integrity.md`.
- * The node body comes from n8n/workflow.main.copy.sanitized.json (the Main COPY export: since the D6b cutover
+ * The node body comes from n8n/workflow.main.sanitized.json (the Main COPY export: since the D6b cutover
  * the live Main is the Postgres copy, and the parked original is only the rollback path until D6c) and the
  * routing decision is evaluated from the
  * committed IF nodes' own `leftValue` expression text AND their `operator` — not a paraphrase of either.
@@ -31,7 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.copy.sanitized.json');
+const WF = process.argv[2] || path.join(__dirname, '../../n8n/workflow.main.sanitized.json');
 const wf = JSON.parse(fs.readFileSync(WF, 'utf8'));
 const nodeOf = (name) => wf.nodes.find(n => n.name === name);
 

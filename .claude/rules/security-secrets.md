@@ -10,7 +10,7 @@
 **PII is treated like a secret (this is a PUBLIC repo):**
 - Customer names, phone numbers, and message content are **never committed** — not in exports, not in
   screenshots, not in test fixtures. Use fake/test data only.
-- n8n exports: commit **only** `n8n/workflow.sanitized.json` — pinned/test data and credentials stripped
+- n8n exports: commit **only** the sanitized `n8n/workflow.<key>.sanitized.json` exports — pinned/test data and credentials stripped
   (see [../commands/sanitize.md](../commands/sanitize.md)).
 - Real per-client `config/client.config.json` is gitignored; only `client.config.example.json` (mock) is committed.
 

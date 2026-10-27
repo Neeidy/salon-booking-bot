@@ -46,7 +46,7 @@ def flags_of(*a, **k):
     return cc.judge(WT, *run(*a, **k))[0]
 
 
-CLEAN = 'rg -n "Check Race" n8n/workflow.main.copy.sanitized.json'
+CLEAN = 'rg -n "Check Race" n8n/workflow.main.sanitized.json'
 
 # ── the clean case and the positive control ──
 f, cmds, passed, _ = cc.judge(WT, *run([CLEAN, 'sed -n 1,40p scripts/secret-scan.sh', 'git log --oneline -5']))

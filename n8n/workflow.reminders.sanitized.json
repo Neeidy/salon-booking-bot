@@ -108,32 +108,24 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "filterByFormula": "={{ 'AND({status}=\"booked\", NOT({reminded}), IS_AFTER({start_utc}, \"' + $json.reminder.nowIso + '\"), NOT(IS_AFTER({start_utc}, \"' + $json.reminder.cutoffIso + '\")))' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields FROM salon.appointments WHERE status = 'booked' AND NOT reminded AND start_utc > $1::timestamptz AND start_utc <= $2::timestamptz ORDER BY created_at, id",
+        "options": {
+          "queryReplacement": "={{ [$json.reminder.nowIso, $json.reminder.cutoffIso] }}"
+        }
       },
       "id": "rem_finddue",
       "name": "Find Due Appointments",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         896,
         384
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -232,84 +224,32 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $('Build Reminder Payload').item.json.recordId }}",
-            "reminder_sent": "={{ $now.toUTC().toISO() }}",
-            "reminded": "={{ true }}"
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "reminder_sent",
-              "displayName": "reminder_sent",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "reminded",
-              "displayName": "reminded",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "UPDATE salon.appointments SET reminder_sent = $2::timestamptz, reminded = true WHERE id = $1 RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$('Build Reminder Payload').item.json.recordId, $now.toUTC().toISO()] }}",
+          "queryBatching": "independently"
+        }
       },
       "id": "rem_stamp",
       "name": "Stamp Reminded",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         1568,
         304
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert (Reminders) — reminder-run failures reach a human (CP5a). OFF the main path (Reminder Error is\n// already terminal). Enabled-gate + throttle (own static data). A failure here never affects the reminder run.\nconst lc = $('Load Config (Reminders)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst n = items.length;\nlet detail = 'unknown';\ntry { const e = items[0].json || {}; detail = (e.error && e.error.message) || e.message || e.error || 'unknown'; } catch (x) {}\nconst cls = 'reminder_error';\n// FIX-1 (Codex): the throttle key carries the BRANCH. n8n runs a node ONCE PER INCOMING CONNECTION,\n// so with three collectors a single global key would let the first failure suppress the other two —\n// the same swallow the purge composer hit (exec 1631). Per-branch keys keep the stages independent.\nconst branch = ($input.all()[0] && $input.all()[0].json && $input.all()[0].json._reminder_branch) || 'unknown';\nconst key = cls + ':' + branch;\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 reminder-error\\nbranch: ' + branch + '\\nfailed items: ' + n + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
+        "jsCode": "// Owner-alert (Reminders) — reminder-run failures reach a human (CP5a). OFF the main path (Reminder Error is\n// already terminal). Enabled-gate + throttle (own static data). A failure here never affects the reminder run.\nconst lc = $('Load Config (Reminders)').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst items = $input.all();\nconst n = items.length;\n// Q18 (Phase 7): under `independently` batching a Postgres error item carries the input's own keys plus an\n// `error` OBJECT and no `message` (measured live: S10, and D3d W1 / D4c T1 on the real copies), so the old\n// `|| e.error` printed \"[object Object]\". Only a non-empty STRING is ever used. The item is NEVER serialised\n// (no JSON.stringify): it can carry the failed row's own fields, i.e. customer data. An item with no `error`\n// at all is a refusal, not a store failure, and keeps the 'unknown' it always had.\nconst str = (v) => (typeof v === 'string' && v.trim() !== '') ? v : null;\nlet detail = 'unknown';\ntry {\n  const e = items[0].json || {};\n  detail = str(e.error && e.error.message) || str(e.message) || str(e.error)\n    || (e.error != null ? 'store error (item carried no message)' : 'unknown');\n} catch (x) {}\ndetail = Array.from(String(detail)).slice(0, 300).join('');   // a Telegram line, not a log: cut, never wrapped\nconst cls = 'reminder_error';\n// FIX-1 (Codex): the throttle key carries the BRANCH. n8n runs a node ONCE PER INCOMING CONNECTION,\n// so with three collectors a single global key would let the first failure suppress the other two —\n// the same swallow the purge composer hit (exec 1631). Per-branch keys keep the stages independent.\nconst branch = ($input.all()[0] && $input.all()[0].json && $input.all()[0].json._reminder_branch) || 'unknown';\nconst key = cls + ':' + branch;\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nif (typeof sd.ownerAlerts[key] === 'number' && (now - sd.ownerAlerts[key]) < windowMin*60*1000) return [];\nsd.ownerAlerts[key] = now;\nconst text = ('\\ud83d\\udd14 Salon bot \\u2014 reminder-error\\nbranch: ' + branch + '\\nfailed items: ' + n + '\\ndetail: ' + String(detail)).replace(/[_*`\\[\\]~]/g,'-');\nreturn [{ json: { owner_alert_text: text, _alert_class: cls } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -622,7 +562,6 @@
     }
   },
   "settings": {
-    "binaryMode": "separate",
     "executionOrder": "v1"
   }
 }

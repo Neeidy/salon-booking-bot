@@ -4,12 +4,17 @@
 > **sanitized** export + screenshots as the source of record.
 
 ## Files
-- `workflow.sanitized.json` — the ONLY workflow file committed. Produced by `/sanitize` from the raw export.
-  **Lands here in Phase 2** (Core bot) — it does not exist yet.
+- `workflow.<key>.sanitized.json` — the ONLY workflow files committed, one per production workflow, each produced by
+  `/sanitize`: `main` (the bot), `owner-actions` (the owner dashboard's write path), `purge` (the 30-day retention
+  job), `reminders` (appointment reminders) and `drill-state` (the read-only drill state endpoint). Since D6c
+  (2026-10-27) each one is the export of ONE live workflow, named in `scripts/check-exports-parity.sh` → `WORKFLOWS`
+  by its id; `<key>` also names its spec, `db/copies/<key>.json`. The Airtable originals and their exports were
+  retired at D6c — they stay in git history only.
+- `staged/` — an engine edit PREPARED for the next deploy and its declared delta file, until the deploy promotes it.
 - `screenshots/` — canvas screenshots for the case study (NOT gitignored — portfolio assets).
 
 ## Rules that apply
-- Raw exports are gitignored (`n8n/*.json` except the sanitized one).
+- Raw exports are gitignored (`n8n/**/*.json` except `workflow.*.sanitized.json` and the staged files).
 - Every flow follows [../.claude/rules/n8n-conventions.md](../.claude/rules/n8n-conventions.md):
   visible error branch · deterministic-before-AI · idempotency · control-plane lockdown.
 - Booking correctness: [../.claude/rules/booking-integrity.md](../.claude/rules/booking-integrity.md).

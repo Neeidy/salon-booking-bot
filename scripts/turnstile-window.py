@@ -1,33 +1,30 @@
 #!/usr/bin/env python3
-"""turnstile-window.py — the Turnstile window on the SWAPPED Main copy, as one committed script.
+"""turnstile-window.py — the Turnstile window on the live Main workflow, as one committed script.
 
 Why it exists (PHASE-7-PLAN, re-entry ruling, premise 3): the regression suite drives Main with curl and a dummy
-Turnstile token, so it can only run while Main's gate is lowered. After the cutover Main's production holder is its
-COPY, and lowering that copy's gate is a production act. The D6b smoke ran it from a scratchpad driver; this is the
-same sequence, committed, so the next window is the reviewed one and not a re-typed one.
+Turnstile token, so it can only run while Main's gate is lowered, and lowering the production gate is a production act.
+This is that sequence, committed, so every window is the reviewed one and not a re-typed one.
 
 ORDER — every live step is read back, and nothing below runs on import or with --selftest:
   PRE  (read-only; any red → exit 2, nothing touched):
-       · ROLES (scripts/check-exports-parity.sh, read through scripts/pair_roles.py — one parser) has the pair for the
-         spec's original, and it declares the COPY live; the deploy helper's own order guard (check_swap_declared)
-         agrees, with the original read back INACTIVE;
-       · the copy is ACTIVE, named as the spec, and is the ONE active holder of the original's production path
-         (pair_roles.holder); its PUBLISHED trigger is on that path;
+       · WORKFLOWS (scripts/check-exports-parity.sh, read through scripts/workflows.py — one parser) lists exactly one
+         workflow for the spec's key (db/copies/main.json → n8n/workflow.main.sanitized.json);
+       · it is ACTIVE, named as its committed export, and the ONE active holder of the committed export's webhook path
+         (workflows.holder over every workflow n8n lists); its PUBLISHED trigger is on that path;
        · its published AND draft Load Config hold exactly one Turnstile literal, and it reads true;
-       · the deploy helper's pure --turnstile-swapped checks ('off' and 'on', window_check: the live copy against ITS
-         OWN committed export at HEAD, except the one Turnstile literal — ruling K1; it was the live original until
-         then) are GREEN on the live content, so the helper will not refuse half-way through an opened window;
-       · a dummy token to the production path answers 403 turnstile_failed, executed by the copy, none by the original.
-  OPEN : deactivate the copy → `deploy-workflow-copy.py <spec> --original-id O --turnstile-swapped off C` → activate.
+       · the deploy helper's pure --turnstile-swapped checks ('off' and 'on', window_check: the live workflow against its
+         committed export at HEAD, except the one Turnstile literal) are GREEN on the live content, so the helper will
+         not refuse half-way through an opened window;
+       · a dummy token to the production path answers 403 turnstile_failed, executed by that workflow, which is still
+         the path's only active holder.
+  OPEN : deactivate the workflow → `deploy-workflow-copy.py <spec> --turnstile-swapped off ID` → activate.
   RUN  : the caller's command, under a hard timeout (its whole process group is stopped at the limit).
   CLOSE (in `finally`, also on a failed/timed-out/raising command, Ctrl-C or SIGTERM/SIGHUP; the close itself ignores
         those signals, so a second Ctrl-C cannot leave the gate half-restored):
-       deactivate the copy → read the DRAFT literal → `--turnstile-swapped on` ONLY if it reads false → re-activate
+       deactivate the workflow → read the DRAFT literal → `--turnstile-swapped on` ONLY if it reads false → re-activate
        ONLY if the draft literal then reads true → measure both ways: published literal true AND a dummy token 403.
-       ⚠ The gate is restored here, BEFORE anything else: this script never activates the original. Once the original
-       is active again the helper's order guard refuses 'on', and a parked copy would keep a lowered literal — so if
-       you roll back after a SAFETY exit, restore the literal first (this script's close, or the helper's 'on' while the
-       original is still inactive) and only then re-activate the original.
+       ⚠ The gate is restored here, BEFORE anything else. After a SAFETY exit, restore the literal first (this script's
+       close, or the helper's 'on' on the inactive workflow) and only then decide anything else.
   Prints the window's open/close UTC and its duration. Never prints a host, a key, a token or a full workflow id.
 
 Exit: 0 command green and Turnstile restored · 1 command failed or timed out, Turnstile restored ·
@@ -50,7 +47,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SPEC = 'db/copies/main.json'
-ROLES_FILE = None          # None = pair_roles' default, the committed check-exports-parity.sh (tests point it at a fixture)
+WORKFLOWS_FILE = None      # None = workflows' default, the committed check-exports-parity.sh (tests point it at a fixture)
 HELPER = None              # None = ROOT/scripts/deploy-workflow-copy.py (tests point it at a fake)
 DUMMY_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'   # Cloudflare's documented always-fail test token: not a secret
 PROBE_WAIT_S = 5           # an execution appears in the API a few seconds after the webhook answers
@@ -83,7 +80,7 @@ def helper_module():
     global _HELPER_MOD
     if _HELPER_MOD is None:
         _HELPER_MOD = _module('scripts/deploy-workflow-copy.py', 'deploy_workflow_copy')
-    _HELPER_MOD.ROLES_FILE = ROLES_FILE
+    _HELPER_MOD.WORKFLOWS_FILE = WORKFLOWS_FILE
     return _HELPER_MOD
 
 
@@ -197,93 +194,110 @@ def executions_since(wid, since):
 def set_active(wid, on):
     st, _ = api('POST', f"/workflows/{wid}/{'activate' if on else 'deactivate'}")
     got = wf_get(wid).get('active') is True
-    print(f"  {'activate' if on else 'deactivate'} copy {short(wid)}: [{st}] · read back active {got}")
+    print(f"  {'activate' if on else 'deactivate'} {short(wid)}: [{st}] · read back active {got}")
     return got is on
 
 
-def dummy_probe(path, o, c):
-    """A dummy token to the production path: must be 403 turnstile_failed, run by the copy, none by the original."""
+def _workflows():
+    return _module('scripts/workflows.py', 'workflows')
+
+
+def listed_workflows():
+    """{id: export} from WORKFLOWS; Refused when it does not read (a guard must not run on a declaration it misread)."""
+    try:
+        return _workflows().load(WORKFLOWS_FILE)
+    except (ValueError, OSError) as e:
+        raise Refused(f'WORKFLOWS does not read ({e})')
+
+
+def sole_holder(path, wid):
+    """'' when `wid` is the ONE active workflow listening on `path` (and a listed one), else the reason."""
+    st, listed = api('GET', '/workflows?limit=250')
+    if st != 200 or not isinstance(listed, dict):
+        return f'GET workflows answered {st}'
+    if listed.get('nextCursor'):
+        return 'the workflow list has a further page: the holder cannot be judged on part of it'
+    try:
+        holder, _ = _workflows().holder(listed.get('data') or [], path, listed_workflows())
+    except (ValueError, Refused) as e:
+        return f'production path: {e}'
+    return '' if holder == wid else f'the active holder of the production path is {short(holder)}, not {short(wid)}'
+
+
+def dummy_probe(path, wid):
+    """A dummy token to the production path: must be 403 turnstile_failed, executed by `wid`, the path's only active
+    holder (a second active workflow on the path → not ok). (ok, status)."""
     since = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime())
     t = int(time.time())
     st, body = webhook(path, {'channel': 'widget', 'sessionId': 'w-mig-p7-ts-probe', 'text': 'hi',
                               'messageId': f'mig-p7-ts-{t}', 'turnstileToken': DUMMY_TOKEN})
     err = body.get('error') if isinstance(body, dict) else None
     time.sleep(PROBE_WAIT_S)
-    ec, eo = executions_since(c, since), executions_since(o, since)
-    ok = st == 403 and err == 'turnstile_failed' and ec >= 1 and eo == 0
-    print(f"  dummy token → {st} {err} · copy executions {ec} · original executions {eo} · {'OK' if ok else 'RED'}")
+    ec = executions_since(wid, since)
+    why = sole_holder(path, wid)
+    ok = st == 403 and err == 'turnstile_failed' and ec >= 1 and not why
+    print(f"  dummy token → {st} {err} · executions of {short(wid)} {ec} · sole holder: {'yes' if not why else 'NO — ' + why}"
+          f" · {'OK' if ok else 'RED'}")
     return ok, st
 
 
-# ── which pair: ROLES through pair_roles (one parser) ─────────────────────────────────────────────────────────
-def resolve(spec):
-    pr = _module('scripts/pair_roles.py', 'pair_roles')
+# ── which workflow: WORKFLOWS through workflows.py (one parser) ───────────────────────────────────────────────
+def resolve(spec_path):
+    """(id, committed export path) WORKFLOWS lists for the spec's key."""
+    key = os.path.splitext(os.path.basename(spec_path))[0]
+    wfs = listed_workflows()
     try:
-        pairs, roles = pr.load(ROLES_FILE)
-    except (ValueError, OSError) as e:
-        raise Refused(f'ROLES does not read ({e})')
-    hit = [r for r in roles if pairs.get(r['orig']) == spec['original']]
-    if len(hit) != 1:
-        raise Refused(f"{len(hit)} ROLES lines name the original export {spec['original']} (exactly one must)")
-    return hit[0], pairs
+        wid = _workflows().id_for(wfs, key)
+    except ValueError as e:
+        raise Refused(str(e))
+    return wid, wfs[wid]
 
 
 def precheck(spec_path):
     spec = json.load(open(os.path.join(ROOT, spec_path), encoding='utf-8'))
-    trig = (spec.get('trigger') or {}).get('node')
-    if not trig:
-        raise Refused('the spec names no webhook trigger, so there is no production path to open a window on')
-    role, pairs = resolve(spec)
-    o, c = role['orig'], role['copy']
-    if role['live'] != 'copy':
-        raise Refused(f"ROLES declares the {role['live']} live for {short(o)}/{short(c)}: the swap is not declared")
-    print(f'  ✓ ROLES declares the copy live (pair {short(o)}/{short(c)})')
-    od, cd = wf_get(o), wf_get(c)
+    wid, export = resolve(spec_path)
+    print(f'  ✓ WORKFLOWS lists {short(wid)} for this spec ({os.path.basename(export)})')
     X = helper_module()
-    why = X.check_swap_declared(o, c, od.get('active'))
-    if why:
-        raise Refused(f"the deploy helper's order guard refuses: {why}")
-    print('  ✓ the original reads back INACTIVE (the helper\'s order guard agrees)')
-    if cd.get('active') is not True or cd.get('name') != spec['name']:
-        raise Refused(f"the copy must be the ACTIVE workflow named '{spec['name']}'")
-    prod = trigger_path(od.get('nodes'), trig)
-    st, listed = api('GET', '/workflows?limit=250')
-    if st != 200 or not isinstance(listed, dict):
-        raise Refused(f'GET workflows answered {st}')
-    pr = _module('scripts/pair_roles.py', 'pair_roles')
     try:
-        holder, _ = pr.holder(listed.get('data') or [], prod, pairs)
-    except ValueError as e:
-        raise Refused(f'production path: {e}')
-    if holder != c or trigger_path(published_nodes(cd), trig) != prod:
-        raise Refused("the copy is not the published holder of the original's production path")
-    print(f"  ✓ the copy is ACTIVE, named as the spec, and the one published holder of the production path")
+        committed = X.committed_export(export)
+    except (ValueError, OSError) as e:
+        raise Refused(f'no committed export to judge by ({e})')
+    trig = X.webhook_triggers(committed)
+    if len(trig) != 1:
+        raise Refused(f'the committed export has {len(trig)} webhook triggers, so there is no single production path')
+    tname, prod = next(iter(trig.items()))
+    cd = wf_get(wid)
+    if cd.get('active') is not True or cd.get('name') != committed.get('name'):
+        raise Refused(f"the workflow must be the ACTIVE one named '{committed.get('name')}'")
+    why = sole_holder(prod, wid)
+    if why or trigger_path(published_nodes(cd), tname) != prod:
+        raise Refused(f"the workflow is not the one published holder of the production path ({why or 'published trigger elsewhere'})")
+    print('  ✓ it is ACTIVE, named as its committed export, and the one published holder of the production path')
     pub, dr = literal(published_nodes(cd)), literal(cd.get('nodes'))
     if pub != ['true'] or dr != ['true']:
-        raise Refused(f'the Turnstile literal is not true on the copy (published {pub}, draft {dr})')
+        raise Refused(f'the Turnstile literal is not true on the workflow (published {pub}, draft {dr})')
     print('  ✓ published and draft Turnstile literal: true')
     try:
-        # The same calls, with the same reference, that the helper makes before its own write (K1).
-        committed = X.committed_export(X.copy_export_path(spec_path, c))
-        lo, lc = draft(od), draft(cd)
-        off = X.window_check(X.turnstile_patch(lc, 'off'), committed, spec, prod, 'off', lc, lo.get('settings'))
-        on = X.window_check(lc, committed, spec, prod, 'on', lc, lo.get('settings'))
+        # The same calls, with the same reference, that the helper makes before its own write.
+        lc = draft(cd)
+        off = X.window_check(X.turnstile_patch(lc, 'off'), committed, spec, 'off', lc)
+        on = X.window_check(lc, committed, spec, 'on', lc)
     except (ValueError, KeyError, StopIteration, OSError) as e:
         off = on = [f'{type(e).__name__}: {e}']
     if off or on:
-        raise Refused("the deploy helper's --turnstile-swapped checks are predicted RED on the live copy: "
+        raise Refused("the deploy helper's --turnstile-swapped checks are predicted RED on the live workflow: "
                       + '; '.join((off + on)[:3]))
-    print("  ✓ the helper's --turnstile-swapped off/on checks predicted GREEN: the live copy equals its committed export")
-    ok, _ = dummy_probe(prod, o, c)
+    print("  ✓ the helper's --turnstile-swapped off/on checks predicted GREEN: the live workflow equals its committed export")
+    ok, _ = dummy_probe(prod, wid)
     if not ok:
-        raise Refused('the production path does not answer a dummy token 403 through the copy')
-    return {'spec_path': spec_path, 'spec': spec, 'o': o, 'c': c, 'path': prod}
+        raise Refused('the production path does not answer a dummy token 403 through the workflow')
+    return {'spec_path': spec_path, 'spec': spec, 'c': wid, 'path': prod}
 
 
 # ── the helper, run for real (the same binary the operator would type) ───────────────────────────────────────
 def run_helper(ctx, state):
     path = HELPER or os.path.join(ROOT, 'scripts', 'deploy-workflow-copy.py')
-    cmd = [sys.executable, path, ctx['spec_path'], '--original-id', ctx['o'], '--turnstile-swapped', state, ctx['c']]
+    cmd = [sys.executable, path, ctx['spec_path'], '--turnstile-swapped', state, ctx['c']]
     try:
         out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL,
                              timeout=HELPER_TIMEOUT_S)
@@ -296,9 +310,9 @@ def run_helper(ctx, state):
 
 
 def mask(text, ctx):
-    for wid in (ctx.get('o'), ctx.get('c')):
-        if wid:
-            text = text.replace(wid, short(wid))
+    wid = ctx.get('c')
+    if wid:
+        text = text.replace(wid, short(wid))
     try:
         text = text.replace(_host(), '<host>')
     except Refused:
@@ -336,16 +350,16 @@ def _stop_group(p):
 
 # ── open / close ─────────────────────────────────────────────────────────────────────────────────────────────
 def open_window(ctx):
-    """True when the copy is active with its gate lowered. False leaves the close to `finally`."""
+    """True when the workflow is active with its gate lowered. False leaves the close to `finally`."""
     if not set_active(ctx['c'], False):
-        print('  ✗ the copy did not deactivate: window not opened')
+        print('  ✗ the workflow did not deactivate: window not opened')
         return False
     rc = run_helper(ctx, 'off')
     if rc != 0:
         print(f'  ✗ helper --turnstile-swapped off exit {rc}: window not opened')
         return False
     if not set_active(ctx['c'], True):
-        print('  ✗ the copy did not activate with Turnstile off')
+        print('  ✗ the workflow did not activate with Turnstile off')
         return False
     time.sleep(ACTIVATE_WAIT_S)
     return True
@@ -363,7 +377,7 @@ def close_decision(draft_before, rc_on, draft_after):
 
 
 def close_window(ctx):
-    """Always runs. Returns True only when Turnstile is MEASURED restored on an active copy."""
+    """Always runs. Returns True only when Turnstile is MEASURED restored on the active workflow."""
     c = ctx['c']
     try:
         set_active(c, False)
@@ -383,21 +397,21 @@ def close_window(ctx):
         print(f"  draft literal {before} before restoring: {'nothing to restore' if before == ['true'] else 'NOT ONE LITERAL'}")
     _, reactivate = close_decision(before, rc_on, after)
     if not reactivate:
-        print(f'  ✗ Turnstile NOT restored (draft literal {after}, helper on exit {rc_on}) — the copy stays INACTIVE')
+        print(f'  ✗ Turnstile NOT restored (draft literal {after}, helper on exit {rc_on}) — the workflow stays INACTIVE')
         return False
     if not set_active(c, True):
-        print('  ✗ the copy did not re-activate after the restore')
+        print('  ✗ the workflow did not re-activate after the restore')
         return False
     time.sleep(ACTIVATE_WAIT_S)
     pub = literal(published_nodes(wf_get(c)))
-    ok, code = dummy_probe(ctx['path'], ctx['o'], c)
+    ok, code = dummy_probe(ctx['path'], c)
     if pub != ['true'] or code == 200:
-        # The gate is demonstrably open on production: stop the copy rather than serve the brain without Turnstile.
-        print(f'  ✗ published literal {pub}, dummy token {code}: the gate is OPEN — deactivating the copy')
+        # The gate is demonstrably open on production: stop the workflow rather than serve the brain without Turnstile.
+        print(f'  ✗ published literal {pub}, dummy token {code}: the gate is OPEN — deactivating the workflow')
         set_active(c, False)
         return False
     if not ok:
-        print(f'  ✗ published literal true but the dummy token answered {code}: restore NOT proven (copy left active)')
+        print(f'  ✗ published literal true but the dummy token answered {code}: restore NOT proven (workflow left active)')
         return False
     print('  ✓ restored: published literal true · dummy token 403')
     return True
@@ -415,7 +429,7 @@ def window(spec_path, cmd, timeout):
         return 2
     old = {s: signal.signal(s, _raise_interrupted) for s in (signal.SIGTERM, signal.SIGHUP)}
     t_open, result, restored = time.time(), None, False
-    print(f'WINDOW OPEN {utc()} UTC · copy {short(ctx["c"])} · command timeout {timeout} s')
+    print(f'WINDOW OPEN {utc()} UTC · workflow {short(ctx["c"])} · command timeout {timeout} s')
     try:
         if open_window(ctx):
             result = run_command(cmd, timeout)
@@ -441,17 +455,17 @@ def window(spec_path, cmd, timeout):
         for s, h in old.items():
             signal.signal(s, h)
     if not restored:
-        print('SAFETY: Turnstile is NOT proven restored on the Main copy. Restore the literal FIRST (re-run this '
-              "script's close by hand: deploy-workflow-copy.py --turnstile-swapped on, with the original still "
-              'inactive), and only then decide on any rollback. This script did not touch the original.')
+        print('SAFETY: Turnstile is NOT proven restored on the Main workflow. Restore the literal FIRST (re-run this '
+              "script's close by hand: deploy-workflow-copy.py --turnstile-swapped on, on the inactive workflow), "
+              'and only then decide on anything else.')
         return 3
     return 0 if result == 0 else 1
 
 
 # ── selftest: offline, and it proves it made no call ──────────────────────────────────────────────────────────
 def selftest():
-    global api, webhook, ROLES_FILE
-    real = (api, webhook, ROLES_FILE)
+    global api, webhook, WORKFLOWS_FILE
+    real = (api, webhook, WORKFLOWS_FILE)
     calls = []
     api = lambda *a, **k: calls.append(a) or (599, {})
     webhook = lambda *a, **k: calls.append(a) or (599, {})
@@ -470,21 +484,26 @@ def selftest():
             ok = ok and good
             print(f"{'✓' if good else '✗'} close_decision(draft {before}, helper on {rc_on}, after {after}) → "
                   f"run on {got[0]}, re-activate {got[1]}")
-        for line, want in (('O1:C1:copy', 'copy'), ('O1:C1:original', 'original')):
+        for body, want in (('  "C1:n8n/workflow.main.sanitized.json"\n  "C3:n8n/workflow.purge.sanitized.json"\n', ('C1', 'ok')),
+                           ('  "C3:n8n/workflow.purge.sanitized.json"\n', (None, 'refused')),
+                           ('  "C1:n8n/workflow.main.sanitized.json"\n  "C1:n8n/workflow.purge.sanitized.json"\n', (None, 'refused'))):
             with tempfile.NamedTemporaryFile('w', suffix='.sh', delete=False) as t:
-                t.write('PAIRS=(\n  "O1:n8n/workflow.sanitized.json"\n  "C1:n8n/workflow.main.copy.sanitized.json"\n)\n\n'
-                        f'ROLES=(\n  "{line}"\n)\n')
+                t.write('WORKFLOWS=(\n' + body + ')\n')
             fixtures.append(t.name)
-            ROLES_FILE = t.name
-            role, _ = resolve({'original': 'n8n/workflow.sanitized.json'})
-            good = (role['orig'], role['copy'], role['live']) == ('O1', 'C1', want)
+            WORKFLOWS_FILE = t.name
+            try:
+                wid, export = resolve('db/copies/main.json')
+                got = (wid, 'ok') if export == 'n8n/workflow.main.sanitized.json' else (wid, 'wrong export')
+            except Refused:
+                got = (None, 'refused')
+            good = got == want
             ok = ok and good
-            print(f"{'✓' if good else '✗'} resolve() through pair_roles: ROLES '{line}' → live {role['live']}")
-        good = mask('wf O1 and C1 at x', {'o': 'O1', 'c': 'C1'}).count('…') == 2
+            print(f"{'✓' if good else '✗'} resolve() through workflows.py: {body.strip().splitlines()} → {got}")
+        good = mask('wf C1 at x', {'c': 'C1'}).count('…') == 1
         ok = ok and good
         print(f"{'✓' if good else '✗'} ids are cut to four characters in helper output")
     finally:
-        api, webhook, ROLES_FILE = real
+        api, webhook, WORKFLOWS_FILE = real
         for p in fixtures:
             os.unlink(p)
     good = not calls

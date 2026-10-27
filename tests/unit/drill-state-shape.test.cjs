@@ -8,7 +8,7 @@
  * store was down, OPS-5).
  *
  * This runs the node's `jsCode` FROM THE COMMITTED DRILL-STATE COPY EXPORT
- * (`n8n/workflow.drill-state.copy.sanitized.json`; since the D6b cutover the live workflow is the Postgres copy,
+ * (`n8n/workflow.drill-state.sanitized.json`; since the D6b cutover the live workflow is the Postgres copy,
  * and the parked original is only the rollback path until D6c) against three kinds of input:
  * an error item → STORE-ERROR · a successful empty read → NOT-FOUND · a record → its state.
  * The "found" path cannot run live while the store is down; this test is its evidence until D3 runs it
@@ -24,7 +24,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.drill-state.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.drill-state.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const src = wf.nodes.find((n) => n.name === 'Shape Drill State').parameters.jsCode;
 const shape = new Function('$', '$input', src);

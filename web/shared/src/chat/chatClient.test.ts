@@ -1,7 +1,7 @@
 /**
  * Reply-mapping tests. Every response body below was extracted from the COMMITTED workflow, not invented —
  * see the table in chatClient.ts. The Main export that runs live since the D6b cutover is
- * n8n/workflow.main.copy.sanitized.json; the bodies were first taken from the original it was copied from, and
+ * n8n/workflow.main.sanitized.json; the bodies were first taken from the original it was copied from, and
  * the copy changed only the store nodes (measured 2026-10-25: every other node's parameters were identical).
  *
  * What this proves without touching the network: given exactly what the engine returns, the widget

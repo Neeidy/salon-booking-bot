@@ -4,7 +4,7 @@
  * node's OWN query: its WHERE clause, its parameters and its projection, exactly as the generated copy
  * holds them.
  *
- * Input: the generated copy (scripts/build-workflow-copy.py output) and a bindings file:
+ * Input: a committed workflow export (n8n/workflow.<key>.sanitized.json; until D6c the generated copy) and a bindings file:
  *   { "<node name>": [ { "params": [...], "rows": <expected row count> }, ... ], ... }
  * Bindings carry real ids, so they live outside the repo and nothing here prints them: the output is node
  * names, row counts and rule violations only (Q16's interim rule). Only SELECT nodes are run; a write node

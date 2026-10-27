@@ -12,7 +12,7 @@
  * against the committed file, never a hand-written copy):
  *   1. config/client.config.example.json  — the template a client fills in
  *   2. the `const config = {...}` literal inside the `Load Config` node of the committed Main COPY
- *      export (`n8n/workflow.main.copy.sanitized.json`) — what the bot really runs on: since the D6b
+ *      export (`n8n/workflow.main.sanitized.json`) — what the bot really runs on: since the D6b
  *      cutover the live Main is the Postgres copy, and the parked original is the rollback path until D6c
  *
  * NOT CHECKED — deliberately: `Load Config (Reminders)` and `Load Config (Purge)` are workflow-local
@@ -35,7 +35,7 @@ const Ajv = require('ajv');
 const ROOT = path.resolve(__dirname, '..');
 const SCHEMA = process.env.CONFIG_SCHEMA || path.join(ROOT, 'schemas/client.config.schema.json');
 const EXAMPLE = process.env.CONFIG_EXAMPLE || path.join(ROOT, 'config/client.config.example.json');
-const WORKFLOW = process.env.SANITIZED_PATH || path.join(ROOT, 'n8n/workflow.main.copy.sanitized.json');
+const WORKFLOW = process.env.SANITIZED_PATH || path.join(ROOT, 'n8n/workflow.main.sanitized.json');
 
 function fail(msg) { console.log('CONFIG CONTRACT DRIFT — ' + msg); process.exit(1); }
 

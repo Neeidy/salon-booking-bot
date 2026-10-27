@@ -18,8 +18,8 @@ const path = require('node:path');
 const { Client } = require(path.join(__dirname, '..', '..', 'web', 'node_modules', 'pg'));
 const { checkRecord } = require(path.join(__dirname, '..', 'contract', 'shape.cjs'));
 
-// Columns and the kind → SQL templates come from db/shape-spec.json, the ONE source the copy generator reads
-// too. What stays here is test-only: each table's prefix guard, and the rule classes the seed can trigger.
+// Columns and the kind → SQL templates come from db/shape-spec.json, the ONE source the copy generator read
+// too (until D6c removed it). What stays here is test-only: each table's prefix guard, and the rule classes the seed can trigger.
 const SPEC = require(path.join(__dirname, '..', '..', 'db', 'shape-spec.json'));
 const TEST = {
   conversations: { guard: "sender_key LIKE 'widget:w-mig-%'", expect: ['null', 'empty', 'ts', 'createdTime'] },

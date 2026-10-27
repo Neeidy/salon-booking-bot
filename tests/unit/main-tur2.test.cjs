@@ -13,7 +13,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { DateTime } = require(join(__dirname, '../../scripts/node_modules/luxon'));
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'staged', 'workflow.main.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.main.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const node = (name) => wf.nodes.find((n) => n.name === name);
 const body = (name) => node(name).parameters.jsCode;

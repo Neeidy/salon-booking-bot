@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Offline test for scripts/workflow-step.py (7-F1 Round B, final shape; shrunk to the approved deltas in 7-2 Tur 2 R1d):
 a fake n8n behind the deploy helper's `api` (an UNEXPECTED call raises, so a case cannot pass on a 404 it did not ask
-for), fake ids in a fixture ROLES file, and live copies simulated from the committed exports. The Main and Owner Actions
-cases use the REAL staged exports and the REAL delta files.
+for), fake ids in a fixture WORKFLOWS file, and live workflows simulated from the committed exports. The Main and Owner
+Actions cases use the 7-2 Tur 2 exports and delta files kept as fixtures (tests/fixtures/7-2-tur2/).
 
 What it proves: put refuses an ACTIVE copy, an edit outside its allowlist (a node not named, an edge, a flag, a
-setting, an older revision that brings the temporary trigger back), an export that is not sanitised, a copy ROLES does
-not declare live, an original that is not parked, a copy of another spec, a spec outside db/copies, an export outside
-the repo or not this copy's own REV:PATH, a REV that is not HEAD or a commit SHA, and Drill State — each before any PUT;
+setting, an older revision that brings the temporary trigger back), an export that is not sanitised, a workflow
+WORKFLOWS does not list, a workflow of another spec, a spec outside db/copies, an export outside the repo or not this
+workflow's own REV:PATH, a REV that is not HEAD or a commit SHA, and a rename that is not the approved one — each
+before any PUT;
 a PUT whose read-back differs from the export, whose settings or active flag come back changed, or that answers non-200
 is RED; deactivate and activate are RED when their read-back disagrees, activate also when published != draft.
 FIXED: the two real delta files ARE the approved deltas; a delta that differs by one edge (T HIGH-1's Turnstile reject →
@@ -50,6 +51,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -69,8 +71,8 @@ if len(sys.argv) > 2:   # a mutant of diff-workflow-copy.py under test: the put 
 # THE BEFORE SIDE of the two approved deltas (R3): the Main and Owner Actions copy exports as committed before R3 promoted
 # the staged edits. After that promotion HEAD's copy exports ARE the edit, so every "committed export" the tool reads for
 # these two is the baseline fixture here (tests/fixtures/7-2-baseline/README.md); Purge and Reminders read HEAD as before.
-BASELINE = {'n8n/workflow.main.copy.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.main.copy.json',
-            'n8n/workflow.owner-actions.copy.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.owner-actions.copy.json'}
+BASELINE = {'n8n/workflow.main.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.main.copy.json',
+            'n8n/workflow.owner-actions.sanitized.json': 'tests/fixtures/7-2-baseline/workflow.owner-actions.copy.json'}
 _real_committed_export = H.committed_export
 
 
@@ -81,6 +83,22 @@ def _committed_or_baseline(path, rev='HEAD'):
 
 
 H.committed_export = _committed_or_baseline
+# THE INDEX STANDS IN FOR HEAD (D6c): this test gates the commit that creates the exports it reads, so `HEAD:` would be
+# the commit BEFORE it. Staged content is what is about to be committed; once committed the index and HEAD hold the same
+# blobs and the two readings are one. Run it with the change staged (`git add`), as check-all is before that commit.
+_git_index = lambda rel: subprocess.run(['git', '-C', ROOT, 'show', f':{rel}'], capture_output=True, stdin=subprocess.DEVNULL)
+
+
+_HEAD_SHA = subprocess.run(['git', '-C', ROOT, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+
+
+def _real_committed_export(path, rev='HEAD', _real=_real_committed_export):
+    if rev != 'HEAD' and not (re.fullmatch(r'[0-9a-f]{7,40}', rev) and _HEAD_SHA.startswith(rev)):   # HEAD by SHA too
+        return _real(path, rev)
+    r = _git_index(path)
+    if r.returncode != 0:
+        raise ValueError(f'git show :{path} failed')
+    return json.loads(r.stdout)
 # ...and the spec as it stood on that baseline: until R3 promoted the edit the Owner Actions spec carried no
 # settings_allow (T-4's exact-value entry arrives WITH the promoted export, whose live copy then holds the value). A
 # pre-edit Owner Actions copy judged against the post-promotion spec would read as drift, which it was not at the time.
@@ -97,12 +115,16 @@ def _baseline_spec(fn):
 
 
 W.target, W.target_scratch = _baseline_spec(_real_target), _baseline_spec(_real_target_scratch)
+# The live workflow the fake holds is simulated from the SAME reading of the committed export (the helper's own
+# version reads the working tree, which for Main and Owner Actions is the promoted edit, not the baseline).
+H._simulated_live_copy = lambda spec_file: (lambda c: (c, H._simulated_live(c, keep=H._ccp().EXEMPT)))(
+    H.committed_export(f'n8n/workflow.{os.path.splitext(os.path.basename(spec_file))[0]}.sanitized.json'))
 
 E1 = ['Aggregate Leads Total', 'Build Owner Alert (Purge)', 'Count Leads After', 'Count Leads Total', 'Find Old Leads',
       'Leads Purge Sane?', 'Verify Leads Purge']
 E2 = ['Build Owner Alert (Reminders)']
-IDS = {'purge': ('OP', 'CP'), 'reminders': ('OR', 'CR'), 'main': ('OM', 'CM'), 'owner-actions': ('OO', 'CO'),
-       'drill-state': ('OD', 'CD')}
+IDS = {'purge': 'CP', 'reminders': 'CR', 'main': 'CM', 'owner-actions': 'CO', 'drill-state': 'CD'}   # WORKFLOWS (fixture)
+UNLISTED = 'OX'   # an id WORKFLOWS does not list (D6c: where the parked original's id used to be)
 
 
 class FakeN8n:
@@ -125,6 +147,8 @@ class FakeN8n:
             if self.create_mangle:
                 self.create_mangle(self.wfs[sid])
             return self.create_answer or (200, {'id': sid})
+        if method == 'GET' and path == '/workflows?limit=250':   # the instance listing (holder check, D6c)
+            return 200, {'data': [dict(copy.deepcopy(w), id=k) for k, w in self.wfs.items()]}
         e = re.fullmatch(r'/executions\?workflowId=(\w+)&limit=100', path)
         if method == 'GET' and e:
             return 200, {'data': [{'startedAt': t} for t in self.execs.get(e.group(1), [])]}
@@ -175,11 +199,9 @@ class FakeN8n:
         return sum(1 for m, _ in self.calls if m != 'GET')
 
 
-def roles_file(live='copy'):
+def workflows_file(skip=()):
     t = tempfile.NamedTemporaryFile('w', suffix='.sh', delete=False)
-    t.write('PAIRS=(\n' + ''.join(f'  "{o}:n8n/workflow.{x}.sanitized.json"\n  "{c}:n8n/workflow.{x}.copy.sanitized.json"\n'
-                                  .replace('workflow.main.sanitized', 'workflow.sanitized') for x, (o, c) in IDS.items())
-            + ')\n\nROLES=(\n' + ''.join(f'  "{o}:{c}:{live}"\n' for o, c in IDS.values()) + ')\n')
+    t.write('WORKFLOWS=(\n' + ''.join(f'  "{c}:n8n/workflow.{x}.sanitized.json"\n' for x, c in IDS.items() if x not in skip) + ')\n')
     t.close()
     return t.name
 
@@ -197,13 +219,14 @@ def live_hooks(wf):
     return wf
 
 
-def world(spec='purge', copy_active=False, orig_active=False, **fake_kw):
+def world(spec='purge', copy_active=False, live_name=None, **fake_kw):
+    """(committed, fake, UNLISTED, the listed id): the fake instance holds only the listed workflow (D6c: no original).
+    live_name: the name it carries live (default its export's) — the source name of an approved rename, for those cases."""
     committed, live = H._simulated_live_copy(f'db/copies/{spec}.json')
     live = live_hooks(live)
-    oid, cid = IDS[spec]
-    orig = dict(copy.deepcopy(live), name='original', active=orig_active)
-    cp = dict(copy.deepcopy(live), active=copy_active)
-    return committed, FakeN8n({oid: orig, cid: cp}, **fake_kw), oid, cid
+    cid = IDS[spec]
+    cp = dict(copy.deepcopy(live), active=copy_active, name=live_name or live.get('name'))
+    return committed, FakeN8n({cid: cp}, **fake_kw), UNLISTED, cid
 
 
 SNAPDIR = tempfile.mkdtemp(prefix='wstest-snap-')   # snapshots live OUTSIDE the repo (put refuses a path inside it)
@@ -255,10 +278,13 @@ def drift(fake, cid, ref):
 
 
 ok = True
-real_api, real_roles, real_tc, real_hb = H.api, H.ROLES_FILE, W.tracked_clean, W.head_blob
+real_api, real_roles, real_tc, real_hb = H.api, W.WORKFLOWS_FILE, W.tracked_clean, W.head_blob
 TEST_FILES = set()   # the gitignored .wstest exports this test writes: treated as committed, ONLY for the cases that need it
-W.tracked_clean = lambda rel: rel in TEST_FILES or real_tc(rel)
-W.head_blob = lambda rel: open(os.path.join(ROOT, rel), encoding='utf-8').read() if rel in TEST_FILES else real_hb(rel)
+# the same index-for-HEAD reading as above: tracked = in the index, clean = the working tree equals it
+W.tracked_clean = lambda rel: rel in TEST_FILES or (W._git('ls-files', '--error-unmatch', '--', rel).returncode == 0
+                                                    and W._git('diff', '--quiet', '--', rel).returncode == 0)
+W.head_blob = lambda rel: (open(os.path.join(ROOT, rel), encoding='utf-8').read() if rel in TEST_FILES
+                           else (lambda r: r.stdout.decode('utf-8') if r.returncode == 0 else None)(_git_index(rel)))
 
 
 def call(fake, fn, *a, **k):
@@ -285,13 +311,13 @@ def case(label, good, detail):
 
 
 try:
-    H.ROLES_FILE = roles_file()
-    tmp.append(H.ROLES_FILE)
+    W.WORKFLOWS_FILE = workflows_file()
+    tmp.append(W.WORKFLOWS_FILE)
     P, R = 'db/copies/purge.json', 'db/copies/reminders.json'
     # The edits under test are SYNTHESISED from the committed exports (an engine change inside the allowlist), so the
     # test does not depend on n8n/staged/, which empties as each edit is promoted.
     def synth(x, code_node, flag_node=None):
-        e = json.load(open(os.path.join(ROOT, 'n8n', f'workflow.{x}.copy.sanitized.json'), encoding='utf-8'))
+        e = json.load(open(os.path.join(ROOT, 'n8n', f'workflow.{x}.sanitized.json'), encoding='utf-8'))
         n = next(n for n in e['nodes'] if n['name'] == code_node)
         n['parameters']['jsCode'] += '\n// the engine edit under test'
         if flag_node:
@@ -301,7 +327,7 @@ try:
     staged_p = synth('purge', 'Build Owner Alert (Purge)', 'Find Old Leads')
     staged_r = synth('reminders', 'Build Owner Alert (Reminders)')
     SP, SR = repo_file(staged_p), repo_file(staged_r)
-    CP_EXPORT = 'n8n/workflow.purge.copy.sanitized.json'   # tracked and clean in a committed tree
+    CP_EXPORT = 'n8n/workflow.purge.sanitized.json'   # tracked and clean in a committed tree
 
     # 1. an E1-shaped and an E2-shaped edit: green, read back == the edit
     for spec, sfile, allow, staged in ((P, SP, E1, staged_p), (R, SR, E2, staged_r)):
@@ -334,7 +360,7 @@ try:
                                        text=True).stdout.split()
     if len(old) >= 2:
         committed, fake, oid, cid = world()
-        rc, out = run(fake, ['put', P, cid, f'{old[-1]}:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])
+        rc, out = run(fake, ['put', P, cid, f'{old[-1]}:n8n/workflow.purge.sanitized.json', '--allow', *E1])
         case('an OLDER revision of the export (temporary trigger) is refused', rc == 1 and fake.puts() == 0, f'rc {rc} · {out.strip().splitlines()[-1][:100]}')
     else:
         case('an OLDER revision of the export (temporary trigger) is refused', False, 'the export has no older revision to test with')
@@ -352,7 +378,7 @@ try:
     rc, out = run(fake, ['put', P, cid, SP, '--allow', *E1])
     W.tracked_clean = H_tc
     case('a locally modified export file is refused', rc == 1 and fake.puts() == 0, f'rc {rc}')
-    if real_tc(CP_EXPORT):
+    if W.tracked_clean(CP_EXPORT):   # the index-for-HEAD reading above
         case('a committed export counts as tracked and clean', True, 'git ls-files + git diff --quiet HEAD')
     else:
         case('a committed export counts as tracked and clean', False, 'it is untracked or modified in this tree')
@@ -389,7 +415,7 @@ try:
     #    `rollback` to the snapshot, never "put the committed export".
     committed, fake, oid, cid = world()
     run(fake, ['put', P, cid, SP, '--allow', *E1])
-    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])
+    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--allow', *E1])
     case('R2b: a put while the live copy is NOT its committed export (it holds the edit) → refused, 0 more PUT, no snapshot',
          rc == 1 and fake.puts() == 1 and 'not its committed export' in out and not os.path.exists(run.last_snap),
          f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
@@ -407,30 +433,27 @@ try:
     else:
         case('an unsanitised export is refused by the sanitise check', False, f'no {ph} in the staged Purge export to test with')
 
-    # 7. ROLES declares the ORIGINAL live → every command refused, no write
-    H.ROLES_FILE = roles_file(live='original')
-    tmp.append(H.ROLES_FILE)
+    # 7. WORKFLOWS lists no workflow for this spec → every command refused, no call at all (D6c)
+    W.WORKFLOWS_FILE = workflows_file(skip=('purge',))
+    tmp.append(W.WORKFLOWS_FILE)
     for argv in (['deactivate', P, 'CP'], ['put', P, 'CP', SP, '--allow', *E1], ['activate', P, 'CP']):
         committed, fake, oid, cid = world()
         rc, out = run(fake, argv)
-        case(f'{argv[0]} refused when ROLES declares the original live', rc == 1 and not fake.writes(), f'rc {rc}')
-    H.ROLES_FILE = roles_file()
-    tmp.append(H.ROLES_FILE)
+        case(f'{argv[0]} refused when WORKFLOWS lists no workflow for the spec', rc == 1 and not fake.calls, f'rc {rc}')
+    W.WORKFLOWS_FILE = workflows_file()
+    tmp.append(W.WORKFLOWS_FILE)
 
-    # 8. the original not parked · the original's id · a copy of another spec · Main (outside scope) · a spec outside
-    #    db/copies · an export outside the repo / another copy's REV:PATH / a stash selector
-    committed, fake, oid, cid = world(orig_active=True)
-    rc, _ = run(fake, ['put', P, cid, SP, '--allow', *E1])
-    case('put refused while the original is active', rc == 1 and fake.puts() == 0, f'rc {rc}')
+    # 8. an unlisted id · a workflow of another spec · a spec outside db/copies · an export outside the repo / another
+    #    workflow's REV:PATH / a stash selector
     committed, fake, oid, cid = world()
     rc, _ = run(fake, ['deactivate', P, oid])
-    case("the original's id is refused as a target", rc == 1 and not fake.writes(), f'rc {rc}')
+    case('an id WORKFLOWS does not list is refused as a target, before any call', rc == 1 and not fake.calls, f'rc {rc}')
     committed, fake, oid, cid = world()
     rc, _ = run(fake, ['put', R, cid, SP, '--allow', *E1])
-    case('a copy of another spec is refused', rc == 1 and fake.puts() == 0, f'rc {rc}')
-    committed, fake, oid, cid = world('drill-state')
+    case('a workflow of another spec is refused', rc == 1 and fake.puts() == 0, f'rc {rc}')
+    committed, fake, oid, cid = world('drill-state', copy_active=True)
     rc, out = run(fake, ['deactivate', 'db/copies/drill-state.json', cid])
-    case('Drill State is outside the scope (no write)', rc == 1 and not fake.writes() and 'scope' in out, f'rc {rc}')
+    case('Drill State is in scope since D6c: deactivate reads back', rc == 0 and fake.wfs[cid]['active'] is False, f'rc {rc}')
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as t:   # the staged edit itself, outside the repo
         json.dump(staged_p, t)
     outside = t.name
@@ -441,8 +464,8 @@ try:
     tmp.extend([ospec, odir])
     for label, argv in (('a spec outside db/copies', ['put', os.path.relpath(ospec, ROOT), 'CP', SP, '--allow', *E1]),
                         ('a VALID export outside the repo', ['put', P, 'CP', outside, '--allow', *E1]),
-                        ("another copy's REV:PATH", ['put', P, 'CP', 'HEAD:n8n/workflow.reminders.copy.sanitized.json', '--allow', *E1]),
-                        ('a stash selector', ['put', P, 'CP', 'stash@{0}:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])):
+                        ("another copy's REV:PATH", ['put', P, 'CP', 'HEAD:n8n/workflow.reminders.sanitized.json', '--allow', *E1]),
+                        ('a stash selector', ['put', P, 'CP', 'stash@{0}:n8n/workflow.purge.sanitized.json', '--allow', *E1])):
         committed, fake, oid, cid = world()
         rc, _ = run(fake, argv)
         case(f'refused: {label}', rc == 1 and fake.puts() == 0, f'rc {rc}')
@@ -469,8 +492,8 @@ try:
     #     through the TEST_FILES seam, so the suite is the same before and after they are committed.
     M = 'db/copies/main.json'
     O = 'db/copies/owner-actions.json'
-    SM, DM = 'n8n/staged/workflow.main.copy.sanitized.json', 'n8n/staged/workflow.main.copy.delta.json'
-    SO, DO = 'n8n/staged/workflow.owner-actions.copy.sanitized.json', 'n8n/staged/workflow.owner-actions.copy.delta.json'
+    SM, DM = 'tests/fixtures/7-2-tur2/workflow.main.after.json', 'tests/fixtures/7-2-tur2/workflow.main.delta.json'
+    SO, DO = 'tests/fixtures/7-2-tur2/workflow.owner-actions.after.json', 'tests/fixtures/7-2-tur2/workflow.owner-actions.delta.json'
     TEST_FILES.update({SM, DM, SO, DO})
     em = json.load(open(os.path.join(ROOT, SM), encoding='utf-8'))
     eo = json.load(open(os.path.join(ROOT, SO), encoding='utf-8'))
@@ -515,7 +538,7 @@ try:
         rc, out = run(fake, ['put', M, cid, SM, '--delta-file', DM])
         case(f'Main: put is RED when {label}', rc == 1 and 'READ-BACK RED' in out, f'rc {rc} · {out.strip().splitlines()[-1][:110]}')
     committed, fake, oid, cid = world('main')
-    rc, out = run(fake, ['put', M, cid, 'HEAD:n8n/workflow.main.copy.sanitized.json', '--delta-file', DM])
+    rc, out = run(fake, ['put', M, cid, 'HEAD:n8n/workflow.main.sanitized.json', '--delta-file', DM])
     case('Main: the approved delta against an export that does not carry it (HEAD) is refused, 0 PUT', rc == 1 and fake.puts() == 0, f'rc {rc}')
 
     # probe: judged on the n8n body
@@ -523,7 +546,7 @@ try:
     real_tp = H.turnstile_probe
     try:
         for res, want in (((True, 403), 0), ((False, 403), 1)):
-            H.turnstile_probe = lambda path, o, c, r=res: r
+            H.turnstile_probe = lambda path, c, r=res: r
             rc, out = run(fake, ['probe', M, cid])
             case(f'Main probe: dummy-token result {res} → exit {want}', rc == want and not fake.writes(), f'rc {rc}')
     finally:
@@ -554,10 +577,12 @@ try:
                                               ("Access's own 403 (no n8n body)", ((403, None), (404, {'error': 'not_found'})), 1, False),
                                               ('a bare 503 on the signed request', ((403, {'error': 'invalid_signature'}), (503, None)), 1, False),
                                               ('the signed request WRITES (200)', ((403, {'error': 'invalid_signature'}), (200, {'ok': True})), 1, False),
-                                              ('the right answers, but the ORIGINAL executed them', good, 1, 'orig'),
-                                              ('the right answers, executed by the copy AND the original', good, 1, 'both')):
+                                              ('the right answers, but NOT executed by it', good, 1, 'none'),
+                                              ('the right answers, but a SECOND active workflow holds the path', good, 1, 'second')):
             committed, fake, oid, cid = world('owner-actions', copy_active=True)
-            W.webhook_post = fake_post(answers, fake, *{'orig': [oid], 'both': [cid, oid]}.get(by_orig, [cid]))
+            if by_orig == 'second':   # D6c: the holder check replaces "none by the original"
+                fake.wfs[oid] = dict(copy.deepcopy(fake.wfs[cid]), name='another workflow', active=True)
+            W.webhook_post = fake_post(answers, fake, *([] if by_orig == 'none' else [cid]))
             rc, out = run(fake, ['probe', O, cid])
             case(f'Owner Actions probe: {label} → exit {want}', rc == want and not fake.writes(), f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
             if '503 store' in label:
@@ -594,7 +619,7 @@ try:
             H.DIFF.compare = real_compare
 
     def main_export(fn):
-        e = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']), encoding='utf-8'))
+        e = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.main.sanitized.json']), encoding='utf-8'))
         next(n for n in e['nodes'] if n['name'] == 'Build Owner Alert')['parameters']['jsCode'] += '\n// the engine edit under test'
         return fn(e) or e
 
@@ -670,19 +695,19 @@ try:
 
     def off_at_head(path, rev='HEAD'):   # HEAD's Main export as if it already said enabled: false (lane T M3)
         w = real_ce(path, rev)
-        if path.endswith('main.copy.sanitized.json'):
+        if path.endswith('workflow.main.sanitized.json'):
             n = next(n for n in w['nodes'] if n['name'] == 'Load Config')['parameters']
             n['jsCode'] = ts_off(n['jsCode'])
         return w
     committed, fake, oid, cid = world('main')
     H.committed_export = off_at_head
     try:
-        rc, out = run(fake, ['put', M, cid, 'HEAD:n8n/workflow.main.copy.sanitized.json', '--allow', 'Build Owner Alert'])
+        rc, out = run(fake, ['put', M, cid, 'HEAD:n8n/workflow.main.sanitized.json', '--allow', 'Build Owner Alert'])
     finally:
         H.committed_export = real_ce
     case('M3: the committed export ALREADY says enabled: false — "unchanged" is refused, 0 PUT', rc == 1 and fake.puts() == 0
          and 'Turnstile literal' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
-    oa = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.copy.sanitized.json']), encoding='utf-8'))
+    oa = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.sanitized.json']), encoding='utf-8'))
     oa['nodes'].append({'name': 'Load Config', 'type': 'n8n-nodes-base.code', 'typeVersion': 2, 'position': [0, 0],
                         'parameters': {'jsCode': 'return [{json: {turnstile: { enabled: false, mode: "x" }}}];'}})
     oa2 = copy.deepcopy(oa)
@@ -807,15 +832,15 @@ try:
     TEST_FILES.add(UNT)
     case('put: an untracked delta file (even with the approved content) is refused before any PUT',
          rc == 1 and fake.puts() == 0 and 'untracked' in out, f'rc {rc}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--delta-file', os.path.join(ROOT, DM), '--allow', 'X'],
                                         capture_output=True, text=True)
     case('diff-workflow-copy CLI: --delta-file mixed with --allow → exit 2', dcli.returncode == 2 and 'mutually exclusive' in dcli.stderr, f'rc {dcli.returncode}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--add-node', TAG, '--allow', 'X'],
                                         capture_output=True, text=True)
     case('diff-workflow-copy CLI: --add-node (removed) → exit 2', dcli.returncode == 2, f'rc {dcli.returncode}')
-    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.copy.sanitized.json']),
+    dcli = __import__('subprocess').run([sys.executable, DIFF_SRC, os.path.join(ROOT, BASELINE['n8n/workflow.main.sanitized.json']),
                                          os.path.join(ROOT, SM), '--phase', 'edit', '--delta-file', os.path.join(ROOT, DM)], capture_output=True, text=True)
     case('diff-workflow-copy CLI: the staged Main export + its delta file → OK', dcli.returncode == 0, f'rc {dcli.returncode} · {dcli.stdout.strip().splitlines()[-1][:80]}')
 
@@ -937,14 +962,19 @@ try:
         rc, out = run(fake, ['put', spec, cid, exp, '--delta-file', df])
         case(f'R2b put refused, 0 PUT, NO snapshot: {label}', rc == 1 and fake.puts() == 0 and 'committed export' in out
              and not os.path.exists(run.last_snap), f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
-    for label, who in (('copy AND original drifted alike (only the committed comparison sees it)', 'both'),
-                       ("the ORIGINAL's settings differ from the copy's (only the copy-vs-original comparison sees it)", 'orig')):
+    committed, fake, oid, cid = world('main')
+    fake.wfs[cid]['settings'] = dict(fake.wfs[cid].get('settings') or {}, timezone='Europe/Vienna')
+    rc, out = run(fake, ['put', M, cid, SM, '--delta-file', DM])
+    case('R2b put refused, 0 PUT: a settings key live that the export does not carry and nobody allowlisted',
+         rc == 1 and fake.puts() == 0 and 'settings' in out, f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+    # D6c BINARY: Main may carry binaryMode live ONLY as exactly "separate" (db/copies/main.json settings_allow)
+    for label, val, want in (('binaryMode "separate" (allowlisted) → the put proceeds', 'separate', 0),
+                             ('binaryMode "combined" → refused, 0 PUT', 'combined', 1),
+                             ('binaryMode True (another type) → refused, 0 PUT', True, 1)):
         committed, fake, oid, cid = world('main')
-        for w in ([fake.wfs[cid], fake.wfs[oid]] if who == 'both' else [fake.wfs[oid]]):
-            w['settings'] = dict(w.get('settings') or {}, timezone='Europe/Vienna')
+        fake.wfs[cid]['settings'] = dict(fake.wfs[cid].get('settings') or {}, binaryMode=val)
         rc, out = run(fake, ['put', M, cid, SM, '--delta-file', DM])
-        case(f'R2b put refused, 0 PUT: settings — {label}', rc == 1 and fake.puts() == 0 and 'settings' in out,
-             f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
+        case(f'D6c BINARY: Main {label}', rc == want and fake.puts() == (1 - want), f'rc {rc} · {out.strip().splitlines()[-1][:130]}')
     committed, fake, oid, cid = world('owner-actions')
     run(fake, ['put', O, cid, SO, '--delta-file', DO])
     live_setting(fake.wfs[cid])   # the edit is live, but a setting moved before the settings step
@@ -1044,7 +1074,7 @@ try:
                         {'nodes': [], 'connections': {}, 'settings': base, 'name': 'x'})
     case('snapshot_errs with NO forward-only list (the settings read-back) → the leftover key is RED', bool(e), f'{e}')
     committed, fake, oid, cid = world('owner-actions')
-    rc, out = run(fake, ['settings', O, cid, 'HEAD:n8n/workflow.owner-actions.copy.sanitized.json', '--delta-file', DO])
+    rc, out = run(fake, ['settings', O, cid, 'HEAD:n8n/workflow.owner-actions.sanitized.json', '--delta-file', DO])
     case('settings with EXPORT = the committed export on an UNEDITED copy → refused (EXPORT is not the approved edit), 0 PUT',
          rc == 1 and fake.puts() == 0 and 'not the approved edit' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
     committed, fake, oid, cid = world()
@@ -1118,7 +1148,7 @@ try:
     rc, out = run(fake, ['settings', O, cid, SO, '--allow', 'Respond Owner OK'])
     case('settings without a delta file → usage', rc == 2 and not fake.calls, f'rc {rc}')
 
-    # 17. scratch: create → edit → rollback on the scratch; never activated; ROLES ids refused as scratch
+    # 17. scratch: create → edit → rollback on the scratch; never activated; listed ids refused as scratch
     committed, fake, oid, cid = world('main')
     rc, out = run(fake, ['scratch-create', M, cid])
     sid = next((k for k in fake.wfs if k.startswith('SCR')), None)
@@ -1136,10 +1166,12 @@ try:
         case(f'refused: {label}', rc == 1 and fake.writes() == w0, f'rc {rc}')
     w0 = fake.writes()
     rc, out = call(fake, W.put, M, cid, SM, allow_m, appr_m, snap_path(), scratch=True)
-    case('refused: a ROLES copy used as a scratch', rc == 1 and fake.writes() == w0, f'rc {rc}')
-    w0 = fake.writes()
-    rc, out = run(fake, ['activate', M, sid])
-    case('activate reads the live name back: a "SCRATCH — " workflow is refused AS A SCRATCH', rc == 1 and fake.writes() == w0
+    case('refused: a listed workflow used as a scratch', rc == 1 and fake.writes() == w0, f'rc {rc}')
+    w0, name0 = fake.writes(), fake.wfs[cid]['name']
+    fake.wfs[cid]['name'] = W.SCRATCH_PREFIX + name0   # a LISTED id that carries a scratch name: the name check alone refuses
+    rc, out = run(fake, ['activate', M, cid])
+    fake.wfs[cid]['name'] = name0
+    case('activate reads the live name back: a listed id named "SCRATCH — " is refused AS A SCRATCH', rc == 1 and fake.writes() == w0
          and 'is a SCRATCH' in out, out.strip().splitlines()[-1][:120])
     fake.wfs[sid]['active'] = True
     rc, out = call(fake, W.put, M, sid, SM, allow_m, appr_m, snap_path(), scratch=True)
@@ -1152,10 +1184,10 @@ try:
     fake.wfs[cid]['name'] = 'SCRATCH — ' + nm          # a production copy wearing the scratch name
     w0 = fake.writes()
     rc, out = run(fake, ['scratch-delete', M, cid])
-    case('a ROLES copy named like a scratch is still refused as a scratch', rc == 1 and fake.writes() == w0 and 'ROLES' in out, f'rc {rc}')
+    case('a listed workflow named like a scratch is still refused as a scratch', rc == 1 and fake.writes() == w0 and 'WORKFLOWS' in out, f'rc {rc}')
     w0 = fake.writes()
     rc, out = run(fake, ['activate', M, cid])
-    case('activate: a ROLES copy whose live name starts with "SCRATCH — " is refused as a scratch', rc == 1 and fake.writes() == w0
+    case('activate: a listed workflow whose live name starts with "SCRATCH — " is refused as a scratch', rc == 1 and fake.writes() == w0
          and 'is a SCRATCH' in out, out.strip().splitlines()[-1][:120])
     fake.wfs[cid]['name'] = nm
     for mode in ('keep', 500, 403, 0):
@@ -1274,7 +1306,7 @@ try:
 
     def g1_rb(e):
         e['connections']['Reject Bot Request'] = {'main': [[{'node': 'Check Processed', 'type': 'main', 'index': 0}]]}
-    oa_sig = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.copy.sanitized.json']), encoding='utf-8'))
+    oa_sig = json.load(open(os.path.join(ROOT, BASELINE['n8n/workflow.owner-actions.sanitized.json']), encoding='utf-8'))
     next(n for n in oa_sig['nodes'] if n['name'] == 'Verify Owner Signature')['parameters']['jsCode'] = 'return [{json: {valid: true}}];'
     nr = main_export(lambda e: None)
     nr['nodes'].append({'name': 'Tag Test', 'type': 'n8n-nodes-base.code', 'typeVersion': 2, 'position': [2464, 4256],
@@ -1315,7 +1347,7 @@ try:
          rc == 1 and fake.puts() == 0 and 'Turnstile Gate' in out, f'rc {rc} · {out.strip().splitlines()[-1][:110]}')
 
     # 20. M-c, the position lock: the staged Main export moves nothing; a move is refused (no delta declares one)
-    cm = H.committed_export('n8n/workflow.main.copy.sanitized.json')
+    cm = H.committed_export('n8n/workflow.main.sanitized.json')
     errs = H.DIFF.compare(cm, em, set(json.load(open(os.path.join(ROOT, DM)))['allow']), phase='edit', delta=appr_m)
     case('M-c: the staged Main export + its approved delta pass, nothing moved', not errs, f'{errs[:2]}')
     mv = copy.deepcopy(em)
@@ -1348,8 +1380,8 @@ try:
                  rc == 3 and 'MAY EXIST' in out and 'SCRATCH — ' in out and 'deleted' not in out.replace('NOT PROVEN DELETED', '')
                  and not any(m == 'DELETE' for m, _ in fake.calls) and '../evil' not in out,
                  f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
-    committed, fake, oid, cid = world('main', orig_active=True)
-    rc, out = run(fake, ['rehearse-rollback', M, cid, SM, '--delta-file', DM])
+    committed, fake, oid, cid = world('main')
+    rc, out = run(fake, ['rehearse-rollback', M, oid, SM, '--delta-file', DM])   # an unlisted source: refused before the POST
     case('M-b rehearse-rollback refused before the POST → exit 1, "no scratch was created", never "deleted"',
          rc == 1 and 'no scratch was created' in out and 'was deleted' not in out and not fake.writes(), f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
 
@@ -1359,7 +1391,7 @@ try:
     for rev, want in (('HEAD', 0), (head_sha, 0), (head_sha[:12], 0), ('main', 1), ('origin/main', 1), ('FETCH_HEAD', 1),
                       ('stash@{0}', 1), ('HEAD~0', 1), (tree_sha, 1), ('0' * 40, 1)):
         committed, fake, oid, cid = world()
-        rc, out = run(fake, ['put', P, cid, f'{rev}:n8n/workflow.purge.copy.sanitized.json', '--allow', *E1])
+        rc, out = run(fake, ['put', P, cid, f'{rev}:n8n/workflow.purge.sanitized.json', '--allow', *E1])
         case(f'REV {rev[:14]!r}: {"accepted" if want == 0 else "refused, 0 PUT"}', rc == want and fake.puts() == (1 if want == 0 else 0),
              f'rc {rc} · {out.strip().splitlines()[-1][:100]}')
 
@@ -1428,8 +1460,126 @@ try:
     for argv in (['put', P, cid, SP, '--allow', *E1], ['settings', P, cid, SP, '--delta-file', 'x']):
         rc, _ = run(fake, argv, snap=False)
         case(f'usage: {argv[0]} WITHOUT --snapshot → exit 2', rc == 2 and not fake.calls, f'rc {rc}')
+    # 24. D6c RENAME (ruling 2026-10-26): the approved rename alone, from the live migration name to the export's clean name
+    RN = {k: f'n8n/staged/workflow.{k}.rename.delta.json' for k in IDS}
+    TEST_FILES.update(RN.values())
+    FROM_P, TO_P = H.DIFF.APPROVED_RENAMES['purge']
+    committed, fake, oid, cid = world('purge', live_name=FROM_P)
+    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
+    S_RN = run.last_snap
+    case('rename: the live migration name → the clean name, content unchanged, 1 PUT', rc == 0 and fake.puts() == 1
+         and fake.wfs[cid]['name'] == TO_P and not drift(fake, cid, committed), f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    rc, out = run(fake, ['rollback', P, cid, S_RN])
+    case('rename: rollback returns the migration name (snapshot named `from`, live `to`)', rc == 0 and fake.wfs[cid]['name'] == FROM_P,
+         f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    committed, fake, oid, cid = world('purge')             # already renamed
+    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
+    case('rename: a workflow already carrying the clean name is refused, 0 PUT', rc == 1 and fake.puts() == 0, f'rc {rc}')
+    committed, fake, oid, cid = world('purge', live_name=FROM_P)
+    rc, out = run(fake, ['put', P, cid, SP, '--allow', *E1])
+    case('rename: an edit WITHOUT the rename on a workflow still carrying the migration name is refused, 0 PUT',
+         rc == 1 and fake.puts() == 0 and 'rename' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    bad = repo_file({'rename': {'from': FROM_P, 'to': TO_P + ' (unapproved)'}})
+    committed, fake, oid, cid = world('purge', live_name=FROM_P)
+    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', bad])
+    case('rename: a rename that is not the approved one is refused, 0 PUT', rc == 1 and fake.puts() == 0 and 'approved' in out, f'rc {rc}')
+    committed, fake, oid, cid = world('purge', live_name=FROM_P)
+    run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
+    other = snap_path()
+    json.dump(dict(json.load(open(run.last_snap)), workflow=dict(json.load(open(run.last_snap))['workflow'], name='Someone else')),
+              open(other, 'w'))
+    rc, out = run(fake, ['rollback', P, cid, other])
+    case('rename: rollback refuses a snapshot named neither end of the rename', rc == 1 and fake.puts() == 1, f'rc {rc}')
+    committed, fake, oid, cid = world('purge', copy_active=False, live_name=FROM_P)
+    rc, out = run(fake, ['activate', P, cid])
+    case('rename: activate accepts the migration name while the rename is approved', rc == 0 and fake.wfs[cid]['active'] is True, f'rc {rc}')
+    # the committed export does not carry the rename's target yet (it still says `from`): renaming live would leave live
+    # and its export under two names, so the rename is refused before the PUT
+    real_ce = H.committed_export
+    H.committed_export = lambda path, rev='HEAD': (dict(real_ce(path, rev), name=FROM_P)
+                                                   if path == 'n8n/workflow.purge.sanitized.json' else real_ce(path, rev))
+    try:
+        committed, fake, oid, cid = world('purge', live_name=FROM_P)
+        rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
+    finally:
+        H.committed_export = real_ce
+    case("rename: refused while the committed export does not carry the rename's target, 0 PUT",
+         rc == 1 and fake.puts() == 0 and "rename's target" in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    for key in ('purge', 'drill-state'):
+        frm, to = H.DIFF.APPROVED_RENAMES[key]
+        committed, fake, oid, cid = world(key, live_name=frm)
+        before = copy.deepcopy(fake.wfs[cid])
+        rc, out = run(fake, ['rehearse-rollback', f'db/copies/{key}.json', cid, f'HEAD:n8n/workflow.{key}.sanitized.json',
+                             '--delta-file', RN[key]])
+        case(f'rename: rehearse-rollback {key} on a scratch (renamed, rolled back, deleted), production untouched',
+             rc == 0 and fake.wfs[cid] == before and not [k for k in fake.wfs if k.startswith('SCR')],
+             f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    # MAIN AND OWNER ACTIONS (code-reviewer M1, D6c): the two webhook workflows with the Turnstile literal and the gates.
+    # Their rename runs against the exports as committed NOW, not the 7-2 baseline the cases above use, so the baseline
+    # reading is switched off for this block (and the OA spec keeps its settings_allow, as it does live).
+    H.committed_export, drop0 = _real_committed_export, dict(BASELINE_SPEC_DROP)
+    BASELINE_SPEC_DROP.clear()
+    try:
+        for key, spec_p in (('main', M), ('owner-actions', O)):
+            frm, to = H.DIFF.APPROVED_RENAMES[key]
+            committed, fake, oid, cid = world(key, live_name=frm)
+            before = copy.deepcopy(fake.wfs[cid])
+            rc, out = run(fake, ['rehearse-rollback', spec_p, cid, f'HEAD:n8n/workflow.{key}.sanitized.json', '--delta-file', RN[key]])
+            case(f'rename: rehearse-rollback {key} on a scratch, production untouched',
+                 rc == 0 and fake.wfs[cid] == before and not [k for k in fake.wfs if k.startswith('SCR')],
+                 f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+            committed, fake, oid, cid = world(key, live_name=frm)
+            rc, out = run(fake, ['put', spec_p, cid, f'HEAD:n8n/workflow.{key}.sanitized.json', '--delta-file', RN[key]])
+            case(f'rename: {key} renamed, content == export, webhook ids unchanged, nothing else changed',
+                 rc == 0 and fake.wfs[cid]['name'] == to and not drift(fake, cid, committed) and 'webhook ids unchanged' in out
+                 and 'this PUT changes (0)' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+        # M2: a live sticky that differs from the export is ANNOUNCED by name and verified on read-back
+        frm, to = H.DIFF.APPROVED_RENAMES['owner-actions']
+        committed, fake, oid, cid = world('owner-actions', live_name=frm)
+        st3 = next(n for n in fake.wfs[cid]['nodes'] if n['name'] == 'Sticky — 3')
+        st3['parameters']['content'] = 'the old release-lock text'
+        rc, out = run(fake, ['put', O, cid, 'HEAD:n8n/workflow.owner-actions.sanitized.json', '--delta-file', RN['owner-actions']])
+        got = next(n for n in fake.wfs[cid]['nodes'] if n['name'] == 'Sticky — 3')['parameters']['content']
+        want = next(n for n in committed['nodes'] if n['name'] == 'Sticky — 3')['parameters']['content']
+        case('M2: the OA rename names the sticky it rewrites ("Sticky — 3 (sticky)") and reads it back as the export says',
+             rc == 0 and 'this PUT changes (1): Sticky — 3 (sticky)' in out and 'sticky notes read back as sent' in out and got == want,
+             f'rc {rc} · {[l for l in out.splitlines() if "PUT changes" in l][:1]}')
+        def resize(b):
+            next(n for n in b['nodes'] if n['name'] == 'Sticky — 3')['parameters']['width'] = 9999
+        committed, fake, oid, cid = world('owner-actions', live_name=frm, mangle=resize)
+        rc, out = run(fake, ['put', O, cid, 'HEAD:n8n/workflow.owner-actions.sanitized.json', '--delta-file', RN['owner-actions']])
+        case('M2: a sticky n8n stores differently from the body sent → READ-BACK RED', rc == 1 and "sticky 'Sticky — 3' did not land as sent" in out,
+             f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    finally:
+        H.committed_export = _committed_or_baseline
+        BASELINE_SPEC_DROP.update(drop0)
+    # holder_errs (code-reviewer L2): a listing without nodes whose active workflow then does not read back is NOT
+    # MEASURED — an unread active workflow could be the second holder of the path
+    committed, fake, oid, cid = world('owner-actions', copy_active=True)
+    real_fake_api = fake.api
+    def no_nodes_api(method, path, body=None):
+        st, d = real_fake_api(method, path, body)
+        if path == '/workflows?limit=250':
+            d = {'data': [{k: v for k, v in w.items() if k != 'nodes'} for w in d['data']]}
+        return st, d
+    fake.api = no_nodes_api
+    real_read = H._read
+    H._read = lambda wid: None
+    try:
+        rc, out = call(fake, W.holder_errs, 'owner-release', cid)
+    finally:
+        H._read = real_read
+    case('holder_errs: an active workflow that does not read back → NOT MEASURED, never a pass',
+         isinstance(rc, list) and rc and 'NOT MEASURED' in rc[0], str(rc)[:120])
+    fake.api = real_fake_api
+    frm, to = H.DIFF.APPROVED_RENAMES['drill-state']
+    committed, fake, oid, cid = world('drill-state', live_name=frm)
+    rc, out = run(fake, ['put', 'db/copies/drill-state.json', cid, 'HEAD:n8n/workflow.drill-state.sanitized.json', '--delta-file', RN['drill-state']])
+    case('rename: Drill State (a webhook workflow) renamed, webhook ids unchanged', rc == 0 and fake.wfs[cid]['name'] == to
+         and 'webhook ids unchanged' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+
 finally:
-    H.api, H.ROLES_FILE, W.tracked_clean, W.head_blob = real_api, real_roles, real_tc, real_hb
+    H.api, W.WORKFLOWS_FILE, W.tracked_clean, W.head_blob = real_api, real_roles, real_tc, real_hb
     __import__('shutil').rmtree(SNAPDIR, ignore_errors=True)
     for p in tmp:
         with contextlib.suppress(OSError):

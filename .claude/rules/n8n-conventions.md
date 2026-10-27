@@ -15,6 +15,6 @@
   message-ID, and write-then-verify on booking.
 - **Control-plane lockdown:** via the Cloudflare tunnel expose **only the webhook endpoints**. The n8n
   editor/admin UI is **never** on the public internet (behind auth / Cloudflare Access).
-- **Export discipline:** commit only `n8n/workflow.sanitized.json` (run `/sanitize`); raw exports are gitignored.
+- **Export discipline:** commit only the sanitized exports `n8n/workflow.<key>.sanitized.json`, one per production workflow (run `/sanitize`); raw exports are gitignored.
 
 **Why:** the flow IS the product's engine — its readability, safety, and idempotency are what a client pays for.

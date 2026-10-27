@@ -44,8 +44,8 @@ HOSTLEAK = os.path.join(GROOT, 'scripts', 'check-no-host-leak.sh')
 DRIFT = os.path.join(GROOT, 'scripts', 'check-hook-drift.sh')
 CCP_PATH = os.path.join(GROOT, 'scripts', 'check-content-parity.py')
 STAGED_TEST = os.path.join(GROOT, 'tests', 'unit', 'staged-sanitised.test.py')
-MAIN_EXPORT = os.path.join(REPO, 'n8n', 'workflow.sanitized.json')
-STAGED_EXPORT = os.path.join(REPO, 'n8n', 'staged', 'workflow.main.copy.sanitized.json')
+MAIN_EXPORT = os.path.join(REPO, 'n8n', 'workflow.main.sanitized.json')
+STAGED_EXPORT = os.path.join(REPO, 'tests', 'fixtures', '7-2-tur2', 'workflow.main.after.json')
 HOOK_PAYLOAD = json.dumps({'tool_name': 'Bash', 'tool_input': {'command': 'git push'}})
 ZERO = '0' * 40
 
@@ -323,7 +323,8 @@ def t_h1b_staged_test_functions():
     with tempfile.TemporaryDirectory(prefix='guards-staged-') as d:
         p = os.path.join(d, os.path.basename(STAGED_EXPORT))
         json.dump(wf, open(p, 'w', encoding='utf-8'))
-        errs = mod.check(p)
+        errs = mod.check(p, committed_path=mod.CONTROL['committed'], key='main',
+                         delta=json.load(open(mod.CONTROL['delta'], encoding='utf-8')))
     return bool(errs), 'staged-sanitised.check() on a staged export with a pasted identifier: %d error(s)' % len(errs)
 
 

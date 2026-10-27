@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every export PREPARED in n8n/staged/ is sanitised exactly like the committed copy export it will replace (7-F1).
+"""Every export PREPARED in n8n/staged/ is sanitised exactly like the committed export it will replace (7-F1).
 
 WHY: the staged files are committed to a public repo, but no sanitise assertion reads them — check-content-parity's
 check_sanitised runs per paired export, and n8n/staged/ is paired with nothing. Only the value-shape secret scan and
@@ -8,7 +8,8 @@ masked, so the staged file must carry the SAME placeholder set as its committed 
 check_sanitised, and must not carry a top-level key the committed export does not (an `id`, `pinData`, `staticData`).
 
 DELTA-AWARE (7-2 Tur 2 R1b): an edit may add or remove nodes, but only as DECLARED in the staged export's delta file
-(`<name>.copy.delta.json` beside it — the same file `workflow-step.py put --delta-file` sends). The staged node set must
+(`n8n/staged/workflow.<key>.delta.json` beside `workflow.<key>.sanitized.json` — the same file `workflow-step.py put
+--delta-file` sends; D6c dropped the migration's `.copy.` from both names). The staged node set must
 equal committed − remove_nodes + add_nodes, and check_sanitised's count must move by exactly that much. A staged export
 without a delta file is refused. APPROVED (ruling FIXED, R1d): the delta file must be EXACTLY its copy's entry in
 diff-workflow-copy.APPROVED_DELTAS (diff-workflow-copy.approved_errs) — the reviewed delta, the one workflow-step applies.
@@ -18,7 +19,9 @@ delta described the step from the old export, which no longer exists at HEAD. A 
 its parsed content is checked as before.
 Five negative controls run first on every invocation (an undeclared removal, an undeclared addition, a declared removal
 of a node that is not there, a delta key the shared parser refuses, one edge more than the approved delta): each must
-come out RED, or the test fails — a check that cannot go red has measured nothing.
+come out RED, or the test fails — a check that cannot go red has measured nothing. They run on the 7-2 Tur 2 Main edit
+kept as fixtures (tests/fixtures/7-2-baseline = before, tests/fixtures/7-2-tur2 = after + its delta), so they run even
+when nothing is staged.
 
 Run: python3 tests/unit/staged-sanitised.test.py [staged_export.json …]   (default: every n8n/staged/*.sanitized.json)
 """
@@ -54,8 +57,16 @@ def delta_path(staged_path):
 
 
 def copy_key(staged_path):
-    """workflow.<key>.copy.sanitized.json → <key> (the APPROVED_DELTAS key, as db/copies/<key>.json names it)."""
+    """workflow.<key>.sanitized.json → <key> (the APPROVED_DELTAS key, as db/copies/<key>.json names it)."""
     return os.path.basename(staged_path).split('.')[1]
+
+
+CONTROL = {   # the 7-2 Tur 2 Main edit, before and after, with its approved delta (fixtures; see the docstring)
+    'committed': os.path.join(ROOT, 'tests', 'fixtures', '7-2-baseline', 'workflow.main.copy.json'),
+    'staged': os.path.join(ROOT, 'tests', 'fixtures', '7-2-tur2', 'workflow.main.after.json'),
+    'delta': os.path.join(ROOT, 'tests', 'fixtures', '7-2-tur2', 'workflow.main.delta.json'),
+    'key': 'main',
+}
 
 
 def node_delta_errs(st, cm, delta, key):
@@ -85,8 +96,8 @@ def promoted(st, cm):
     return json.dumps(st, sort_keys=True) == json.dumps(cm, sort_keys=True)
 
 
-def check(staged_path, st=None, delta=None, controls=False):
-    committed_path = os.path.join(ROOT, 'n8n', os.path.basename(staged_path))
+def check(staged_path, st=None, delta=None, controls=False, committed_path=None, key=None):
+    committed_path = committed_path or os.path.join(ROOT, 'n8n', os.path.basename(staged_path))
     if not os.path.exists(committed_path):
         return [f'no committed counterpart {os.path.relpath(committed_path, ROOT)}']
     if st is None:
@@ -99,7 +110,7 @@ def check(staged_path, st=None, delta=None, controls=False):
         if not os.path.exists(dp):
             return [f'no declared delta {os.path.relpath(dp, ROOT)} — an edit declares what it adds and removes']
         delta = json.load(open(dp, encoding='utf-8'))
-    errs = node_delta_errs(st, cm, delta, copy_key(staged_path))
+    errs = node_delta_errs(st, cm, delta, key or copy_key(staged_path))
     ps, pc = CCP._committed_placeholders(st), CCP._committed_placeholders(cm)
     if ps != pc:
         errs.append(f'placeholder set differs: only staged {sorted(ps - pc)}, only committed {sorted(pc - ps)}')
@@ -119,13 +130,10 @@ def check(staged_path, st=None, delta=None, controls=False):
 
 if __name__ == '__main__':
     paths = sys.argv[1:] or sorted(glob.glob(os.path.join(ROOT, 'n8n', 'staged', '*.sanitized.json')))
-    if not paths:
-        print('staged-sanitised: 0 staged exports under n8n/staged/ — nothing prepared, nothing to check')
-        sys.exit(0)
     # Negative controls first: each must be RED, or this test cannot see the defect it exists for.
-    ctl_path = paths[0]
+    ctl_path = CONTROL['staged']
     ctl_st = json.load(open(ctl_path, encoding='utf-8'))
-    ctl_delta = json.load(open(delta_path(ctl_path), encoding='utf-8')) if os.path.exists(delta_path(ctl_path)) else {}
+    ctl_delta = json.load(open(CONTROL['delta'], encoding='utf-8'))
     keep = sorted({n['name'] for n in ctl_st['nodes']} - set(ctl_delta.get('add_nodes') or ()))
     dropped = dict(ctl_st, nodes=[n for n in ctl_st['nodes'] if n['name'] != keep[0]])
     extra = dict(ctl_st, nodes=ctl_st['nodes'] + [{'name': 'Undeclared Control Node', 'type': 'n8n-nodes-base.noOp', 'parameters': {}}])
@@ -138,11 +146,59 @@ if __name__ == '__main__':
                  dict(ctl_delta, add_edges=sorted(set(ctl_delta.get('add_edges') or ()) | {'Approved Control|0|Check Processed|0'})),
                  'not the approved delta')]
     for label, cst, cdelta, want in controls:
-        errs = check(ctl_path, st=cst, delta=cdelta, controls=True)
+        errs = check(ctl_path, st=cst, delta=cdelta, controls=True, committed_path=CONTROL['committed'], key=CONTROL['key'])
         if not any(want in e for e in errs):
             print(f'✗ negative control "{label}" stayed GREEN ({errs}) — the delta check is blind')
             sys.exit(1)
     print(f'✓ {len(controls)} negative controls red as expected (on {os.path.relpath(ctl_path, ROOT)})')
+    errs = check(ctl_path, committed_path=CONTROL['committed'], key=CONTROL['key'], delta=ctl_delta, controls=True)
+    if errs:   # the positive control: the approved edit itself passes
+        print(f'✗ positive control: the approved Tur 2 Main edit is refused ({errs[:2]})')
+        sys.exit(1)
+    print('✓ positive control: the approved Tur 2 Main edit (fixtures) passes')
+    # D6c (security-auditor LOW-2): the workflow exports kept as test FIXTURES are committed too, and left the n8n/staged/
+    # glob when they moved; each one passes the same check_sanitised.
+    fixtures = sorted(glob.glob(os.path.join(ROOT, 'tests', 'fixtures', '*', '*.json')))
+    fx = [f for f in fixtures if isinstance(json.load(open(f, encoding='utf-8')), dict) and 'nodes' in json.load(open(f, encoding='utf-8'))]
+    fx_bad = [(os.path.relpath(f, ROOT), r) for f in fx for ok_, r in [sanitised(json.load(open(f, encoding='utf-8')))] if not ok_]
+    if not fx or fx_bad:
+        print(f'✗ fixture exports: {len(fx)} found, not sanitised: {fx_bad}')
+        sys.exit(1)
+    withc = next(f for f in fx if any(n.get('credentials') for n in json.load(open(f, encoding='utf-8'))['nodes']))
+    planted = json.loads(json.dumps(json.load(open(withc, encoding='utf-8'))))   # negative control: a real-looking credential id
+    for n in planted['nodes']:
+        for c in (n.get('credentials') or {}).values():
+            c['id'] = 'Q' + ''.join(chr(97 + (i * 7) % 26) for i in range(15))
+    if sanitised(planted)[0] or not any(n.get('credentials') for n in planted['nodes']):
+        print(f'✗ negative control: a fixture with a real-looking credential id passed check_sanitised ({os.path.relpath(withc, ROOT)})')
+        sys.exit(1)
+    print(f'✓ {len(fx)} fixture workflow exports pass check_sanitised (negative control red)')
+    # D6c (security-auditor LOW-1): a delta file with NO staged export beside it (a rename delta) is read by nothing
+    # above; each one must parse and be EXACTLY its workflow's approved delta. A negative control first.
+    def lone_delta_errs(path):
+        try:
+            _, d = DIFF.load_delta_file(path)
+        except ValueError as e:
+            return [f'parse_delta: {e}']
+        return DIFF.approved_errs(copy_key(path), d)
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:   # the negative control runs the FILE path, outside the repo
+        cp = os.path.join(td, 'workflow.main.rename.delta.json')
+        json.dump({'rename': {'from': 'MIG COPY — Main', 'to': 'Salon Booking Bot — Main (unapproved)'}}, open(cp, 'w'))
+        ctl = lone_delta_errs(cp)
+    if not ctl:
+        print('✗ negative control: an unapproved rename stayed GREEN — the lone-delta check is blind')
+        sys.exit(1)
+    lone = [d for d in sorted(glob.glob(os.path.join(ROOT, 'n8n', 'staged', '*.delta.json')))
+            if not os.path.exists(d[:-len('.delta.json')] + '.sanitized.json')]
+    lone_bad = [(os.path.relpath(d, ROOT), e) for d in lone for e in [lone_delta_errs(d)] if e]
+    if lone_bad:
+        print(f'✗ lone delta files that are not an approved delta: {lone_bad}')
+        sys.exit(1)
+    print(f'✓ {len(lone)} lone delta file(s) under n8n/staged/ are each exactly an approved delta (negative control red)')
+    if not paths:
+        print('staged-sanitised: OK — 0 staged exports under n8n/staged/ (nothing prepared); controls red and green as expected')
+        sys.exit(0)
     bad = 0
     for p in paths:
         errs = check(p)

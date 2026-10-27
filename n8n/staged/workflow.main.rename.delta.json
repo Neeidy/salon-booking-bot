@@ -1,0 +1,7 @@
+{
+ "_doc": "D6c (ruling 2026-10-26): the approved rename of the main workflow, applied by `workflow-step.py put SPEC ID HEAD:n8n/workflow.main.sanitized.json --delta-file` this file (the committed export already carries the new name). Removed with diff-workflow-copy.APPROVED_RENAMES once the rename is live.",
+ "rename": {
+  "from": "MIG COPY — Main",
+  "to": "Salon Booking Bot — Main"
+ }
+}

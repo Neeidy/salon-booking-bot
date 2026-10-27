@@ -46,7 +46,7 @@ engine's state (multi-turn · idempotency · spend meter).
 | created_at | timestamptz | `NOT NULL DEFAULT now()` |
 
 **TTL:** the Purge workflow's leads branch deletes leads older than `leadsRetentionDays`, and FAILS CLOSED when that
-key is absent (deletes nothing and alerts) — `Compute Leads Cutoff` in the Purge copy export.
+key is absent (deletes nothing and alerts) — `Compute Leads Cutoff` in the Purge export (`n8n/workflow.purge.sanitized.json`).
 
 ## `appointments` (the CRM mirror of Google Calendar)
 | Column | Type | Constraint / notes |

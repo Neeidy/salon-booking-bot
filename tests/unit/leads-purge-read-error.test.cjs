@@ -37,7 +37,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { DateTime } = require(join(__dirname, '../../scripts/node_modules/luxon'));
 
-const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.purge.copy.sanitized.json');
+const EXPORT = process.argv[2] || join(__dirname, '..', '..', 'n8n', 'workflow.purge.sanitized.json');
 const wf = JSON.parse(readFileSync(EXPORT, 'utf8'));
 const byName = Object.fromEntries(wf.nodes.map((n) => [n.name, n]));
 const NOW = DateTime.fromISO('2026-06-15T10:00:00.000Z', { zone: 'utc' });

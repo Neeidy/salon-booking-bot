@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""check-live-parity.py's TARGET (MIGRATION-PLAN §3t, decision 9): with no workflow id given, it compares the ONE active
-workflow listening on `barber-inbound`, against THAT workflow's own PAIRS export — Main original before the cutover,
-Main's copy after it. Offline: a stand-in for the n8n public API on 127.0.0.1 (loopback only, remote-operator.md)
-serves the workflow list and each workflow's published graph, built from the committed exports.
+"""check-live-parity.py's TARGET (MIGRATION-PLAN §3t, decision 9; unpaired at D6c, 2026-10-27): with no workflow id
+given, it compares the ONE active workflow listening on `barber-inbound`, which must be listed in WORKFLOWS
+(scripts/workflows.py), against that workflow's own committed export. Offline: a stand-in for the n8n public API on
+127.0.0.1 (loopback only, remote-operator.md) serves the workflow list and each workflow's published graph, built from
+the committed exports.
 
 Run: python3 tests/unit/live-parity-target.test.py   (LIVE_PARITY=<path> runs it against another copy of the script)
 """
@@ -11,11 +12,11 @@ import http.server, json, os, subprocess, sys, threading
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPT = os.environ.get('LIVE_PARITY', os.path.join(ROOT, 'scripts', 'check-live-parity.py'))
 sys.path.insert(0, os.path.join(ROOT, 'scripts'))
-import pair_roles  # noqa: E402
+import workflows  # noqa: E402
 
-pairs, roles = pair_roles.load()
-main_role = next(r for r in roles if pairs[r['orig']] == 'n8n/workflow.sanitized.json')
-O, C = main_role['orig'], main_role['copy']
+listed = workflows.load()
+M = workflows.id_for(listed, 'main')
+X = 'Unlisted0000000X'              # an id WORKFLOWS does not list
 
 
 def published(export, path):
@@ -50,17 +51,16 @@ srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Fake)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 api = f'http://127.0.0.1:{srv.server_address[1]}'
 
-before = {O: dict(active=True, **published('n8n/workflow.sanitized.json', 'barber-inbound')),
-          C: dict(active=False, **published('n8n/workflow.main.copy.sanitized.json', 'owner-mig-main'))}
-after = {O: dict(active=False, **published('n8n/workflow.sanitized.json', 'barber-inbound')),
-         C: dict(active=True, **published('n8n/workflow.main.copy.sanitized.json', 'barber-inbound'))}
-both = {O: dict(before[O]), C: dict(after[C])}
-
+MAIN_EXPORT = 'n8n/workflow.main.sanitized.json'
+main_live = dict(active=True, **published(MAIN_EXPORT, 'barber-inbound'))
 ok = True
 for label, state, want_rc, want_out in (
-        ('before the cutover: Main original, against workflow.sanitized.json', before, 0, f'({O[:4]}…), compared with n8n/workflow.sanitized.json'),
-        ("after the cutover: Main's copy, against ITS export", after, 0, f'({C[:4]}…), compared with n8n/workflow.main.copy.sanitized.json'),
-        ('two active holders of barber-inbound: refused', both, 1, 'NO SINGLE PRODUCTION HOLDER')):
+        ('the listed Main is the one holder: compared with ITS export', {M: main_live}, 0, f'({M[:4]}…), compared with {MAIN_EXPORT}'),
+        ('an unlisted active holder of barber-inbound: refused', {X: dict(main_live)}, 1, 'not listed in WORKFLOWS'),
+        ('two active holders of barber-inbound: refused', {M: main_live, X: dict(main_live)}, 1, 'NO SINGLE PRODUCTION HOLDER'),
+        ('no active holder: refused', {M: dict(main_live, active=False)}, 1, 'NO SINGLE PRODUCTION HOLDER'),
+        ('an INACTIVE unlisted workflow on the path does not count', {M: main_live, X: dict(main_live, active=False)}, 0,
+         f'({M[:4]}…), compared with {MAIN_EXPORT}')):
     STATE.clear(); STATE.update(json.loads(json.dumps(state)))
     env = {k: v for k, v in os.environ.items() if k not in ('N8N_WORKFLOW_ID', 'SANITIZED_PATH', 'CF_ACCESS_CLIENT_ID', 'CF_ACCESS_CLIENT_SECRET')}
     r = subprocess.run([sys.executable, SCRIPT], cwd=ROOT, env=dict(env, N8N_API_URL=api, N8N_API_KEY='fake-test-key'),

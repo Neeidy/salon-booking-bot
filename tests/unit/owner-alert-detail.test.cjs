@@ -33,8 +33,8 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 const N8N = join(__dirname, '..', '..', 'n8n');
-const PURGE = process.argv[2] || join(N8N, 'workflow.purge.copy.sanitized.json');
-const REMINDERS = process.argv[3] || join(N8N, 'workflow.reminders.copy.sanitized.json');
+const PURGE = process.argv[2] || join(N8N, 'workflow.purge.sanitized.json');
+const REMINDERS = process.argv[3] || join(N8N, 'workflow.reminders.sanitized.json');
 
 function builder(exportPath, nodeName, configNode) {
   const wf = JSON.parse(readFileSync(exportPath, 'utf8'));

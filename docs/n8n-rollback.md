@@ -1,7 +1,7 @@
 # n8n workflow rollback — the refactor escape hatch
 
-> **Why this exists.** git does **not** restore the live workflow. The repo holds only
-> `n8n/workflow.sanitized.json`, where credential / base / table ids are **masked placeholders**
+> **Why this exists.** git does **not** restore the live workflow. The repo holds only the sanitized exports
+> `n8n/workflow.<key>.sanitized.json` (one per production workflow), where credential / base / table ids are **masked placeholders**
 > (`REPLACE_WITH_*`, `appXXXX…`). Importing that into n8n reconnects nothing — every credential binding
 > breaks. (Proven risk: the CRT #8 `authentication:none` drill silently dropped the Delete node's
 > credential; only a real restore surfaced it.) So a rollback needs a **full export with real refs**,
@@ -14,6 +14,14 @@ created **no** tracked version. Rolling back through it would **destroy CP3**. I
 restore source here. Use the two paths below instead.
 
 ## After the cutover (7-F1, ruling K1, 2026-10-25): engine edits and their rollback
+
+> **Since D6c (2026-10-27)** there is no copy and no original: each production workflow has ONE id and ONE committed
+> export, `n8n/workflow.<key>.sanitized.json`, listed in `scripts/check-exports-parity.sh` → `WORKFLOWS`
+> (`scripts/workflows.py` parses it). Below, "COPY" is that listed workflow's id and "the staged export" is
+> `n8n/staged/workflow.<key>.sanitized.json` or a committed `HEAD:n8n/workflow.<key>.sanitized.json`. The
+> `--engine-edit` / `--restore` code described further down was REMOVED from `deploy-workflow-copy.py` at D6c; the
+> description stays as the record of its design. A RENAME is a delta of its own (`{"rename": {"from", "to"}}`, only
+> the approved one), run through the same steps.
 
 > ⛔ **`--engine-edit` / `--restore` are DISABLED and ABANDONED** (ruling 2026-10-25, PHASE-7-PLAN §4d). Engine edits use
 > `scripts/workflow-step.py`, one call per step, each read back, nothing automatic — on Purge and Reminders (parameter
@@ -37,7 +45,8 @@ restore source here. Use the two paths below instead.
 > The section below describes the abandoned tool, kept as the record of its design.
 
 Everything below this section is the Airtable-era refactor procedure. After the D6b cutover the five Postgres copies
-are the live holders, and **each copy's reference is its own committed export** (`n8n/workflow.<x>.copy.sanitized.json`).
+were the live holders, and **each copy's reference was its own committed export** (`n8n/workflow.<x>.copy.sanitized.json`
+then; `n8n/workflow.<x>.sanitized.json` since D6c).
 An engine edit and its rollback are ONE command, `scripts/deploy-workflow-copy.py … --engine-edit COPY_ID [--from-rev REV]`
 (each run is its own ⚠ ONAY under `irreversible-actions.md`):
 - **edit:** commit the edited export, then run without `--from-rev` (it takes HEAD's export): checked before any write →
@@ -119,7 +128,7 @@ no commit for the `b1` step until every one passes.** (Same discipline applies t
 node feeding a reply exit.)
 
 ## Close gate — run AFTER publish + suite, BEFORE commit (every refactor step)
-The committed `n8n/workflow.sanitized.json` is now HAND-MAINTAINED (surgical, sanitized-preserving
+The committed export (`n8n/workflow.sanitized.json` in the Airtable era; `n8n/workflow.main.sanitized.json` since D6c) is HAND-MAINTAINED (surgical, sanitized-preserving
 edits — a raw full export is unreliable: the compiled ajv validator in `Validate Intent` bloats/mangles).
 A hand-built artifact can silently drift from the live workflow, and Codex (L3) audits the committed file —
 so drift means auditing something that is not the running system. Two machine checks close every step:

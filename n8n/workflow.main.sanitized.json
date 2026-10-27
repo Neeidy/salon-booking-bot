@@ -72,6 +72,24 @@
               "name": "reply_fallback",
               "type": "boolean",
               "value": "={{ (($json.fields.computed_reply || '').trim() === '') }}"
+            },
+            {
+              "id": "2110629c-57ae-4858-9cae-a04ce88dfd0b",
+              "name": "race_lost",
+              "type": "boolean",
+              "value": "={{ (() => { for (const n of ['Build Race-Lost State', 'Build Reschedule Race-Lost State']) { try { $(n).first(); return true; } catch (e) {} } return false; })() }}"
+            },
+            {
+              "id": "ecc58301-1e6f-4ba2-9a02-a6e6886a933d",
+              "name": "cancel_reread_failed",
+              "type": "boolean",
+              "value": "={{ (() => { try { return $('Build Cancel-Aborted State').first().json.cancel_reread_failed === true; } catch (e) { return false; } })() }}"
+            },
+            {
+              "id": "1d295861-4088-4bab-8bad-6df7d89a303f",
+              "name": "date_change",
+              "type": "object",
+              "value": "={{ (() => { for (const n of ['Build Event Request', 'Build Reschedule Event Request']) { try { const d = $(n).first().json.date_change; if (d) return d; } catch (e) {} } return null; })() }}"
             }
           ]
         },
@@ -101,7 +119,7 @@
     },
     {
       "parameters": {
-        "content": "## Salon Booking Bot — core (Phase 2)\nCP0 Echo: Webhook → Normalize (adapter boundary; sender_key = \"{channel}:{id}\") → Build Reply → Respond.\nCP1 Front gate: Load Config (MOCK) → Validate Payload → Reject 400.\nCP2 State: Load / Merge / Save State (Airtable conversations, keyed by sender_key; turn_count).\nCP3 Guards: Check Bot Guards (kill-switch + max-turns) run BEFORE the LLM → Handoff Reply (transient).\nCP3 LLM intent: Build LLM Request ({today} + derived schema) → Extract Intent (HTTP → Anthropic; error → LLM Unavailable Reply 503) → Validate Intent (ajv-standalone from committed schema) → Extraction Transient? → Repeat Extraction Failure? → Invalid or Handoff Gate → Confirm Pending & Uncertain? → Abort Cancel?/Abort Reschedule? → Uncertain Turn? → Repeat Uncertain? → Mark Handoff (stage=handoff) / Build Clarify State / Route Intent.\nFive handoff classes stay distinct: guard-trip (200, transient) · infra-unavailable (503) · intent-handoff (200, writes stage=handoff) · clarify (200, writes last_intent only) · extraction-transient (200, writes last_intent only + owner alert — a schema-only failure must NOT lock; added 2026-09-09f, Codex MED-6).\nError branches visible (400 / 503). Zernio swaps in at Normalize (Phase 4).\n",
+        "content": "## Salon Booking Bot — core (Phase 2)\nCP0 Echo: Webhook → Normalize (adapter boundary; sender_key = \"{channel}:{id}\") → Build Reply → Respond.\nCP1 Front gate: Load Config (MOCK) → Validate Payload → Reject 400.\nCP2 State: Load / Merge / Save State (Airtable conversations, keyed by sender_key; turn_count).\nCP3 Guards: Check Bot Guards (kill-switch + max-turns) run BEFORE the LLM → Handoff Reply (transient).\nCP3 LLM intent: Build LLM Request ({today} + derived schema) → Extract Intent (HTTP → Anthropic; error → LLM Unavailable Reply, 200 + error flag since the claim-first dedupe) → Validate Intent (ajv-standalone from committed schema) → Extraction Transient? → Repeat Extraction Failure? → Invalid or Handoff Gate → Confirm Pending & Uncertain? → Abort Cancel?/Abort Reschedule? → Uncertain Turn? → Repeat Uncertain? → Mark Handoff (stage=handoff) / Build Clarify State / Route Intent.\nFive handoff classes stay distinct: guard-trip (200, transient) · infra-unavailable (5xx before the claim; 200 + error flag + owner alert after it) · intent-handoff (200, writes stage=handoff) · clarify (200, writes last_intent only) · extraction-transient (200, writes last_intent only + owner alert — a schema-only failure must NOT lock; added 2026-09-09f, Codex MED-6).\nError branches visible (400 / error flag + owner alert). Zernio swaps in at Normalize (Phase 4).\n",
         "height": 464,
         "width": 608
       },
@@ -223,26 +241,14 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "filterByFormula": "={{ '{sender_key} = \"' + $json.sender_key + '\"' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields FROM salon.conversations WHERE sender_key = $1",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key] }}"
+        }
       },
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         3584,
         4096
@@ -251,9 +257,9 @@
       "name": "Load State",
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
@@ -273,216 +279,14 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "sender_key": "={{ $json.sender_key }}",
-            "stage": "={{ $json.state.stage }}",
-            "turn_count": "={{ $json.state.turn_count + 1 }}",
-            "last_updated": "={{ $now.toUTC().toISO() }}",
-            "last_intent": "={{ $json.state.last_intent }}",
-            "slot_service": "={{ $json.state.slots.serviceId || '' }}",
-            "slot_date": "={{ $json.state.slots.date || '' }}",
-            "slot_time": "={{ $json.state.slots.time || '' }}",
-            "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
-            "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
-            "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
-            "computed_reply": "={{ $json.computed_reply || '' }}",
-            "recent_messages": "={{ $json.state.recent_messages || '' }}"
-          },
-          "matchingColumns": [
-            "sender_key"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "sender_key",
-              "displayName": "sender_key",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "stage",
-              "displayName": "stage",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "new",
-                  "value": "new"
-                },
-                {
-                  "name": "collecting",
-                  "value": "collecting"
-                },
-                {
-                  "name": "ready",
-                  "value": "ready"
-                },
-                {
-                  "name": "confirming",
-                  "value": "confirming"
-                },
-                {
-                  "name": "booked",
-                  "value": "booked"
-                },
-                {
-                  "name": "done",
-                  "value": "done"
-                },
-                {
-                  "name": "handoff",
-                  "value": "handoff"
-                },
-                {
-                  "name": "cancel_confirming",
-                  "value": "cancel_confirming"
-                },
-                {
-                  "name": "cancelled",
-                  "value": "cancelled"
-                },
-                {
-                  "name": "reschedule_confirming",
-                  "value": "reschedule_confirming"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_service",
-              "displayName": "slot_service",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_date",
-              "displayName": "slot_date",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_time",
-              "displayName": "slot_time",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "last_intent",
-              "displayName": "last_intent",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "turn_count",
-              "displayName": "turn_count",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "number",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "last_updated",
-              "displayName": "last_updated",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "gcal_event_id",
-              "displayName": "gcal_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "recent_messages",
-              "displayName": "recent_messages",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.conversations (sender_key, stage, turn_count, last_updated, last_intent, slot_service, slot_date, slot_time, gcal_event_id, cancel_target_id, confirm_turn, computed_reply, recent_messages) VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (sender_key) DO UPDATE SET stage = EXCLUDED.stage, turn_count = EXCLUDED.turn_count, last_updated = EXCLUDED.last_updated, last_intent = EXCLUDED.last_intent, slot_service = EXCLUDED.slot_service, slot_date = EXCLUDED.slot_date, slot_time = EXCLUDED.slot_time, gcal_event_id = EXCLUDED.gcal_event_id, cancel_target_id = EXCLUDED.cancel_target_id, confirm_turn = EXCLUDED.confirm_turn, computed_reply = EXCLUDED.computed_reply, recent_messages = EXCLUDED.recent_messages RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key, $json.state.stage, $json.state.turn_count + 1, $now.toUTC().toISO(), $json.state.last_intent ?? null, $json.state.slots.serviceId || '', $json.state.slots.date || '', $json.state.slots.time || '', $json.gcal_event_id || '', $json.state.cancel_target_id || '', $json.state.confirm_turn || '', $json.computed_reply || '', $json.state.recent_messages || ''] }}"
+        }
       },
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         9184,
         928
@@ -490,16 +294,16 @@
       "id": "9bf0a485-8e8e-4ec5-89fd-f8d940053f51",
       "name": "Save State",
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Outbound tag (Send Error Response) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Send Error Response\",\n    _outbound_reply: $('Load Config').first().json.config.messageTemplates.handoff,\n    _outbound_owner_flag: true\n  } }];"
+        "jsCode": "// Outbound tag (Send Error Response) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are this branch's response. This node serves BOTH sides of the claim (7-2 Tur 2,\n// CLAIM-RETRY): reached from `Check Processed Errored?` nothing was claimed, so 503 still invites a retry that\n// can succeed; reached after the claim (Dedupe Gate ran, not a duplicate) a retry would be swallowed, so the answer\n// is 200 with the error flag and the handoff text as the reply, and the owner alert still fires.\nlet claimed = false;\ntry { claimed = $('Dedupe Gate').first().json._duplicate === false; } catch (e) {}   // not run = nothing claimed\nreturn [{ json: { ...$json,\n    _outbound_status: claimed ? 200 : 503,\n    _outbound_body: claimed\n      ? ({ \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff })\n      : ({ \"ok\": false, \"error\": \"state_unavailable\", \"handoff\": true }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Send Error Response\",\n    _outbound_reply: $('Load Config').first().json.config.messageTemplates.handoff,\n    _outbound_owner_flag: true\n  } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -634,7 +438,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Outbound tag (LLM Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"llm_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"LLM Unavailable Reply\"\n  } }];"
+        "jsCode": "// Outbound tag (LLM Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are this branch's response. 200, not 503, since the claim-first dedupe (7-2 Tur 2,\n// CLAIM-RETRY): a 5xx after the claim invites a retry that the claim would swallow as a duplicate. The error\n// flag in the body and the owner alert keep the outage distinct (handoff.md: status code and/or error flag).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ \"ok\": false, \"error\": \"llm_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"LLM Unavailable Reply\"\n  } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -647,7 +451,7 @@
     },
     {
       "parameters": {
-        "content": "Extract Intent — ERROR output = LLM INFRA FAILURE\n(timeout / 5xx / rate-limit / quota).\n→ \"LLM Unavailable Reply\": 503 + error:\"llm_unavailable\",\n   polite customer reply kept. DISTINCT from the\n   conversational handoff (200, \"Handoff Reply\").\nCP5: Telegram owner-alert attaches to this node.\n\n⚠ A 5xx tells the caller to RETRY. Before Phase 4\n(Zernio calls this webhook and may retry on a 503) the\nstatus-code policy is reviewed; Phase-3 idempotency\n(processed_messages) covers those repeats.\nNote: all Respond nodes are the Phase-2 transport layer;\nin Phase 4 the reply is sent via the Zernio send API and\nthis webhook response becomes an ACK (adapter boundary, node 28).",
+        "content": "Extract Intent — ERROR output = LLM INFRA FAILURE\n(timeout / 5xx / rate-limit / quota).\n→ \"LLM Unavailable Reply\": 200 + error:\"llm_unavailable\",\n   polite customer reply kept. DISTINCT from the\n   conversational handoff (200, \"Handoff Reply\").\nCP5: Telegram owner-alert attaches to this node.\n\n⚠ Since the claim-first dedupe (7-2 Tur 2) the message id\nis claimed BEFORE this point, so a retry of the same id\nwould be dropped as a duplicate: the answer is 200, and\nthe error flag + owner alert keep the outage distinct.\nNote: all Respond nodes are the Phase-2 transport layer;\nin Phase 4 the reply is sent via the Zernio send API and\nthis webhook response becomes an ACK (adapter boundary, node 28).",
         "height": 368,
         "width": 480
       },
@@ -932,154 +736,14 @@
     },
     {
       "parameters": {
-        "operation": "create",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "leads",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "name": "={{ ($json.slots || {}).customerName || '' }}",
-            "phone": "={{ $json.channel === 'whatsapp' ? ($json.sender_key || '').split(':').slice(1).join(':') : '' }}",
-            "source": "={{ $json.channel }}",
-            "message": "={{ $json.text }}",
-            "status": "new",
-            "created_at": "={{ $now.toUTC().toISO() }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "name",
-              "displayName": "name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "phone",
-              "displayName": "phone",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "source",
-              "displayName": "source",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "whatsapp",
-                  "value": "whatsapp"
-                },
-                {
-                  "name": "widget",
-                  "value": "widget"
-                },
-                {
-                  "name": "instagram",
-                  "value": "instagram"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "message",
-              "displayName": "message",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "new",
-                  "value": "new"
-                },
-                {
-                  "name": "contacted",
-                  "value": "contacted"
-                },
-                {
-                  "name": "converted",
-                  "value": "converted"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.leads (name, phone, source, message, status, created_at) VALUES ($1, $2, $3, $4, 'new', $5::timestamptz) RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('id', lead_no, 'name', NULLIF(name, ''), 'phone', NULLIF(phone, ''), 'source', NULLIF(source, ''), 'message', NULLIF(message, ''), 'status', NULLIF(status, ''), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [($json.slots || {}).customerName || '', $json.channel === 'whatsapp' ? ($json.sender_key || '').split(':').slice(1).join(':') : '', $json.channel, $json.text, $now.toUTC().toISO()] }}"
+        }
       },
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         8736,
         1456
@@ -1087,9 +751,9 @@
       "id": "7005062a-1934-45e7-b5ce-504e643fb7cc",
       "name": "Capture Lead",
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -1109,7 +773,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Outbound tag (Lead Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ \"ok\": false, \"error\": \"lead_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Lead Unavailable Reply\"\n  } }];"
+        "jsCode": "// Outbound tag (Lead Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are this branch's response. 200, not 503, since the claim-first dedupe (7-2 Tur 2,\n// CLAIM-RETRY): a 5xx after the claim invites a retry that the claim would swallow as a duplicate. The error\n// flag in the body and the owner alert keep the outage distinct (handoff.md: status code and/or error flag).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ \"ok\": false, \"error\": \"lead_unavailable\", \"handoff\": true, \"reply\": $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Lead Unavailable Reply\"\n  } }];"
       },
       "id": "2496b099-aa44-4dae-8ba0-33956c68c0b4",
       "name": "Lead Unavailable Reply",
@@ -1259,7 +923,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Compute Availability — working hours (shop tz) minus GCal busy; does the slot fit? + alternatives. UTC/DST-correct.\nconst cfg = $('Load Config').first().json.config;\nconst gate = $('Slot Gate').first().json;\nconst st = gate.state;\nconst tz = cfg.business.timezone;\nconst slots = st.slots;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc.durationMin;\nconst svcName = svc.name; // Slot Gate's config allow-list guarantees svc exists here — no silent 30-min fallback (Codex root-cause pattern removed)\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst now = DateTime.now().setZone(tz);\nconst wdKey = ['mon','tue','wed','thu','fri','sat','sun'][start.weekday - 1];\nconst windows = (cfg.workingHours && cfg.workingHours[wdKey]) || [];\nconst wins = windows.map(w => { const p = w.split('-'); return { open: DateTime.fromISO(slots.date + 'T' + p[0], { zone: tz }), close: DateTime.fromISO(slots.date + 'T' + p[1], { zone: tz }) }; });\nconst cals = $json.calendars || {};\nconst firstCal = Object.values(cals)[0] || { busy: [] };\nconst busy = (firstCal.busy || []).map(b => ({ s: DateTime.fromISO(b.start), e: DateTime.fromISO(b.end) }));\nconst overlaps = (s, e) => busy.some(b => s < b.e && b.s < e);\nconst withinHours = (s, e) => wins.some(w => s >= w.open && e <= w.close);\nconst fmt = start.toFormat('cccc d LLL HH:mm');\nlet stage, reply, status;\nif (!slots.date || !slots.time || !start.isValid) { status = 'invalid'; stage = 'collecting'; reply = `Sorry, I couldn't read that date/time — what day and time would you like?`; }\nelse if (start < now) { status = 'past'; stage = 'collecting'; reply = `${fmt} has already passed — give me a future day and time.`; }\nelse if (wins.length === 0 || !withinHours(start, end)) { status = 'closed'; stage = 'collecting'; const hrs = windows.length ? windows.join(', ') : 'closed that day'; reply = `We're closed then — on ${start.toFormat('cccc')} we're open ${hrs}. What time works?`; }\nelse if (overlaps(start, end)) { status = 'busy'; stage = 'collecting'; const alts = []; for (const w of wins) { let t = w.open; while (t.plus({ minutes: dur }) <= w.close && alts.length < 3) { const te = t.plus({ minutes: dur }); if (t >= now && !overlaps(t, te)) alts.push(t.toFormat('HH:mm')); t = t.plus({ minutes: 30 }); } } reply = alts.length ? `${fmt} is taken. Free that day: ${alts.join(', ')}. Which works?` : `${fmt} is taken and that day is full — want another day?`; }\nelse { status = 'available'; stage = 'confirming'; reply = `${svcName}, ${fmt} — shall I book it? (yes / no)`; }\n// Fail-closed: a REJECTED slot must not linger in state, or a later \"yes\" would silently book it. Clear the\n// rejected component on every non-available status: invalid/past drop the whole date+time (the date itself is\n// bad); closed/busy keep the (valid, open) date and drop only the time. 'available' keeps the slot (it is the\n// validated slot the confirm will book). Same class for all four rejecting statuses — not just 'closed'.\nconst nextSlots = (status === 'available') ? slots\n  : (status === 'closed' || status === 'busy') ? { ...slots, time: null }\n  : { ...slots, date: null, time: null };\nreturn [{ json: { ...gate, state: { ...st, stage, slots: nextSlots }, availability: { status }, computed_reply: reply } }];"
+        "jsCode": "// Compute Availability — working hours (shop tz) minus GCal busy; does the slot fit? + alternatives. UTC/DST-correct.\nconst cfg = $('Load Config').first().json.config;\nconst gate = $('Slot Gate').first().json;\nconst st = gate.state;\nconst tz = cfg.business.timezone;\nconst slots = st.slots;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc.durationMin;\nconst svcName = svc.name; // Slot Gate's config allow-list guarantees svc exists here — no silent 30-min fallback (Codex root-cause pattern removed)\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst now = DateTime.now().setZone(tz);\nconst wdKey = ['mon','tue','wed','thu','fri','sat','sun'][start.weekday - 1];\nconst windows = (cfg.workingHours && cfg.workingHours[wdKey]) || [];\nconst wins = windows.map(w => { const p = w.split('-'); return { open: DateTime.fromISO(slots.date + 'T' + p[0], { zone: tz }), close: DateTime.fromISO(slots.date + 'T' + p[1], { zone: tz }) }; });\n// 7-2 F3: a freeBusy answer is only free when every calendar in it answered. A calendar-level `errors` array, a\n// missing or empty `calendars` object, or a calendar without a `busy` list throws `calendar_error` → the error output\n// → Calendar Unavailable Reply + owner alert (Compute Reschedule Availability's pattern, widened to every calendar and\n// to the missing/empty object — the same defect class).\nconst cals = $json.calendars;\nconst calList = (cals && typeof cals === 'object') ? Object.values(cals) : [];\nif (calList.length === 0) throw new Error('calendar_error: the freeBusy answer holds no calendar');\nfor (const c of calList) {\n  if (!c || (c.errors && c.errors.length)) throw new Error('calendar_error: ' + JSON.stringify((c && c.errors) || 'empty calendar entry'));\n  if (!Array.isArray(c.busy)) throw new Error('calendar_error: a calendar answered without a busy list');\n}\nconst busy = calList.flatMap(c => c.busy).map(b => ({ s: DateTime.fromISO(b.start), e: DateTime.fromISO(b.end) }));\nconst overlaps = (s, e) => busy.some(b => s < b.e && b.s < e);\nconst withinHours = (s, e) => wins.some(w => s >= w.open && e <= w.close);\nconst fmt = start.toFormat('cccc d LLL HH:mm');\nlet stage, reply, status;\nif (!slots.date || !slots.time || !start.isValid) { status = 'invalid'; stage = 'collecting'; reply = `Sorry, I couldn't read that date/time — what day and time would you like?`; }\nelse if (start < now) { status = 'past'; stage = 'collecting'; reply = `${fmt} has already passed — give me a future day and time.`; }\nelse if (wins.length === 0 || !withinHours(start, end)) { status = 'closed'; stage = 'collecting'; const hrs = windows.length ? windows.join(', ') : 'closed that day'; reply = `We're closed then — on ${start.toFormat('cccc')} we're open ${hrs}. What time works?`; }\nelse if (overlaps(start, end)) { status = 'busy'; stage = 'collecting'; const alts = []; for (const w of wins) { let t = w.open; while (t.plus({ minutes: dur }) <= w.close && alts.length < 3) { const te = t.plus({ minutes: dur }); if (t >= now && !overlaps(t, te)) alts.push(t.toFormat('HH:mm')); t = t.plus({ minutes: 30 }); } } reply = alts.length ? `${fmt} is taken. Free that day: ${alts.join(', ')}. Which works?` : `${fmt} is taken and that day is full — want another day?`; }\nelse { status = 'available'; stage = 'confirming'; reply = `${svcName}, ${fmt} — shall I book it? (yes / no)`; }\n// Fail-closed: a REJECTED slot must not linger in state, or a later \"yes\" would silently book it. Clear the\n// rejected component on every non-available status: invalid/past drop the whole date+time (the date itself is\n// bad); closed/busy keep the (valid, open) date and drop only the time. 'available' keeps the slot (it is the\n// validated slot the confirm will book). Same class for all four rejecting statuses — not just 'closed'.\nconst nextSlots = (status === 'available') ? slots\n  : (status === 'closed' || status === 'busy') ? { ...slots, time: null }\n  : { ...slots, date: null, time: null };\nreturn [{ json: { ...gate, state: { ...st, stage, slots: nextSlots }, availability: { status }, computed_reply: reply } }];"
       },
       "id": "5e6ad496-2477-4d6a-9e4e-fc95aac5d8ae",
       "name": "Compute Availability",
@@ -1273,7 +937,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Outbound tag (Calendar Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', reply: $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Calendar Unavailable Reply\"\n  } }];"
+        "jsCode": "// Outbound tag (Calendar Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are this branch's response. 200, not 503, since the claim-first dedupe (7-2 Tur 2,\n// CLAIM-RETRY): a 5xx after the claim invites a retry that the claim would swallow as a duplicate. The error\n// flag in the body and the owner alert keep the outage distinct (handoff.md: status code and/or error flag).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', reply: $('Load Config').first().json.config.messageTemplates.handoff }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Calendar Unavailable Reply\"\n  } }];"
       },
       "id": "4daf77d5-bc7d-4fdf-9e76-bcafe5798360",
       "name": "Calendar Unavailable Reply",
@@ -1286,7 +950,7 @@
     },
     {
       "parameters": {
-        "content": "## Phase 3 · CP1 — Availability check (read-only)\n\nWhen slots are complete (`stage='ready'`) the bot checks the REAL Google Calendar BEFORE confirming — no write yet (that is CP2).\n\n`Availability Gate` (ready?) → `Build FreeBusy Query` → `Get Calendar Busy` (**freeBusy**, service-account, 15s timeout) → `Compute Availability` (working hours − busy; fits duration? + alternatives; **fail-loud on freeBusy `errors`**).\n\navailable → `stage='confirming'` + confirm ask · busy → alternatives · closed/past → re-ask. GCal down / freeBusy-error → **`Calendar Unavailable Reply`** (503 `calendar_unavailable`). Confirmed “yes” → write = **CP2**.",
+        "content": "## Phase 3 · CP1 — Availability check (read-only)\n\nWhen slots are complete (`stage='ready'`) the bot checks the REAL Google Calendar BEFORE confirming — no write yet (that is CP2).\n\n`Availability Gate` (ready?) → `Build FreeBusy Query` → `Get Calendar Busy` (**freeBusy**, service-account, 15s timeout) → `Compute Availability` (working hours − busy; fits duration? + alternatives; **fail-loud on freeBusy `errors` and on a missing/empty calendar list (7-2 F3)**).\n\navailable → `stage='confirming'` + confirm ask · busy → alternatives · closed/past → re-ask. GCal down / freeBusy-error → **`Calendar Unavailable Reply`** (200 + `calendar_unavailable` flag + owner alert). Confirmed “yes” → write = **CP2**.",
         "height": 300,
         "width": 460,
         "color": 6
@@ -1302,7 +966,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\n// Fail-closed booking-confirm gate: a real book-confirm ALWAYS follows an availability check that set\n// stage='confirming' with a complete slot. A rejected slot (closed/past/busy/invalid) is CLEARED in Compute\n// Availability, so a stray \"yes\" lands here with stage='collecting' and/or no slot → emit an EMPTY eventId so\n// Event ID Valid? routes it to Mark Handoff, never a booking on an unvalidated/rejected slot.\n// VETO: REMOVED 2026-09-09e. It was added for Codex finding 2 — a refused date on the confirm turn letting\n// the STORED slot be booked. That defect is wrong but VISIBLE (the confirmation text names the date) and\n// reversible. In three rounds this mechanism produced three SILENT, irreversible ones: a total booking\n// outage, booking the very date just refused, and a double booking on the reschedule lane. It touched two\n// lanes and five stages. Criteria 1+5 beat visible-and-recoverable, so the gap is now ACCEPTED and RECORDED\n// (ARCH-DEC 2026-09-09e); its real fix is a product feature — a change request during confirmation as its\n// own intent — not a guard bolted onto the write path.\nif (st.stage !== 'confirming' || !slots || !slots.date || !slots.time) {\n  return [{ json: { ...vi, booking: { eventId: '' } } }];\n}\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nif (!svc) throw new Error('Build Event Request: serviceId \"' + slots.serviceId + '\" not in config.services — Slot Gate/Merge Slots must block invalid services (no silent 30-min fallback)'); // fail-loud, not a silent wrong booking\nconst dur = svc.durationMin;\nconst svcName = svc.name;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n// CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n// (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n// retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\nconst bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\nif (!/^[\\x00-\\x7F]+$/.test(bkey)) throw new Error('Build Event Request: booking key has non-ASCII — the allow-list/senderId guard should keep it ASCII'); // Codex defense-in-depth\n// UTF-8 byte encoding (NOT charCodeAt — that truncates surrogate pairs, so 😀 and 😁 would collide to the\n// same id, letting a crafted sessionId reconcile onto another customer's event). TextEncoder is a global (no require).\nconst eventId = Array.from(new TextEncoder().encode(bkey)).map(b => b.toString(16).padStart(2, '0')).join('');\nreturn [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId } } }];"
+        "jsCode": "// Build Event Request — GCal events.insert payload from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\n// Fail-closed booking-confirm gate: a real book-confirm ALWAYS follows an availability check that set\n// stage='confirming' with a complete slot. A rejected slot (closed/past/busy/invalid) is CLEARED in Compute\n// Availability, so a stray \"yes\" lands here with stage='collecting' and/or no slot → emit an EMPTY eventId so\n// Event ID Valid? routes it to Mark Handoff, never a booking on an unvalidated/rejected slot.\n// VETO: REMOVED 2026-09-09e. It was added for Codex finding 2 — a refused date on the confirm turn letting\n// the STORED slot be booked. That defect is wrong but VISIBLE (the confirmation text names the date) and\n// reversible. In three rounds this mechanism produced three SILENT, irreversible ones: a total booking\n// outage, booking the very date just refused, and a double booking on the reschedule lane. It touched two\n// lanes and five stages. Criteria 1+5 beat visible-and-recoverable, so the gap is now ACCEPTED and RECORDED\n// (ARCH-DEC 2026-09-09e); its real fix is a product feature — a change request during confirmation as its\n// own intent — not a guard bolted onto the write path.\nif (st.stage !== 'confirming' || !slots || !slots.date || !slots.time) {\n  return [{ json: { ...vi, booking: { eventId: '' } } }];\n}\n// 7-2 R1b L8: everything past the empty-eventId gate above runs inside one try. A throw (an unknown service, a\n// non-ASCII booking key) or an invalid start (Luxon does not throw: start.toISO() would be null and reach the\n// insert) becomes an EMPTY eventId + error 'event_build_failed' → Event ID Valid? false → Mark Handoff → 200 and an\n// owner alert whose detail line carries the short reason (masked there). Never an n8n 500 after the claim.\ntry {\n  const svc = (cfg.services || []).find(s => s.id === slots.serviceId);\n  if (!svc) throw new Error('Build Event Request: serviceId \"' + slots.serviceId + '\" not in config.services — Slot Gate/Merge Slots must block invalid services (no silent 30-min fallback)'); // fail-loud, not a silent wrong booking\n  const dur = svc.durationMin;\n  const svcName = svc.name;\n  const name = (vi.slots && vi.slots.customerName) || null;\n  const start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\n  if (!start.isValid) throw new Error('invalid start ' + slots.date + ' ' + slots.time + ': ' + (start.invalidReason || 'unknown'));\n  const end = start.plus({ minutes: dur });\n  const summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n  // CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n  // (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n  // retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\n  // 7-2 F6: the VETO stays removed (09-09e). What changes is visibility: when this confirm turn itself resolved a date\n  // that differs from the stored slot, the stored (shown) slot is still booked, and `date_change` reaches the owner\n  // alert through Build Reply Payload: its own class on a clean booking, otherwise an extra line on the incident's class\n  // where that alert item carries it (R1b H1; builders that spread this item — not alerts rebuilt from n8n's error\n  // item, nor reschedule builders that spread Validate Intent). Nothing is routed, written or refused here.\n  let said = null;\n  try { said = $('Resolve Date').first().json.slots.date || null; } catch (e) {}   // not run → nothing said\n  const bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\n  if (!/^[\\x00-\\x7F]+$/.test(bkey)) throw new Error('Build Event Request: booking key has non-ASCII — the allow-list/senderId guard should keep it ASCII'); // Codex defense-in-depth\n  // UTF-8 byte encoding (NOT charCodeAt — that truncates surrogate pairs, so 😀 and 😁 would collide to the\n  // same id, letting a crafted sessionId reconcile onto another customer's event). TextEncoder is a global (no require).\n  const eventId = Array.from(new TextEncoder().encode(bkey)).map(b => b.toString(16).padStart(2, '0')).join('');\n  return [{ json: { ...vi, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId },\n    date_change: (said && said !== slots.date) ? { booked: slots.date + ' ' + slots.time + ' ' + slots.serviceId, said } : null } }];\n} catch (e) {\n  const reason = String((e && e.message) || e).replace(/\\s+/g, ' ').slice(0, 120);\n  return [{ json: { ...vi, booking: { eventId: '' }, error: 'event_build_failed', message: 'event build failed: ' + reason } }];\n}"
       },
       "id": "9db82de8-c8c6-4786-9608-0e3ce10a07ab",
       "name": "Build Event Request",
@@ -1357,170 +1021,24 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "sender_key": "={{ $('Build Event Request').first().json.sender_key }}",
-            "service": "={{ $('Build Event Request').first().json.booking.serviceName }}",
-            "start_utc": "={{ $('Build Event Request').first().json.booking.startUTC }}",
-            "end_utc": "={{ $('Build Event Request').first().json.booking.endUTC }}",
-            "gcal_event_id": "={{ $json.gcal_event_id }}",
-            "channel": "={{ $('Build Event Request').first().json.channel }}",
-            "customer_name": "={{ $('Build Event Request').first().json.booking.customerName || '' }}",
-            "status": "booked",
-            "created_at": "={{ $now.toUTC().toISO() }}",
-            "calendar_id": "={{ $('Build Event Request').first().json.booking.calId }}"
-          },
-          "matchingColumns": [
-            "gcal_event_id"
-          ],
-          "schema": [
-            {
-              "id": "sender_key",
-              "displayName": "sender_key",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "service",
-              "displayName": "service",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "start_utc",
-              "displayName": "start_utc",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "end_utc",
-              "displayName": "end_utc",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "gcal_event_id",
-              "displayName": "gcal_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "channel",
-              "displayName": "channel",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "customer_name",
-              "displayName": "customer_name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "booked",
-                  "value": "booked"
-                },
-                {
-                  "name": "cancelled",
-                  "value": "cancelled"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.appointments (sender_key, service, start_utc, end_utc, gcal_event_id, channel, customer_name, status, created_at, calendar_id) VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, $7, 'booked', $8::timestamptz, $9) ON CONFLICT (gcal_event_id) DO UPDATE SET sender_key = EXCLUDED.sender_key, service = EXCLUDED.service, start_utc = EXCLUDED.start_utc, end_utc = EXCLUDED.end_utc, channel = EXCLUDED.channel, customer_name = EXCLUDED.customer_name, status = EXCLUDED.status, created_at = EXCLUDED.created_at, calendar_id = EXCLUDED.calendar_id RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$('Build Event Request').first().json.sender_key, $('Build Event Request').first().json.booking.serviceName, $('Build Event Request').first().json.booking.startUTC, $('Build Event Request').first().json.booking.endUTC, $json.gcal_event_id, $('Build Event Request').first().json.channel, $('Build Event Request').first().json.booking.customerName || '', $now.toUTC().toISO(), $('Build Event Request').first().json.booking.calId] }}"
+        }
       },
       "id": "773a022f-0c58-44be-ba6a-05c78469e3b2",
       "name": "Write Appointment",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         9856,
         2896
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -1577,7 +1095,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Build Event Request').first().json.booking.eventId;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
+        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Build Event Request').first().json.booking.eventId;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p || typeof p !== 'object') return null;\n  if (typeof p.dateTime === 'string' && p.dateTime) return new Date(p.dateTime).getTime();\n  if (typeof p.date === 'string' && p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\n// 7-2 R1c RACE: a read we cannot evaluate is INCOMPLETE — yield our event + verify_incomplete, exactly as above —\n// never \"nobody else is there\" and never a throw. A throw here runs AFTER our insert: a post-claim 500 with an\n// event that has no mirror row and no alert (the L8 class). Unreadable = `items` present but not an array, an item\n// that is not an object, or a non-cancelled, non-transparent item whose start or end is not a parseable string.\n// Ruled carve-out, unchanged: a body with NO `items` key reads as an empty list (race won).\nconst incomplete = () => [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\nif ($json.items !== undefined && !Array.isArray($json.items)) return incomplete();\nconst items = $json.items || [];\nif (!items.every(ev => ev && typeof ev === 'object' && !Array.isArray(ev))) return incomplete();\nlet unreadable = false;\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null || Number.isNaN(s) || Number.isNaN(e)) { unreadable = true; return false; }\n  return s < ourEnd && e > ourStart;\n});\nif (unreadable) return incomplete();\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
       },
       "id": "af973dd3-d95e-458c-b32b-3f7f807ce0f4",
       "name": "Check Race",
@@ -1717,44 +1235,32 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "processed_messages",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "filterByFormula": "={{ '{message_id} = \"' + $json.message_id + '\"' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.processed_messages (message_id, sender_key, channel) VALUES ($1, $2, $3) ON CONFLICT (message_id) DO NOTHING RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('message_id', NULLIF(message_id, ''), 'sender_key', NULLIF(sender_key, ''), 'channel', NULLIF(channel, ''), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json.message_id, $json.sender_key, $json.channel] }}"
+        }
       },
       "id": "ac46977e-4de6-49b0-9fd5-51312261202a",
       "name": "Check Processed",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         2912,
         3680
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Dedupe Gate — Airtable search REPLACES the item, so re-attach the normalized payload from Normalize Inbound.\n// Empty search (alwaysOutputData) yields no record id → not a duplicate; a returned record id → already processed.\nconst norm = $('Normalize Inbound').first().json;\nconst hit = !!($json && $json.id);\nreturn [{ json: { ...norm, _duplicate: hit } }];"
+        "jsCode": "// Dedupe Gate — CLAIM-FIRST (7-2 Tur 2, ruling R-1a). `Check Processed` CLAIMS the message id in ONE statement\n// (INSERT … ON CONFLICT (message_id) DO NOTHING RETURNING): a returned row means THIS run owns the message; no row\n// means another delivery already claimed it — sequential redelivery or a concurrent run alike — and this one is a\n// duplicate. No re-SELECT: under READ COMMITTED a second statement could see a different snapshot. The cost is\n// at-most-once: a run that dies after its claim is not retried (node failures still reach their error branches and\n// alerts; an engine crash shows only in n8n's execution log). Re-attach the normalized payload from Normalize Inbound.\nconst norm = $('Normalize Inbound').first().json;\nconst claimed = !!($json && $json.id);\nreturn [{ json: { ...norm, _duplicate: !claimed } }];"
       },
       "id": "ed7aeb22-088f-4c57-b675-a9f7b686686e",
       "name": "Dedupe Gate",
@@ -1814,98 +1320,7 @@
     },
     {
       "parameters": {
-        "operation": "create",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "processed_messages",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "message_id": "={{ $('Normalize Inbound').first().json.message_id }}",
-            "sender_key": "={{ $('Normalize Inbound').first().json.sender_key }}",
-            "channel": "={{ $('Normalize Inbound').first().json.channel }}",
-            "created_at": "={{ $now.toUTC().toISO() }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "message_id",
-              "displayName": "message_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "sender_key",
-              "displayName": "sender_key",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "channel",
-              "displayName": "channel",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "e07eb342-8ff3-460e-890a-8ede5d0e12e2",
-      "name": "Record Processed",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
-      "position": [
-        10528,
-        1072
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "content": "## CP2c-i — Idempotency front-gate (message-ID dedupe)\nNormalize (+`message_id`, REQUIRED in Validate Payload → 400 if missing) → **Check Processed** (search `processed_messages`) → **Dedupe Gate** (re-attach payload + `_duplicate`) → **Is Duplicate**.\n- duplicate → **Idempotent Replay** (200 `duplicate_ignored`, no LLM / no write)\n- new → Load State (normal flow)\n\n**Record Processed** writes the id AFTER `Save State` success (parallel terminal branch) → a transient-failure retry is NOT blocked (only successfully-processed messages are recorded). Check Processed down → **503 state_unavailable** (never assume 'not duplicate'). Booking-layer insert-idempotency = CP2c-ii.",
+        "content": "## CP2c-i — Idempotency front-gate (message-ID dedupe)\nNormalize (+`message_id`, REQUIRED in Validate Payload → 400 if missing) → **Check Processed** (CLAIMS the id: one `INSERT … ON CONFLICT DO NOTHING RETURNING`; no row = already claimed) → **Dedupe Gate** (re-attach payload + `_duplicate`) → **Is Duplicate**.\n- duplicate → **Idempotent Replay** (200 `duplicate_ignored`, no LLM / no write)\n- new → Load State (normal flow)\n\nClaim-first (7-2 Tur 2, R-1a): sequential redelivery AND concurrent same-id runs collapse to one. At-most-once: a run that dies after its claim is not retried (its error branch alerts the owner). Check Processed down → **503 state_unavailable** — nothing was claimed, so a retry is safe. Booking-layer insert-idempotency = CP2c-ii.",
         "height": 200,
         "width": 520
       },
@@ -1933,226 +1348,24 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "sender_key": "={{ $json.sender_key }}",
-            "stage": "={{ $json.state.stage }}",
-            "turn_count": "={{ $json.state.turn_count + 1 }}",
-            "last_updated": "={{ $now.toUTC().toISO() }}",
-            "last_intent": "={{ $json.state.last_intent }}",
-            "slot_service": "={{ $json.state.slots.serviceId || '' }}",
-            "slot_date": "={{ $json.state.slots.date || '' }}",
-            "slot_time": "={{ $json.state.slots.time || '' }}",
-            "gcal_event_id": "={{ $json.gcal_event_id || '' }}",
-            "cancel_target_id": "={{ $json.state.cancel_target_id || '' }}",
-            "confirm_turn": "={{ $json.state.confirm_turn || '' }}",
-            "computed_reply": "={{ $json.computed_reply || '' }}",
-            "recent_messages": "={{ $json.state.recent_messages || '' }}"
-          },
-          "matchingColumns": [
-            "sender_key"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "sender_key",
-              "displayName": "sender_key",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "stage",
-              "displayName": "stage",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "new",
-                  "value": "new"
-                },
-                {
-                  "name": "collecting",
-                  "value": "collecting"
-                },
-                {
-                  "name": "ready",
-                  "value": "ready"
-                },
-                {
-                  "name": "confirming",
-                  "value": "confirming"
-                },
-                {
-                  "name": "booked",
-                  "value": "booked"
-                },
-                {
-                  "name": "done",
-                  "value": "done"
-                },
-                {
-                  "name": "handoff",
-                  "value": "handoff"
-                },
-                {
-                  "name": "cancel_confirming",
-                  "value": "cancel_confirming"
-                },
-                {
-                  "name": "cancelled",
-                  "value": "cancelled"
-                },
-                {
-                  "name": "reschedule_confirming",
-                  "value": "reschedule_confirming"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_service",
-              "displayName": "slot_service",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_date",
-              "displayName": "slot_date",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "slot_time",
-              "displayName": "slot_time",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "last_intent",
-              "displayName": "last_intent",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "turn_count",
-              "displayName": "turn_count",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "number",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "last_updated",
-              "displayName": "last_updated",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "gcal_event_id",
-              "displayName": "gcal_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "recent_messages",
-              "displayName": "recent_messages",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.conversations (sender_key, stage, turn_count, last_updated, last_intent, slot_service, slot_date, slot_time, gcal_event_id, cancel_target_id, confirm_turn, computed_reply, recent_messages) VALUES ($1, $2, $3, $4::timestamptz, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (sender_key) DO UPDATE SET stage = EXCLUDED.stage, turn_count = EXCLUDED.turn_count, last_updated = EXCLUDED.last_updated, last_intent = EXCLUDED.last_intent, slot_service = EXCLUDED.slot_service, slot_date = EXCLUDED.slot_date, slot_time = EXCLUDED.slot_time, gcal_event_id = EXCLUDED.gcal_event_id, cancel_target_id = EXCLUDED.cancel_target_id, confirm_turn = EXCLUDED.confirm_turn, computed_reply = EXCLUDED.computed_reply, recent_messages = EXCLUDED.recent_messages RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key, $json.state.stage, $json.state.turn_count + 1, $now.toUTC().toISO(), $json.state.last_intent ?? null, $json.state.slots.serviceId || '', $json.state.slots.date || '', $json.state.slots.time || '', $json.gcal_event_id || '', $json.state.cancel_target_id || '', $json.state.confirm_turn || '', $json.computed_reply || '', $json.state.recent_messages || ''] }}"
+        }
       },
       "id": "f852a418-bbeb-4277-9934-d9fa818fd03a",
       "name": "Save State (Post-Write)",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         10304,
         2288
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -2237,7 +1450,7 @@
     },
     {
       "parameters": {
-        "content": "## CP2c-ii — booking-layer insert-idempotency\n**Deterministic event id** = hex(`sender_key|date|time|service`) set in Build Event Request → Book Appointment sends it as the event `id`. A duplicate insert (retry / lost response) → **409**.\n\nBook Appointment error → **Get For Reconcile** (GET by that id):\n- found & `status != cancelled` → **Reconcile Gate** true → Verify Slot (idempotent — no 2nd event)\n- found & cancelled (tombstone) → **Build Reconcile-Handoff State** → handoff\n- GET fails / 404 (never created) → Calendar Unavailable Reply **503** (retry safe)\n\n**Never 503 before the GET reconcile.** Downstream reads `Build Event Request.booking.eventId` (exists on the 409 path). Write Appointment is upsert-on-gcal_event_id (mirror idempotent).",
+        "content": "## CP2c-ii — booking-layer insert-idempotency\n**Deterministic event id** = hex(`sender_key|date|time|service`) set in Build Event Request → Book Appointment sends it as the event `id`. A duplicate insert (retry / lost response) → **409**.\n\nBook Appointment error → **Get For Reconcile** (GET by that id):\n- found & `status != cancelled` → **Reconcile Gate** true → Verify Slot (idempotent — no 2nd event)\n- found & cancelled (tombstone) → **Build Reconcile-Handoff State** → handoff\n- GET fails / 404 (never created) → Calendar Unavailable Reply (200 + error flag; the message is claimed, so a retry would be dropped)\n\n**Never answer before the GET reconcile.** Downstream reads `Build Event Request.booking.eventId` (exists on the 409 path). Write Appointment is upsert-on-gcal_event_id (mirror idempotent).",
         "height": 220,
         "width": 480
       },
@@ -2298,7 +1511,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Classify Reconcile Failure — STRUCTURAL only (statusCode). Get For Reconcile runs fullResponse+neverError, so\n// ANY HTTP response reaches the success output carrying $json.statusCode, and only a transport error reaches the\n// error output as $json.error. 200/204 = ok (the event exists → Verify Reconcile checks $json.body against our\n// slot); 404/410 = gone (the insert never landed → retry-safe 503); EVERYTHING ELSE = unavailable. FAIL-CLOSED:\n// no statusCode / non-number / transport / 401·403 / other 4xx / 5xx all fall to 'unavailable' (a visible handoff)\n// — uncertainty NEVER becomes 'ok' or 'gone' (never a false \"already there / never created\"). No error TEXT is read.\nconst err = ($json && $json.error) || null;\nlet cls;\nif (err) cls = 'unavailable';\nelse {\n  const sc = Number($json.statusCode);\n  if (sc === 200 || sc === 204) cls = 'ok';\n  else if (sc === 404 || sc === 410) cls = 'gone';\n  else cls = 'unavailable';\n}\nreturn [{ json: { ...$json, _reconcile_class: cls } }];"
+        "jsCode": "// Classify Reconcile Failure — STRUCTURAL only (statusCode). Get For Reconcile runs fullResponse+neverError, so\n// ANY HTTP response reaches the success output carrying $json.statusCode, and only a transport error reaches the\n// error output as $json.error. 200/204 = ok (the event exists → Verify Reconcile checks $json.body against our\n// slot); 404/410 = gone (the insert never landed → Calendar Unavailable Reply, 200 + error flag since the claim-first\n// dedupe: a retry would be swallowed, 7-2 Tur 2); EVERYTHING ELSE = unavailable. FAIL-CLOSED:\n// no statusCode / non-number / transport / 401·403 / other 4xx / 5xx all fall to 'unavailable' (a visible handoff)\n// — uncertainty NEVER becomes 'ok' or 'gone' (never a false \"already there / never created\"). No error TEXT is read.\nconst err = ($json && $json.error) || null;\nlet cls;\nif (err) cls = 'unavailable';\nelse {\n  const sc = Number($json.statusCode);\n  if (sc === 200 || sc === 204) cls = 'ok';\n  else if (sc === 404 || sc === 410) cls = 'gone';\n  else cls = 'unavailable';\n}\nreturn [{ json: { ...$json, _reconcile_class: cls } }];"
       },
       "id": "703a1a8c-17cf-4ad7-bf77-b6691cda6feb",
       "name": "Classify Reconcile Failure",
@@ -2357,37 +1570,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "filterByFormula": "={{ 'AND({sender_key} = \"' + $json.sender_key + '\", {status} = \"booked\")' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key] }}"
+        }
       },
       "id": "c5873ad8-050f-4681-a5d1-9f45b6b2de73",
       "name": "Find Booking",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         7168,
         5968
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
@@ -2714,83 +1915,24 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $json._cancel_target.recordId }}",
-            "status": "cancelled"
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "options",
-              "options": [
-                {
-                  "name": "booked",
-                  "value": "booked"
-                },
-                {
-                  "name": "cancelled",
-                  "value": "cancelled"
-                },
-                {
-                  "name": "",
-                  "value": ""
-                }
-              ],
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "UPDATE salon.appointments SET status = 'cancelled' WHERE id = $1 RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json._cancel_target.recordId] }}"
+        }
       },
       "id": "290790e2-c588-4507-8558-7d81321c708e",
       "name": "Update Appointment Cancelled",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         9856,
         5968
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -2857,7 +1999,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Outbound tag (Cancel Delete Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are the VERBATIM original response (widget stays bit-identical).\nreturn [{ json: { ...$json,\n    _outbound_status: 503,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', cancel_delete_failed: true, reply: $('Load Config').first().json.config.messageTemplates.cancelUnavailable }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Cancel Delete Unavailable Reply\"\n  } }];"
+        "jsCode": "// Outbound tag (Cancel Delete Unavailable Reply) — carries this branch's exact response into the shared outbound.\n// _outbound_body/_status are this branch's response. 200, not 503, since the claim-first dedupe (7-2 Tur 2,\n// CLAIM-RETRY): a 5xx after the claim invites a retry that the claim would swallow as a duplicate. The error\n// flag in the body and the owner alert keep the outage distinct (handoff.md: status code and/or error flag).\nreturn [{ json: { ...$json,\n    _outbound_status: 200,\n    _outbound_body: ({ ok: false, error: 'calendar_unavailable', cancel_delete_failed: true, reply: $('Load Config').first().json.config.messageTemplates.cancelUnavailable }),\n    _outbound_should_send: true,\n    _outbound_kind: \"Cancel Delete Unavailable Reply\"\n  } }];"
       },
       "id": "3b930f04-b518-4955-b0a6-e572be1fc107",
       "name": "Cancel Delete Unavailable Reply",
@@ -2946,7 +2088,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Cancel-Aborted State — the pending cancel confirmation is dropped: either a non-confirm intent arrived\n// while awaiting \"yes\" (Codex#8 fix#2), or the confirmation went stale via an intervening turn (Codex#8 HIGH, TTL\n// fail-closed). Clear the confirm state (stage + target + confirm_turn) and tell the customer their booking stands.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nreturn [{ json: { ...vi, state: { ...st, stage: 'new', cancel_target_id: '', confirm_turn: '' }, computed_reply: (cfg.messageTemplates.cancelAborted || 'No problem — your booking stands.') } }];"
+        "jsCode": "// Build Cancel-Aborted State — the pending cancel confirmation is dropped: either a non-confirm intent arrived\n// while awaiting \"yes\" (Codex#8 fix#2), or the confirmation went stale via an intervening turn (Codex#8 HIGH, TTL\n// fail-closed). Clear the confirm state (stage + target + confirm_turn) and tell the customer their booking stands.\n// 7-2 F7: reached from `Re-read Cancel State Errored?` the re-read FAILED — that is an outage, not a change of mind.\n// The pending cancel is KEPT and its confirm_turn moved to the next turn (Build Cancel-Confirm State's own formula),\n// so the customer's next \"yes\" passes Confirm Fresh?; the flag reaches the owner alert through Build Reply Payload.\n// 7-2 F4: in dry-run, Confirm Live? refuses every confirmed cancel (no calendar write) and the reply says so.\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nif ($json && $json.error) {\n  return [{ json: { ...vi, cancel_reread_failed: true, state: { ...st, confirm_turn: String(st.turn_count + 1) },\n    computed_reply: (cfg.messageTemplates.cancelRetry || \"Sorry — I couldn't check your booking just now. Please reply yes again in a moment to cancel.\") } }];\n}\nconst dry = cfg.bot && cfg.bot.dryRun === true && vi.intent === 'confirm';\nreturn [{ json: { ...vi, state: { ...st, stage: 'new', cancel_target_id: '', confirm_turn: '' }, computed_reply: dry\n  ? (cfg.messageTemplates.dryRunNoChange || 'Test mode: nothing was changed — your booking stands.')\n  : (cfg.messageTemplates.cancelAborted || 'No problem — your booking stands.') } }];"
       },
       "id": "fbffb024-a229-4e61-b2eb-bf6cb9c1fb4f",
       "name": "Build Cancel-Aborted State",
@@ -2959,37 +2101,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "filterByFormula": "={{ '{sender_key} = \"' + $json.sender_key + '\"' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields FROM salon.conversations WHERE sender_key = $1",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key] }}"
+        }
       },
       "id": "ecb51dae-cb7d-4ca4-a5c4-26e2a9983bd7",
       "name": "Re-read Cancel State",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         8288,
         5776
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
@@ -3019,7 +2149,7 @@
           "conditions": [
             {
               "id": "cl000001-0000-4a44-9c44-confirmlive",
-              "leftValue": "={{ $json._confirm_live }}",
+              "leftValue": "={{ $json._confirm_live && $('Load Config').first().json.config.bot.dryRun !== true }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -3092,33 +2222,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "filterByFormula": "={{ 'AND({sender_key} = \"' + $json.sender_key + '\", {status} = \"booked\")' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+        "options": {
+          "queryReplacement": "={{ [$json.sender_key] }}"
+        }
       },
       "id": "cd1b99f1-49e2-4d72-a438-7756657fb5da",
       "name": "Find Booking (Reschedule)",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         7840,
         7040
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
@@ -3214,7 +2336,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Compute Reschedule Availability — the NEW slot's availability (reuses booking's freeBusy logic; decision A: same\n// guards as booking — past/closed rejected, no min-lead-time). available -> reschedule_confirming (confirm lifecycle,\n// sub-step 2); busy/past/closed/invalid -> handoff with context. Reads state from Reschedule Lookup + busy from this\n// node's freeBusy input.\nconst cfg = $('Load Config').first().json.config;\nconst gate = $('Reschedule Lookup').first().json;\nconst st = gate.state;\nconst tz = cfg.business.timezone;\nconst slots = st.slots;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc.durationMin;\nconst svcName = svc.name;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst now = DateTime.now().setZone(tz);\nconst wdKey = ['mon','tue','wed','thu','fri','sat','sun'][start.weekday - 1];\nconst windows = (cfg.workingHours && cfg.workingHours[wdKey]) || [];\nconst wins = windows.map(w => { const p = w.split('-'); return { open: DateTime.fromISO(slots.date + 'T' + p[0], { zone: tz }), close: DateTime.fromISO(slots.date + 'T' + p[1], { zone: tz }) }; });\nconst cals = $json.calendars || {};\nconst firstCal = Object.values(cals)[0] || { busy: [] };\nif (firstCal.errors && firstCal.errors.length) throw new Error('calendar_error: ' + JSON.stringify(firstCal.errors));\nconst busy = (firstCal.busy || []).map(b => ({ s: DateTime.fromISO(b.start), e: DateTime.fromISO(b.end) }));\nconst overlaps = (s, e) => busy.some(b => s < b.e && b.s < e);\nconst withinHours = (s, e) => wins.some(w => s >= w.open && e <= w.close);\nconst fmt = start.toFormat('cccc d LLL HH:mm');\nlet status, reply, stage = 'handoff', extra = {};\nif (!slots.date || !slots.time || !start.isValid) { status = 'invalid'; reply = \"I couldn't read that new time — a team member will help you pick one.\"; }\nelse if (start < now) { status = 'past'; reply = `${fmt} has already passed — a team member will help you pick a new time.`; }\nelse if (wins.length === 0 || !withinHours(start, end)) { status = 'closed'; reply = `We're closed then — a team member will help you pick a time that works.`; }\nelse if (overlaps(start, end)) { status = 'busy'; reply = `${fmt} is taken — a team member will help you find another time.`; }\nelse {\n  status = 'available';\n  const oldWhen = DateTime.fromISO(gate._reschedule_target.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\n  reply = `Move your ${gate._reschedule_target.service} from ${oldWhen} to ${fmt}? Reply \\\"yes\\\" to move it, or anything else to keep it.`;\n  stage = 'reschedule_confirming';\n  extra = { cancel_target_id: gate._reschedule_target.recordId, confirm_turn: String(st.turn_count + 1) };\n}\nreturn [{ json: { ...gate, state: { ...st, stage, ...extra }, resched_availability: status, computed_reply: reply } }];"
+        "jsCode": "// Compute Reschedule Availability — the NEW slot's availability (reuses booking's freeBusy logic; decision A: same\n// guards as booking — past/closed rejected, no min-lead-time). available -> reschedule_confirming (confirm lifecycle,\n// sub-step 2); busy/past/closed/invalid -> handoff with context. Reads state from Reschedule Lookup + busy from this\n// node's freeBusy input.\nconst cfg = $('Load Config').first().json.config;\nconst gate = $('Reschedule Lookup').first().json;\nconst st = gate.state;\nconst tz = cfg.business.timezone;\nconst slots = st.slots;\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nconst dur = svc.durationMin;\nconst svcName = svc.name;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst now = DateTime.now().setZone(tz);\nconst wdKey = ['mon','tue','wed','thu','fri','sat','sun'][start.weekday - 1];\nconst windows = (cfg.workingHours && cfg.workingHours[wdKey]) || [];\nconst wins = windows.map(w => { const p = w.split('-'); return { open: DateTime.fromISO(slots.date + 'T' + p[0], { zone: tz }), close: DateTime.fromISO(slots.date + 'T' + p[1], { zone: tz }) }; });\n// 7-2 R1b M1: the same rule as Compute Availability (F3). A freeBusy answer is only free when every calendar in it\n// answered: a calendar-level `errors` array, a missing or empty `calendars` object, or a calendar without a `busy`\n// list throws `calendar_error` → the error output → Calendar Unavailable Reply + owner alert. Busy is read from\n// every calendar, not only the first.\nconst cals = $json.calendars;\nconst calList = (cals && typeof cals === 'object') ? Object.values(cals) : [];\nif (calList.length === 0) throw new Error('calendar_error: the freeBusy answer holds no calendar');\nfor (const c of calList) {\n  if (!c || (c.errors && c.errors.length)) throw new Error('calendar_error: ' + JSON.stringify((c && c.errors) || 'empty calendar entry'));\n  if (!Array.isArray(c.busy)) throw new Error('calendar_error: a calendar answered without a busy list');\n}\nconst busy = calList.flatMap(c => c.busy).map(b => ({ s: DateTime.fromISO(b.start), e: DateTime.fromISO(b.end) }));\nconst overlaps = (s, e) => busy.some(b => s < b.e && b.s < e);\nconst withinHours = (s, e) => wins.some(w => s >= w.open && e <= w.close);\nconst fmt = start.toFormat('cccc d LLL HH:mm');\nlet status, reply, stage = 'handoff', extra = {};\nif (!slots.date || !slots.time || !start.isValid) { status = 'invalid'; reply = \"I couldn't read that new time — a team member will help you pick one.\"; }\nelse if (start < now) { status = 'past'; reply = `${fmt} has already passed — a team member will help you pick a new time.`; }\nelse if (wins.length === 0 || !withinHours(start, end)) { status = 'closed'; reply = `We're closed then — a team member will help you pick a time that works.`; }\nelse if (overlaps(start, end)) { status = 'busy'; reply = `${fmt} is taken — a team member will help you find another time.`; }\nelse {\n  status = 'available';\n  const oldWhen = DateTime.fromISO(gate._reschedule_target.start_utc, { zone: 'utc' }).setZone(tz).toFormat('cccc d LLL HH:mm');\n  reply = `Move your ${gate._reschedule_target.service} from ${oldWhen} to ${fmt}? Reply \\\"yes\\\" to move it, or anything else to keep it.`;\n  stage = 'reschedule_confirming';\n  extra = { cancel_target_id: gate._reschedule_target.recordId, confirm_turn: String(st.turn_count + 1) };\n}\nreturn [{ json: { ...gate, state: { ...st, stage, ...extra }, resched_availability: status, computed_reply: reply } }];"
       },
       "id": "7a141e34-e393-46f5-a9f3-1a12031b22ce",
       "name": "Compute Reschedule Availability",
@@ -3350,33 +2472,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list"
-        },
-        "filterByFormula": "={{ 'AND({sender_key} = \"' + $('Validate Intent').first().json.sender_key + '\", {status} = \"booked\")' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields FROM salon.appointments WHERE sender_key = $1 AND status = 'booked' ORDER BY created_at, id",
+        "options": {
+          "queryReplacement": "={{ [$('Validate Intent').first().json.sender_key] }}"
+        }
       },
       "id": "6d22d03f-b5c1-431e-857a-f9d1098e1d68",
       "name": "Find Old Booking (Reschedule)",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         7392,
         4464
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueRegularOutput"
@@ -3430,7 +2544,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Reschedule Event Request — clone of Build Event Request for the NEW slot (state.slots is the new\n// slot, persisted by Compute Reschedule Availability). ONLY change: spread ...$json (NOT ...vi) so the\n// _reschedule_target added by Validate Reschedule Target survives for (c) update/delete. GCal events.insert from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\n// VETO: REMOVED 2026-09-09e. It was added for Codex finding 2 — a refused date on the confirm turn letting\n// the STORED slot be booked. That defect is wrong but VISIBLE (the confirmation text names the date) and\n// reversible. In three rounds this mechanism produced three SILENT, irreversible ones: a total booking\n// outage, booking the very date just refused, and a double booking on the reschedule lane. It touched two\n// lanes and five stages. Criteria 1+5 beat visible-and-recoverable, so the gap is now ACCEPTED and RECORDED\n// (ARCH-DEC 2026-09-09e); its real fix is a product feature — a change request during confirmation as its\n// own intent — not a guard bolted onto the write path.\nif (!slots || !slots.date || !slots.time) {\n  // mirrors the booking path: an empty eventId routes to Mark Handoff via 'Reschedule Event ID Valid?'\n  return [{ json: { ...$json, booking: { eventId: '' } } }];\n}\nconst svc = (cfg.services || []).find(s => s.id === slots.serviceId);\nif (!svc) throw new Error('Build Event Request: serviceId \"' + slots.serviceId + '\" not in config.services — Slot Gate/Merge Slots must block invalid services (no silent 30-min fallback)'); // fail-loud, not a silent wrong booking\nconst dur = svc.durationMin;\nconst svcName = svc.name;\nconst name = (vi.slots && vi.slots.customerName) || null;\nconst start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\nconst end = start.plus({ minutes: dur });\nconst summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n// CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n// (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n// retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\nconst bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\nif (!/^[\\x00-\\x7F]+$/.test(bkey)) throw new Error('Build Event Request: booking key has non-ASCII — the allow-list/senderId guard should keep it ASCII'); // Codex defense-in-depth\n// UTF-8 byte encoding (NOT charCodeAt — that truncates surrogate pairs, so 😀 and 😁 would collide to the\n// same id, letting a crafted sessionId reconcile onto another customer's event). TextEncoder is a global (no require).\nconst eventId = Array.from(new TextEncoder().encode(bkey)).map(b => b.toString(16).padStart(2, '0')).join('');\nreturn [{ json: { ...$json, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId } } }];"
+        "jsCode": "// Build Reschedule Event Request — clone of Build Event Request for the NEW slot (state.slots is the new\n// slot, persisted by Compute Reschedule Availability). ONLY change: spread ...$json (NOT ...vi) so the\n// _reschedule_target added by Validate Reschedule Target survives for (c) update/delete. GCal events.insert from confirmed slots (shop tz + UTC, DST-correct, NO attendees).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst slots = st.slots;\nconst tz = cfg.business.timezone;\n// VETO: REMOVED 2026-09-09e. It was added for Codex finding 2 — a refused date on the confirm turn letting\n// the STORED slot be booked. That defect is wrong but VISIBLE (the confirmation text names the date) and\n// reversible. In three rounds this mechanism produced three SILENT, irreversible ones: a total booking\n// outage, booking the very date just refused, and a double booking on the reschedule lane. It touched two\n// lanes and five stages. Criteria 1+5 beat visible-and-recoverable, so the gap is now ACCEPTED and RECORDED\n// (ARCH-DEC 2026-09-09e); its real fix is a product feature — a change request during confirmation as its\n// own intent — not a guard bolted onto the write path.\n// 7-2 F4: dry-run never inserts the new event (and so never deletes the old one): an empty eventId routes to\n// Mark Handoff through Reschedule Event ID Valid?, the same route an incomplete slot takes.\nif (cfg.bot && cfg.bot.dryRun === true) return [{ json: { ...$json, booking: { eventId: '' } } }];\nif (!slots || !slots.date || !slots.time) {\n  // mirrors the booking path: an empty eventId routes to Mark Handoff via 'Reschedule Event ID Valid?'\n  return [{ json: { ...$json, booking: { eventId: '' } } }];\n}\n// 7-2 R1b L8: everything past the empty-eventId gate above runs inside one try. A throw (an unknown service, a\n// non-ASCII booking key) or an invalid start (Luxon does not throw: start.toISO() would be null and reach the\n// insert) becomes an EMPTY eventId + error 'event_build_failed' → Reschedule Event ID Valid? false → Mark Handoff → 200 and an\n// owner alert whose detail line carries the short reason (masked there). Never an n8n 500 after the claim.\ntry {\n  const svc = (cfg.services || []).find(s => s.id === slots.serviceId);\n  if (!svc) throw new Error('Build Reschedule Event Request: serviceId \"' + slots.serviceId + '\" not in config.services — Slot Gate/Merge Slots must block invalid services (no silent 30-min fallback)'); // fail-loud, not a silent wrong booking\n  const dur = svc.durationMin;\n  const svcName = svc.name;\n  const name = (vi.slots && vi.slots.customerName) || null;\n  const start = DateTime.fromISO(slots.date + 'T' + slots.time, { zone: tz });\n  if (!start.isValid) throw new Error('invalid start ' + slots.date + ' ' + slots.time + ': ' + (start.invalidReason || 'unknown'));\n  const end = start.plus({ minutes: dur });\n  const summary = svcName + (name ? ' — ' + name : '') + ' (bot)';\n  // CP2c-ii: deterministic GCal event id from the BOOKING KEY (sender_key|date|time|service), hex-encoded\n  // (valid base32hex, injective → no collisions). Same booking key → same id → a duplicate insert 409s, so a\n  // retry (or an insert whose response was lost) reconciles to the existing event instead of double-booking.\n  // 7-2 F6: the VETO stays removed (09-09e). What changes is visibility: when this confirm turn itself resolved a date\n  // that differs from the stored slot, the stored (shown) slot is still booked, and `date_change` reaches the owner\n  // alert through Build Reply Payload: its own class on a clean booking, otherwise an extra line on the incident's class\n  // where that alert item carries it (R1b H1; builders that spread this item — not alerts rebuilt from n8n's error\n  // item, nor reschedule builders that spread Validate Intent). Nothing is routed, written or refused here.\n  let said = null;\n  try { said = $('Resolve Date').first().json.slots.date || null; } catch (e) {}   // not run → nothing said\n  // On this lane \"yes, from Tuesday\" names the OLD booking's day: a said date equal to the old start (shop tz) is not a change.\n  const oldDay = ($json._reschedule_target && $json._reschedule_target.start_utc)\n    ? DateTime.fromISO($json._reschedule_target.start_utc, { zone: 'utc' }).setZone(tz).toISODate() : null;\n  const bkey = [vi.sender_key, slots.date, slots.time, slots.serviceId].join('|');\n  if (!/^[\\x00-\\x7F]+$/.test(bkey)) throw new Error('Build Reschedule Event Request: booking key has non-ASCII — the allow-list/senderId guard should keep it ASCII'); // Codex defense-in-depth\n  // UTF-8 byte encoding (NOT charCodeAt — that truncates surrogate pairs, so 😀 and 😁 would collide to the\n  // same id, letting a crafted sessionId reconcile onto another customer's event). TextEncoder is a global (no require).\n  const eventId = Array.from(new TextEncoder().encode(bkey)).map(b => b.toString(16).padStart(2, '0')).join('');\n  return [{ json: { ...$json, booking: { calId: cfg.googleCalendarId, timeZone: tz, startISO: start.toISO(), endISO: end.toISO(), startUTC: start.toUTC().toISO(), endUTC: end.toUTC().toISO(), summary, service: slots.serviceId, serviceName: svcName, customerName: name, dateStr: start.toFormat('cccc d LLL'), timeStr: start.toFormat('HH:mm'), eventId },\n    date_change: (said && said !== slots.date && said !== oldDay) ? { booked: slots.date + ' ' + slots.time + ' ' + slots.serviceId, said } : null } }];\n} catch (e) {\n  const reason = String((e && e.message) || e).replace(/\\s+/g, ' ').slice(0, 120);\n  return [{ json: { ...$json, booking: { eventId: '' }, error: 'event_build_failed', message: 'event build failed: ' + reason } }];\n}"
       },
       "id": "75747abb-8728-49b4-b156-72fb4ffc9ef0",
       "name": "Build Reschedule Event Request",
@@ -3472,7 +2586,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Reschedule Insert-Failed State — the GCal insert for the NEW time failed (error, or a 409\n// lost-response retry). We deliberately do NOT reconcile: message-level idempotency (processed_messages)\n// already dedupes a repeated messageId, so the only 409 is a rare lost-response — and the customer's\n// ORIGINAL booking is still intact (book-new-first order: nothing was deleted). Tell them the original\n// stands; hand off. Reads Validate Intent because the error item carries no input fields. Post-write ->\n// Save State (Post-Write).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff', cancel_target_id: '', confirm_turn: '' }, computed_reply: (cfg.messageTemplates.rescheduleInsertFailed || \"Sorry — I couldn't move your booking; your original appointment still stands. A team member will follow up.\") } }];"
+        "jsCode": "// Build Reschedule Insert-Failed State — the GCal insert for the NEW time answered with an error. That does NOT\n// prove the event is absent: an insert whose answer was lost or timed out may have created it (Codex 7-2, CRT 2).\n// There is no reconcile on this lane, so the case is flagged as its own class (`reschedule_insert_unknown`, not the\n// conversational `handoff`, whose throttle could swallow it): the owner alert names the NEW slot and says to check\n// the calendar. The ORIGINAL booking is intact (book-new-first: nothing was deleted). gcal_event_id is NOT set —\n// the conversation's reference must keep pointing at the booking that stands. Reads Validate Intent because the error\n// item carries no input fields. Post-write -> Save State (Post-Write).\nconst cfg = $('Load Config').first().json.config;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nreturn [{ json: { ...vi, reschedule_insert_unknown: true, state: { ...st, stage: 'handoff', cancel_target_id: '', confirm_turn: '' }, computed_reply: (cfg.messageTemplates.rescheduleInsertFailed || \"Sorry — I couldn't confirm the move; your original appointment still stands. A team member will check and follow up.\") } }];"
       },
       "id": "eebf0649-eac4-43ec-a352-4cb21e57d594",
       "name": "Build Reschedule Insert-Failed State",
@@ -3548,7 +2662,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Build Reschedule Event Request').first().json.booking.eventId;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p) return null;\n  if (p.dateTime) return new Date(p.dateTime).getTime();\n  if (p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\nconst items = $json.items || [];\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null) return false;\n  return s < ourEnd && e > ourStart;\n});\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
+        "jsCode": "// Check Race — write-then-verify (booking-integrity): after our GCal insert, re-read the slot window.\n// Any OTHER event overlapping our slot means we lost the concurrency race and must yield OUR event.\n// events.list returns the RAW list (unlike freeBusy) — exclude cancelled + transparent (\"Free\") events.\nconst cfg = $('Load Config').first().json.config;\nconst tz = cfg.business.timezone;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst ourId = $('Build Reschedule Event Request').first().json.booking.eventId;\nconst ourStart = new Date(b.startUTC).getTime();\nconst ourEnd = new Date(b.endUTC).getTime();\n// Codex #3+#4: the verify read is INCOMPLETE if it was paginated (nextPageToken) OR the calendar's own\n// timezone differs from the shop tz (all-day boundary math would be wrong). Fail safe: yield our event +\n// mark verify_incomplete so the customer gets a NEUTRAL \"couldn't confirm\" message (never \"just taken\"),\n// and never enter the happy path on an uncertain read.\nconst calTz = $json.timeZone;\nif ($json.nextPageToken || (calTz && calTz !== tz)) {\n  return [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\n}\n// Codex #5: all-day events carry start.date (no time) — parse at shop-tz midnight, NOT UTC midnight.\nconst toMs = (p) => {\n  if (!p || typeof p !== 'object') return null;\n  if (typeof p.dateTime === 'string' && p.dateTime) return new Date(p.dateTime).getTime();\n  if (typeof p.date === 'string' && p.date) return DateTime.fromISO(p.date, { zone: tz }).toMillis();\n  return null;\n};\n// 7-2 R1c RACE: a read we cannot evaluate is INCOMPLETE — yield our event + verify_incomplete, exactly as above —\n// never \"nobody else is there\" and never a throw. A throw here runs AFTER our insert: a post-claim 500 with an\n// event that has no mirror row and no alert (the L8 class). Unreadable = `items` present but not an array, an item\n// that is not an object, or a non-cancelled, non-transparent item whose start or end is not a parseable string.\n// Ruled carve-out, unchanged: a body with NO `items` key reads as an empty list (race won).\nconst incomplete = () => [{ json: { ...be, gcal_event_id: ourId, race_lost: true, race_other_count: -1, verify_incomplete: true } }];\nif ($json.items !== undefined && !Array.isArray($json.items)) return incomplete();\nconst items = $json.items || [];\nif (!items.every(ev => ev && typeof ev === 'object' && !Array.isArray(ev))) return incomplete();\nlet unreadable = false;\nconst overlaps = items.filter(ev => {\n  if (ev.status === 'cancelled') return false;\n  if (ev.transparency === 'transparent') return false;\n  const s = toMs(ev.start);\n  const e = toMs(ev.end);\n  if (s === null || e === null || Number.isNaN(s) || Number.isNaN(e)) { unreadable = true; return false; }\n  return s < ourEnd && e > ourStart;\n});\nif (unreadable) return incomplete();\nconst others = overlaps.filter(ev => ev.id !== ourId);\nreturn [{ json: { ...be, gcal_event_id: ourId, race_lost: others.length >= 1, race_other_count: others.length } }];"
       },
       "id": "f344afce-a307-43bc-899f-fedabe39c877",
       "name": "Check Race (Reschedule)",
@@ -3660,117 +2774,24 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "appointments",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $json._reschedule_target.recordId }}",
-            "gcal_event_id": "={{ $json.booking.eventId }}",
-            "start_utc": "={{ $json.booking.startUTC }}",
-            "end_utc": "={{ $json.booking.endUTC }}",
-            "calendar_id": "={{ $json.booking.calId }}",
-            "reminded": "={{ false }}"
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "gcal_event_id",
-              "displayName": "gcal_event_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "start_utc",
-              "displayName": "start_utc",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "end_utc",
-              "displayName": "end_utc",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "calendar_id",
-              "displayName": "calendar_id",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "reminded",
-              "displayName": "reminded",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "UPDATE salon.appointments SET gcal_event_id = $2, start_utc = $3::timestamptz, end_utc = $4::timestamptz, calendar_id = $5, reminded = false WHERE id = $1 RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'service', NULLIF(service, ''), 'start_utc', salon.at_ts(start_utc), 'end_utc', salon.at_ts(end_utc), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'calendar_id', NULLIF(calendar_id, ''), 'channel', NULLIF(channel, ''), 'customer_name', NULLIF(customer_name, ''), 'status', NULLIF(status, ''), 'reminded', CASE WHEN reminded THEN true END, 'reminder_sent', salon.at_ts(reminder_sent), 'created_at', salon.at_ts(created_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json._reschedule_target.recordId, $json.booking.eventId, $json.booking.startUTC, $json.booking.endUTC, $json.booking.calId] }}"
+        }
       },
       "id": "e9d903d9-8fc4-4025-8cf5-c2d245413faa",
       "name": "Update Appointment (Reschedule)",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         9184,
         4448
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -3868,7 +2889,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Reschedule Orphan State — the row is updated to the NEW event and the NEW event exists, so the move\n// succeeded for the customer; but deleting the OLD event was UNAVAILABLE, so it lingers on the calendar.\n// Tell the customer the truth — it moved — and hand off with reschedule_orphan so the owner removes the stray\n// OLD event (visible, recoverable — never silent).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst eventId = b.eventId || null;\nconst when = b.dateStr + ' ' + b.timeStr;\nconst reply = (cfg.messageTemplates.rescheduleDone || 'Moved — your {service} is now {when}.').split('{service}').join(b.serviceName).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff', cancel_target_id: '', confirm_turn: '' }, reschedule_orphan: true, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
+        "jsCode": "// Build Reschedule Orphan State — the row is updated to the NEW event and the NEW event exists, so the move\n// succeeded for the customer; but deleting the OLD event was UNAVAILABLE, so it lingers on the calendar.\n// Tell the customer the truth — it moved — and hand off with reschedule_orphan so the owner removes the stray\n// OLD event (visible, recoverable — never silent).\nconst cfg = $('Load Config').first().json.config;\nconst be = $('Build Reschedule Event Request').first().json;\nconst b = be.booking;\nconst vi = $('Validate Intent').first().json;\nconst st = vi.state;\nconst eventId = b.eventId || null;\nconst when = b.dateStr + ' ' + b.timeStr;\n// The OLD slot, for the owner alert only: the owner has to find and remove the stray OLD event by hand, and the\n// alert named only the NEW slot. Date, time (shop timezone) and service — NEVER the old event id: a full\n// gcal_event_id is hex(sender_key|…), a bearer credential (.claude/rules/security-secrets.md). Top-level, not\n// inside `state`, so Save State (Post-Write) never persists it.\nconst ot = be._reschedule_target || {};\nconst oldStart = ot.start_utc ? DateTime.fromISO(ot.start_utc, { zone: 'utc' }).setZone(cfg.business.timezone) : null;\nconst okStart = !!(oldStart && oldStart.isValid);\nconst reschedule_old = { date: okStart ? oldStart.toFormat('yyyy-MM-dd') : '', time: okStart ? oldStart.toFormat('HH:mm') : '', service: ot.service || '' };\nconst reply = (cfg.messageTemplates.rescheduleDone || 'Moved — your {service} is now {when}.').split('{service}').join(b.serviceName).split('{when}').join(when);\nreturn [{ json: { ...vi, state: { ...st, stage: 'handoff', cancel_target_id: '', confirm_turn: '' }, reschedule_orphan: true, reschedule_old, gcal_event_id: eventId, computed_reply: reply, _post_write: true } }];"
       },
       "id": "7fbb23e7-7f73-4df3-a0ac-e83a2f2dec6f",
       "name": "Build Reschedule Orphan State",
@@ -4121,7 +3142,7 @@
     },
     {
       "parameters": {
-        "content": "## Outbound convergence (CP4b)\nEvery reply branch tags _outbound_* (VERBATIM body + status) -> Finalize Outbound -> Channel Switch:\n- widget -> Send Reply (widget): synchronous body+status, bit-identical to before.\n- whatsapp -> (CP4b-2) ACK 200 first, then Zernio send.\n\n_outbound_should_send rule: send only if the customer must learn something they don't already know (duplicate/handoff-lock = already knows -> no send). Reject Unsigned Request stays SEPARATE.\n\n**whatsapp ACK is intentionally ALWAYS 200** (transport ACK to Zernio's delivery layer, NOT the customer) — do NOT couple it to `_outbound_status`; a 5xx here would trigger a provider retry storm. On whatsapp the infra-unavailable distinctness (handoff.md's 5xx) lives in the `error`/`_outbound_*` state fields + the distinct Unavailable node, not the HTTP status (which is the widget/sync semantics). `_outbound_owner_flag` on a failed send is surfaced by the owner-alert = Phase 5.",
+        "content": "## Outbound convergence (CP4b)\nEvery reply branch tags _outbound_* (VERBATIM body + status) -> Finalize Outbound -> Channel Switch:\n- widget -> Send Reply (widget): synchronous body+status, bit-identical to before.\n- whatsapp -> (CP4b-2) ACK 200 first, then Zernio send.\n\n_outbound_should_send rule: send only if the customer must learn something they don't already know (duplicate/handoff-lock = already knows -> no send). Reject Unsigned Request stays SEPARATE.\n\n**whatsapp ACK is intentionally ALWAYS 200** (transport ACK to Zernio's delivery layer, NOT the customer) — do NOT couple it to `_outbound_status`; a 5xx here would trigger a provider retry storm. The infra-unavailable distinctness lives in the `error`/`_outbound_*` fields + the distinct Unavailable node, not the HTTP status: on whatsapp always, and on the widget after the claim-first dedupe (7-2 Tur 2) — a post-claim 5xx would invite a retry the claim swallows. Only `Send Error Response` before the claim still answers 503. `_outbound_owner_flag` on a failed send is surfaced by the owner-alert = Phase 5.",
         "height": 300,
         "width": 480
       },
@@ -4212,7 +3233,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here. OFF the reply path: returns [] to suppress (disabled / throttled /\n// kill-switch guard-trip / not alert-worthy). A failure here never touches the customer reply.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\nif (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && Object.prototype.hasOwnProperty.call(KIND, kind)) { cls = KIND[kind]; }   // own-property only (prototype-chain keys like 'constructor' would slip through a truthy check)\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.normalize_drift) { cls = 'normalize_drift'; }\nelse if (j.dedupe_marker_failed) { cls = 'dedupe_marker_failed'; }\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.cancel_mirror_failed) cls = 'cancel_mirror_failed';   // FIX-1 A1: GCal'dan silindi ama Airtable 'booked' kaldi -> ayri sinif (mudahalesi farkli)\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.date_alert === true && j.date_alert_class) cls = j.date_alert_class;   // classes come from\n// Resolve Date's ALERT map. Kept in sync by hand, so it is written as a LIST OF WHAT IS THERE, not as a\n// claim of completeness (it fell out of date twice: `date_anchor_past` was missing from this comment for a\n// whole round): date_ambiguous · date_week_ambiguous · date_expr_forged · date_anchor_past ·\n// date_unresolved · date_expr_missing. Two outcomes deliberately produce NO class and therefore no ping —\n// `llm_date_ignored` (the engine being right while the model is wrong is the system working) and\n// `day_named_not_extracted` (a re-ask is not an incident, and its false-positive rate is unmeasured).\nelse if (j.extraction_invalid === true) cls = 'extraction_invalid';   // schema-only LLM contract slip:\n// visible to the owner (it is our defect), but it no longer locks the conversation — see Validate Intent.\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls + ':' + sender;\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + sender, 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nif (j.normalize_reason) lines.push('reason: ' + j.normalize_reason);\nif (j.date_resolution) { const dr = j.date_resolution; lines.push('date: said=\"' + (dr.expr || '-') + '\" llm=' + (dr.llm || '-') + ' code=' + (dr.code || '-') + ' (' + dr.reason + ')'); }\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\n// FIX-1 A2: the alert branch also STAMPS the class onto the conversation row (UX-ARCHITECTURE §9 K1),\n// so a stuck conversation says WHY in Airtable instead of only in Telegram history.\n// _alert_at/_alert_sender are carried for `Record Alert Class`; `now` is the same clock the throttle used.\nreturn [{ json: { owner_alert_text: text, _alert_class: cls,\n                  _alert_at: new Date(now).toISOString(), _alert_sender: sender } }];"
+        "jsCode": "// Owner-alert composer + THROTTLE + class derivation (CP5a) — single general mechanism.\n// ALL alert sources fan in here; returns [] to suppress (disabled / throttled / kill-switch guard-trip / not\n// alert-worthy). The reply never waits for this node's OUTPUT, but it is NOT off the reply path in TIME (7-2 R1c,\n// measured on the graph): under executionOrder v1 the sibling higher on the canvas runs first, and for the post-write\n// builders (the incident ones and Build Cancelled State), Build Normalize Reject and Date Alert? this branch sits\n// ABOVE the reply branch, so it runs — the Telegram send and the alert stamp included — BEFORE the customer is\n// answered. A failed send or stamp is routed (error outputs) and does not stop the reply; a HUNG one delays it. The\n// Telegram send has no node, request-helper or workflow timeout and the Postgres stamp has no statement timeout\n// (read from the engine source and this export, 2026-10-26); the instance-wide execution timeout was NOT measured.\n// A throw here or in Alert Context (Code nodes without an error output) would stop the reply on those paths.\nconst lc = $('Load Config').first().json;\nconst cfg = (lc && lc.config) ? lc.config : {};\nconst oa = cfg.ownerAlert || {};\nif (oa.enabled !== true) return [];\nconst j = $json || {};\nconst st = j.state || {};\nconst KIND = {\n  'Handoff Lock Reply': 'handoff_lock',\n  'Send Error Response': 'state_unavailable',\n  'LLM Unavailable Reply': 'llm_unavailable',\n  'Lead Unavailable Reply': 'lead_unavailable',\n  'Calendar Unavailable Reply': 'calendar_unavailable',\n  'Booking State-Unsaved Reply': 'state_unsaved',\n  'Cancel Delete Unavailable Reply': 'cancel_delete_failed',\n};\nlet cls = null;\nconst kind = j._outbound_kind;\n// Tag Turnstile Unavailable sets an explicit class: checked FIRST, before any generic branch (ruling R-Q2).\nif (j.alert_class === 'turnstile_unavailable') { cls = 'turnstile_unavailable'; }\nelse if (kind === 'Handoff Reply') {\n  if (cfg.bot && cfg.bot.killSwitch === true) return [];   // KK2: kill-switch trip is owner-initiated -> no ping\n  cls = 'max_turns';                                        // KK2: max-turns trip -> ping\n} else if (kind && Object.prototype.hasOwnProperty.call(KIND, kind)) { cls = KIND[kind]; }   // own-property only (prototype-chain keys like 'constructor' would slip through a truthy check)\nelse if (j.spend_cap_tripped) { cls = 'spend_cap'; }\nelse if (j.spend_meter_unavailable) { cls = 'spend_meter_unavailable'; }\nelse if (j.normalize_drift) { cls = 'normalize_drift'; }\nelse if (j.reschedule_insert_unknown === true) cls = 'reschedule_insert_unknown';   // 7-2 F5: the new event may exist\nelse if (j.cancel_reread_failed === true) cls = 'cancel_reread_failed';             // 7-2 F7: re-read failed, cancel kept\nelse if (j.race_lost === true) cls = 'race_lost';                                   // 7-2 F2: a clean loss is still news\nelse if (j.error) { cls = j.error; }                        // zernio_send_failed + any error-tagged node\nelse if (j.orphan_event || j.reschedule_orphan) cls = 'orphan_event';\nelse if (j.mirror_failed || j.reschedule_mirror_failed) cls = 'mirror_failed';\nelse if (j.cancel_mirror_failed) cls = 'cancel_mirror_failed';   // FIX-1 A1: GCal'dan silindi ama Airtable 'booked' kaldi -> ayri sinif (mudahalesi farkli)\nelse if (j.verify_unavailable) cls = 'verify_unavailable';\nelse if (j.reconcile_unresolved) cls = 'reconcile_unresolved';\nelse if (j.reconcile_conflict) cls = 'reconcile_conflict';\nelse if (j.state_unsaved) cls = 'state_unsaved';\nelse if (j.cancel_delete_failed) cls = 'cancel_delete_failed';\nelse if (j.cancel_needs_human) cls = 'cancel_needs_human';\nelse if (j.date_alert === true && j.date_alert_class) cls = j.date_alert_class;   // classes come from\n// Resolve Date's ALERT map. Kept in sync by hand, so it is written as a LIST OF WHAT IS THERE, not as a\n// claim of completeness (it fell out of date twice: `date_anchor_past` was missing from this comment for a\n// whole round): date_ambiguous · date_week_ambiguous · date_expr_forged · date_anchor_past ·\n// date_unresolved · date_expr_missing. Two outcomes deliberately produce NO class and therefore no ping —\n// `llm_date_ignored` (the engine being right while the model is wrong is the system working) and\n// `day_named_not_extracted` (a re-ask is not an incident, and its false-positive rate is unmeasured).\nelse if (j.extraction_invalid === true) cls = 'extraction_invalid';   // schema-only LLM contract slip:\n// visible to the owner (it is our defect), but it no longer locks the conversation — see Validate Intent.\nelse if (j.reply_fallback === true) cls = 'reply_fallback';\nelse if (st.stage === 'handoff') cls = 'handoff';\n// 7-2 F6 + R1b H1: a date said on the confirm turn is its OWN class only when the booking went through cleanly (Build\n// Booked State or Build Reschedule-Done State ran) and no class above applies. Otherwise it is an extra line on the\n// winning class — only where the incident item carries date_change, i.e. builders that spread the event-request item.\n// No date line: alerts rebuilt from n8n's error item (Booking State-Unsaved Reply, Outbound Send Failed) and the\n// reschedule builders that spread Validate Intent (Orphan, Mirror-Failed, Insert-Failed). An orphan, a lost verify\n// or a failed mirror keeps its own class, lines and throttle key.\nif (!cls && j.date_change) {\n  let clean = false;\n  for (const n of ['Build Booked State', 'Build Reschedule-Done State']) { try { $(n).first(); clean = true; } catch (e) {} }\n  if (clean) cls = 'date_changed_on_confirm';\n}\nif (!cls) return [];                                        // not alert-worthy -> no alert\nconst pick = (...xs) => xs.find(v => v !== undefined && v !== null && v !== '') || 'unknown';\nconst sender  = pick(st.sender_key, j.sender_key);\nconst channel = pick(st.channel, j.channel);\nconst intent  = pick(st.last_intent, j.last_intent, j.intent);\nconst stage   = pick(st.stage, j.stage);\nconst windowMin = Number(oa.throttleMinutes) > 0 ? Number(oa.throttleMinutes) : 30;\nconst key = cls === 'turnstile_unavailable' ? cls : cls + ':' + sender;   // a verifier outage hits everyone: one global key\nconst now = Date.now();\nconst sd = $getWorkflowStaticData('global');\nsd.ownerAlerts = sd.ownerAlerts || {};\nconst last = sd.ownerAlerts[key];\nif (typeof last === 'number' && (now - last) < windowMin * 60 * 1000) return [];  // throttled\nsd.ownerAlerts[key] = now;\nconst slots = st.slots || j.slots || {};\nconst slotStr = [slots.service || slots.serviceId, slots.date, slots.time].filter(Boolean).join(' / ');\n// Final-pass #13: the sender_key is masked in EVERY alert — on the widget lane a full one is a bearer credential\n// (security-secrets.md). Same shape as the dashboard's maskSenderKey, so an alert can be matched to a dashboard row:\n// a phone-shaped id keeps its country prefix and last two digits, anything else its first six characters. The slot\n// carries the identification (ruling QB: no event id, not even a fragment — it decodes to the sender_key).\n// `_alert_sender` below stays FULL: Record Alert Class needs it to stamp the right row, and it never reaches Telegram.\nconst maskPhone = id => { const d = id.replace(/\\D/g, ''); if (d.length <= 8) return '\\u2022'.repeat(Math.max(d.length, 1)); return (id.trim().startsWith('+') ? '+' + d.slice(0, 2) : d.slice(0, 2)) + '\\u2026' + d.slice(-2); };\nconst maskSender = s => {\n  if (typeof s !== 'string' || !s || s === 'unknown') return 'unknown';\n  const i = s.indexOf(':');\n  const ch = i >= 0 ? s.slice(0, i + 1) : '';\n  const id = (i >= 0 ? s.slice(i + 1) : s).replace(/\\u2026+$/, '');\n  if (/^\\+?[\\d\\s().-]+$/.test(id)) return ch + maskPhone(id);\n  return ch + id.slice(0, 6) + '\\u2026';\n};\nconst lines = ['\\ud83d\\udd14 Salon bot \\u2014 ' + cls, 'sender: ' + maskSender(sender), 'channel: ' + channel, 'intent: ' + intent, 'stage: ' + stage];\nif (slotStr) lines.push('slots: ' + slotStr);\n// Reschedule orphan only: the slots line above is the NEW slot, and the stray event the owner must delete is the\n// OLD one. Date, time and service only (Build Reschedule Orphan State never carries the old event id).\nif (cls === 'orphan_event' && j.reschedule_orphan === true) {\n  const o = j.reschedule_old || {};\n  lines.push('old: ' + [o.date, o.time, o.service].map(v => (typeof v === 'string' && v) ? v : 'unknown').join(' '));\n}\nconst recent = (st.recent_messages || '').split(String.fromCharCode(10)).filter(Boolean).slice(-5);\nif (recent.length) lines.push('recent: ' + recent.join(' | '));\nif (j.normalize_reason) lines.push('reason: ' + j.normalize_reason);\nif (cls === 'verify_unavailable') lines.push('possible overlap: the slot above may now hold two events (the verify read failed) — check the calendar');\nif (cls === 'reschedule_insert_unknown') lines.push('possible extra event at the NEW slot above (the insert answer was lost) — check the calendar; the original booking stands');\nif (j.date_change && typeof j.date_change === 'object') lines.push('date on confirm: shown slot ' + (j.date_change.booked || '-') + ' · customer said ' + (j.date_change.said || '-'));\n// 7-2 F8: the failure's own message, so a permission error and a connection error are told apart. Stringified, cut\n// at 200, sender_key-shaped values and long digit runs masked. Never for the Turnstile class (its error item can\n// echo the verification request).\nif (cls !== 'turnstile_unavailable') {\n  const m = (typeof j.message === 'string' && j.message) || (j.error && typeof j.error === 'object' && typeof j.error.message === 'string' && j.error.message) || '';\n  const detail = String(m).replace(/\\s+/g, ' ').slice(0, 200).replace(/\\b(widget|whatsapp):[^\\s'\"]+/g, '$1:\\u2026').replace(/\\d{7,}/g, '\\u2026');\n  if (detail) lines.push('detail: ' + detail);\n}\nif (j.date_resolution) { const dr = j.date_resolution; lines.push('date: said=\"' + (dr.expr || '-') + '\" llm=' + (dr.llm || '-') + ' code=' + (dr.code || '-') + ' (' + dr.reason + ')'); }\nconst text = lines.join('\\n').replace(/[_*`\\[\\]~]/g, '-');  // Telegram Markdown-safe (class names carry '_')\n// FIX-1 A2: the alert branch also STAMPS the class onto the conversation row (UX-ARCHITECTURE §9 K1),\n// so a stuck conversation says WHY in Airtable instead of only in Telegram history.\n// _alert_at/_alert_sender are carried for `Record Alert Class`; `now` is the same clock the throttle used.\nreturn [{ json: { owner_alert_text: text, _alert_class: cls,\n                  _alert_at: new Date(now).toISOString(), _alert_sender: sender } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -4250,7 +3271,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Owner-alert delivery FAILED (Telegram unreachable). Visible marker only; the customer reply is on a\n// separate branch and is unaffected (CP5a D-c invariant).\nreturn [{ json: { owner_alert_failed: true, error: ($json.error && $json.error.message) || 'telegram_send_failed' } }];"
+        "jsCode": "// Owner-alert delivery FAILED (Telegram unreachable). Visible marker only; the failure is routed here and the reply\n// still goes out — but on alert-first paths (Build Owner Alert's header) a send that hangs before failing has\n// already delayed it.\nreturn [{ json: { owner_alert_failed: true, error: ($json.error && $json.error.message) || 'telegram_send_failed' } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -4403,37 +3424,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "bot_metrics",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "filterByFormula": "={{ '{period_key} = \"' + $now.toUTC().toFormat('yyyy-MM') + '\"' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('period_key', NULLIF(period_key, ''), 'cost_usd', cost_usd, 'updated_at', salon.at_ts(updated_at))) AS fields FROM salon.bot_metrics WHERE period_key = $1",
+        "options": {
+          "queryReplacement": "={{ [$now.toUTC().toFormat('yyyy-MM')] }}"
+        }
       },
       "id": "95452dc0-c845-4f81-9e90-3df1e105777f",
       "name": "Read Spend",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         4480,
         4288
       ],
       "alwaysOutputData": true,
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -4526,83 +3535,24 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "bot_metrics",
-          "cachedResultUrl": "https://airtable.com/appXXXXXXXXXXXXXX/tblXXXXXXXXXXXXXX"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "period_key": "={{ $json.period_key }}",
-            "cost_usd": "={{ $json.cost_usd }}",
-            "updated_at": "={{ $json.updated_at }}"
-          },
-          "matchingColumns": [
-            "period_key"
-          ],
-          "schema": [
-            {
-              "id": "period_key",
-              "displayName": "period_key",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "cost_usd",
-              "displayName": "cost_usd",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "number",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "updated_at",
-              "displayName": "updated_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO salon.bot_metrics (period_key, cost_usd, updated_at) VALUES ($1, $2, $3::timestamptz) ON CONFLICT (period_key) DO UPDATE SET cost_usd = EXCLUDED.cost_usd, updated_at = EXCLUDED.updated_at RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('period_key', NULLIF(period_key, ''), 'cost_usd', cost_usd, 'updated_at', salon.at_ts(updated_at))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json.period_key, $json.cost_usd, $json.updated_at] }}"
+        }
       },
       "id": "3e191419-e8c8-47ab-85dd-fec3df6b7d64",
       "name": "Record LLM Spend",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         5824,
         7568
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -4826,19 +3776,6 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build Dedupe-Marker Alert (CRT#3/M1a) — `Record Processed` (the idempotency-marker write) FAILED. The\n// customer response already went out; this is a pure side-effect alert so the owner learns the dedupe store is\n// failing (a later duplicate could then double-process). OFF the reply path. Context from Merge State (ran in\n// both the normal and post-write branches).\nconst ctx = $('Merge State').first().json;\nreturn [{ json: { dedupe_marker_failed: true, sender_key: ctx && ctx.sender_key, channel: ctx && ctx.channel, state: (ctx && ctx.state) || {} } }];"
-      },
-      "id": "592c9a72-76fc-4d28-98f3-97fa384cd6f2",
-      "name": "Build Dedupe-Marker Alert",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        10728,
-        1232
-      ]
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -4907,7 +3844,7 @@
     },
     {
       "parameters": {
-        "content": "## Airtable error-split (CP5e)\n`Load State` / `Check Processed` (and the 4 lookups next) had `alwaysOutputData` + `continueErrorOutput`, which emit on BOTH outputs on error -> the success path ALSO ran the brain on an Airtable outage (503 to the customer AND LLM cost + idempotency bypass). Fix: `continueRegularOutput` + a `... Errored?` IF -> error (`$json.error`) -> 503 ONLY; 0-results/data -> continue. Only one path runs.",
+        "content": "## Airtable error-split (CP5e)\n`Load State` / `Check Processed` (and the 4 lookups next) had `alwaysOutputData` + `continueErrorOutput`, which emit on BOTH outputs on error -> the success path ALSO ran the brain on an Airtable outage (503 to the customer AND LLM cost + idempotency bypass). Fix: `continueRegularOutput` + a `... Errored?` IF -> error (`$json.error`) -> Send Error Response ONLY (503 before the claim, 200 + error flag after it); 0-results/data -> continue. Only one path runs.",
         "height": 300,
         "width": 460,
         "color": 3
@@ -5059,7 +3996,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Alert-class stamp failed (Airtable). Visible marker; the customer reply and the Telegram alert are\n// both unaffected — this branch is downstream of Build Owner Alert, OFF the reply path (D-c).\n// Terminal on purpose: alerting about a failed alert-stamp would recurse (same rule as Owner Alert Failed).\nreturn [{ json: { alert_record_failed: true, error: ($json && $json.error) || 'unknown' } }];"
+        "jsCode": "// Alert-class stamp failed. Visible marker; the failure is routed here, so the customer reply and the Telegram alert\n// still go out. NOT off the reply path in time: on the paths where Build Owner Alert sits above the reply branch\n// (see its header) this whole branch runs BEFORE the reply, so a hung stamp delays it.\n// Terminal on purpose: alerting about a failed alert-stamp would recurse (same rule as Owner Alert Failed).\nreturn [{ json: { alert_record_failed: true, error: ($json && $json.error) || 'unknown' } }];"
       },
       "id": "fix1_alert_record_failed",
       "name": "Alert Record Failed",
@@ -5072,7 +4009,7 @@
     },
     {
       "parameters": {
-        "content": "## Alert class stamped onto the conversation (FIX-1 A2 — §9 K1)\n\n`Send Owner Alert (Telegram)` **success** -> `Alert Context` -> `Find Conversation Row` ->\n`Record Alert Class` (Airtable **update by record id**).\n\n**Why:** before this, all 18 residue flags were EPHEMERAL — once the Telegram message scrolled past,\nAirtable said a conversation was stuck (`stage=handoff`) but never WHY.\n\n**Codex #5 — written only AFTER a successful send.** It used to be written in parallel with the send,\nso the field could claim the owner was told when delivery had failed. A dashboard would have shown a\nlie. If delivery fails the field stays EMPTY, and empty is the true statement.\n\n**Codex #4 — search-then-update, never upsert.** `sender_key` on the widget channel comes from a\nCLIENT-CONTROLLED `sessionId`; shape is not proof of existence. An upsert let a caller (a) create a\nmetadata-only junk row and (b) overwrite another session's alert fields by guessing its id. Same\nlesson as the CP4a IDOR: never trust the payload. The row must ALREADY exist; 0 results -> no write.\n\n**Honest limits:** it is a LAST value, not a history — a later class overwrites. Front-gate alerts\nwith no conversation row leave no Airtable trace (by design).\n\n**D-c preserved:** the whole branch hangs off the alert composer, never the reply path.",
+        "content": "## Alert class stamped onto the conversation (FIX-1 A2 — §9 K1)\n\n`Send Owner Alert (Telegram)` **success** -> `Alert Context` -> `Find Conversation Row` ->\n`Record Alert Class` (Airtable **update by record id**).\n\n**Why:** before this, all 18 residue flags were EPHEMERAL — once the Telegram message scrolled past,\nAirtable said a conversation was stuck (`stage=handoff`) but never WHY.\n\n**Codex #5 — written only AFTER a successful send.** It used to be written in parallel with the send,\nso the field could claim the owner was told when delivery had failed. A dashboard would have shown a\nlie. If delivery fails the field stays EMPTY, and empty is the true statement.\n\n**Codex #4 — search-then-update, never upsert.** `sender_key` on the widget channel comes from a\nCLIENT-CONTROLLED `sessionId`; shape is not proof of existence. An upsert let a caller (a) create a\nmetadata-only junk row and (b) overwrite another session's alert fields by guessing its id. Same\nlesson as the CP4a IDOR: never trust the payload. The row must ALREADY exist; 0 results -> no write.\n\n**Honest limits:** it is a LAST value, not a history — a later class overwrites. Front-gate alerts\nwith no conversation row leave no Airtable trace (by design).\n\n**D-c, corrected (7-2 R1c):** the branch hangs off the alert composer and the reply never waits for its output — but on the paths where `Build Owner Alert` sits above the reply branch (post-write incident builders, `Build Normalize Reject`, `Date Alert?`), executionOrder v1 runs it FIRST. A failed send or stamp is routed; a hung one delays the reply: the Telegram send has no node, helper or workflow timeout and the Postgres stamp no statement timeout; the instance-wide execution timeout was not measured.",
         "height": 460,
         "width": 520
       },
@@ -5100,113 +4037,48 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations"
-        },
-        "filterByFormula": "={{ '{sender_key} = \"' + $json._alert_sender + '\"' }}",
-        "options": {}
+        "operation": "executeQuery",
+        "query": "SELECT id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields FROM salon.conversations WHERE sender_key = $1",
+        "options": {
+          "queryReplacement": "={{ [$json._alert_sender] }}"
+        }
       },
       "id": "fix1_find_conv",
       "name": "Find Conversation Row",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         13216,
         1488
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "value": "appXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Barber Bot"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblXXXXXXXXXXXXXX",
-          "mode": "list",
-          "cachedResultName": "Conversations"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "id": "={{ $json.id }}",
-            "last_alert_class": "={{ $('Alert Context').first().json._alert_class }}",
-            "last_alert_at": "={{ $('Alert Context').first().json._alert_at }}"
-          },
-          "matchingColumns": [
-            "id"
-          ],
-          "schema": [
-            {
-              "id": "id",
-              "displayName": "id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": true,
-              "removed": false
-            },
-            {
-              "id": "last_alert_class",
-              "displayName": "last_alert_class",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "last_alert_at",
-              "displayName": "last_alert_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "dateTime",
-              "readOnly": false,
-              "removed": false
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "UPDATE salon.conversations SET last_alert_class = $2, last_alert_at = $3::timestamptz WHERE id = $1 RETURNING id, salon.at_ts(created_at) AS \"createdTime\", jsonb_strip_nulls(jsonb_build_object('sender_key', NULLIF(sender_key, ''), 'stage', NULLIF(stage, ''), 'slot_service', NULLIF(slot_service, ''), 'slot_date', NULLIF(slot_date, ''), 'slot_time', NULLIF(slot_time, ''), 'last_updated', salon.at_ts(last_updated), 'turn_count', turn_count, 'last_intent', NULLIF(last_intent, ''), 'recent_messages', NULLIF(recent_messages, ''), 'gcal_event_id', NULLIF(gcal_event_id, ''), 'cancel_target_id', NULLIF(cancel_target_id, ''), 'confirm_turn', NULLIF(confirm_turn, ''), 'computed_reply', NULLIF(computed_reply, ''), 'last_alert_class', NULLIF(last_alert_class, ''), 'last_alert_at', salon.at_ts(last_alert_at), 'sender_masked', NULLIF(sender_masked, ''))) AS fields",
+        "options": {
+          "queryReplacement": "={{ [$json.id, $('Alert Context').first().json._alert_class, $('Alert Context').first().json._alert_at] }}"
+        }
       },
       "id": "fix1_record_alert_class2",
       "name": "Record Alert Class",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
       "position": [
         13440,
         1488
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "REPLACE_WITH_AIRTABLE_CREDENTIAL_ID",
-          "name": "Airtable Personal Access Token account"
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
         }
       },
       "onError": "continueErrorOutput"
@@ -5548,6 +4420,34 @@
       "typeVersion": 1,
       "id": "e7c40b19-2f85-4a63-9d51-6b0c7f2a3e88",
       "name": "Sticky — Reschedule lane"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tag Turnstile Unavailable (7-2 Tur 2, ruling R-Q2) — fed by Verify Turnstile's ERROR output and Turnstile Valid?'s\n// FALSE output, beside Reject Bot Request, which answers the widget first (it sits ABOVE this node; v1 order).\n// FAIL-CLOSED (R1b M2): it stays SILENT only for the known client/bot rejections — the response token was invalid,\n// missing, or expired/duplicate — and only when EVERY code in the answer is one of them. Everything else emits: a\n// transport error (the error output's item carries `error`), any other or unknown code (internal-error, bad-request,\n// a missing/invalid input secret, a code Cloudflare adds later), an empty code list, or an answer that is not a\n// siteverify reply at all. The class is explicit and checked first by Build Owner Alert; its throttle key is global;\n// no detail line (the error item can echo the verification request).\nconst SILENT = new Set(['invalid-input-response', 'missing-input-response', 'timeout-or-duplicate']);\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  const codes = Array.isArray(j['error-codes']) ? j['error-codes'] : [];\n  const transport = !!j.error;\n  if (!transport && j.success === false && codes.length > 0 && codes.every(c => SILENT.has(c))) continue;\n  let sender = 'unknown';\n  try { sender = $('Normalize Inbound').first().json.sender_key || 'unknown'; } catch (e) {}\n  out.push({ json: { alert_class: 'turnstile_unavailable', turnstile_reason: transport ? 'transport' : 'verifier_answer', channel: 'widget', sender_key: sender } });\n  break;   // one alert per execution\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        4256
+      ],
+      "id": "ca5f112b-8926-4751-b226-646441f384b7",
+      "name": "Tag Turnstile Unavailable"
+    },
+    {
+      "parameters": {
+        "content": "## Turnstile outage → owner (7-2 Tur 2, R-Q2)\n`Verify Turnstile` error output and `Turnstile Valid?` false both feed `Reject Bot Request` (the widget is answered first — it sits above) AND `Tag Turnstile Unavailable`, which FAILS CLOSED: it stays silent only when every code is a known bot/client rejection (invalid, missing or expired/duplicate response token); a transport error, any other or unknown code, or an empty code list emits. Class `turnstile_unavailable`, global throttle key, no detail line.",
+        "height": 220,
+        "width": 420
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2704,
+        4224
+      ],
+      "id": "cba20239-b44e-46e8-b552-317dede84b47",
+      "name": "Sticky — Tag Turnstile Unavailable"
     }
   ],
   "connections": {
@@ -5634,11 +4534,6 @@
         [
           {
             "node": "Build Reply Payload",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Record Processed",
             "type": "main",
             "index": 0
           }
@@ -6163,11 +5058,6 @@
         [
           {
             "node": "Build Reply Payload",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Record Processed",
             "type": "main",
             "index": 0
           }
@@ -7481,6 +6371,11 @@
             "node": "Reject Bot Request",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Tag Turnstile Unavailable",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -7497,6 +6392,11 @@
         [
           {
             "node": "Reject Bot Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tag Turnstile Unavailable",
             "type": "main",
             "index": 0
           }
@@ -7695,29 +6595,6 @@
             "type": "main",
             "index": 0
           },
-          {
-            "node": "Build Owner Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Record Processed": {
-      "main": [
-        [],
-        [
-          {
-            "node": "Build Dedupe-Marker Alert",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Dedupe-Marker Alert": {
-      "main": [
-        [
           {
             "node": "Build Owner Alert",
             "type": "main",
@@ -8061,13 +6938,22 @@
           }
         ]
       ]
+    },
+    "Tag Turnstile Unavailable": {
+      "main": [
+        [
+          {
+            "node": "Build Owner Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
-    "availableInMCP": true,
-    "binaryMode": "separate",
-    "callerPolicy": "workflowsFromSameOwner",
     "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
     "timeSavedMode": "fixed"
   }
 }

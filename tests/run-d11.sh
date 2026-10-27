@@ -57,7 +57,7 @@ const r=await c.query("SELECT stage, last_intent FROM salon.conversations WHERE 
 const m=await c.query("SELECT count(*)::int AS n FROM salon.processed_messages WHERE message_id = $1",[process.env.RUN_D11_MID]);
 console.log(JSON.stringify({row:r.rows[0]||null,markers:m.rows[0].n}));}
 catch(e){console.log(JSON.stringify({error:String(e.code||"unknown")}));}finally{await c.end().catch(()=>{});}})();'
-# RELEASES ARE COUNTED WHERE THEY HAPPEN (7-2 Tur 2): the Owner Actions copy's executions since the run started, in which
+# RELEASES ARE COUNTED WHERE THEY HAPPEN (7-2 Tur 2): the Owner Actions workflow's executions since the run started, in which
 # `Release Handoff Lock` returned a REAL row (its sentinel carries no id). The parser lives here, once, so the selftest
 # checks the same code the live run uses. Prints "COUNT n" or "ERROR <reason>"; never a body, never an id.
 # FAIL-CLOSED on incomplete evidence (R2b D11; Codex R2, target 11): an execution inside the window whose run data is
@@ -91,8 +91,8 @@ release_count() { # release_count <ISO start, UTC, no zone> → "COUNT n" | "ERR
   [ -n "${N8N_API_KEY:-}" ] || { echo "ERROR N8N_API_KEY not set"; return; }
   host="${N8N_HOST:-$(sed -n 's/^N8N_HOST=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$(dirname "$0")/../CLAUDE.local.md" 2>/dev/null)}"
   [ -n "$host" ] || { echo "ERROR no n8n host"; return; }
-  wid="$(cd "$(dirname "$0")/.." && python3 -c 'import importlib.util as u; s=u.spec_from_file_location("p","scripts/pair_roles.py"); m=u.module_from_spec(s); s.loader.exec_module(m); pairs,roles=m.load(); print(next(r["copy"] for r in roles if pairs[r["copy"]].endswith("workflow.owner-actions.copy.sanitized.json")))' 2>/dev/null)"
-  [ -n "$wid" ] || { echo "ERROR no Owner Actions copy in ROLES"; return; }
+  wid="$(cd "$(dirname "$0")/.." && python3 -c 'import importlib.util as u; s=u.spec_from_file_location("w","scripts/workflows.py"); m=u.module_from_spec(s); s.loader.exec_module(m); print(m.id_for(m.load(), "owner-actions"))' 2>/dev/null)"
+  [ -n "$wid" ] || { echo "ERROR no Owner Actions workflow in WORKFLOWS"; return; }
   hdr="$(mktemp)"; chmod 600 "$hdr"
   printf 'X-N8N-API-KEY: %s\nCF-Access-Client-Id: %s\nCF-Access-Client-Secret: %s\n' "$N8N_API_KEY" "${CF_ACCESS_CLIENT_ID:-}" "${CF_ACCESS_CLIENT_SECRET:-}" > "$hdr"
   curl -s -4 -m 30 -H "@$hdr" "https://$host/api/v1/executions?workflowId=$wid&includeData=true&limit=50" | python3 -c "$RELEASES_PY" "$1"

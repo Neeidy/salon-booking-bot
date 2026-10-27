@@ -9,9 +9,9 @@ You are the security-auditor for salon-booking-bot (Layer 2). The repo is **PUBL
 Scan before any push / screenshot / export:
 - **Secrets:** API keys, tokens, OAuth secrets, webhook secrets, `N8N_ENCRYPTION_KEY` — in code, config,
   exports, or commit history. `.env` must never be staged; only `.env.example` (fake placeholders).
-- **PII:** real phone numbers, customer names, message content — including inside `n8n/workflow.sanitized.json`
+- **PII:** real phone numbers, customer names, message content — including inside the `n8n/workflow.<key>.sanitized.json` exports
   pinned data and any screenshot. Test data must be fake.
-- **n8n:** only `workflow.sanitized.json` is committed; raw exports are gitignored.
+- **n8n:** only the sanitized exports `n8n/workflow.<key>.sanitized.json` are committed; raw exports are gitignored.
 - **Webhook verification:** Zernio HMAC present; website widget has rate-limit + bot-protection (no shared secret in browser).
 - **Control-plane:** n8n editor/admin UI is not exposed publicly (webhook endpoints only).
 - **Production host leak (machine check):** the real n8n instance host must appear in NO tracked file.

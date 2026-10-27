@@ -23,7 +23,7 @@
 # Exit 0 = parity OK, 1 = DRIFT (prints node + field), 2 = fetch/config error. Runs at every close gate.
 import os, sys, json, re, urllib.request, importlib.util
 
-WF = os.environ.get('N8N_WORKFLOW_ID', 'SL142I47mK6SAz6p')
+WF = os.environ.get('N8N_WORKFLOW_ID', 'GyvhZH79DxC1LpTx')   # Main (WORKFLOWS in check-exports-parity.sh lists all five)
 API = os.environ.get('N8N_API_URL')
 KEY = os.environ.get('N8N_API_KEY')
 # Default resolves against the REPO, not the caller's cwd: a relative default made the guard die with
@@ -31,7 +31,7 @@ KEY = os.environ.get('N8N_API_KEY')
 # wrong directory" — a guard that reports a false failure erodes trust as fast as one that stays silent.
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COMMITTED = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
-    'SANITIZED_PATH', os.path.join(_REPO, 'n8n/workflow.sanitized.json'))
+    'SANITIZED_PATH', os.path.join(_REPO, 'n8n/workflow.main.sanitized.json'))
 UA = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36')
 # Cloudflare Access service-token headers — added ONLY when both env vars are present (no-op otherwise), so the
 # same guard works whether /api is CF-Access "Bypass" (today) or "Service Auth" (CRT #7 follow-up).
@@ -243,32 +243,9 @@ def check_sanitised(comm):
         print('SANITISE FAILURE — the committed export carries REAL values (not placeholders):')
         for kind in bad:
             print('  - ' + kind)
-        print('Restore the placeholders in n8n/workflow.sanitized.json before committing (see .claude/commands/sanitize.md).')
+        print(f'Restore the placeholders in {os.path.relpath(os.path.abspath(COMMITTED), _REPO)} before committing (see .claude/commands/sanitize.md).')
         sys.exit(1)
     return len(comm['nodes'])
-
-
-def _is_migration_copy(wf_id, committed):
-    """True only for a workflow the PAIRS array in scripts/check-exports-parity.sh pairs with a
-    `.copy.sanitized.json` export. That array is the one place ids are already paired with exports; reading
-    it here avoids a second hand-kept list of copies, which would drift. A copy-named file with an unpaired
-    id, or a paired id on a non-copy export, is NOT a copy."""
-    rel = os.path.relpath(os.path.abspath(committed), _REPO)
-    return rel.endswith('.copy.sanitized.json') and (wf_id, rel) in _pairs()
-
-
-def _pairs():
-    src = open(os.path.join(_REPO, 'scripts', 'check-exports-parity.sh'), encoding='utf-8').read()
-    block = src[src.index('PAIRS=('):]
-    block = block[:block.index('\n)')]
-    return set(re.findall(r'^\s*"([A-Za-z0-9]+):([^"\s]+)"', block, re.M))
-
-
-def _pair_roles():
-    spec = importlib.util.spec_from_file_location('pair_roles', os.path.join(_REPO, 'scripts', 'pair_roles.py'))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _settings_parity():
@@ -278,21 +255,38 @@ def _settings_parity():
     return mod
 
 
-def check_copy_settings(live, committed, fetch, sp):
-    """A paired copy's live settings against its ORIGINAL's live settings, through the copy spec's allowlist
-    (MIGRATION-PLAN §3r, settings-parity, O1). The spec is found by name (workflow.<x>.copy.sanitized.json ->
-    db/copies/<x>.json), the original's id through PAIRS, so no second list of ids exists."""
+def settings_allow(committed):
+    """The settings a live workflow may carry beyond its export: db/copies/<key>.json's settings_allow, the key taken from
+    the export's file name n8n/workflow.<key>.sanitized.json (D6c: one spec per workflow, no original to compare with)."""
     rel = os.path.relpath(os.path.abspath(committed), _REPO)
-    m = re.fullmatch(r'n8n/workflow\.([a-z0-9-]+)\.copy\.sanitized\.json', rel)
+    m = re.fullmatch(r'n8n/workflow\.([a-z0-9-]+)\.sanitized\.json', rel)
     spec_path = os.path.join(_REPO, 'db', 'copies', f'{m.group(1)}.json') if m else None
     if not spec_path or not os.path.exists(spec_path):
-        return [f'settings: no copy spec found for {rel}']
-    spec = json.load(open(spec_path, encoding='utf-8'))
-    ids = sorted(i for i, p in _pairs() if p == spec['original'])
-    if len(ids) != 1:
-        return [f"settings: the original {spec['original']} is paired with {len(ids)} ids in PAIRS, expected 1"]
-    orig = fetch(ids[0])
-    return sp.copy_vs_original(orig.get('settings'), live.get('settings'), spec.get('settings_allow', {}))
+        return None
+    return json.load(open(spec_path, encoding='utf-8')).get('settings_allow')
+
+
+def check_listed(wf, committed):
+    """The id must be the workflow WORKFLOWS lists for this export (scripts/workflows.py, D6c). Comparing a workflow with
+    another one's export would print a long drift for the wrong reason, or — two workflows that happen to agree — a
+    green that is about neither. Exit 1 on a mismatch; exit 2 when the export is not a workflow export at all."""
+    rel = os.path.relpath(os.path.abspath(committed), _REPO)
+    spec = importlib.util.spec_from_file_location('workflows', os.path.join(_REPO, 'scripts', 'workflows.py'))
+    w = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(w)
+    try:
+        key = w.key_of(rel)
+    except ValueError:
+        print(f'NOT A WORKFLOW EXPORT — {rel} is not n8n/workflow.<key>.sanitized.json, so no listed id can be checked.')
+        sys.exit(2)
+    try:
+        listed = w.id_for(w.load(), key)
+    except ValueError as e:
+        print(f'WORKFLOWS — {e}')
+        sys.exit(1)
+    if wf != listed:
+        print(f"WRONG WORKFLOW — {wf[:4]}… is not the workflow WORKFLOWS lists for {rel} ({listed[:4]}…).")
+        sys.exit(1)
 
 
 def check_published_matches_draft(live):
@@ -312,25 +306,10 @@ def check_published_matches_draft(live):
     av = live.get('activeVersion') or {}
     pub = av.get('nodes')
     if live.get('active') is False:
-        # A MIGRATION COPY waits inactive for its cutover (MIGRATION-PLAN §3r): nothing runs it, n8n keeps no
-        # published graph for it, and the draft is what activation would publish, so the draft is compared.
-        # Anything ELSE that is inactive is a production workflow that stopped running, and that is RED.
-        # (The first version passed ANY inactive workflow, so an original going inactive was green everywhere:
-        # no other guard asserts that the originals are active. Cowork, 2026-10-20.)
-        # Since D6b's plan (MIGRATION-PLAN §3t, decision 9) WHICH side may be parked is DECLARED, in the ROLES array of
-        # check-exports-parity.sh: a copy before its pair is cut over, the original after. scripts/pair_roles.py holds
-        # the rule; the pair-level half (exactly one active per pair) is scripts/check-pair-roles.py.
-        try:
-            allowed, why = _pair_roles().may_be_inactive(WF, _pair_roles().load()[1])
-        except ValueError as e:
-            print(f'INACTIVE — and the ROLES declaration cannot be read ({e}): RED.')
-            sys.exit(1)
-        kind = 'COPY' if _is_migration_copy(WF, COMMITTED) else 'ORIGINAL'
-        rel = os.path.relpath(os.path.abspath(COMMITTED), _REPO)
-        if allowed and (WF, rel) in _pairs():
-            print(f'INACTIVE {kind} — {why}; the DRAFT (what activation would publish) is compared.')
-            return
-        print(f'INACTIVE {kind} — {why}: it is NOT active, so a production role has stopped running.')
+        # Every listed workflow is a production role (scripts/workflows.py, D6c): an inactive one has stopped running,
+        # and that is RED. (Until D6c a parked copy or a parked original could be inactive by the ROLES declaration; the
+        # pairing ended with it. An UNLISTED inactive workflow — a scratch, an archived original — is never read here.)
+        print('INACTIVE — a listed workflow is NOT active, so a production role has stopped running.')
         sys.exit(1)
     if not isinstance(pub, list):
         # ⚠ THIS USED TO PRINT "SKIPPED … the draft IS what runs" AND RETURN SUCCESS. That is certifying the
@@ -764,6 +743,7 @@ def main():
         req = urllib.request.Request(f'{API.rstrip("/")}/api/v1/workflows/{wf_id}',
             headers={'X-N8N-API-KEY': KEY, 'accept': 'application/json', 'User-Agent': UA, **CF_HDRS})
         return json.load(urllib.request.urlopen(req, timeout=30))
+    check_listed(WF, COMMITTED)
     live = fetch(WF)
     comm = json.load(open(COMMITTED, encoding='utf-8'))
 
@@ -778,11 +758,8 @@ def main():
 
     # SETTINGS are not versioned and were compared nowhere: Main and Reminders carried keys live that their
     # committed exports did not, with this guard green (MIGRATION-PLAN §3r, settings-parity).
-    sp = _settings_parity()
-    fails = sp.committed_vs_live(comm.get('settings'), live.get('settings'))
-    is_copy = _is_migration_copy(WF, COMMITTED)
-    if is_copy:
-        fails += check_copy_settings(live, COMMITTED, fetch, sp)
+    # Since D6c a key the workflow's spec allowlists may be live while absent from the export, with exactly its value.
+    fails = _settings_parity().committed_vs_live(comm.get('settings'), live.get('settings'), settings_allow(COMMITTED))
     fails += content_drift(live, comm, smap)
 
     if fails:
@@ -799,8 +776,9 @@ def main():
     # guard was stricter than it is.
     print(f'content parity OK — {len(_executable(live))} executable nodes match live after the documented normalization '
           '(sanitize placeholders + n8n serialization noise normalized; sticky notes excluded)')
+    allow = settings_allow(COMMITTED)
     print('settings parity OK — the committed settings equal the live settings'
-          + ('; the copy\'s live settings equal its original\'s, except allowlisted absences' if is_copy else ''))
+          + (f", except the allowlisted live-only key(s) {sorted(allow)} at exactly their values" if allow else ''))
     sys.exit(0)
 
 

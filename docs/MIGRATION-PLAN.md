@@ -2601,6 +2601,29 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 5. **Base: NOT deleted by this phase.** It stays as an exported, unreferenced archive. Deleting it is
    irreversible and a separate decision (it also holds Customers).
 
+### 7a · D6c as ruled (Yigitcan, 2026-10-26) — supersedes the order above where they differ
+
+- **Originals:** the five Airtable originals leave the instance — **archived** (this n8n has
+  `POST /workflows/{id}/archive`), each measured first as inactive with no execution after the cutover. Their sanitized
+  exports leave `n8n/` and stay in git history.
+- **One workflow ↔ one export:** the pairing ends. `scripts/check-exports-parity.sh` → `WORKFLOWS` lists each id with
+  `n8n/workflow.<key>.sanitized.json` (`scripts/workflows.py` parses it); the active set must equal the listed set
+  (`scripts/check-active-set.py`); a webhook path has exactly one active, listed holder (`workflows.holder`).
+- **Rename:** each workflow gets its clean name through `workflow-step.py`, the name being an approved delta of its own
+  (`diff-workflow-copy.APPROVED_RENAMES`, `n8n/staged/workflow.<key>.rename.delta.json`): rehearsal on a scratch →
+  deactivate → put → activate → the workflow's own evidence → parity, one workflow at a time, webhook paths and ids
+  measured unchanged. The evidence: Main — `workflow-step.py probe` (a dummy token answers 403 `turnstile_failed`);
+  Owner Actions — `probe` (unsigned 403 `invalid_signature`, signed unknown record 404 `not_found`); Drill State —
+  no probe exists (`probe` covers Main and Owner Actions only), so: active, published == draft, its webhook path and id
+  unchanged, parity green; Purge and Reminders — active, published == draft, parity green, and their next scheduled run
+  read after it fires when that falls inside the session.
+- **Settings:** only Main's `binaryMode` remains a known difference — an exact-value allowlist entry `"separate"`.
+- **Airtable:** the n8n Airtable credential is deleted once no workflow references it. **Gate 1 (the export) and
+  steps 4–5 (revoking the PATs, the base) move to the final security pass** as Yigitcan's manual steps.
+- **Not included:** PHASE-7-PLAN item 13's named item (5) — the Main put touches no node.
+- **Offline part:** built and tested before any live step (`check-all` 0, with the tests named in the D6c commit). The
+  live results are recorded here when the steps have run.
+
 ## 8 · Phase 7 premises that change (list only; re-derived at D6b's acceptance, ruling 2026-10-20)
 
 - **K-5** (regression from the widget lane): the lane is unchanged, but its expectations about the

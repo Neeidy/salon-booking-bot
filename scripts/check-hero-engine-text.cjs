@@ -8,7 +8,7 @@
  * web/site/lib/heroScenarios.ts necessarily holds a DERIVED copy of engine wording
  * (.claude/rules/contract-integrity.md allows a derived copy only with a drift guard — this is it).
  *
- * What this checks, against the COMMITTED Main COPY export (`n8n/workflow.main.copy.sanitized.json` — since
+ * What this checks, against the COMMITTED Main COPY export (`n8n/workflow.main.sanitized.json` — since
  * the D6b cutover the live Main is the Postgres copy; the parked original is the rollback path until D6c)
  * and the committed example config:
  *   1. every engine LITERAL shape the hero reproduces still exists in its named node
@@ -21,7 +21,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const WF = process.env.SANITIZED_PATH || path.join(ROOT, "n8n/workflow.main.copy.sanitized.json");
+const WF = process.env.SANITIZED_PATH || path.join(ROOT, "n8n/workflow.main.sanitized.json");
 const CFG = process.env.CONFIG_EXAMPLE || path.join(ROOT, "config/client.config.example.json");
 
 // [node name, exact substring that must appear in that node's jsCode, which hero bubble depends on it]
