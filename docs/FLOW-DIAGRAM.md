@@ -8,9 +8,15 @@
 > external call (Anthropic, Google Calendar, Airtable) has a **visible** error exit — silent failure is
 > forbidden ([n8n-conventions](../.claude/rules/n8n-conventions.md)). The five handoff classes never merge
 > ([handoff.md](../.claude/rules/handoff.md)): **guard-trip** (200, transient, no state write) ·
-> **infra-unavailable** (5xx + `error` flag) · **intent-handoff** (200, writes `stage=handoff`) ·
-> **clarify** (200, `last_intent` only) · **extraction-transient** (200, `last_intent` only + owner alert).
+> **infra-unavailable** (`error` flag + owner alert; 200 + a reply once the message id is claimed, 503 only before
+> the claim) · **intent-handoff** (200, writes `stage=handoff`) · **clarify** (200, `last_intent` only) ·
+> **extraction-transient** (200, `last_intent` only + owner alert).
 > *(⚠ 2026-09-09f: the count was raised to five here while the list stayed at three — corrected.)*
+> *(⚠ 2026-10-27, 7-4 A: the infra class said "5xx". Since 7-2's CLAIM-RETRY ruling (`tests/unit/main-tur2.test.cjs`)
+> no node after `Dedupe Gate` answers a 5xx; the `503 …` labels in the diagrams below that sit after the claim
+> (`LLM Unavailable Reply`, `Lead Unavailable Reply`, `Calendar Unavailable Reply`, `Send Error Response` after the
+> claim) now answer 200 with the same error flag and a reply. The labels are left as drawn and read with this note;
+> the diagrams also still name Airtable where the store is Postgres since 2026-10-24.)*
 
 ## Overview — the lanes
 

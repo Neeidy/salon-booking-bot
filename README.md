@@ -78,7 +78,7 @@ quote a wrong price** — the answer path contains no model.
 | **Multi-turn booking collect** | "I want a haircut" → "what day and time?" → merged into a complete request |
 | **Deterministic FAQ** | Price / hours / services / address answered from config, never from the model |
 | **Lead capture** | Non-booking interest written to Postgres (`salon.leads`) with channel + message |
-| **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
+| **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (an error flag + owner alert; 503 only before the message is claimed) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Distinct machine-side error flags, never dressed as a normal reply — e.g. `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` · `calendar_unavailable` |
 | **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once: `Check Processed` CLAIMS the message id at the start of the turn on a UNIQUE column, so two deliveries cannot both claim it (claim-first; CRT 1a closed in 7-2). The cost is at-most-once — a run that dies after its claim is not retried. See [booking-integrity](.claude/rules/booking-integrity.md) for that and the booking race it does not close |
 | **Cancel · reschedule · reminders** | Bot-automated, identity-bound to the channel's `sender_key`. Reminders are proven in dry-run; live WhatsApp template delivery needs the client's own WhatsApp Business number |
@@ -171,8 +171,9 @@ contract always diverge; a generated one cannot.
 instead of a crash.
 
 **An outage must not look like a handoff.** If the LLM or the database is down the customer still gets a
-polite message, but the machine-side response is distinct (`503` + an error flag) so the owner can be
-alerted. An outage that looks normal is an outage nobody fixes.
+polite message, but the machine-side response is distinct (an error flag, and an owner alert) so the owner
+knows. Once the message is claimed the status is 200, because a 5xx would only make the channel retry a message that
+is already claimed; before the claim it is 503. An outage that looks normal is an outage nobody fixes.
 
 **Availability has one source of truth.** Google Calendar owns free/busy; Postgres mirrors it. Writes go
 to the calendar first. Two sources of truth mean double bookings — and Postgres's transactions do not change

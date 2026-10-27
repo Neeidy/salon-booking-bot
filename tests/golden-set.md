@@ -46,6 +46,14 @@ ends in `stage=confirming` with a confirm ask.
 | G14 | new | "Do you take walk-ins?" | `answer_faq` · high | Answer FAQ → `faq.walkin` from config |
 | G15 | new | "Book a beard trim on 2027-11-16 at 10:30" | `book` · high | as G1 (a Tuesday, inside working hours); the ISO date stands because the customer typed it (`dateExpr` = the same string). After that date the case takes `past` |
 
+## Result — the paid run, 2026-10-27 (7-4 A)
+
+One Turnstile window, each case in a fresh session at stage `new`, compared from the execution data
+(`docs/PHASE-7-PLAN.md` §4i): **12 of 15 pass as specified** (intent, confidence class, slots, route); **G8 and G11**
+match on intent but their routes need a stage the round could not create (`confirming`; an existing booking); **G10** is
+not comparable (it needs `cancel_confirming`; at `new` the model said `cancel`). No action node ran except G5's
+`Capture Lead`. Spend for the whole window (golden + jailbreak): 0.067822 USD.
+
 ## Expected JSON (validated by `tests/unit/golden-set.test.cjs`)
 
 ```json golden

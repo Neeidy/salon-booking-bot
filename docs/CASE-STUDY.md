@@ -50,8 +50,11 @@ nothing to escalate into: the allow-list is the schema enum (`.claude/rules/prom
   yield (no double booking, no booking), and if the verify read itself FAILS, two writers can both keep their events —
   both customers are then handed off and the owner is alerted to cancel one by hand (`booking-integrity.md` §2).
 - **Failures are visible, and an outage never looks like a conversation:** five handoff classes stay distinct —
-  guard-trip, infrastructure-unavailable (5xx + an `error` flag + an owner alert), intent-handoff, clarify, and
-  extraction-transient (`.claude/rules/handoff.md`).
+  guard-trip, infrastructure-unavailable, intent-handoff, clarify, and extraction-transient (`.claude/rules/handoff.md`).
+  Infrastructure-unavailable carries an `error` flag (`llm_unavailable`, `calendar_unavailable`, …) and an owner alert.
+  Its status depends on the claim: once the message id is claimed it answers **200 with a polite reply**, because a
+  5xx would make the channel retry a message that is already claimed (the retry would only be a duplicate); only a
+  failure before the claim answers 503 (7-2's CLAIM-RETRY ruling; `tests/unit/main-tur2.test.cjs`).
 - **Spend brakes:** a monthly LLM spend cap checked before any paid call — it fails OPEN if the spend meter cannot be
   read (the turn runs and the owner is alerted) (`README.md`); a per-conversation turn cap (12 in the example config);
   an explicit timeout on every external HTTP call (60 s for the LLM, 15 s for the others); a dry-run switch that skips
@@ -173,7 +176,9 @@ What stands between that sentence and a fact, stated (`.claude/rules/honesty-dem
   `Load Config` node, so a new client also means editing that node; two config keys drive nothing (`instagram`,
   `business.locale`); the config-only second client (Phase 8) has not been built.
 - **WhatsApp end to end is not tested** in this phase (PHASE-7-PLAN, DoD row: K-5).
-- **The golden set's paid model run and the jailbreak re-run** are the next phase's (7-4), as is the **final security
+- **The golden set's paid run and the jailbreak re-run** ran in 7-4 A (2026-10-27): 12 of 15 golden cases pass as
+  specified (the other three need a conversation stage the run could not create), and no jailbreak case ran an action
+  node (`tests/golden-set.md`, `tests/jailbreak-cases.md`). Still ahead in 7-4 is the **final security
   pass**: fifteen items, among them rotating credentials named in ship gate #17, a shorter dashboard session,
   splitting the read-only role's column access, a permanent off-server backup target, and revoking the Airtable token
   (PHASE-7-PLAN, "The final security pass").

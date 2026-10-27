@@ -33,7 +33,7 @@ Five classes — never merged (the header said "three" while listing four; corre
 | Class | Cause | Writes state? | Response |
 |---|---|---|---|
 | guard-trip | kill-switch / max-turns | no (transient) | 200 |
-| infra-unavailable | external system down | no (transient) | 5xx + `error` flag |
+| infra-unavailable | external system down | no (transient) | `error` flag + owner alert; **200 + a reply once the message id is claimed, 503 only before the claim** (CLAIM-RETRY, 7-2; corrected 2026-10-27 — this cell said "5xx") |
 | intent-handoff | explicit handoff · **model did not answer at all** (bad `stop_reason`, unparseable JSON, non-object) · uncertain turn **while a confirmation is pending** · SECOND consecutive uncertain turn | yes (`stage=handoff`, `last_intent`) | 200 |
 | clarify | FIRST uncertain turn (no confirmation pending) | `last_intent='clarify'` only — **no `stage` change, so no lock** | 200 |
 | **extraction-transient** | the model ANSWERED but the JSON failed the committed schema (e.g. the required `dateExpr` key absent) — AND the intent is not `handoff` — AND **no cancel/reschedule confirmation is pending** — AND it is the FIRST one in a row | `last_intent='invalid'` only — **no `stage` change, so no lock**; `extraction_invalid` flag → owner alert | 200 |

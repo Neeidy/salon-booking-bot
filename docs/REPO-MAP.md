@@ -822,6 +822,12 @@
   - ### §4f · 7-1 re-shaped and RUN (ruling 2026-10-25): one short window for what is new — ✅ green
   - ### §4g · 7-2 R3 — the live window (brief 2026-10-26, its own ⚠ ONAY) — ✅ green, one gap
   - ### §4h · 7-2 R4 — the export gap closed live, CONVERGE disposition, docs, cleanup (brief 2026-10-26)
+  - ### §4i · 7-4 A — the final security pass (CC part), the golden-set and jailbreak runs, the DoD audit (brief 2026-10-27)
+  - #### The final-pass table (the list above, #1–#15, with ship gate #17 and T-4)
+  - #### The golden-set paid run (tests/golden-set.md)
+  - #### The jailbreak re-run (tests/jailbreak-cases.md)
+  - #### Docs corrected in this round
+  - #### The DoD audit (testing.md), whole build
   - ### §4c · Decisions ruled at approval
   - ## §5 · SKELETON
   - ## §6 · INTEGRATIONS
@@ -1225,6 +1231,7 @@
   - _(no `##` headings — flat file)_
 
 ### `tests/golden-set.md`
+  - ## Result — the paid run, 2026-10-27 (7-4 A)
   - ## Expected JSON (validated by `tests/unit/golden-set.test.cjs`)
 
 ### `tests/jailbreak-cases.md`
