@@ -131,6 +131,7 @@
 ### docs
 
 - `docs/ARCHITECTURE-DECISIONS.md`
+- `docs/CASE-STUDY.md`
 - `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
 - `docs/CP6D-BUILD-PACKAGE.md`
 - `docs/DATA-MODEL.md`
@@ -142,6 +143,7 @@
 - `docs/REPO-MAP.md`
 - `docs/RESTORE-PROCEDURE.md`
 - `docs/ROADMAP.md`
+- `docs/RUNBOOK.md`
 - `docs/SCREEN-INVENTORY.md`
 - `docs/UX-ARCHITECTURE.md`
 - `docs/n8n-rollback.md`
@@ -330,6 +332,7 @@
 - `tests/unit/codex-containment.test.py`
 - `tests/unit/content-parity-inactive.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
+- `tests/unit/golden-set.test.cjs`
 - `tests/unit/guards-tur2.test.py`
 - `tests/unit/leads-purge-read-error.test.cjs`
 - `tests/unit/live-parity-target.test.py`
@@ -633,7 +636,7 @@
   - ## Not built yet 🔜
   - ## Not yet — deferred to v2 (ruled 2026-10-24)
   - ## Engineering decisions worth reading
-  - ## Case study — the embeddable widget (Phase 6b)
+  - ## Case study
   - ## Repo map
   - ## Security
   - ## From demo to real
@@ -671,6 +674,17 @@
   - ### Future (post-v1, NOT a phase)
   - ### Conscious v1 boundary (stated honestly in the Phase 7 README/case-study)
   - ## 7. Critical-Review Targets — additions (2026-07-04)
+
+### `docs/CASE-STUDY.md`
+  - ## 1 · The problem
+  - ## 2 · The approach
+  - ## 3 · Architecture: the LLM is a translator, nothing more
+  - ## 4 · The AI-versus-deterministic split
+  - ## 5 · The migration: Airtable → self-hosted Postgres
+  - ## 6 · The independent audit (7-2)
+  - ## 7 · What I learned
+  - ## 8 · Production-next: "one swap to real", and what that does not yet mean
+  - ## 9 · A closer look: the embeddable widget (Phase 6b)
 
 ### `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
   - ## What this replaces
@@ -924,6 +938,7 @@
   - ### `design/DESIGN-DIRECTIONS.md`
   - ### `design/flow-diagram.md`
   - ### `docs/ARCHITECTURE-DECISIONS.md`
+  - ### `docs/CASE-STUDY.md`
   - ### `docs/CP4-RESCHEDULE-EXECUTE-PLAN.md`
   - ### `docs/CP6D-BUILD-PACKAGE.md`
   - ### `docs/DATA-MODEL.md`
@@ -961,6 +976,16 @@
   - ### 6b KAPANIŞINDA DEVREDİLEN AÇIK MADDELER — HER BİRİNİN SAHİBİ YAZILI
   - ## FAZ 6 — KAPANDI ✅ (2026-09-14, Yigitcan'ın hükmü)
   - ## Critical-Review Targets (Codex gate — from MASTER-BRIEF §9)
+
+### `docs/RUNBOOK.md`
+  - ## 0 · Provisioning a client's Postgres (once per deployment)
+  - ## 1 · Daily health checks (read-only)
+  - ## 2 · The nightly backup — verify it
+  - ## 3 · Deploying a workflow change — `scripts/workflow-step.py`
+  - ## 4 · A Turnstile window (a test run that needs real messages)
+  - ## 5 · Postgres roles (`db/schema/002_roles.sql`)
+  - ## 6 · Viewing the workflows safely
+  - ## 7 · A database GUI over an SSH tunnel, as `salon_ro`
 
 ### `docs/SCREEN-INVENTORY.md`
   - ## §0 — Amaç, kural, görsel dil
@@ -1200,7 +1225,7 @@
   - _(no `##` headings — flat file)_
 
 ### `tests/golden-set.md`
-  - _(no `##` headings — flat file)_
+  - ## Expected JSON (validated by `tests/unit/golden-set.test.cjs`)
 
 ### `tests/jailbreak-cases.md`
   - _(no `##` headings — flat file)_

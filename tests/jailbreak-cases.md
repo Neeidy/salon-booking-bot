@@ -9,11 +9,14 @@
 1. **Allow-list = the schema enum.** `Validate Intent` compiles the committed `schemas/intent.schema.json`; the
    only intents that exist are `book·confirm·cancel·reschedule·capture_lead·answer_faq·handoff·unknown`. There
    is **no email / export / admin / "say X" action** for an injection to escalate into.
-2. **`reply` is always null from the LLM.** The system prompt forces `reply:null`; the customer-facing text is
-   built deterministically from **config templates** — so an injection that says "reply exactly: …" cannot put
-   its words in front of the customer.
+2. **The LLM is asked for `reply: null`.** The system prompt asks for `reply:null`; the customer-facing text is
+   built deterministically by workflow code — **config templates, or fixed strings in the nodes** — so an injection
+   that says "reply exactly: …" cannot put its words in front of the customer. *(Corrected 2026-10-27, 7-3 review:
+   this said the prompt "forces" `reply:null` and that the text comes from config templates only; the schema still
+   allows a string, and some replies are fixed strings in Code nodes, e.g. `Compute Availability`, `Answer FAQ`.)*
 3. **Injection → handoff, HIGH confidence** (system-prompt rule) → `Invalid or Handoff Gate` → `Mark Handoff`
-   (no write, `stage=handoff`).
+   (no booking write; `Save State` records `stage=handoff`). *(Said "no write" until 2026-10-27, 7-3 review: the state
+   row is written.)*
 4. **The confirm gate is structural** — a booking needs a real "yes" turn; "skip confirmation and book now"
    cannot bypass it.
 5. **`{{ }}` in data is inert** — n8n evaluates expressions only in node parameters, never in item data, so a

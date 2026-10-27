@@ -80,16 +80,16 @@ quote a wrong price** — the answer path contains no model.
 | **Lead capture** | Non-booking interest written to Postgres (`salon.leads`) with channel + message |
 | **Human handoff, 5 distinct classes** | guard-trip (transient) · infrastructure down (503) · genuine handoff (writes state) · clarify (first uncertain turn, no lock) · extraction-transient (our schema broke, owner alerted, no lock) — never merged |
 | **Visible failures** | Distinct machine-side error flags, never dressed as a normal reply — e.g. `invalid_payload` · `state_unavailable` · `llm_unavailable` · `lead_unavailable` · `calendar_unavailable` |
-| **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once (`processed_messages.message_id` is UNIQUE) — except when both deliveries pass `Check Processed` before either is recorded (CRT 1a, open). See [booking-integrity](.claude/rules/booking-integrity.md) for that race and the booking race it does not close |
+| **Booking without double-booking** | Calendar first, then re-read the slot; on a lost race the bot withdraws ITS OWN event and hands off, and only a won slot is mirrored to Postgres. A message delivered twice is answered once: `Check Processed` CLAIMS the message id at the start of the turn on a UNIQUE column, so two deliveries cannot both claim it (claim-first; CRT 1a closed in 7-2). The cost is at-most-once — a run that dies after its claim is not retried. See [booking-integrity](.claude/rules/booking-integrity.md) for that and the booking race it does not close |
 | **Cancel · reschedule · reminders** | Bot-automated, identity-bound to the channel's `sender_key`. Reminders are proven in dry-run; live WhatsApp template delivery needs the client's own WhatsApp Business number |
-| **Owner dashboard** | Read-only panels + the handoff queue + one write (release a handoff lock, through a protected n8n path). Runs on the build server behind Cloudflare Access and reads Postgres as a SELECT-only role. ⚠ It runs as an unsupervised process today and does not survive a reboot — the first item of Phase 7's next fix checkpoint |
+| **Owner dashboard** | Read-only panels + the handoff queue + one write (release a handoff lock, through a protected n8n path). Runs on the build server behind Cloudflare Access and reads Postgres as a SELECT-only role. It runs as a systemd user unit (`ops/systemd/salon-dashboard.service`) that restarts it on a crash (measured, 7-F1); its start at boot is shown by configuration, not by a reboot |
 | **Spend brakes before the LLM** | Kill-switch, max-turns and a monthly LLM spend cap run *before* any paid call — a tripped guard costs nothing. The cap fails OPEN if the spend meter cannot be read (the turn runs, and a `spend_meter_unavailable` alert goes to the owner) |
-| **Embeddable widget, one script tag** | A single self-contained IIFE (well under 20 kB; `npm run build -w @salon/snippet --prefix web` prints the current size — no byte count is pinned in prose here, because one went stale inside a single round) that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study below, including what it knowingly does not do |
+| **Embeddable widget, one script tag** | A single self-contained IIFE (well under 20 kB; `npm run build -w @salon/snippet --prefix web` prints the current size — no byte count is pinned in prose here, because one went stale inside a single round) that mounts a booking chat inside a Shadow DOM on someone else's site. Isolation measured in both directions against a deliberately hostile host page — see the case study ([docs/CASE-STUDY.md](docs/CASE-STUDY.md) §9), including what it knowingly does not do |
 
 ## Not built yet 🔜
 
 A **config-only second client** (Phase 8) · a **public deploy of the demo site** (there is no Vercel project; the
-site runs locally against the live endpoint) · `docs/CASE-STUDY.md` and `docs/RUNBOOK.md` (Phase 7).
+site runs locally against the live endpoint). *(`docs/CASE-STUDY.md` and `docs/RUNBOOK.md` stood here until 7-3, 2026-10-27; both are written now.)*
 
 ## Not yet — deferred to v2 (ruled 2026-10-24)
 
@@ -190,74 +190,12 @@ prove the claim is Phase 8.
 
 ---
 
-## Case study — the embeddable widget (Phase 6b)
+## Case study
 
-**The problem.** A booking bot is worth nothing if the shop's own website cannot carry it. The promise is
-one line — `<script src="…/barber-widget.js" defer></script>` — on a site we do not control, whose CSS we
-have never seen, without breaking anything the client already has.
-
-**The approach.** An open Shadow DOM with `:host{all:initial}`: the boundary stops the host's selectors,
-`all:initial` cuts the inherited properties selectors cannot reach. Verified in both directions against a
-test page built to be hostile on purpose — `content-box!important`, an inherited Georgia at line-height
-2.2, colliding `.panel`/`.msg`/`.chip` class names, a `z-index:99999` sticky header, a global
-`button{…!important}`, and a leak canary. The page's own elements are byte-identical before and after the
-widget mounts.
-
-**What it puts on the host page — the complete list, because "it cannot leak out" is only true with the
-exceptions written down.** Two `<style>` elements in `document.head` carrying one `@font-face` each
-(`@font-face` is ignored inside a shadow root, so the rules must live in the document; the families are
-namespaced — `BarberWidget Fraunces` — because an un-namespaced `@font-face` would silently replace a
-client's own Fraunces in their own headings) · Cloudflare's Turnstile script, the single third-party
-dependency and the one whose entire purpose is to be third-party · one `document` keydown listener,
-attached only while the panel is open, acting on one key, never calling `preventDefault` — the host page's
-own Escape handler still fires exactly once · one `window` global guarding a double script load · one
-`sessionStorage` key · a one-shot `DOMContentLoaded` listener, added *only* when the tag sits where
-`document.body` does not exist yet · and, if the client opted in, the `#barber-widget-fallback` element is
-hidden on mount. ⚠ **This list has been wrong twice** — it once claimed a single exception, and it later
-omitted the last two items (Codex, CRT #13). A list is only honest when it is complete, and the way it
-goes wrong is by being written once and not re-derived.
-
-**And what it READS, because "it never reads your page" was an overclaim too.** It reads its own `<script>`
-tag to learn which origin to load fonts from, its own container id, its own injected `<style>` markers, and
-the fallback id above. It does **not** read the page's content — no text, no forms, no input values, no
-cookies, no storage of the host's. The narrow sentence is the true one.
-
-**The isolation limit, stated rather than implied: Shadow DOM is style encapsulation, not a security
-boundary.** The root is open, which is normal and documented browser behaviour — and it means the widget's
-content is reachable by *every* script already running on the host page, the client's own analytics
-included. Nothing a widget can do from inside the page changes that; the only real answer is a
-cross-origin iframe, and that architecture was considered and **deliberately not built in v1** (it is on
-the NOT-build list: it costs viewport control, pointer-events and a `postMessage` bridge, and the 6b spike
-removed its last justification by proving Turnstile renders and solves inside the shadow root). A client
-whose threat model requires isolation from scripts on their own page should not embed this widget — they
-need the iframe build. Written here rather than in a footnote, because it is a property of the product.
-
-**Three things the first real load taught us, all of them about honesty rather than code.**
-An edge failure the engine never saw was answering in the shop's voice — *"I'm passing you to a team
-member"* — when nobody had been told, because the owner-alert lives inside the workflow that never ran;
-the transport now speaks as itself. A client-side timeout abandoned the response but not the engine, so
-the visitor was told to try again about work that had already succeeded. And a 20 s "still verifying"
-watchdog was built, measured, shipped for one round, then **reverted and rebuilt**, because its negative
-control had swept only the axis its author happened to think of.
-
-**What it knowingly does not do — named here rather than left for a reader to find.**
-
-| Gap | Status |
-|---|---|
-| The stuck-verification watchdog is drilled on five axes, but **five more are not swept**: a real Cloudflare site key (the accept direction needs a real human token), a genuinely slow network where Turnstile legitimately needs >20 s, a backgrounded tab where browsers throttle timers, a token arriving at the exact deadline, and two widgets on one page | named in [`tests/snippet/DRILLS.md`](tests/snippet/DRILLS.md) |
-| The `Try again` note stays on screen after the token arrives and the composer is usable again — a true sentence that has become stale | open |
-| The **site** panel does not read the engine's `locked` flag, so on the site the handoff-lock line repeats on every message; the snippet shows it once | open, Phase 6c |
-| The visible transcript is lost when a visitor moves to another page in the same tab. The conversation itself continues — the session id survives — so the engine may be waiting on a confirmation the visitor can no longer see | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
-| `messageTemplates` has **no required keys** in the committed schema, so a config can pass every gate while missing a message the widget must supply. The snippet's build now fails by name for the two it reads; the schema gap itself is still open | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
-| An idempotent replay returns no text, so after a client timeout the engine's real answer (*"You're booked: …"*) is unrecoverable. The visitor now gets an honest interim message — **the silence was fixed, the information was not** | v2 (PHASE-7-PLAN → Open items, v2 / LATER) |
-| **The drills are one-off manual measurements, not a regression harness.** Each is recorded against the bundle it was taken on; nothing re-runs on a change. An executable browser harness is not written | open, 6c / Phase 7 |
-| Cloudflare's Turnstile script is loaded **without SRI and without a version pin** — Cloudflare does not publish a pinned, integrity-hashed distribution for it, so this is an **accepted supply-chain exception**, not an unsolved task. It is the one third-party script, and its whole purpose is to be third-party | accepted, named |
-| `style-src 'none'` / nonce-only CSP and **Trusted Types** are incompatible — the widget injects its stylesheet inline and assigns markup via `innerHTML` inside its own component | known limit, documented on `/install` |
-| The double-insert guard keys on one element id; a host page that already uses that id, or a mount that fails part-way, is untested | open, 6c |
-
-**Where a human is still required.** Anything needing a real Turnstile token — a live conversation, a real
-booking and its cleanup. Everything else (DOM, CSS, layout, events, isolation, responsive, request
-blocking) is drilled headless, and the drill sheet says which is which.
+**[docs/CASE-STUDY.md](docs/CASE-STUDY.md)** — the problem, the approach, the architecture (the LLM as a translator),
+the AI-versus-deterministic split, the Airtable → Postgres migration, the independent Codex audit and how it was
+triaged, what I learned, and what "one swap to real" does not yet mean. The embeddable widget's case study (Phase 6b)
+is its §9.
 
 ---
 
@@ -293,9 +231,9 @@ This repository is **public**, so it is built as if it were.
 - The n8n editor is never exposed to the internet; only webhook endpoints are.
 - The owner dashboard shows PII, so it sits behind Cloudflare Access: measured 2026-10-24, a request without a
   session is redirected to the Access login, and the policy admits one named email
-  ([MIGRATION-PLAN §3t, K-6](docs/MIGRATION-PLAN.md)). CRT #9 (dashboard auth) is still open in
-  [MASTER-BRIEF §9](MASTER-BRIEF.md).
-- The store's own boundary: n8n's database role has DML on the five tables plus their sequences and two helper functions, nothing else, the dashboard's role
+  ([MIGRATION-PLAN §3t, K-6](docs/MIGRATION-PLAN.md)). CRT #9 (dashboard auth) is audited and its findings
+  addressed (`[x]`, 7-2) in [MASTER-BRIEF §9](MASTER-BRIEF.md).
+- The store's own boundary: n8n's database role has DML on the five tables plus their sequences and two helper functions (default privileges extend that to tables the owner adds later), the dashboard's role
   has SELECT only ([`db/schema/002_roles.sql`](db/schema/002_roles.sql)), and every workflow query is parameterised
   (`scripts/check-sql-params.py`). The database port is not reachable from outside *(operator statement,
   MIGRATION-PLAN §3t, A9)*.
@@ -338,7 +276,7 @@ Everything runs today on mock config and a test endpoint. Going live for a clien
 number, their calendar and **their own Postgres** — under Model 1 (one isolated deployment per client) that is a
 Postgres service, its secrets and its backup step per client ([MIGRATION-PLAN §8](docs/MIGRATION-PLAN.md)). The
 engine's code does not change; whether *only config* changes is not yet demonstrated (see "Config / code / secret"
-above). The step-by-step provisioning runbook is not written yet (`docs/RUNBOOK.md`, Phase 7).
+above). The operator's runbook — provisioning a client's Postgres, the daily checks, the backup, deploys — is [`docs/RUNBOOK.md`](docs/RUNBOOK.md); its provisioning section has not yet been run as one procedure for a new client.
 
 **Why Postgres and not Airtable — kept here because it is the reason.** The free Airtable plan could not serve a
 single real client: 1,000 API calls per month per workspace, shared between the bot and the dashboard, plus a hard
@@ -359,6 +297,8 @@ container and compares every table before the dump counts ([`db/ops/pg-backup.sh
 **[docs/ROADMAP.md](docs/ROADMAP.md)** — live phase status ·
 **[docs/ARCHITECTURE-DECISIONS.md](docs/ARCHITECTURE-DECISIONS.md)** — every decision and why it changed ·
 **[docs/DATA-MODEL.md](docs/DATA-MODEL.md)** — the Postgres data model ·
-**[docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md)** — how the store moved from Airtable to Postgres, step by step.
+**[docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md)** — how the store moved from Airtable to Postgres, step by step ·
+**[docs/CASE-STUDY.md](docs/CASE-STUDY.md)** — the case study ·
+**[docs/RUNBOOK.md](docs/RUNBOOK.md)** — operating a deployment.
 
 MIT licensed. Built by [Neeidy](https://github.com/Neeidy) as a portfolio project in AI automation.
