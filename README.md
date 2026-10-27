@@ -120,6 +120,8 @@ Phase 7's fix checkpoint instead.
 | Item | Why it waits |
 |---|---|
 | deploy tool: a snapshot's age is not checked | snapshots are deleted once an edit closes (`remote-operator.md`), and any snapshot must still pass the webhook invariants before a rollback |
+| deploy tool: the Turnstile-window helper reads its spec from any path (D6c review) | its one caller passes `db/copies/main.json`; `workflow-step.py` requires `db/copies/` for every live write |
+| deploy tool: the Turnstile window's holder check has no fallback for a listing without nodes (D6c review) | such a listing gives 0 holders, which is red, never a pass |
 | deploy tool: a snapshot directory inside another git work tree is accepted | snapshots live in the session scratchpad by procedure; only this repo is refused, which is the leak that matters |
 | deploy tool: the helper's `api` raises on an empty curl output | a traceback still stops the run; every next step reads the copy's state before writing |
 | deploy tool: `activate` does not re-check the Turnstile literal | `put` checks the literal on the export and in its live read-back before any activate |
@@ -276,7 +278,7 @@ blocking) is drilled headless, and the drill sheet says which is which.
 | [`.claude/`](.claude/) | the rules this repo is actually built under |
 
 **Stack** — n8n (self-hosted) · Anthropic Claude Haiku 4.5 · PostgreSQL (self-hosted, since 2026-10-24;
-Airtable read-only until D6c) · Google Calendar · Zernio (WhatsApp Business API) · Next.js (the site: no
+Airtable retired at D6c, 2026-10-27) · Google Calendar · Zernio (WhatsApp Business API) · Next.js (the site: no
 public deploy yet · the dashboard: its own server behind Cloudflare Access).
 
 ---
@@ -343,8 +345,9 @@ single real client: 1,000 API calls per month per workspace, shared between the 
 5 requests/second per base (measured 2026-09-12). On 2026-10-06 the quota ran out with no customer traffic at all,
 and the bot had no data layer for almost twelve days ([OPS-5](docs/OPERATIONAL-INCIDENTS.md)). The store moved to
 self-hosted Postgres (ruling 2026-10-19; cut over and accepted 2026-10-24,
-[MIGRATION-PLAN §3t](docs/MIGRATION-PLAN.md)). **Airtable is read-only until D6c** — the shutdown after a 7-day
-soak — and the parked original workflows still point at it as the rollback path. What Postgres costs instead: a
+[MIGRATION-PLAN §3t](docs/MIGRATION-PLAN.md)). **Airtable was retired at D6c (2026-10-27)**: the original workflows
+are archived and n8n's Airtable credential is deleted, so nothing can reach it; revoking its token and deleting the base
+are on the final security pass list. What Postgres costs instead: a
 database to run, back up and restore for every client. The nightly backup restores each dump into a throwaway
 container and compares every table before the dump counts ([`db/ops/pg-backup.sh`](db/ops/pg-backup.sh)).
 

@@ -6,9 +6,9 @@
 > `003_revoke_large_object_writes.sql` (the large-object revoke). If this page and those files disagree, the files
 > win and this page is wrong. Machine-checkable message contracts live in [`../schemas/`](../schemas/).
 >
-> **Airtable is READ-ONLY until D6c** (the Airtable shutdown after a 7-day soak, MIGRATION-PLAN §7). The parked
-> original workflows still point at it as the rollback path; no active workflow holds an Airtable node. Its
-> description is kept at the bottom of this page as history, not as the current model.
+> **Airtable was retired at D6c (2026-10-27, MIGRATION-PLAN §7a):** the original workflows are archived and n8n's
+> Airtable credential is deleted, so nothing reaches the base; revoking its token and deleting the base are on the final
+> security pass list. Its description is kept at the bottom of this page as history, not as the current model.
 
 Five tables. `leads` / `appointments` are the CRM; `conversations` / `processed_messages` / `bot_metrics` are the
 engine's state (multi-turn · idempotency · spend meter).
@@ -179,7 +179,7 @@ Postgres store is a soak item (Round 3c) — not recorded here as passed.*
 
 ---
 
-## Historical — the Airtable base (READ-ONLY until D6c)
+## Historical — the Airtable base (retired at D6c, 2026-10-27)
 
 Until the cutover of 2026-10-24 the same five tables lived in an Airtable base (plus the unused `customers`). The
 field names and meanings above were carried over 1:1 — the migration's rule was that behaviour does not change — with

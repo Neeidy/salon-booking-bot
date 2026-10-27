@@ -2610,7 +2610,8 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
   `n8n/workflow.<key>.sanitized.json` (`scripts/workflows.py` parses it); the active set must equal the listed set
   (`scripts/check-active-set.py`); a webhook path has exactly one active, listed holder (`workflows.holder`).
 - **Rename:** each workflow gets its clean name through `workflow-step.py`, the name being an approved delta of its own
-  (`diff-workflow-copy.APPROVED_RENAMES`, `n8n/staged/workflow.<key>.rename.delta.json`): rehearsal on a scratch →
+  (`diff-workflow-copy.APPROVED_RENAMES`, `n8n/staged/workflow.<key>.rename.delta.json` — both emptied/removed once the
+  renames were live): rehearsal on a scratch →
   deactivate → put → activate → the workflow's own evidence → parity, one workflow at a time, webhook paths and ids
   measured unchanged. The evidence: Main — `workflow-step.py probe` (a dummy token answers 403 `turnstile_failed`);
   Owner Actions — `probe` (unsigned 403 `invalid_signature`, signed unknown record 404 `not_found`); Drill State —
@@ -2621,8 +2622,30 @@ Each keeps its `onError` and `alwaysOutputData`. Main's 6 `<Node> Errored?` IFs 
 - **Airtable:** the n8n Airtable credential is deleted once no workflow references it. **Gate 1 (the export) and
   steps 4–5 (revoking the PATs, the base) move to the final security pass** as Yigitcan's manual steps.
 - **Not included:** PHASE-7-PLAN item 13's named item (5) — the Main put touches no node.
-- **Offline part:** built and tested before any live step (`check-all` 0, with the tests named in the D6c commit). The
-  live results are recorded here when the steps have run.
+- **Offline part:** built and tested before any live step (`check-all` 0, with the tests named in the D6c commit
+  `a175bfb`; two L2 review rounds).
+- **Live results, 2026-10-27** (terminal-measured, output not committed):
+  - Turnstile: a dummy token answered 403 `turnstile_failed`, executed by Main as the path's sole holder, before the
+    first step and after the last.
+  - Renames, in the order Drill State → Reminders → Purge → Owner Actions → Main, each: rehearsal on a scratch green
+    (renamed, rolled back, scratch deleted) → deactivate → put → activate (published == draft) → evidence → content and
+    settings parity green. Every webhook node's path and id read back unchanged (compared by hash). Main's put also
+    returned 179 node positions and three sticky sizes from an editor auto-layout to the export (named by the put, read
+    back); its production path had no holder for about five seconds. Owner Actions' put carried the corrected
+    `Sticky — 3` (draft and published equal to the export).
+  - Evidence: Main — dummy token 403, sole holder. Owner Actions — unsigned 403 `invalid_signature`, signed unknown
+    record 404 `not_found`, sole holder (the tool's probe still required an execution, which a workflow saving no
+    successful execution cannot show; it became a body probe by ruling the same day). Drill State — active, published ==
+    draft, path and id unchanged. Reminders — its first run after the rename succeeded and reached
+    `Find Due Appointments` (nothing due), as did every hourly run after it. Purge — active, published == draft; its next
+    run falls outside the session.
+  - Originals: each inactive, no execution after the cutover (Main's last one is from before the swap); all five
+    archived, read back archived.
+  - Credential: its only references were the five archived originals (34 nodes); deleted, read back 404, no Airtable-type
+    credential left.
+  - Closing gates: `check-exports-parity` 0 (the active set exactly the five listed workflows), `check-live-parity` 0.
+  - Declared: the Drill State rehearsal (a scratch) ran at :58 and the credential deletion at :55, both inside the
+    Reminders window the brief keeps clear; neither touched Reminders.
 
 ## 8 · Phase 7 premises that change (list only; re-derived at D6b's acceptance, ruling 2026-10-20)
 

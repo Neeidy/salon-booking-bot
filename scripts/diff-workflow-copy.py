@@ -111,9 +111,11 @@ APPROVED_DELTAS = {
 }
 
 
-# D6c (ruling 2026-10-26): each workflow's ONE approved rename, from its migration name to its clean name. Removed once the
-# five renames are live (the D6c records commit), after which a rename is a new ruling like any other delta.
-APPROVED_RENAMES = {
+# {key: (OLD name, NEW name)} — a rename a ruling approved, by exact identity. EMPTY since 2026-10-27: D6c's five renames
+# (migration name → clean name, ruling 2026-10-26) are live and their entries were removed in the D6c records commit, so a
+# rename is a new ruling like any other delta. The selftest and workflow-step's test install D6C_RENAMES as their fixture.
+APPROVED_RENAMES = {}
+D6C_RENAMES = {   # the five D6c renames as approved and applied — a TEST FIXTURE now, never read by approved_errs
     'main': ('MIG COPY — Main', 'Salon Booking Bot — Main'),
     'owner-actions': ('MIG COPY — Owner Actions (D11)', 'Salon Booking Bot — Owner Actions (D11)'),
     'purge': ('MIG COPY — Processed Purge', 'Salon Booking Bot — Processed Purge'),
@@ -656,6 +658,13 @@ def selftest():
     # RENAME (D6c): the approved rename alone passes; anything else beside it, another name, the same name, a key with no
     # rename, and an unapproved key are refused — in approved_errs and in parse_delta
     rcount = 0
+    for key, (frm, to) in D6C_RENAMES.items():   # with nothing approved (today), the D6c rename itself is refused
+        errs = approved_errs(key, {'rename': (frm, to)})
+        good = bool(errs) and 'no approved rename' in errs[0]
+        ok &= good; rcount += 1
+        print(f"{'✓' if good else '✗'} rename {key}: the D6c rename again, with APPROVED_RENAMES empty: {'RED — ' + errs[0] if errs else 'pass'}")
+    global APPROVED_RENAMES
+    real_renames, APPROVED_RENAMES = APPROVED_RENAMES, dict(D6C_RENAMES)   # the fixture, for the cases below
     for key, (frm, to) in APPROVED_RENAMES.items():
         for label, d, expect in ((f'rename {key}: exactly the approved rename', {'rename': (frm, to)}, True),
                                  (f'rename {key}: another new name', {'rename': (frm, to + ' 2')}, False),
@@ -667,6 +676,7 @@ def selftest():
             ok &= good; rcount += 1
             print(f"{'✓' if good else '✗'} {label}: {'pass' if not errs else 'RED — ' + errs[0][:100]}")
     errs = approved_errs('no-such-workflow', {'rename': ('a', 'b')})
+    APPROVED_RENAMES = real_renames
     ok &= bool(errs); rcount += 1
     print(f"{'✓' if errs else '✗'} rename: a key with no approved rename: {'RED — ' + errs[0] if errs else 'pass'}")
     for label, d in (('rename with an allow beside it', {'rename': {'from': 'a', 'to': 'b'}, 'allow': ['X']}),

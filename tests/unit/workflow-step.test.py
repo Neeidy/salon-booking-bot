@@ -258,6 +258,8 @@ tmp = []
 
 def repo_file(obj, name='.wstest-'):
     # Inside the repo (put refuses an export file outside it), in a gitignored name (n8n/**/*.json unless workflow.*.sanitized.json).
+    # n8n/staged/ holds no tracked file when nothing is prepared, so git does not keep the directory: make it.
+    os.makedirs(os.path.join(ROOT, 'n8n', 'staged'), exist_ok=True)
     t = tempfile.NamedTemporaryFile('w', prefix=name, suffix='.json', delete=False, dir=os.path.join(ROOT, 'n8n', 'staged'))
     json.dump(obj, t)
     t.close()
@@ -554,7 +556,6 @@ try:
     committed, fake, oid, cid = world('main')
     rc, out = run(fake, ['probe', M, cid])
     case('probe on an INACTIVE copy is refused', rc == 1 and 'not ACTIVE' in out, f'rc {rc}')
-    W.PROBE_WAIT_S = 0
     real_wp, env_keys = W.webhook_post, ('OWNER_HMAC_SECRET', 'CF_OWNER_ACCESS_CLIENT_ID', 'CF_OWNER_ACCESS_CLIENT_SECRET')
     saved = {k: os.environ.get(k) for k in env_keys}
     try:
@@ -577,7 +578,9 @@ try:
                                               ("Access's own 403 (no n8n body)", ((403, None), (404, {'error': 'not_found'})), 1, False),
                                               ('a bare 503 on the signed request', ((403, {'error': 'invalid_signature'}), (503, None)), 1, False),
                                               ('the signed request WRITES (200)', ((403, {'error': 'invalid_signature'}), (200, {'ok': True})), 1, False),
-                                              ('the right answers, but NOT executed by it', good, 1, 'none'),
+                                              # ruling 2026-10-27: a body probe — OA saves no successful execution, so
+                                              # the right answers with NO recorded execution are a pass, not a RED
+                                              ('the right answers and no execution recorded (saveDataSuccessExecution none)', good, 0, 'none'),
                                               ('the right answers, but a SECOND active workflow holds the path', good, 1, 'second')):
             committed, fake, oid, cid = world('owner-actions', copy_active=True)
             if by_orig == 'second':   # D6c: the holder check replaces "none by the original"
@@ -1460,9 +1463,16 @@ try:
     for argv in (['put', P, cid, SP, '--allow', *E1], ['settings', P, cid, SP, '--delta-file', 'x']):
         rc, _ = run(fake, argv, snap=False)
         case(f'usage: {argv[0]} WITHOUT --snapshot → exit 2', rc == 2 and not fake.calls, f'rc {rc}')
-    # 24. D6c RENAME (ruling 2026-10-26): the approved rename alone, from the live migration name to the export's clean name
-    RN = {k: f'n8n/staged/workflow.{k}.rename.delta.json' for k in IDS}
-    TEST_FILES.update(RN.values())
+    # 24. RENAME (D6c, ruling 2026-10-26): the approved rename alone, from the live migration name to the export's clean
+    #     name. APPROVED_RENAMES is EMPTY since the renames went live, so first: the D6c rename is refused as it stands; then
+    #     the five D6c renames are installed as the FIXTURE approval (diff-workflow-copy.D6C_RENAMES) for the cases below.
+    RN = {k: repo_file({'rename': {'from': f, 'to': t}}) for k, (f, t) in H.DIFF.D6C_RENAMES.items()}
+    committed, fake, oid, cid = world('purge', live_name=H.DIFF.D6C_RENAMES['purge'][0])
+    rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
+    case('rename: with APPROVED_RENAMES empty (today), a workflow still carrying the migration name is not even a target, 0 PUT',
+         rc == 1 and fake.puts() == 0 and "is not the workflow named 'Salon Booking Bot — Processed Purge'" in out,
+         f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
+    H.DIFF.APPROVED_RENAMES.update(H.DIFF.D6C_RENAMES)
     FROM_P, TO_P = H.DIFF.APPROVED_RENAMES['purge']
     committed, fake, oid, cid = world('purge', live_name=FROM_P)
     rc, out = run(fake, ['put', P, cid, 'HEAD:n8n/workflow.purge.sanitized.json', '--delta-file', RN['purge']])
@@ -1578,6 +1588,7 @@ try:
     case('rename: Drill State (a webhook workflow) renamed, webhook ids unchanged', rc == 0 and fake.wfs[cid]['name'] == to
          and 'webhook ids unchanged' in out, f'rc {rc} · {out.strip().splitlines()[-1][:120]}')
 
+    H.DIFF.APPROVED_RENAMES.clear()   # the fixture approval ends with section 24
 finally:
     H.api, W.WORKFLOWS_FILE, W.tracked_clean, W.head_blob = real_api, real_roles, real_tc, real_hb
     __import__('shutil').rmtree(SNAPDIR, ignore_errors=True)

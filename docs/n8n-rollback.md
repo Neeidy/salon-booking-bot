@@ -39,7 +39,9 @@ restore source here. Use the two paths below instead.
 >    the R3 rehearsal the rollback read back with ONLY the settings different from the snapshot, read as the PUT not
 >    undoing the key; the value itself was not printed) → `activate`, and STOP. ⚠ After such a rollback the copy is not
 >    its committed export (the key is live, not committed): parity is red on it and a retry of the edit is refused until
->    it is resolved by ruling. `probe` counts executions, so it does not run after `settings`. Delete S1/S2 once the
+>    it is resolved by ruling. `probe` for Owner Actions is a BODY probe (ruling 2026-10-27: unsigned 403, signed unknown
+>    record 404, sole holder of the path; no execution count, since after `settings` no successful run is saved), so it
+>    runs after `settings` too. Delete S1/S2 once the
 >    edit is closed: they hold live values (ruling SNAPSHOT, 2026-10-26; reverse deltas and the REV-export restore are
 >    gone).
 > The section below describes the abandoned tool, kept as the record of its design.

@@ -3,8 +3,8 @@
 **Purpose:** the core correctness rule — **zero double-bookings**, even without an atomic lock.
 
 **The store (since the cutover of 2026-10-24):** self-hosted **Postgres**, schema `salon`
-(`db/schema/001_init.sql`). Airtable is **read-only until D6c** — the parked original workflows still point at
-it as the rollback path, and nothing live writes it (`docs/MIGRATION-PLAN.md` §7).
+(`db/schema/001_init.sql`). Airtable was **retired at D6c** (2026-10-27): the original workflows
+are archived and n8n's Airtable credential is deleted, so nothing reaches it (`docs/MIGRATION-PLAN.md` §7a).
 
 Two DISTINCT problems, two DISTINCT guards (do not conflate them):
 

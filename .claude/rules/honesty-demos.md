@@ -7,7 +7,7 @@
 - Frame the path to production as **"one swap to real"**: the client's real Zernio number + Google Calendar
   + **their own Postgres** — not a rebuild. Under Model 1 (one isolated deployment per client) "their own
   Postgres" means three things per client: **a Postgres service, its secrets, and its backup step**
-  (`docs/MIGRATION-PLAN.md` §8). Airtable is read-only until D6c and is not part of a new client's setup.
+  (`docs/MIGRATION-PLAN.md` §8). Airtable was retired at D6c (2026-10-27) and is not part of a new client's setup.
 - **Do not let "one swap" overstate the config story.** Two config keys are dead today (`instagram`,
   `business.locale` — K-2, in the v2 backlog), the engine reads its config from an inline copy in the `Load Config`
   node rather than from the file, and the config-only second client (Phase 8) has not been built. "No code

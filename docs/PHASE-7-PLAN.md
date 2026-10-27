@@ -42,7 +42,7 @@ The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) 
 6. **The dashboard logs the full read error server-side** (`web/dashboard/app/page.tsx`, `console.error`): a driver message
    can carry the database host. It reaches neither the repo nor the page (which shows only `table: code`), but it reaches
    the local log (Yigitcan's ruling, 2026-10-23; MIGRATION-PLAN §3t).
-7. **WhatsApp senders (phone numbers) in the inactive Main original's `staticData`**: its owner-alert throttle keys are
+7. **WhatsApp senders (phone numbers) in the inactive Main original's `staticData`** (archived at D6c, 2026-10-27 — archiving keeps the workflow, its `staticData` included): its owner-alert throttle keys are
    `class:sender`, kept by n8n indefinitely; no purge reaches them, and they stay with the original after the cutover
    (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, #11).
 8. **Codex CRT #10 F2: the dashboard's write check runs once per process and its pass is cached**, and the pool takes its
@@ -52,7 +52,8 @@ The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) 
    present at that hour is what runs (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3a and 3b).
 10. **`storeError` puts the driver's error code on the dashboard page unfiltered** (`web/dashboard/lib/store.ts`); the
    pool listener's class filter could apply there too (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
-11. **The Purge schedule time stands in public files** (ROADMAP, MIGRATION-PLAN), against the rule that job times stay
+11. **The Purge schedule time stands in public files** (ROADMAP, MIGRATION-PLAN — and the committed Purge export's own
+   trigger, `n8n/workflow.purge.sanitized.json`, security-auditor D6c), against the rule that job times stay
    out of them (security-auditor LOW, Round 3b; Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, Round 3c).
 12. **The dashboard's Access session is 730 h:** decide a shorter one; and confirm, without printing it, that the policy's
    single email equals the repo author's email (a boolean only) (Yigitcan's ruling, 2026-10-24; MIGRATION-PLAN §3t, K-6).
@@ -61,6 +62,11 @@ The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) 
    change, fill `sender`/`channel`/`stage` from node references for the infra alerts (named item (5)), because filling
    the sender first would widen this exposure before it is masked (Yigitcan's ruling, 2026-10-25, at the 7-F1 plan
    approval). *Added after premise (12) froze the scope at twelve: by an explicit ruling, not by drift.*
+14. **Airtable: revoke the token and delete the base** (Yigitcan, manual; ruling 2026-10-27). D6c archived the original
+   workflows and deleted n8n's Airtable credential, so nothing reaches the base; the token still exists at Airtable.
+   Deleting the base is irreversible, and MIGRATION-PLAN §7's Gate 1 (the export, Customers included) has not run.
+15. **Item 13's named item (5):** the infra owner alerts take `sender`/`channel`/`stage` from the error item instead of
+   node references, so they can arrive without them (ruling 2026-10-27; open since 7-2 R4, not in D6c's put).
 
 **Ship-gate #17** (`CF_API_TOKEN` revoked or reduced to Read, AND the four leaked credentials rotated)
 **is no longer the gate in front of CP 7-0.** It moved to a security pass at the END of Phase 7. It stays
@@ -104,7 +110,7 @@ and 7-0 stops and reports rather than routing around it.
 | Evidence the migration already produced (premise 6: not re-run) | regression 28/28 on the Main copy (D4b) · `run-d11` 13/13 on the production paths (A2) · the routing smoke (A1) · the sequential race with M2's five points (A3) · the M7 failure window (store down, auth failure, spend meter refused) · Turnstile both ways. |
 | Ship gate | the one numbered list in `ROADMAP.md`, items 11–21, all open; only #19 names Airtable (rewritten after D6c, 7-S). |
 | Named items | the PHASE 7 row of the open-items table below: Q18 (mandatory), (1)–(15), one observation, and v3's older items. |
-| Final security pass | 13 items (top of this file): twelve frozen by premise 12, the 13th added by ruling at the 7-F1 approval (2026-10-25). |
+| Final security pass | 15 items (top of this file): twelve frozen by premise 12, the 13th added by ruling at the 7-F1 approval (2026-10-25), the 14th and 15th by ruling at D6c (2026-10-27). |
 | DoD | built ✅ · tested ◐ (the regression passes only in a Turnstile window; WhatsApp not tested, K-5) · cleaned ☐ · sanitized ✅ (10/10 exports, inverted parity) · README/case study ◐ (`docs/CASE-STUDY.md` and `docs/RUNBOOK.md` absent) · pushed ✅ · resume-point memory ✅ for the migration · Loom ☐ (after D6c, amendment below). |
 | Test assets | `golden-set.md` 7 cases, never run; `jailbreak-cases.md` 12/12 in the Airtable era; `validate-intent.test.cjs` not in `check-all` (D9); `secret-scan` is a hook by design. |
 | Drill matrix / harness (read-only scan, 2026-10-24) | ten ⚙ setups in `regression-suite.md` wrote Airtable rows directly — Claude holds only `salon_ro` now, so they go through a committed seed tool (7-T); #5 depends on `created_at` order and #5/#33 on a fixed fake gid (UNIQUE now); the "break the table" setups (#35, SC3, E-*) have no Postgres equivalent (ruled D6); `''`-vs-NULL is harmless in these rows (the readers use `NULLIF` and `|| ''`) but evidence queries use `COALESCE`. `run-d11` and `run-regression.sh`'s code paths are clean. |
@@ -143,7 +149,7 @@ security pass — without re-running what the migration already proved.
 | **7-2** audit | Codex: CRT 4, 12's five R3 items, 1a (its own audit), 1b (after the simultaneous drill; D1), the #11 drift, the owner export route (CRT 9/10's PII surface — the export goes live only after this) · CRT 9 → ship gate 18 (K-6 measured in part) | 3 | triggering Codex | a finding → a fix round | neither |
 | **7-3** artefacts | `docs/CASE-STUDY.md` (moved from README) · `docs/RUNBOOK.md`: Postgres provisioning, 001–003, the nightly backup, the dashboard service, **new item (b): a database GUI over an SSH tunnel as `salon_ro`** — dry-run, labelled "NOT run end to end" · golden-set expanded to 15 cases (D11) | 3 | installing the GUI client on his machine | — | neither |
 | **7-S** D6c-dependent | ship-gate text naming Airtable (#19) · after D6c, which also renames the production workflows (D3, amendment) | 1 | — | D6c not closed | neither |
-| **7-4** final security pass + DoD | the 13 items (12 frozen + #13 by ruling, 2026-10-25) · `cleaned` · golden-set + jailbreak run · resume-point memory · one push | 2 | the #17 rotations · the Access session setting (#12, D10) | an item that cannot close is declared, never dropped silently | neither |
+| **7-4** final security pass + DoD | the 15 items (12 frozen + #13 by ruling, 2026-10-25, #14–15 by ruling, 2026-10-27) · `cleaned` · golden-set + jailbreak run · resume-point memory · one push | 2 | the #17 rotations · the Access session setting (#12, D10) | an item that cannot close is declared, never dropped silently | neither |
 
 **Rounds: 14** — the three "1"s of 7-D7, 7-F2 and 7-T are ONE round (run in parallel), then 2 + 2 + 3 + 3 + 1 + 2. Not
 uniform on purpose: 7-F1 and 7-2 carry the risk. *(Was 15 with 7-F1 at 3 rounds; its approval on 2026-10-25 narrowed it to 2.)* (The chat presentation estimated 21 with those three CPs sequential.)

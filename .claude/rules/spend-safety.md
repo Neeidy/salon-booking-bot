@@ -19,7 +19,7 @@
     `web/dashboard/lib/store.ts`.)
   - **The Telegram owner-alert nodes set no timeout** either (the native Telegram node, not an HTTP Request);
     they do have an error route.
-  Airtable is read-only until D6c and no live workflow calls it.
+  Airtable was retired at D6c (2026-10-27): no workflow and no n8n credential reaches it.
 - **Dry-run default:** new/changed flows run in dry-run (no real writes) until explicitly switched to live.
 - **Global kill-switch:** `BOT_KILL_SWITCH=true` puts the bot into **handoff-only** mode instantly — every
   message goes to a human, no LLM, no writes. This is the emergency stop.

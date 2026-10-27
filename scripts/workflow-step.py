@@ -91,8 +91,10 @@ FORWARD-ONLY (ruling 2026-10-26: privacy hardening, applied last, nothing after 
 equality ignores exactly FORWARD_ONLY_SETTINGS — that key, that live value, absent from the snapshot; anything else is RED,
 naming the differing setting KEYS (never values). ⚠ After such a rollback the copy is NOT its committed export: the key
 is live and not committed, so exports/content parity is red on it and a second `put` is refused (parity_errs) until it
-is resolved by ruling. And `probe` counts executions, so it is not run after `settings` (a successful run is no longer
-saved).
+is resolved by ruling. Owner Actions' `probe` counts no execution (ruling 2026-10-27): a body probe (unsigned 403,
+signed unknown record 404, sole holder), because after `settings` a successful run is no longer saved — the count it
+used to require went RED on a healthy workflow at D6c. Main's probe still requires one execution of Main
+(turnstile-window.dummy_probe): Main saves its successful runs. Turning that saving off on Main would turn its probe red.
 
 GATE (Yigitcan, 2026-10-26; R1c ruling), kept as defence in depth beside the approved deltas: every security-gate node
 (diff-workflow-copy.GATE_NODES: Main's and Owner Actions' admission path, incl. `Load Config`, which holds the Turnstile
@@ -168,7 +170,6 @@ SHA_RE = re.compile(r'[0-9a-f]{7,40}')                    # REV of REV:PATH is H
 WORKFLOWS_FILE = None   # None = scripts/workflows.py's default, the committed check-exports-parity.sh; tests point it at a fixture
 SCRATCH_PREFIX = 'SCRATCH — '
 ID_RE = re.compile(r'[A-Za-z0-9]+')   # an n8n workflow id: anything else could be re-spelt by curl's path handling
-PROBE_WAIT_S = 5                      # an execution appears in the API a few seconds after the webhook answers
 
 
 class Refused(Exception):
@@ -632,7 +633,7 @@ def put(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
 
 def settings_step(spec_path, copy_id, export_arg, allow, delta, snapshot, scratch=False):
     """Ruling T-4: the approved delta's settings, applied as the LAST step — after the edit (its content must already be
-    live) and after the probes (which count executions). The body is the live draft with exactly those keys set."""
+    live) and after the probes. The body is the live draft with exactly those keys set."""
     delta = delta or {}
     spec, committed = target_scratch(spec_path, copy_id) if scratch else target(spec_path, copy_id)
     live = H._read(copy_id) if scratch else read_copy(copy_id, spec)
@@ -745,15 +746,6 @@ def webhook_post(path, body, headers):
         return (int(code) if code.isdigit() else 0), None
 
 
-def executions_since(wid, since):
-    """Executions of `wid` started at or after `since` — the same GET turnstile-window.executions_since makes for Main's
-    probe, here through the deploy helper's api (so the offline fake answers it)."""
-    st, d = H.api('GET', f'/executions?workflowId={wid}&limit=100')
-    if st != 200 or not isinstance(d, dict):
-        raise Refused(f'GET executions {mask_id(wid)} answered {st}: which workflow answered is NOT MEASURED')
-    return sum(1 for e in d.get('data') or [] if (e.get('startedAt') or '') >= since)
-
-
 def holder_errs(path, wid):
     """[] when the ONE active workflow listening on `path` is `wid` (workflows.holder over n8n's workflow list). Since D6c
     this replaces "the original did not execute": a second active holder of the path is what that check guarded against."""
@@ -776,14 +768,17 @@ def holder_errs(path, wid):
 
 
 def oa_probe(path, copy_id):
-    """Owner Actions sits behind Access: the service token is sent, so a 403 is n8n's, judged on its body. The workflow
-    must have executed, and it must be the path's only active holder."""
+    """Owner Actions sits behind Access: the service token is sent, so a 403 is n8n's, judged on its body. A BODY probe
+    (ruling 2026-10-27): the unsigned request answers 403 invalid_signature, the signed one for a record that does not
+    exist answers 404 not_found (or 503 store_unavailable: the signature path alive, the store down), and the workflow is
+    the path's ONLY active holder. It counts no execution: Owner Actions saves no successful execution
+    (saveDataSuccessExecution "none", ruling T-4), so a count could never pass — it went RED on a healthy workflow at D6c.
+    Which workflow answered is shown by the holder check (n8n refuses a second activation on a path: S1)."""
     need = ('OWNER_HMAC_SECRET', 'CF_OWNER_ACCESS_CLIENT_ID', 'CF_OWNER_ACCESS_CLIENT_SECRET')
     if any(not os.environ.get(k) for k in need):
         raise Refused('the Owner Actions probe needs ' + ', '.join(need) + ' in the environment: NOT MEASURED')
     hdr = {'Content-Type': 'application/json', 'CF-Access-Client-Id': os.environ['CF_OWNER_ACCESS_CLIENT_ID'],
            'CF-Access-Client-Secret': os.environ['CF_OWNER_ACCESS_CLIENT_SECRET']}
-    since = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime())
     rid = 'rec' + ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(14))
     body = json.dumps({'action': 'release_handoff', 'record_id': rid, 'messageId': f'wsprobe-{int(time.time())}-{secrets.token_hex(3)}',
                        'ts': int(time.time())})
@@ -793,13 +788,11 @@ def oa_probe(path, copy_id):
     st2, b2 = webhook_post(path, body, dict(hdr, **{'X-Owner-Signature': sig}))
     err2 = b2.get('error') if isinstance(b2, dict) else None
     signed_ok = (st2, err2) in ((404, 'not_found'), (503, 'store_unavailable'))
-    time.sleep(PROBE_WAIT_S)
-    ec, herrs = executions_since(copy_id, since), holder_errs(path, copy_id)
-    served = ec >= 1 and not herrs
-    ok = unsigned_ok and signed_ok and served
+    herrs = holder_errs(path, copy_id)
+    ok = unsigned_ok and signed_ok and not herrs
     note = ' · signature path alive, store unavailable' if ok and st2 == 503 else ''
     print(f"  probe: unsigned → {st1} {b1.get('error') if isinstance(b1, dict) else '-'} · signed, unknown record → {st2} {err2}"
-          f" · executions {ec} · the path's only holder: {'yes' if not herrs else herrs[0]}{note} · {'OK' if ok else 'RED'}")
+          f" · the path's only holder: {'yes' if not herrs else herrs[0]}{note} · {'OK' if ok else 'RED'}")
     return ok
 
 

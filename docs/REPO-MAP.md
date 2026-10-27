@@ -203,14 +203,6 @@
 
 - `n8n/screenshots/.gitkeep`
 
-### n8n/staged
-
-- `n8n/staged/workflow.drill-state.rename.delta.json`
-- `n8n/staged/workflow.main.rename.delta.json`
-- `n8n/staged/workflow.owner-actions.rename.delta.json`
-- `n8n/staged/workflow.purge.rename.delta.json`
-- `n8n/staged/workflow.reminders.rename.delta.json`
-
 ### ops/systemd
 
 - `ops/systemd/salon-dashboard.service`
@@ -729,7 +721,7 @@
   - ## `processed_messages` (idempotency / dedupe)
   - ## Roles and privileges (`002_roles.sql`, `003_revoke_large_object_writes.sql`)
   - ## Backups (`db/ops/pg-backup.sh`)
-  - ## Historical — the Airtable base (READ-ONLY until D6c)
+  - ## Historical — the Airtable base (retired at D6c, 2026-10-27)
 
 ### `docs/FLOW-DIAGRAM.md`
   - ## Overview — the lanes
@@ -864,7 +856,6 @@
   - ### docs/codex/7-2-r2b
   - ### n8n
   - ### n8n/screenshots
-  - ### n8n/staged
   - ### ops/systemd
   - ### prompts
   - ### schemas
