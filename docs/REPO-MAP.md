@@ -194,6 +194,10 @@
 - `docs/codex/7-2-r2b/containment.md`
 - `docs/codex/7-2-r2b/deploy.md`
 
+### docs/codex/phase-8
+
+- `docs/codex/phase-8/prompt.md`
+
 ### n8n
 
 - `n8n/notes.md`
@@ -912,6 +916,7 @@
   - ### docs/codex/7-2
   - ### docs/codex/7-2-r2
   - ### docs/codex/7-2-r2b
+  - ### docs/codex/phase-8
   - ### n8n
   - ### n8n/screenshots
   - ### ops/systemd
@@ -1243,6 +1248,9 @@
   - ## Flag 2 — run 9
   - ## Flag 3 — run 9
   - ## Tur 1b — containment by isolation (runs 1b, 2, 5, 6, 12, 4, 11)
+
+### `docs/codex/phase-8/prompt.md`
+  - _(no `##` headings — flat file)_
 
 ### `docs/n8n-rollback.md`
   - ## ⚠ Do NOT trust `n8n_workflow_versions` for THIS workflow
