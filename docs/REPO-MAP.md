@@ -141,6 +141,7 @@
 - `docs/OPERATIONAL-INCIDENTS.md`
 - `docs/PHASE-6-BACKLOG.md`
 - `docs/PHASE-7-PLAN.md`
+- `docs/PHASE-8-PLAN.md`
 - `docs/REPO-MAP.md`
 - `docs/RESTORE-PROCEDURE.md`
 - `docs/ROADMAP.md`
@@ -868,6 +869,21 @@
   - ## CP 7-0 · STATUS 2026-10-18 — protocol designed, window NOT opened
   - ## 7-1 · WINDOW PLAN (v3) — SUPERSEDED by v4 §4 (7-1); kept as the record of the Airtable-era budget, never run
 
+### `docs/PHASE-8-PLAN.md`
+  - ## Goal
+  - ## Measured preconditions (committed exports, read-only, 2026-10-28)
+  - ## Scope · NOT-build
+  - ## The mechanism (D1: render at deploy time)
+  - ## How the second client is proven (offline)
+  - ## Integrations · mock data
+  - ## Critical-Review Target
+  - ## Acceptance criteria
+  - ## ⚙ Drill matrix
+  - ## Automation-fit
+  - ## Rounds
+  - ## Rulings (Yigitcan, 2026-10-28)
+  - ## R1 — stopped at its start (2026-10-28): a slot outside the measured set
+
 ### `docs/REPO-MAP.md`
   - ## Tracked files by directory
   - ### (root)
@@ -972,6 +988,7 @@
   - ### `docs/OPERATIONAL-INCIDENTS.md`
   - ### `docs/PHASE-6-BACKLOG.md`
   - ### `docs/PHASE-7-PLAN.md`
+  - ### `docs/PHASE-8-PLAN.md`
   - ### `docs/REPO-MAP.md`
 
 ### `docs/RESTORE-PROCEDURE.md`
