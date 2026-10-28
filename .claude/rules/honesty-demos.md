@@ -8,10 +8,12 @@
   + **their own Postgres** — not a rebuild. Under Model 1 (one isolated deployment per client) "their own
   Postgres" means three things per client: **a Postgres service, its secrets, and its backup step**
   (`docs/MIGRATION-PLAN.md` §8). Airtable was retired at D6c (2026-10-27) and is not part of a new client's setup.
-- **Do not let "one swap" overstate the config story.** Two config keys are dead today (`instagram`,
-  `business.locale` — K-2, in the v2 backlog), the engine reads its config from an inline copy in the `Load Config`
-  node rather than from the file, and the config-only second client (Phase 8) has not been built. "No code
-  change" is the design goal, not yet a demonstrated fact.
+- **Do not let "one swap" overstate the config story.** What is shown (Phase 8, R1, 2026-10-28; offline): **a new
+  client = a config file + secret inputs → `scripts/render-client.py` → import into its own n8n; no node edited by
+  hand** (with both secret inputs given) — and its bounds go in the same sentence wherever it is claimed: EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the new instance's credentials linked by hand, and not yet shown on a real second deployment
+  (`docs/PHASE-8-PLAN.md`). The engine still carries its config as literals inside its nodes, which the render fills;
+  it does not read the config file at run time. *(Corrected 2026-10-28: this line said the config-only second client
+  had not been built and that "no code change" was only a goal; the render and its offline proof now exist.)*
 - If something isn't built or wasn't tested, say so plainly. A visible gap beats a hidden one.
 
 **Why:** this is a portfolio/vitrin piece — its credibility is the product. Honesty is the differentiator.

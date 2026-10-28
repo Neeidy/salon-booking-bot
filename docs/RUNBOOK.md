@@ -27,8 +27,8 @@ scratch could not be proven deleted; `turnstile-window.py` exits 2 when a preche
 > What a new client needs under Model 1 is a Postgres service, its secrets and its backup step (MIGRATION-PLAN §8).
 > The steps below are the ones this deployment went through (D2b-2, 2026-10-19; 003 in the migration's Round 3c), as
 > the schema files themselves prescribe. **As one start-to-finish procedure for a NEW client they have not been run**
-> (Phase 8, the config-only second client, is where that is proven). Every step is the operator's: the compose
-> directory and the roles file are root-owned.
+> (Phase 8 proves the workflows' half offline — section 0b — not this database half). Every step is the operator's:
+> the compose directory and the roles file are root-owned.
 
 1. **The service:** Postgres major 18, its image pinned by DIGEST in the compose file (MIGRATION-PLAN §3n), in the
    deployment's compose project, published on `127.0.0.1:5432` only, so n8n reaches it by service name and the
@@ -50,6 +50,26 @@ scratch could not be proven deleted; `turnstile-window.py` exits 2 when a preche
    §3o (e); created by its owner in n8n); the dashboard's
    environment holds `salon_ro` under the standard `PG*` names (MIGRATION-PLAN §3t, decision 2).
 6. **The backup step:** the nightly job calls `db/ops/pg-backup.sh` (section 2). Its first night's log is the check.
+
+## 0b · Rendering the client's workflows (Phase 8; offline)
+
+> Shown on a fictional second client (`tests/unit/render-client.test.py`), **not run for a real one yet**. The bounds:
+> EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the new instance's credentials linked by hand, and not yet shown on a real second deployment.
+
+1. **The client's config** — a copy of `config/client.config.example.json` filled in for the client, kept OUTSIDE the
+   repo or as exactly `config/client.config.json` (gitignored; another name under `config/` is NOT ignored). Check:
+   `CONFIG_EXAMPLE=<file> node scripts/check-config-schema.cjs`.
+2. **The secret input** — a JSON file with `telegramChatId` and `turnstileSecret`, mode 0600, owned by the operator,
+   outside the repo (the render refuses one inside it); written by the operator, never through a chat. Either key may
+   be left out, and its slot then stays the `REPLACE_WITH_…` placeholder — which means editing those nodes by hand in
+   the new instance: "no node edited by hand" holds only with both keys given.
+3. **Render:** `python3 scripts/render-client.py --config <file> --secrets <file> --out <a directory that does not exist yet, outside the repo>`.
+   It refuses, by name: a key the workflows read that the config lacks, a value of another kind, a list element
+   (a service, a day's hours) without the shape of the demo's, an empty template; it also refuses NaN, an output path that exists or
+   resolves into the repo, and an export whose slots moved. The output (0700 / 0600) can hold the secrets: delete it
+   once imported.
+4. **Import** the five `workflow.<key>.json` into the client's own n8n, link each node's credential there (the exports
+   carry placeholders for them), and run that instance's own parity and probe checks before activating anything.
 
 ## 1 · Daily health checks (read-only)
 

@@ -2,7 +2,7 @@
 
 > **Status: APPROVED by Yigitcan (plan-gate), 2026-10-28**, presented in chat in the full format, rulings D1–D4 as
 > proposed. Derived against `0c97044`. Offline only: no live write, no n8n call. **R1 stopped at its start (below):** a
-> slot outside the measured set turned up; the plan is extended only by ruling.
+> slot outside the measured set turned up; ruled the same day: it is the tenth slot (below).
 > **Order (ruling 2026-10-28):** Phase 8 now (offline, 2 rounds), then a **public demo** phase (ship gates 11–16, 19,
 > 21, the deploy). The Phase 8 row's named item "per-client Turnstile provisioning" moved to that phase (ROADMAP).
 
@@ -116,7 +116,7 @@ committed exports. Seven hits:
 | `Build LLM Request` — the prompt's few-shot examples | `"serviceId":"haircut"` twice, and the phrase "a haircut" in the example messages | **a slot outside the measured set:** client A's service id inside text sent to the model on every turn. For B (ids `skin_fade`, `classic_cut`, `beard_sculpt`, `cut_beard`) the examples teach an id B does not have |
 | `Build LLM Request` — a code comment | `// "Europe/Vienna"` | a comment; the value is read from `cfg.business.timezone` |
 | `Resolve Date` — a code comment | "haircut friday" in an example sentence | a comment |
-| `Build Booked State`, `Build Mirror-Failed State`, `Build Dry-Run Booked State`, `Build Cancelled State` | the demo's template text as the fallback after `cfg.messageTemplates.… \|\|` | used only when the config lacks the key; the render refuses a config that lacks it |
+| `Build Booked State`, `Build Mirror-Failed State`, `Build Dry-Run Booked State`, `Build Cancelled State` | the demo's template text as the fallback after `cfg.messageTemplates.… \|\|` | used only when the config lacks the key (or, as the review found, holds it empty); the render refuses both |
 
 **Safety, measured in the code:** an id that is not in `config.services` is nulled by `Merge Slots`, refused by
 `Slot Gate`'s allow-list, and would make `Build Event Request` throw — so B cannot book a wrong service; at worst the
@@ -124,3 +124,75 @@ bot asks for the service once more. It is a quality and template-claim defect, n
 
 **R1 waits for a ruling** on how the plan treats it (the brief's STOP condition: "a slot outside the measured set turns
 up — report it, extend the plan only by ruling").
+
+**Ruled (Yigitcan, 2026-10-28): option (a).** `Build LLM Request`'s few-shot examples become the **tenth slot**: the two
+`"serviceId":"haircut"` and the two "a haircut" phrases are rendered from the client's FIRST service id and name, at fixed
+anchors with an expected count — a count mismatch makes the render refuse; render(example) stays byte-identical. The
+comments and the `messageTemplates` fallback strings are **not** slots: each goes onto the A-leak scan's allowlist by
+node + text + reason, one entry per hit, never a pattern. R1 continues on that basis.
+
+**Read with the slots, stated so it is not mistaken for a new one:** the 52 credential references in the exports
+(`REPLACE_WITH_*_CREDENTIAL_ID`) are per-instance links, not per-client values; the render leaves them as placeholders
+and they are linked in the new instance — the plan's "credentials are per instance" and the acceptance criteria's
+"credential setup" bound.
+
+## R1 — built offline (2026-10-28)
+
+- **`scripts/render-client.py`** fills the ten slots. The three literals are read WITHOUT executing them (bare keys
+  quoted, line comments dropped, then JSON — the test compares that reading with node's own evaluation of each
+  committed literal) and re-written in the committed literal's style (bare keys), because the repo's own tools read
+  that style: the deploy tool's `turnstile: { enabled: … }` pattern and the parity script's `timezone: "…"` /
+  `ownerAlert: { … }` patterns find nothing in JSON's quoted keys — and a parity check that finds nothing on both sides
+  passes. The comments inside the Purge literal are not carried into a rendered client (its header comments are).
+- **`tests/unit/render-client.test.py`** (in `check-all`): proofs 1–6 and the drill matrix, 63 cases (45 in the first
+  cut; the review rounds below added 18). The A-leak scan
+  takes every string of the demo client (5+ characters, lists included) that example-b does not hold, minus `site.*`
+  (no workflow literal carries the site's copy — asserted); its allowlist has six entries, one per hit (two comments,
+  four template fallbacks), and a stale entry is red; positive control: every probe is found in render(example);
+  negative control: an A literal planted outside the slots is caught. Proof 5 includes a tamper control: a timezone
+  split between render(B)'s Main and Reminders turns `check-cancel-validation-parity` red, so it reads the rendered form.
+- **Mutants — `tests/unit/render-client-mutants.py`, 17 of 17 red, each by its own case** (not in `check-all`: it
+  re-runs the test per mutant). *(A mutant of the repository check writes into the repo, as such a mutant would; in
+  the first runs its directory — the mock client's render, placeholders only, gitignored — was left and deleted by its
+  literal path, twice, and it contaminated the later mutants' runs. Every case that targets the repo now removes exactly
+  what it created and fails, and the runner stops if anything is left.)*
+- **The review round (code-reviewer + security-auditor, offline), all fixed before the commit:**
+  - **HIGH — proof 2 measured nothing where example-b equals the demo** (45 of Main's 65 keys, all 3 of Purge's, the
+    calendar id among them): three targeted mutants (the calendar id and Zernio account from the demo literal, the
+    Purge literal from the demo, the bot / ownerAlert policy from the demo) passed the first test. Closed by a
+    synthetic third client whose every leaf differs from the demo's: each literal must carry its value at every key
+    and the demo's at none. Those three mutants, and an abspath-for-realpath one, are now in the runner and red.
+  - **The A-leak scan's scope, stated:** strings of 5+ characters that example-b does not hold, in node parameters.
+    Numbers and shared values INSIDE the three literals are covered by the synthetic client, not by the scan; a demo
+    number hard-coded outside the slots would be seen by neither.
+  - **List elements were not checked** (a service without `priceEUR`, or with it as a string, passed) — now each
+    element must carry the committed first element's keys and kinds. **An empty template** fell through to the
+    code's demo-text fallback — refused now, so the allowlist's "unreachable" holds. **NaN / Infinity** — refused.
+    **Trailing newlines** passed the shape checks (`$` matches before `\n`) — `fullmatch` now.
+  - **The output directory:** only a NEW directory, created by `mkdir`, re-checked after creation (realpath outside the
+    repo, and the same inode as the directory opened), files created by directory fd without following links — a link
+    swapped in after the first check can no longer steer the output into the repo (a test swaps the parent for a link
+    into a stand-in repository after the check; a mutant without the re-check writes there). Cases added: a link into the repo,
+    `..` into the repo, an existing (even empty) directory.
+  - **The secrets file:** opened without following links and checked on the open descriptor; refused inside the repo;
+    an unknown key is counted, not named (a secret pasted as a key would otherwise be printed).
+  - **Docs:** the claim narrowed to what the tests show (above); RUNBOOK §0b says a left-out secret key means a hand
+    edit in the new instance, and where the client config may live (another name under `config/` is not ignored); the
+    test copies only the five exports (it used to copy the gitignored live snapshots into its temp directory too);
+    the credential count corrected to 52.
+  - **Recorded, not changed:** the article before a service name in the few-shot is approximate (`a`/`an` by the first
+    letter) — grammar only.
+  - **The re-review (both reviewers, offline) found three LOW side effects of the fixes, all closed:** a day the demo
+    leaves empty (`sun: []`) let any value through — now checked against a filled sibling's shape; a refusal after
+    `mkdir` could leave the empty directory — removed now when it is ours, and every write error is a refusal; a
+    FIFO as the secrets path blocked the open — opened non-blocking now. Each has a case and a mutant. **And a defect in
+    the test itself, found by reading why a mutant died:** the FIFO case ran the script from its own location, so every
+    mutant (a copy in a temp dir, whose ROOT is that temp dir) failed it — mutants could be "killed" by it without their
+    own case going red. The child now loads the script with ROOT pinned to the repo, and the runner prints how many
+    cases each mutant turned red. With that fixed, the abspath mutant SURVIVED: the write's re-check caught what the
+    pre-check missed, so the pre-check itself was untested — the repo cases now require the pre-check's refusal.
+- **Docs:** README, `docs/CASE-STUDY.md` §1 and §8, `.claude/rules/honesty-demos.md`, `docs/RUNBOOK.md` §0b and
+  `MASTER-BRIEF.md` carry the honest sentence with its bounds in the same sentence; CRT #14 is in MASTER-BRIEF §9
+  (`[ ]` until Codex) and ARCHITECTURE-DECISIONS §7, the rulings in its decision log. README's status note, which still
+  said Phase 7 was in progress and Phase 8 not started, is corrected.
+- **Next: R2** — Codex audits CRT #14.

@@ -11,7 +11,7 @@ A barbershop loses bookings because messages arrive while the owner is cutting h
 shop's voice, and turns each message into one of two outcomes: **a booked appointment**, or **a captured lead and a
 human handoff** — with zero double bookings as the correctness contract (`.claude/rules/booking-integrity.md`).
 It is built as a **template**: the goal is that a new client means a new config file and new credentials, not new
-code. That is a goal, not a demonstrated fact — the config-only second client is Phase 8, not started (§8).
+code. Shown offline since Phase 8's first round, with its bounds (§8); not yet on a real second deployment.
 
 ## 2 · The approach
 
@@ -173,9 +173,13 @@ failure happened first:
 Going live for a client means **their real WhatsApp number (Zernio), their Google Calendar, and their own Postgres** —
 under Model 1 a Postgres service, its secrets and its backup step per client (`docs/RUNBOOK.md` §0) — not a rebuild.
 What stands between that sentence and a fact, stated (`.claude/rules/honesty-demos.md`):
-- **"No code change" is the design goal, not yet shown.** The engine reads its config from an inline copy in the
-  `Load Config` node, so a new client also means editing that node; two config keys drive nothing (`instagram`,
-  `business.locale`); the config-only second client (Phase 8) has not been built.
+- **"No code change" is shown offline, with bounds.** The engine carries its config as literals inside its nodes
+  (three inline copies, the owner's chat id, the Turnstile secret, and the prompt's few-shot service — ten slots in
+  all, measured). Phase 8's render fills them from a client's files: **a new client = a config file + secret inputs →
+  render → import into its own n8n; no node edited by hand** (with both secret inputs given), proven offline on a
+  fictional second client — only the ten measured slots differ from the demo's workflows; a synthetic client whose every config value differs from the demo's shows every key of the three config literals fed from the client's own config (the few-shot from its first service, the chat id and Turnstile secret from its secret input); and no demo-client string of five or more characters reaches the new client outside six allowlisted code comments and fallbacks (`tests/unit/render-client.test.py`; 17 mutants red,
+  `tests/unit/render-client-mutants.py`). The bounds, stated with it: EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the new instance's credentials linked by hand, and not yet shown on a real second deployment. Its independent audit (CRT #14) is the next round
+  (`docs/PHASE-8-PLAN.md`).
 - **WhatsApp end to end is not tested** in this phase (PHASE-7-PLAN, DoD row: K-5).
 - **The golden set's paid run and the jailbreak re-run** ran in 7-4 A (2026-10-27): 12 of 15 golden cases pass as
   specified, and no jailbreak case ran an action node (`tests/golden-set.md`, `tests/jailbreak-cases.md`). The other

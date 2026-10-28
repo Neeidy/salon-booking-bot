@@ -249,6 +249,7 @@
 - `scripts/package-lock.json`
 - `scripts/package.json`
 - `scripts/pre-push.sh`
+- `scripts/render-client.py`
 - `scripts/repo-map.sh`
 - `scripts/secret-scan-ignore`
 - `scripts/secret-scan.sh`
@@ -343,6 +344,8 @@
 - `tests/unit/message-id-guard.test.cjs`
 - `tests/unit/owner-actions-tur2.test.cjs`
 - `tests/unit/owner-alert-detail.test.cjs`
+- `tests/unit/render-client-mutants.py`
+- `tests/unit/render-client.test.py`
 - `tests/unit/reschedule-orphan-alert.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
@@ -883,6 +886,7 @@
   - ## Rounds
   - ## Rulings (Yigitcan, 2026-10-28)
   - ## R1 — stopped at its start (2026-10-28): a slot outside the measured set
+  - ## R1 — built offline (2026-10-28)
 
 ### `docs/REPO-MAP.md`
   - ## Tracked files by directory
@@ -1021,6 +1025,7 @@
 
 ### `docs/RUNBOOK.md`
   - ## 0 · Provisioning a client's Postgres (once per deployment)
+  - ## 0b · Rendering the client's workflows (Phase 8; offline)
   - ## 1 · Daily health checks (read-only)
   - ## 2 · The nightly backup — verify it
   - ## 3 · Deploying a workflow change — `scripts/workflow-step.py`
