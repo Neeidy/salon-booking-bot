@@ -1,5 +1,7 @@
 # Phase 7 — Test + Codex + DoD · PLAN v4
 
+> **✅ CLOSED 2026-10-28 (Yigitcan's ruling) as recorded: tested ◐ with its named gaps (K-5, #21, the second uncertain turn live, G8/G10/G11), the owner-deferred final-pass items (§4j), the v2 list (README, "Not yet — deferred to v2"). Phase 8 not started.** *Still open on the ship gate, not on this close: #17 (17b–17d declared open by Yigitcan with their reasons, §4j) and the Loom (#20, Yigitcan's).*
+>
 > **Status: PLAN v4 APPROVED by Yigitcan (plan-gate), 2026-10-24**, presented in chat in the full format and approved with
 > the amendments below; derived against `97aded7` after the migration closed (D6b accepted 2026-10-24, A1–A9; K-6 closed,
 > `0bd4e74`). It replaces v3 (approved 2026-09-17, derived against `232321c`; its full text is in git at `97aded7`). v3's
