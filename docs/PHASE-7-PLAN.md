@@ -1,6 +1,6 @@
 # Phase 7 — Test + Codex + DoD · PLAN v4
 
-> **✅ CLOSED 2026-10-28 (Yigitcan's ruling) as recorded: tested ◐ with its named gaps (K-5, #21, the second uncertain turn live, G8/G10/G11), the owner-deferred final-pass items (§4j), the v2 list (README, "Not yet — deferred to v2"). Phase 8 not started.** *Still open on the ship gate, not on this close: #17 (17b–17d declared open by Yigitcan with their reasons, §4j) and the Loom (#20, Yigitcan's).*
+> **✅ CLOSED 2026-10-28 (Yigitcan's ruling) as recorded: tested ◐ with its named gaps (K-5, #21, the second uncertain turn live, G8/G10/G11), the owner-deferred final-pass items (§4j), the v2 list (README, "Not yet — deferred to v2"). Phase 8 not started.** *Still open on the ship gate, not on this close: #17 (17b–17d declared open by Yigitcan with their reasons, §4j) and the Loom (#20, deferred 2026-10-28: to be completed, the approach decided later).*
 >
 > **Status: PLAN v4 APPROVED by Yigitcan (plan-gate), 2026-10-24**, presented in chat in the full format and approved with
 > the amendments below; derived against `97aded7` after the migration closed (D6b accepted 2026-10-24, A1–A9; K-6 closed,
@@ -625,7 +625,7 @@ G8, G10 and G11 are recorded in `tests/golden-set.md` as **"needs a seeded stage
 | cleaned | ✅ the 7-4 A rows, the stored Owner Actions executions and the archived Main original removed (above); two local backup refs remain, never pushed | this section |
 | sanitized | ✅ five exports + fixtures pass `check_sanitised`; secret-scan and host-leak gates | `tests/unit/staged-sanitised.test.py`, `scripts/secret-scan.sh` |
 | README / case study | ✅ the deferred items worded as "deferred by the owner, recorded" | `README.md`, `docs/CASE-STUDY.md` |
-| Loom | ☐ — ship gate #20, Yigitcan's | ROADMAP |
+| Loom | ☐ — ship gate #20, **DEFERRED** (Yigitcan, 2026-10-28): to be completed — not by the owner recording it himself; another approach will be decided later | ROADMAP #20 |
 | pushed | ✅ with this round's commit | git |
 | resume-point memory | ✅ written and read back | the project memory |
 
