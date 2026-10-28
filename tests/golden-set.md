@@ -54,6 +54,12 @@ match on intent but their routes need a stage the round could not create (`confi
 not comparable (it needs `cancel_confirming`; at `new` the model said `cancel`). No action node ran except G5's
 `Capture Lead`. Spend for the whole window (golden + jailbreak): 0.067822 USD.
 
+**G8, G10, G11 — needs a seeded stage, not run** (recorded 7-4 B, 2026-10-28). Each case assumes a state a fresh
+session does not have: G8 a pending booking confirmation (`confirming`), G10 a pending cancel confirmation
+(`cancel_confirming`), G11 an existing booking. Their 7-4 A sends at stage `new` are not runs of these cases. They
+were not seeded and re-run in 7-4 (by the brief): `scripts/seed-workflow.py` can seed such a stage on a `w-mig-p7-`
+session, and the run would need a Turnstile window of its own — and G8's real route creates a production calendar event.
+
 ## Expected JSON (validated by `tests/unit/golden-set.test.cjs`)
 
 ```json golden

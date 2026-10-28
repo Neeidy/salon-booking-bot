@@ -16,6 +16,10 @@ The statements (SQL below, printed by --print-sql) — what makes them safe is I
       processed_messages            message_id LIKE 'mig-p7-%'  (the clean-up also takes the run-d11 dashboard
                                     markers: message_id LIKE 'd11-%' AND sender_key = 'owner:dashboard' AND channel = 'owner')
       leads                         message LIKE 'mig-p7%'
+    `clean-p74` (7-4 B) is the one exception to that list: it removes the rows the 7-4 A Turnstile window left, which
+    were written by Main under that run's own prefixes — conversations / appointments sender_key LIKE 'widget:w-p74-%',
+    processed_messages message_id LIKE 'p74-%' AND sender_key LIKE 'widget:w-p74-%', and the ONE lead golden case G5
+    captured, named by its exact message, source and a created_at inside the window (a lead carries no session);
   · a fake event id must be prefixed AND pass Validate Cancel Target's shape check (/^[0-9a-v]{5,1024}$/):
     'migp7' + random base32hex digits; the one exception is the deliberately broken whitespace id of row #9;
   · inserts are all-or-nothing (one row failing the guard inserts none) and take an EXPLICIT created_at;
@@ -40,6 +44,7 @@ webhooks; N8N_HOST or CLAUDE.local.md's N8N_HOST line). SESSION is a widget sess
   python3 scripts/seed-workflow.py appt-delete --session S
   python3 scripts/seed-workflow.py pm-insert --session S --message-id mig-p7-… --created-at ISO
   python3 scripts/seed-workflow.py clean     the prefix-guarded clean-up of every p7 drill row (and the d11 markers)
+  python3 scripts/seed-workflow.py clean-p74 the guarded clean-up of the 7-4 A window's rows (p74 prefixes + the G5 lead)
   python3 scripts/seed-workflow.py down      deactivate → delete → GET answers 404
   python3 scripts/seed-workflow.py --print-sql | --selftest       (offline; the selftest asserts it made no call)
   (--bind-target sets cancel_target_id to the session's ONE booked appointment, found in SQL: no record id travels.)
@@ -157,12 +162,22 @@ SQL = {
         "l AS (DELETE FROM salon.leads WHERE message LIKE 'mig-p7%' RETURNING 1) "
         "SELECT (SELECT count(*) FROM c)::int AS conversations, (SELECT count(*) FROM a)::int AS appointments, "
         "(SELECT count(*) FROM p)::int AS processed_messages, (SELECT count(*) FROM l)::int AS leads"),
+    'clean-p74': (
+        "WITH c AS (DELETE FROM salon.conversations WHERE sender_key LIKE 'widget:w-p74-%' RETURNING 1), "
+        "a AS (DELETE FROM salon.appointments WHERE sender_key LIKE 'widget:w-p74-%' RETURNING 1), "
+        "p AS (DELETE FROM salon.processed_messages WHERE message_id LIKE 'p74-%' AND sender_key LIKE 'widget:w-p74-%' "
+        "RETURNING 1), "
+        "l AS (DELETE FROM salon.leads WHERE message = 'My name is Alex, please call me back' AND source = 'widget' "
+        "AND created_at >= '2026-10-27T20:06:00Z' AND created_at <= '2026-10-27T20:10:00Z' RETURNING 1) "
+        "SELECT (SELECT count(*) FROM c)::int AS conversations, (SELECT count(*) FROM a)::int AS appointments, "
+        "(SELECT count(*) FROM p)::int AS processed_messages, (SELECT count(*) FROM l)::int AS leads"),
 }
 EXPECT = {      # the response keys each action must return (ints), and the rule that makes it green
     'appt-insert': ('inserted', 'sent'), 'pm-insert': ('inserted', 'sent'), 'lead-insert': ('inserted', 'sent'),
     'conv-insert': ('inserted',),
     'conv-update': ('updated',), 'appt-update': ('updated', 'candidates'), 'appt-delete': ('deleted', 'candidates'),
     'clean': ('conversations', 'appointments', 'processed_messages', 'leads'),
+    'clean-p74': ('conversations', 'appointments', 'processed_messages', 'leads'),
 }
 
 
@@ -181,7 +196,7 @@ def build(credential):
                             'options': {}}}
         p = {'name': f'SQL {action}', 'type': 'n8n-nodes-base.postgres', 'typeVersion': 2.6, 'position': [260, i * 200],
              'parameters': {'operation': 'executeQuery', 'query': query,
-                            'options': {'queryReplacement': PARAM} if '$1' in query else {}},   # 'clean' takes no input
+                            'options': {'queryReplacement': PARAM} if '$1' in query else {}},   # the clean-ups take no input
              'credentials': {'postgres': dict(credential)}, 'onError': 'continueRegularOutput'}
         nodes += [w, p]
         con[w['name']] = {'main': [[{'node': p['name'], 'type': 'main', 'index': 0}]]}
@@ -243,7 +258,7 @@ def payload(action, opt):
     stray = sorted(set(k for k, v in opt.items() if v is not None) - ALLOWED.get(action, set()))
     if stray:
         raise Refused(f'{action} does not take {stray} (refused rather than ignored)')
-    if action == 'clean':
+    if action in ('clean', 'clean-p74'):
         return None
     if action == 'lead-insert':     # a lead has no session: its guard is the message prefix (the clean-up's own)
         msg = opt.get('message') or ''
@@ -580,7 +595,7 @@ ALLOWED = {
     'appt-update': {'session', 'blank_calendar_id', 'fake_gid'},
     'appt-delete': {'session'},
     'pm-insert': {'session', 'message_id', 'created_at'},
-    'clean': set(), 'up': set(), 'down': set(),
+    'clean': set(), 'clean-p74': set(), 'up': set(), 'down': set(),
 }
 
 

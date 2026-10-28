@@ -98,8 +98,9 @@ Postgres was ruled on 2026-10-19 (`docs/MIGRATION-PLAN.md`).
   port 5432 closed from outside (an operator statement, not measured by the build) (`docs/ROADMAP.md`, migration row).
 - **Retirement (D6c, 2026-10-27):** the five originals archived, n8n's Airtable credential deleted, the copies renamed
   to their clean names through the reviewed deploy tool, one workflow at a time with a rehearsal on a scratch first;
-  every webhook path and id read back unchanged (`docs/MIGRATION-PLAN.md` §7a). Revoking the Airtable token and
-  deleting the base are on the final security pass list (owner's manual step).
+  every webhook path and id read back unchanged (`docs/MIGRATION-PLAN.md` §7a). The archived Main original was deleted
+  in 7-4 B (2026-10-28); revoking the Airtable token and deleting the base are deferred by the owner, recorded
+  (PHASE-7-PLAN §4j).
 
 **What Postgres costs instead:** a database to run, back up and restore for every client.
 
@@ -177,11 +178,15 @@ What stands between that sentence and a fact, stated (`.claude/rules/honesty-dem
   `business.locale`); the config-only second client (Phase 8) has not been built.
 - **WhatsApp end to end is not tested** in this phase (PHASE-7-PLAN, DoD row: K-5).
 - **The golden set's paid run and the jailbreak re-run** ran in 7-4 A (2026-10-27): 12 of 15 golden cases pass as
-  specified (the other three need a conversation stage the run could not create), and no jailbreak case ran an action
-  node (`tests/golden-set.md`, `tests/jailbreak-cases.md`). Still ahead in 7-4 is the **final security
-  pass**: fifteen items, among them rotating credentials named in ship gate #17, a shorter dashboard session,
-  splitting the read-only role's column access, a permanent off-server backup target, and revoking the Airtable token
-  (PHASE-7-PLAN, "The final security pass").
+  specified, and no jailbreak case ran an action node (`tests/golden-set.md`, `tests/jailbreak-cases.md`). The other
+  three golden cases (G8, G10, G11) need a seeded conversation stage and were **not run** in it.
+- **The final security pass closed in 7-4 B (2026-10-28), and most of it is not "fixed".** Done: the Cloudflare API
+  token replaced by a read-only one that expires (scopes measured by Cowork), the stored Owner Actions executions that held an Access token and a
+  cookie deleted, the archived Main original deleted. **Deferred by the owner, recorded** as accepted risks until the
+  system is complete: rotating the leaked Access service tokens and the n8n API key, revoking the Access sessions and a
+  24 h session, the Airtable token and base, the root-side steps and an off-server backup target. **v2:** splitting the
+  read-only role's column access, the dashboard's error handling, the infra alerts' sender fields, a stale prompt line
+  (PHASE-7-PLAN §4j; `README.md`, "The final security pass: what stays open").
 - **The demo is not deployed publicly.** Before it is, the Cloudflare rate limit's BLOCK direction must be shown
   (ROADMAP, a gate on public deploy).
 - The v2 list — what was deliberately deferred and why — is in `README.md`, "Not yet — deferred to v2".

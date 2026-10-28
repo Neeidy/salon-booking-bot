@@ -7,7 +7,7 @@ reaches the SQL text) and, for the clean-up, by evaluating its WHERE clauses on 
 What it proves: `up` and every action refuse to seed when the edge does not refuse a token-less request (and `up`
 removes the workflow again); an action never goes through a live workflow that is not the committed build; the
 statements are constants, guarded per table, never name bot_metrics; the clean-up takes the mig-p7 rows and the run-d11
-dashboard markers and nothing else; inserts send explicit created_at and unique, prefixed, shape-valid fake event ids.
+dashboard markers and nothing else; `clean-p74` (7-4 B) takes the p74 window's rows and the G5 lead and nothing else; inserts send explicit created_at and unique, prefixed, shape-valid fake event ids.
 7-2 R4: appt-insert's customer_name and lead-insert (name, phone, prefixed message) carry their values — unicode
 included — in the body only, every payload key is named in its statement's recordset, INSERT and SELECT lists (a
 dropped column would insert NULL and exit 0), and an option another action takes is refused, never swallowed.
@@ -33,6 +33,13 @@ TABLE_GUARD = {   # table → the guard its every write must carry, as a regex o
     'processed_messages': r"message_id\s+LIKE\s+'mig-p7-%'",
     'leads': r"message\s+LIKE\s+'mig-p7%'",
 }
+P74_GUARD = {     # clean-p74 only: the rows the 7-4 A window left, under that run's own prefixes
+    'conversations': r"sender_key\s+LIKE\s+'widget:w-p74-%'",
+    'appointments': r"sender_key\s+LIKE\s+'widget:w-p74-%'",
+    'processed_messages': r"message_id\s+LIKE\s+'p74-%'\s+AND\s+sender_key\s+LIKE\s+'widget:w-p74-%'",
+    'leads': r"message\s+=\s+'My name is Alex, please call me back'\s+AND\s+source\s+=\s+'widget'\s+AND\s+"
+             r"created_at\s+>=\s+'2026-10-27T20:06:00Z'\s+AND\s+created_at\s+<=\s+'2026-10-27T20:10:00Z'",
+}
 
 
 def load_script():
@@ -46,8 +53,9 @@ def load_script():
     return mod
 
 
-# ── a tiny evaluator for the clean-up's WHERE clauses: col LIKE/=/<> 'lit', AND, OR, NOT, parentheses ──────────────
-TOK = re.compile(r"\s*('(?:[^']|'')*'|\(|\)|<>|=|[A-Za-z_][A-Za-z_0-9.]*)")
+# ── a tiny evaluator for the clean-ups' WHERE clauses: col LIKE/=/<>/>=/<= 'lit', AND, OR, NOT, parentheses ────────
+# (>= and <= compare text: the fixtures hold created_at in the statement's own ISO-UTC form, so text order = time order)
+TOK = re.compile(r"\s*('(?:[^']|'')*'|\(|\)|<>|>=|<=|=|[A-Za-z_][A-Za-z_0-9.]*)")
 
 
 def _tokens(s):
@@ -105,7 +113,8 @@ def evaluate(pred, row):
         col, op, lit = take(), take().upper(), take()
         assert lit.startswith("'"), f'only literals on the right: {lit}'
         val, lit = row.get(col), lit[1:-1].replace("''", "'")
-        return {'LIKE': lambda: _like(val, lit), '=': lambda: val == lit, '<>': lambda: val is not None and val != lit}[op]()
+        return {'LIKE': lambda: _like(val, lit), '=': lambda: val == lit, '<>': lambda: val is not None and val != lit,
+                '>=': lambda: val is not None and val >= lit, '<=': lambda: val is not None and val <= lit}[op]()
     v = expr()
     assert pos[0] == len(toks), f'trailing tokens: {toks[pos[0]:]}'
     return v
@@ -195,7 +204,8 @@ def make_handler(world, mod):
                               'lead-insert': {'inserted': 0 if world.guard_refuses else n, 'sent': n},
                               'conv-insert': {'inserted': 1}, 'conv-update': {'updated': 1},
                               'appt-update': {'updated': 1, 'candidates': 1}, 'appt-delete': {'deleted': 1, 'candidates': 1},
-                              'clean': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0}}
+                              'clean': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0},
+                              'clean-p74': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0}}
                     return self.reply(200, canned.get(action, {'message': 'unknown'}))
                 return self.reply(404, {'message': 'not found'})
     return H
@@ -239,11 +249,12 @@ def main():
     for action, q in mod.SQL.items():
         segs = dml.findall(q)
         case(f'{action}: holds at least one write', bool(segs))
+        guards = P74_GUARD if action == 'clean-p74' else TABLE_GUARD
         for verb, table, seg in segs:
             n_dml += 1
-            case(f'{action}: {verb.split()[0]} on salon.{table} is a table this tool may write', table in TABLE_GUARD)
+            case(f'{action}: {verb.split()[0]} on salon.{table} is a table this tool may write', table in guards)
             case(f'{action}: {verb.split()[0]} on salon.{table} carries its guard in its own clause',
-                 table in TABLE_GUARD and re.search(TABLE_GUARD[table], seg) is not None, seg[:200])
+                 table in guards and re.search(guards[table], seg) is not None, seg[:200])
         tables = set(re.findall(r'\bsalon\.(\w+)', q))
         case(f'{action}: names only the four drill tables ({sorted(tables)})', tables <= set(TABLE_GUARD))
         case(f'{action}: no brace / n8n expression / format marker, and $1 is its only placeholder',
@@ -275,6 +286,34 @@ def main():
             except (AssertionError, ValueError, IndexError) as e:
                 got = f'unparsable ({e})'
             case(f"clean on {table}: {json.dumps(row)} → {'deleted' if got is True else 'kept' if got is False else got}"
+                 f"{'' if got == want else ' (WRONG)'}", got == want)
+
+    p74 = dict((t, p) for t, p in re.findall(r'DELETE FROM salon\.(\w+) WHERE (.*?) RETURNING', mod.SQL['clean-p74'], re.S))
+    case('clean-p74: one DELETE per drill table', set(p74) == set(P74_GUARD))
+    g5 = 'My name is Alex, please call me back'
+    rows74 = {
+        'conversations': [({'sender_key': 'widget:w-p74-run0-g5'}, True), ({'sender_key': 'widget:w-mig-p7-r5-1'}, False),
+                          ({'sender_key': 'widget:w-p74'}, False), ({'sender_key': 'widget:w-p740-x'}, False),
+                          ({'sender_key': 'widget:w-real-session'}, False)],
+        'appointments': [({'sender_key': 'widget:w-p74-run0-g1'}, True), ({'sender_key': 'widget:w-customer'}, False)],
+        'processed_messages': [({'message_id': 'p74-run0-g1', 'sender_key': 'widget:w-p74-run0-g1'}, True),
+                               ({'message_id': 'p74-run0-g1', 'sender_key': 'whatsapp:+490000000001'}, False),
+                               ({'message_id': 'wamid.real', 'sender_key': 'widget:w-p74-run0-g1'}, False),
+                               ({'message_id': 'mig-p7-1', 'sender_key': 'widget:w-mig-p7-a'}, False)],
+        'leads': [({'message': g5, 'source': 'widget', 'created_at': '2026-10-27T20:06:55Z'}, True),
+                  ({'message': g5, 'source': 'widget', 'created_at': '2026-10-27T20:05:59Z'}, False),
+                  ({'message': g5, 'source': 'widget', 'created_at': '2026-10-27T20:10:01Z'}, False),
+                  ({'message': g5, 'source': 'whatsapp', 'created_at': '2026-10-27T20:07:00Z'}, False),
+                  ({'message': 'Please call me back', 'source': 'widget', 'created_at': '2026-10-27T20:07:00Z'}, False),
+                  ({'message': 'mig-p7 lead drill', 'source': 'widget', 'created_at': '2026-10-27T20:07:00Z'}, False)],
+    }
+    for table, cases in rows74.items():
+        for row, want in cases:
+            try:
+                got = evaluate(p74.get(table, "x = 'never'"), row)
+            except (AssertionError, ValueError, IndexError) as e:
+                got = f'unparsable ({e})'
+            case(f"clean-p74 on {table}: {json.dumps(row)} → {'deleted' if got is True else 'kept' if got is False else got}"
                  f"{'' if got == want else ' (WRONG)'}", got == want)
 
     # ── payloads: explicit created_at, unique prefixed shape-valid gids, refusals before any call ─────────────

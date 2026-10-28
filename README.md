@@ -149,6 +149,21 @@ Phase 7's fix checkpoint instead.
 | Main: node names still say "Airtable" | a node rename is a Main edit; it rides the next one (D6c's Main put renames the workflow only) |
 | Main: D-c — an alert can run ahead of the reply on a few paths and delay it | bounded and documented (FLOW-DIAGRAM); restoring it is a Main edit |
 
+**The final security pass: what stays open (7-4 B, ruled 2026-10-28; [PHASE-7-PLAN §4j](docs/PHASE-7-PLAN.md)).** Done
+in the pass: the Cloudflare API token replaced by a read-only one that expires (its scopes and the old token's deletion
+measured by Cowork; its expiry by the build); the stored Owner Actions executions
+deleted (they held an Access token and a cookie); the archived Main original deleted. The rest is either v2 or
+**deferred by the owner, recorded** — an accepted risk until the system is complete, not a closed item:
+
+| Item | Status | What bounds it meanwhile |
+|---|---|---|
+| The leaked `/api` and owner-path Access service tokens, and the n8n API key | deferred by the owner, recorded | the copies are on this machine (transcripts, backups), not public; `/api` needs the service token and the API key, the owner path needs a signed request as well; one later rotation voids every copy at once |
+| Revoking the Access sessions; a 24 h dashboard session | deferred by the owner, recorded | the stored executions that held a session token are deleted |
+| The Airtable token and base | deferred by the owner, recorded | no workflow and no n8n credential reaches it since D6c; the base is kept until its export (MIGRATION-PLAN §7, Gate 1) |
+| Deny rules for every secret-file copy; the tunnel credential in a root-only file; a pinned backup script; an off-server backup target | deferred by the owner, recorded | the secret files are mode 0600 and outside git; the nightly dump is restored and compared before it counts, but it lives on the same server |
+| `salon_ro` reads every column; the dashboard's write check is cached; the dashboard logs and shows raw driver errors | v2 | the database role is read-only and the dashboard sits behind Access |
+| The infra owner alerts take `sender`/`channel`/`stage` from the error item; a stale line in the intent prompt (reschedule "routed to a human") | v2 | both need a Main edit; with the stale line the model still classifies `reschedule` (G11, 7-4 A), and routing is the workflow's |
+
 **What the regression covers on Postgres, stated (ruled 2026-10-25):** the full suite last ran on the Main copy's test path (D4b, 28/28; the cutover diff proves only the path differs); the production path was exercised by the routing smoke (A1), the dashboard write path (A2, 13/13) and the 7-1 window (a truly simultaneous race pair and a DST booking) — live measurements recorded in PHASE-7-PLAN, their raw output not committed; the seeded ⚙ scenarios were not re-run on Postgres — their paths are covered by D4b G1–G3 and the M7 error drills.
 
 **Not tested end to end: the WhatsApp lane (K-5).** The regression drives the widget lane only; Zernio's inbound
@@ -286,7 +301,7 @@ and the bot had no data layer for almost twelve days ([OPS-5](docs/OPERATIONAL-I
 self-hosted Postgres (ruling 2026-10-19; cut over and accepted 2026-10-24,
 [MIGRATION-PLAN §3t](docs/MIGRATION-PLAN.md)). **Airtable was retired at D6c (2026-10-27)**: the original workflows
 are archived and n8n's Airtable credential is deleted, so nothing can reach it; revoking its token and deleting the base
-are on the final security pass list. What Postgres costs instead: a
+are deferred by the owner, recorded (the final security pass, 7-4 B). What Postgres costs instead: a
 database to run, back up and restore for every client. The nightly backup restores each dump into a throwaway
 container and compares every table before the dump counts ([`db/ops/pg-backup.sh`](db/ops/pg-backup.sh)).
 

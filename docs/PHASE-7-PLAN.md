@@ -31,6 +31,7 @@ The fifteen premises re-derived after D6b (MIGRATION-PLAN §3t, Round 3c close) 
 ## Ship-gate #17 — MOVED to the end-of-phase security pass (Yigitcan's ruling, 2026-10-18)
 
 **The final security pass: what it carries (list consolidated 2026-10-22).**
+*Where each item ended (done · deferred by the owner, recorded · v2 · accepted): §4j, 7-4 B (2026-10-28).*
 1. **Ship-gate #17** (below).
 2. **Main's `availableInMCP: true` with the instance MCP server enabled** (measured 2026-10-22). It is an
    accepted exposure behind Cloudflare Access at the edge and MCP bearer auth at the origin (ruling; MIGRATION-PLAN
@@ -526,10 +527,11 @@ a string from null on a synthetic blob.) No STOP condition fired.
 
 **The window.** 2026-10-27, 20:06:16 → 20:09:36 UTC, **199 s**, 27 requests, opened and closed by
 `scripts/turnstile-window.py` (restored, published literal `true`, dummy token 403). **Spend:** the month's meter rose
-from 0.071254 to 0.139076 USD — **0.067822 USD** against the 1.00 ceiling. **Left in the store** (CC cannot delete:
-it holds `salon_ro`): 26 conversations under `widget:w-p74-…` (9 in `handoff`, so in the owner's queue; 7 `confirming`,
+from 0.071254 to 0.139076 USD — **0.067822 USD** against the 1.00 ceiling. **Left in the store** (not deleted in that
+round: CC holds `salon_ro`, and the seed workflow's write path was not part of it): 26 conversations under `widget:w-p74-…` (9 in `handoff`, so in the owner's queue; 7 `confirming`,
 2 `collecting`, 8 `new`), 27 `processed_messages` rows under `p74-…`, 1 lead row; 0 appointments. `Send Owner Alert
-(Telegram)` ran in 10 of the executions (the nine handoffs and J4); delivery itself was not read. Their clean-up is a part-B item.
+(Telegram)` ran in 10 of the executions (the nine handoffs and J4); delivery itself was not read. Their clean-up is a part-B item
+— ✅ done in 7-4 B through the seed workflow's `clean-p74` (§4j).
 
 #### Docs corrected in this round
 - **Infrastructure-unavailable is 200 after the claim** (7-2's CLAIM-RETRY, `tests/unit/main-tur2.test.cjs`): corrected in
@@ -552,6 +554,78 @@ it holds `salon_ro`): 26 conversations under `widget:w-p74-…` (9 in `handoff`,
 | Loom | ☐ — ship gate #20, Yigitcan's | ROADMAP |
 | pushed | ✅ with this round's commit | git |
 | resume-point memory | ✅ written and read back at each close | the project memory |
+
+### §4j · 7-4 B — the final security pass closed without the manual rotations (brief 2026-10-28)
+
+*Terminal-measured; the outputs are not committed (they hold execution data). No secret value was read or printed.
+Rulings of 2026-10-28 (Yigitcan): every manual item other than the Cloudflare API token is **deferred until the system is
+complete, "if needed"**, and recorded as an accepted, owner-ruled risk with its reason — not chased, not asked for.
+Carried from Cowork's review of 7-4 A: 17e accepted; #2 stays (MCP enabled, ruling 2026-10-23); #3/#8, #6/#10, #15 and
+the stale prompt line → v2; #11 a recorded bound.*
+
+**Gates.** Turnstile: dummy token 403 `turnstile_failed`, Main the sole holder, at the start and at the end · parity
+guards 0 · host-leak 0 · hook-drift 0 · secret-scan 0 at the push.
+
+#### The final-pass table — where each item ended
+
+| # | Item | Status | Evidence, or the reason it stays open |
+|---|---|---|---|
+| 17a | `CF_API_TOKEN` | ✅ **done** (Yigitcan, 2026-10-28) | Cowork measured the new user token: three Read scopes (Access service tokens, Access apps and policies, Tunnel), the old token deleted (its list read back). CC measured the token now in the env file: `verify` → `active`, expires 2027-01-01T07:59:59Z; `/accounts` still 0. The scope list and the deletion are Cowork's measurement, not CC's (this token cannot read the token list) |
+| 17b | the `/api` Access service token (leaked) | **deferred by the owner, recorded** | the copies are on this machine (transcripts, backups), not public; `/api` refuses a request without it (7-4 A) and also needs the n8n API key |
+| 17c | the owner-path Access service token (leaked) | **deferred by the owner, recorded** | the copies are local; an owner action also needs a signed request (unsigned → 403 `invalid_signature`, the D6c body probe), and the signing secret is not among the four values ship gate #17 names as leaked |
+| 17d | the n8n API key (leaked) | **deferred by the owner, recorded** | a measured precondition of the brief (2026-10-28), not re-measured by CC, which reads no secret value: the old value sits in several local copies (backups, transcripts), so rotating it later voids all of them at once; the API also sits behind 17b's Access Service Auth |
+| 17e | the owner's Telegram chat id | **accepted** | an address, not an authenticator: sending to it needs the bot token, which is not among the four values #17 names as leaked |
+| T-4 | Access sessions; the stored Owner Actions executions holding the JWT and a cookie | executions ✅ **done** (CC) · session revocation **deferred by the owner, recorded** | Owner Actions' stored executions **91 → 0** (all 91 `success`, newest 2026-10-26 19:11Z, each re-read as Owner Actions' before its DELETE, 91× 200); the other workflows' 747 stored executions all still present by id. Deleting them shrinks the exposure without the revocation; the live sessions run to their configured expiry |
+| 2 | Main's `availableInMCP` / the instance MCP server | **accepted** (MCP stays enabled, Yigitcan 2026-10-23) | Main's live settings carry no `availableInMCP` (7-4 A) |
+| 3, 8 | Q16 column split; the cached write check | **v2** | the role is read-only; the dashboard sits behind Access |
+| 4 | an off-server backup target | **deferred by the owner, recorded** | the nightly dump is restored and compared before it counts, but it lives on the same server: a server loss takes the backups with it |
+| 5 | deny rules for every secret-file copy; OPS-6 (the tunnel credential in a root-only file) | **deferred by the owner, recorded** | the secret files are mode 0600 and outside git; the deny layer is anti-accident, not a boundary (`security-secrets.md`) |
+| 6, 10 | the dashboard logs the full read error; `storeError` shows the raw code | **v2** | the log is local; the page shows `table: code` and no host |
+| 7 | WhatsApp senders in the archived Main original's `staticData` | ✅ **done** (CC) | the archived Main original deleted: read archived + inactive + named as measured + not a WORKFLOWS id before the DELETE; GET afterwards **404**; the workflow list 10 → 9, the one removed id the target; `check-active-set` OK (5 listed, all active). Its export stays in git history |
+| 9 | the nightly job runs `pg-backup.sh` from the working tree | **deferred by the owner, recorded** | bounded by procedure only: an uncommitted edit present at that hour is what runs; the job's restore check catches a broken dump, not a changed script |
+| 11 | the Purge schedule time in public files | **accepted, a recorded bound** | the committed export must equal the live workflow, trigger included |
+| 12 | the dashboard's Access session (730 h → 24 h); the policy email check | **deferred by the owner, recorded** (with T-4) | the executions that held a session token are deleted (T-4) |
+| 13 | owner-alert sender masking | ✅ **done** (2026-10-26) | §4g |
+| 14 | the Airtable token and base | **deferred by the owner, recorded** | no workflow and no n8n credential reaches Airtable since D6c; the base is kept until MIGRATION-PLAN §7's Gate 1 export |
+| 15 | item 13's (5): the infra alerts' `sender`/`channel`/`stage` | **v2** | a Main edit; with masking in place, filling the sender widens nothing |
+| — | `prompts/intent-extraction.md` line 28 and the live `Build LLM Request` line (reschedule "routed to a human") | **v2** | a Main edit; the model still classifies `reschedule` (G11, 7-4 A), and routing is the workflow's |
+
+**Ship gate #17** is therefore not closed: 17a is done, 17e accepted, and 17b–17d are **declared open by Yigitcan with
+their reasons** — the form the ship gate allows ("closed, or declared open with its reason"; ROADMAP, "Ship gate after
+D6c").
+
+#### The live deletes (approved in the brief; each read back)
+- **Owner Actions' stored executions (T-4):** 91 → 0; no other workflow's execution touched (747 before, none missing after).
+- **The archived Main original (#7):** GET 404 after the DELETE; 10 → 9 workflows, only the target removed; the active set unchanged.
+- **The 7-4 A test rows:** through the seed workflow (`up` → `clean-p74` → `down`; every path refused at the edge without a
+  token, executions 0 → 0; the seed workflow 404 afterwards). The statement returned conversations 26 · appointments 0 ·
+  processed_messages 27 · leads 1 — equal to the counts measured before it. `salon_ro` totals before: conversations 26,
+  processed_messages 27, appointments 0, leads 1 (every row in those tables was a 7-4 A row); after: **0 in all four**.
+
+#### Golden set
+G8, G10 and G11 are recorded in `tests/golden-set.md` as **"needs a seeded stage, not run"** — no new tooling (the brief).
+
+#### Declared
+- **The clean-up's write path is a new action in the committed seed tool** (`scripts/seed-workflow.py` `clean-p74`):
+  the tool's own `clean` is guarded to the `mig-p7` prefixes and could not reach the 7-4 A rows. One constant
+  statement, guarded per table in its own WHERE clauses (the window's `w-p74-` / `p74-` prefixes; the lead by its exact
+  G5 message, source and a created_at inside the window), offline tests with fixture rows on both sides, three mutants
+  that widen a guard all red. The brief named the clean-up, not the tool change.
+- The start-of-turn Turnstile precheck ran at 18:58 Vienna, inside the Reminders window (:55–:05): read-only plus one dummy-token request. Every live delete ran at 19:06–19:10, outside it (the delete scripts refuse inside the window).
+
+#### The DoD table — final (testing.md), whole build
+
+| Item | State | Record |
+|---|---|---|
+| built | ✅ for Phases 0–7's scope; Phase 8 (config-only second client) not started | ROADMAP |
+| tested (happy + key edges) | ◐ — shown: double booking, idempotency, injection, the first uncertain turn, invalid LLM output, DST (§4f, §4g, §4i); **not**: WhatsApp end to end (K-5), a run with Turnstile up and a real token (#21), the second consecutive uncertain turn live, golden G8/G10/G11 (need a seeded stage) | §4i, this section |
+| Codex Critical-Review | ✅ all 13 rows `[x]` | MASTER-BRIEF §9 |
+| cleaned | ✅ the 7-4 A rows, the stored Owner Actions executions and the archived Main original removed (above); two local backup refs remain, never pushed | this section |
+| sanitized | ✅ five exports + fixtures pass `check_sanitised`; secret-scan and host-leak gates | `tests/unit/staged-sanitised.test.py`, `scripts/secret-scan.sh` |
+| README / case study | ✅ the deferred items worded as "deferred by the owner, recorded" | `README.md`, `docs/CASE-STUDY.md` |
+| Loom | ☐ — ship gate #20, Yigitcan's | ROADMAP |
+| pushed | ✅ with this round's commit | git |
+| resume-point memory | ✅ written and read back | the project memory |
 
 ### §4c · Decisions ruled at approval
 | # | Decision | Ruling |
