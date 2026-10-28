@@ -136,6 +136,7 @@
 - `docs/CP6D-BUILD-PACKAGE.md`
 - `docs/DATA-MODEL.md`
 - `docs/FLOW-DIAGRAM.md`
+- `docs/LOOM-SCRIPT.md`
 - `docs/MIGRATION-PLAN.md`
 - `docs/OPERATIONAL-INCIDENTS.md`
 - `docs/PHASE-6-BACKLOG.md`
@@ -752,6 +753,17 @@
   - ## Owner-alert lane — every failure/handoff reaches a human (CP5a)
   - ## The invariants this diagram encodes (why the shapes are what they are)
 
+### `docs/LOOM-SCRIPT.md`
+  - ## Before the shoot — checklist
+  - ## The script
+  - ### 1 · The problem (0:00–0:25)
+  - ### 2 · One live path: the widget booking, then the owner's board (0:25–1:10)
+  - ### 3 · The LLM is a translator (1:10–1:40)
+  - ### 4 · The migration (1:40–2:05)
+  - ### 5 · The independent audit (2:05–2:35)
+  - ### 6 · Honest limits (2:35–3:00)
+  - ## After recording
+
 ### `docs/MIGRATION-PLAN.md`
   - ## 1 · Goal (one sentence)
   - ## 2 · Scope · NOT-build
@@ -955,6 +967,7 @@
   - ### `docs/CP6D-BUILD-PACKAGE.md`
   - ### `docs/DATA-MODEL.md`
   - ### `docs/FLOW-DIAGRAM.md`
+  - ### `docs/LOOM-SCRIPT.md`
   - ### `docs/MIGRATION-PLAN.md`
   - ### `docs/OPERATIONAL-INCIDENTS.md`
   - ### `docs/PHASE-6-BACKLOG.md`
