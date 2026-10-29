@@ -10,7 +10,10 @@ THE SLOTS — the only places a rendered workflow differs from the committed exp
   1–3  the three inline config literals — Main `Load Config`, `Load Config (Reminders)`, `Load Config (Purge)` —
        rewritten as JSON from the client's config, projected onto the committed literal's OWN key tree: the committed
        literal is the key list, so a config that lacks one of its keys is refused by name, and a value of another type
-       is refused. Keys the literal does not hold (the site's copy, branding) are not carried into the workflows;
+       is refused; a list element is projected onto the committed first element's keys. Keys the literal does not hold
+       are not carried, except the ones a workflow reads with a code fallback (OPTIONAL: Main's `cancelRetry`,
+       `dryRunNoChange`), which go in when the config gives them as non-empty text (given empty or null: refused);
+       every number must be finite and inside the JS safe-integer range;
   4–8  the owner's Telegram chat id: `chatId` of the five Telegram nodes (Main 1, Owner Actions 2, Purge 1, Reminders 1);
   9    the Turnstile secret: Main `Verify Turnstile`'s `secret` body parameter;
   10   `Build LLM Request`'s few-shot examples: `"serviceId":"haircut"` ×2 and "a haircut" ×2, rendered from the client's
@@ -18,6 +21,16 @@ THE SLOTS — the only places a rendered workflow differs from the committed exp
   Slots 4–9 come from the --secrets file (0600, owned by this user; keys `telegramChatId`, `turnstileSecret`). A key the
   file does not give, or no file, leaves the committed `REPLACE_WITH_…` placeholder. Every slot count is checked: an
   export whose count differs from the measured one is refused — the template moved, so re-measure; do not guess.
+A RECORDED BOUND (owner's ruling 2026-10-28, Codex CRT #14 M1): the prompt carries a fixed example that hair colouring
+  is not offered; a client offering it gets a contradicting prompt until a Main edit. Quality only: `Merge Slots` and
+  `Slot Gate` refuse a service id the config does not hold. The example is not rewritten, only watched (its two phrases
+  once each, and its `(not in services)` marker once, so a second such example is refused — one written without that
+  marker is not seen).
+BOUNDS of the refusals above, recorded (R2b review, the owner's convergence ruling): a list nested about a thousand deep
+  ends in a Python recursion traceback, not a named refusal (nothing is written: it fails before the render); an
+  integer of more than 4300 digits (Python's own parsing limit) is refused, but as "cannot be read as JSON", not by
+  name; a template given only spaces is taken as text, so the customer gets a blank reply (the node's fallback does not
+  answer it).
 NOT slots: the credential references (per-instance links: they stay placeholders and are linked in the new instance),
   and the comments and `messageTemplates` fallback strings that hold demo text (tests/unit/render-client.test.py keeps
   them on the A-leak scan's allowlist, one entry per hit).
@@ -26,7 +39,9 @@ Output: a directory that does NOT exist yet, OUTSIDE this repository (refused in
 the output can carry secrets). It is created 0700 and re-checked after creation; each file, `workflow.<key>.json`, is
 created 0600 without following links. Everything is rendered in memory first, so a refusal before writing writes
 nothing; a write that fails part-way says so (its files are 0600 in the new 0700 directory). Prints node names and
-counts, never a value.
+counts, never a value. "This repository" is found from the script's REAL path, so a symlink to it is fine; a COPY of
+the script elsewhere, or a hard link to it from elsewhere, guards the directory it sits in instead (a bound: run it
+from the repository).
 
 Usage: python3 scripts/render-client.py --config FILE --out DIR [--secrets FILE] [--exports DIR]
 Exit: 0 rendered · 1 refused (the message says whether anything was written) · 2 usage.
@@ -34,12 +49,13 @@ Exit: 0 rendered · 1 refused (the message says whether anything was written) ·
 import argparse
 import copy
 import json
+import math
 import os
 import re
 import stat
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))   # realpath: a link to the script must not move the repo
 KEYS = ('drill-state', 'main', 'owner-actions', 'purge', 'reminders')
 LITERALS = {'main': 'Load Config', 'reminders': 'Load Config (Reminders)', 'purge': 'Load Config (Purge)'}
 HEAD = 'const config = '
@@ -72,6 +88,14 @@ FEWSHOT = (     # (anchor in the committed export, expected count, its rendering
     ('How much is a haircut?', 1, lambda s: f"How much is {_article(s['name'])} {s['name'].lower()}?"),
 )
 KEY_RE = re.compile(r'[A-Za-z_$][A-Za-z0-9_$]*(?=\s*:)')
+# The prompt's fixed "not offered" example (Codex CRT #14, M1; a recorded bound): not rewritten, only watched, so a
+# moved or added example stops the render instead of passing unseen.
+NOT_OFFERED = ("Do you do hair coloring? I'm interested", 'asked about hair coloring (not in services)')
+NOT_OFFERED_MARK = '(not in services)'
+JS_SAFE = 2 ** 53 - 1                   # beyond it a JS number no longer holds the integer exactly
+# Keys a workflow READS that its committed literal does not hold, each read with a code fallback (Codex CRT #14, M2):
+# carried into the literal when the config gives them (non-empty text); absent, the node's own fallback text answers.
+OPTIONAL = {'main': {'messageTemplates': ('cancelRetry', 'dryRunNoChange')}}
 
 
 # ── the config literal (pure) ────────────────────────────────────────────────────────────────────────────────
@@ -116,21 +140,26 @@ def _kind(v):
     return {str: 'a string', list: 'a list', dict: 'an object', type(None): 'null'}[type(v)]
 
 
-def _check(want, got, p):
-    """`got` must have `want`'s kind; a string the demo fills may not be empty (an empty template would fall through to
-    the code's fallback text); each element of a list must have the shape of the committed list's first element."""
+def _take(want, got, p):
+    """`got`, checked against `want` and returned as it goes into the literal: same kind; a string the demo fills may
+    not be empty (an empty template would fall through to the code's fallback text); each list element shaped like the
+    committed list's first element — an object element PROJECTED onto its keys, so a field the workflows never read is
+    not carried in (Codex CRT #14, L5)."""
     if _kind(got) != _kind(want):
         raise Refused(f'{p} must be {_kind(want)}, not {_kind(got)}')
     if isinstance(want, str) and want and not got:
         raise Refused(f'{p} must not be empty')
     if isinstance(want, list) and want:
+        out = []
         for i, el in enumerate(got):
             if isinstance(want[0], dict):
                 if not isinstance(el, dict):
                     raise Refused(f'{p}[{i}] must be an object')
-                project(want[0], el, f'{p}[{i}]')
+                out.append(project(want[0], el, f'{p}[{i}]'))
             else:
-                _check(want[0], el, f'{p}[{i}]')
+                out.append(_take(want[0], el, f'{p}[{i}]'))
+        return out
+    return got
 
 
 def project(shape, cfg, path=''):
@@ -149,8 +178,7 @@ def project(shape, cfg, path=''):
         else:
             if isinstance(want, list) and not want:     # an empty demo list (a closed day): take a filled sibling's shape
                 want = next((v for v in shape.values() if isinstance(v, list) and v), want)
-            _check(want, got, p)
-            out[k] = got
+            out[k] = _take(want, got, p)
     return out
 
 
@@ -188,15 +216,39 @@ def js_object(v, pad=''):
     return _scalar(v)
 
 
-def render_literal(code, cfg, where):
+def render_literal(code, cfg, where, optional=None):
     before, literal, after = split_literal(code, where)
     body = project(js_literal(literal), cfg, '')
+    for section, keys in (optional or {}).items():
+        for k in keys:
+            if k not in cfg[section]:            # `project` above already refused the section missing or not an object
+                continue
+            v = cfg[section][k]
+            if not isinstance(v, str) or not v:  # null too: given means text, absent means the node's fallback
+                raise Refused(f'{section}.{k} must be non-empty text when given')
+            body[section][k] = v
     return before + js_object(body) + after, len(body)
 
 
 # ── the inputs (pure apart from reading them) ────────────────────────────────────────────────────────────────
 def _no_constant(name):
     raise ValueError(name)                       # NaN / Infinity: not JSON, and NaN compares false with everything
+
+
+def _numbers(o, p=''):
+    """Every number must survive the trip into a JS literal (Codex CRT #14, M4): a float that overflows (1e999) parses
+    to infinity without any NaN/Infinity token, and an integer past the safe range (10**400 is one) is written out in
+    full and read by JS as a different number or as Infinity."""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            _numbers(v, f'{p}.{k}' if p else k)
+    elif isinstance(o, list):
+        for i, v in enumerate(o):
+            _numbers(v, f'{p}[{i}]')
+    elif isinstance(o, float) and not math.isfinite(o):
+        raise Refused(f'{p} is not a finite number')
+    elif isinstance(o, int) and not isinstance(o, bool) and abs(o) > JS_SAFE:
+        raise Refused(f'{p} is outside the JS safe-integer range (±{JS_SAFE})')
 
 
 def load_config(path):
@@ -207,8 +259,11 @@ def load_config(path):
         raise Refused('the config file cannot be read as JSON (NaN and Infinity are refused)')
     if not isinstance(cfg, dict):
         raise Refused('the config is not a JSON object')
+    _numbers(cfg)
     svc = cfg.get('services')
-    first = svc[0] if isinstance(svc, list) and svc and isinstance(svc[0], dict) else None
+    if not isinstance(svc, list):
+        raise Refused(f'services must be a list, not {_kind(svc)}' if 'services' in cfg else 'the config lacks services')
+    first = svc[0] if svc and isinstance(svc[0], dict) else None
     if not first:
         raise Refused('the config lacks services[0] (the few-shot examples are rendered from it)')
     if not isinstance(first.get('id'), str) or not SERVICE_ID.fullmatch(first['id']):
@@ -232,17 +287,23 @@ def load_secrets(path):
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)  # a link is refused here; a FIFO cannot block
     except OSError:
         raise Refused('the secrets file cannot be opened (a link is not followed)')
-    with os.fdopen(fd, encoding='utf-8') as f:
-        st = os.fstat(f.fileno())
+    try:                                         # every check on the open descriptor, before it becomes a file object
+        st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
             raise Refused('the secrets file must be a regular file')
         if st.st_mode & 0o077:
             raise Refused('the secrets file must be mode 0600 (no group or other access)')
         if st.st_uid != os.getuid():
             raise Refused('the secrets file must belong to this user')
+        if st.st_nlink != 1:
+            raise Refused('the secrets file has another hard link (a second name could sit inside the repository)')
+    except Refused:
+        os.close(fd)
+        raise
+    with os.fdopen(fd, encoding='utf-8') as f:
         try:
             data = json.load(f, parse_constant=_no_constant)
-        except ValueError:
+        except (OSError, ValueError):
             raise Refused('the secrets file is not JSON')              # no detail: the parser could quote it
     if not isinstance(data, dict):
         raise Refused('the secrets file is not a JSON object')
@@ -293,7 +354,8 @@ def render(exports, cfg, secrets):
         nodes = wf.get('nodes') or []
         if key in LITERALS:
             n = _one(nodes, LITERALS[key], key)
-            n['parameters']['jsCode'], count = render_literal(n['parameters'].get('jsCode', ''), cfg, f"{key} · {LITERALS[key]}")
+            n['parameters']['jsCode'], count = render_literal(n['parameters'].get('jsCode', ''), cfg, f"{key} · {LITERALS[key]}",
+                                                              OPTIONAL.get(key))
             log.append(f"{key} · {LITERALS[key]}: literal from the config ({count} top-level keys)")
         tg = [n for n in nodes if n.get('type') == TELEGRAM]
         if len(tg) != CHAT_COUNT[key] or any((n.get('parameters') or {}).get('chatId') != CHAT_PLACEHOLDER for n in tg):
@@ -315,6 +377,9 @@ def render(exports, cfg, secrets):
             for anchor, want, _ in FEWSHOT:
                 if code.count(anchor) != want:
                     raise Refused(f"main · {FEWSHOT_NODE}: the anchor {anchor!r} occurs {code.count(anchor)}×, measured {want}×")
+            for fixed in (*NOT_OFFERED, NOT_OFFERED_MARK):
+                if code.count(fixed) != 1:
+                    raise Refused(f"main · {FEWSHOT_NODE}: the fixed example {fixed!r} occurs {code.count(fixed)}×, measured 1×")
             for anchor, _, make in FEWSHOT:
                 code = code.replace(anchor, make(first))
             n['parameters']['jsCode'] = code

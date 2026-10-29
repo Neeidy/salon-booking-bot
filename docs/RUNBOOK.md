@@ -54,20 +54,30 @@ scratch could not be proven deleted; `turnstile-window.py` exits 2 when a preche
 ## 0b · Rendering the client's workflows (Phase 8; offline)
 
 > Shown on a fictional second client (`tests/unit/render-client.test.py`), **not run for a real one yet**. The bounds:
-> EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the new instance's credentials linked by hand, and not yet shown on a real second deployment.
+> EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the prompt carries a fixed example that hair colouring is not offered; a client offering it gets a contradicting prompt until a Main edit (quality only: `Merge Slots` and `Slot Gate` refuse a service id the config does not hold), the new instance's credentials linked by hand, and not yet shown on a real second deployment.
 
 1. **The client's config** — a copy of `config/client.config.example.json` filled in for the client, kept OUTSIDE the
    repo or as exactly `config/client.config.json` (gitignored; another name under `config/` is NOT ignored). Check:
    `CONFIG_EXAMPLE=<file> node scripts/check-config-schema.cjs`.
+   Two template keys the engine reads with a fallback, `messageTemplates.cancelRetry` and `dryRunNoChange`, are
+   optional: given as non-empty text, they are carried; left out, the node's generic text answers; given empty or
+   null, the render refuses them. **Check every template by eye:** one given only spaces is taken as text, and the
+   customer gets a blank reply (a recorded bound, PHASE-8-PLAN R2b).
 2. **The secret input** — a JSON file with `telegramChatId` and `turnstileSecret`, mode 0600, owned by the operator,
    outside the repo (the render refuses one inside it); written by the operator, never through a chat. Either key may
    be left out, and its slot then stays the `REPLACE_WITH_…` placeholder — which means editing those nodes by hand in
    the new instance: "no node edited by hand" holds only with both keys given.
 3. **Render:** `python3 scripts/render-client.py --config <file> --secrets <file> --out <a directory that does not exist yet, outside the repo>`.
-   It refuses, by name: a key the workflows read that the config lacks, a value of another kind, a list element
-   (a service, a day's hours) without the shape of the demo's, an empty template; it also refuses NaN, an output path that exists or
-   resolves into the repo, and an export whose slots moved. The output (0700 / 0600) can hold the secrets: delete it
-   once imported.
+   It refuses, by name: a key the demo's committed config literal holds that the config lacks (the two optional keys
+   above are the only keys read beyond those literals — `tests/unit/render-client.test.py` checks that every config
+   path a workflow reads is one or the other), a value of another kind, a list element (a service, a day's hours)
+   without the shape of the demo's, an empty template, `services` that is not a list, a number that is not finite (NaN,
+   or one that overflows) or lies outside the JS safe-integer range; it also refuses an output path that exists or
+   resolves into the repo, and an export whose slots moved. Run it from the repository: it finds the repository from
+   its own real path, so a copy of the script elsewhere guards the wrong directory. The output (0700 / 0600) can hold
+   the secrets: delete it once imported.
+   *(Corrected 2026-10-28, Phase 8 R2: this step said it refuses "a key the workflows read that the config lacks" —
+   too broad: the two optional keys are read and not required.)*
 4. **Import** the five `workflow.<key>.json` into the client's own n8n, link each node's credential there (the exports
    carry placeholders for them), and run that instance's own parity and probe checks before activating anything.
 

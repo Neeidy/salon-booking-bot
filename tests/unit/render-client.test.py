@@ -25,6 +25,11 @@ The proofs (docs/PHASE-8-PLAN.md):
      refused · an export set nobody measured → refused · a list element without the committed element's keys, a value
      of another kind, an empty template, NaN, a trailing newline → refused · an existing output path, a link or `..`
      into the repo, a secrets path inside the repo → refused.
+  7  the CRT #14 findings (R2, R2b): the fixed "not offered" example rendered unchanged for a client offering hair
+     colouring (a recorded bound) and watched (each phrase once, its marker once) · every config path a workflow reads
+     held by its literal or OPTIONAL (the drift scan below, with its positive and negative controls) · an optional key
+     given empty or null, a number past the JS safe-integer range or infinite (in a list too), `services` not a list →
+     refused by name · the secrets file's owner, type and links.
 Mutants: tests/unit/render-client-mutants.py runs each against a copy of the script (RENDER_CLIENT=<path>); every one
 must turn this test red. Not in check-all (it re-runs this test once per mutant).
 
@@ -41,6 +46,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 A_CFG = os.path.join(ROOT, 'config', 'client.config.example.json')
@@ -93,9 +100,14 @@ def load_script():
 
 
 def run(mod, argv):
+    """stdout AND stderr together: "never printed" has to cover both (Codex CRT #14, L6)."""
     out = io.StringIO()
-    with contextlib.redirect_stdout(out):
-        rc = mod.main(['render-client.py', *argv])
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        try:
+            rc = mod.main(['render-client.py', *argv])
+        except Exception:                        # a crash is a red CASE, not a crashed test a mutant could hide behind
+            rc = 99
+            out.write(traceback.format_exc())
     return rc, out.getvalue()
 
 
@@ -209,6 +221,152 @@ def perturb(v, path=''):
             return v + ' C'
         return v + '_c'
     return v
+
+
+# ── the M2 drift scan: which config paths does a workflow READ? (Codex CRT #14, M2; R2b) ────────────────────────────
+# Read from the RAW parameter strings (code and `={{ }}` expressions, never a json.dumps of them, whose `\n` escapes glue
+# a line break onto the next name). A chain starts at `$('Load Config…').first().json`, at `$json`, at a name bound to
+# one of those or to a path under them (`const`/`let`/`var`, one-level destructuring, renames, defaults), or at a
+# grouping `( … )` whose value is such a path; it continues through `.k`, `?.k`, `['k']`, `?.['k']`, across line breaks.
+# BOUNDS, stated: a computed key (`[expr]`) ends the chain, so what follows it is not checked; a config object passed
+# into a function, or a name assigned without `const`/`let`/`var`, is not followed; a grouping stands for its DEEPEST
+# config chain (a heuristic: where that chain ends at a value, what follows the group is not checked); string contents
+# are scanned like code. A nested destructuring pattern is not read: it is REPORTED (NESTED), never skipped silently.
+# Three more, found by the R2b review and RECORDED rather than fixed (the owner's convergence ruling: the same class again
+# is a bound, not another round): a declaration with several names (`const a = …, b = …`) binds the first name to the
+# deepest chain of the whole line and does not follow the later ones; a grouping after a keyword (`return (…).k`,
+# `typeof (…)`) is read as a call and not followed; an item reached other than through `$('Load Config…')` or `$json`
+# (`$input.item.json`, `items[0].json`, `$node[…]`) is not a start. None of the three occurs on a config read in today's
+# exports (measured 2026-10-29: of the 80 `.config` accesses, 70 start at a recognised root and the other 10 are the
+# `lc` alias, which is followed, or comments) — a NEW one written in such a spelling would pass this scan unseen.
+CFG_FROM = re.compile(r"""\$\(\s*(['"])Load Config[^'"]*\1\s*\)\s*\.\s*(?:first\s*\(\s*\)|last\s*\(\s*\)|item|all\s*\(\s*\)\s*\[\s*0\s*\])\s*\.\s*json(?![\w$])|\$json(?![\w$])""")
+STEP = re.compile(r"""\s*(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)|\s*(?:\?\.)?\s*\[\s*(['"])([^'"\\]+)\2\s*\]""")
+DECL = re.compile(r'(?<![\w$])(?:const|let|var)\s+')
+NESTED = '<nested destructuring pattern>'
+SPELLINGS = {    # each reads one key no literal holds; the scan must report every one (its negative controls)
+    'a dot chain': 'cfg.messageTemplates.zzDot',
+    'optional chaining': 'cfg?.messageTemplates?.zzOptional',
+    'quoted brackets': 'cfg["messageTemplates"][\'zzBracket\']',
+    'an optional bracket': "cfg.messageTemplates?.['zzOptBracket']",
+    'a chain split across lines': 'cfg\n  .messageTemplates\n  .zzSplit',
+    'an alias with a fallback': 'const t = cfg.messageTemplates || {};\nreturn t.zzAlias;',
+    'an alias of an alias': 'let t = cfg.messageTemplates;\nvar u = t;\nu.zzAlias2',
+    'destructuring, with a rename and a default': "const { zzDestr, bookingConfirmed: bc = 'x' } = cfg.messageTemplates;",
+    'a destructured rename used as an alias': 'const { messageTemplates: m } = cfg;\nm.zzRename',
+    'nested destructuring (reported, not read)': 'const { messageTemplates: { zzNested } } = cfg;',
+    'another section (bot)': 'cfg.bot.zzBot',
+    'a top-level key': 'cfg.zzTop',
+    'an expression on the Load Config node': "={{ $('Load Config').first().json.config.ownerAlert.zzExpr }}",
+    'an expression on $json': '={{ $json.config.business.zzJson }}',
+    'a grouping with a fallback': "const lc = $('Load Config (Purge)').first().json;\nconst d = ((lc && lc.config) || {}).zzGroup;",
+    'a ternary alias': "const lc = $('Load Config').first().json;\nconst c = (lc && lc.config) ? lc.config : {};\nc.channels.zzTernary",
+}
+
+
+def param_strings(node):
+    def walk(o):
+        if isinstance(o, dict):
+            for v in o.values():
+                yield from walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                yield from walk(v)
+        elif isinstance(o, str):
+            yield o
+    return list(walk(node.get('parameters')))
+
+
+def _steps(text, i, base):
+    path = list(base)
+    while (m := STEP.match(text, i)):
+        path.append(m.group(1) or m.group(3))
+        i = m.end()
+    return tuple(path)
+
+
+def _match(text, i, open_, close):
+    depth = 0
+    for j in range(i, len(text)):
+        depth += (text[j] == open_) - (text[j] == close)
+        if depth == 0:
+            return j
+    return -1
+
+
+def _chains(text, alias):
+    out = [_steps(text, m.end(), ('json',)) for m in CFG_FROM.finditer(text)]
+    if alias:
+        names = '|'.join(sorted(map(re.escape, alias), key=len, reverse=True))
+        out += [_steps(text, m.end(), alias[m.group(1)]) for m in re.finditer(rf'(?<![\w$.])({names})(?![\w$])', text)]
+    for i, c in enumerate(text):     # a GROUPING paren followed by an access; a call paren follows a name, `)` or `]`
+        if c == '(' and not re.match(r'[\w$)\]]', text[:i].rstrip()[-1:] or ' '):
+            j = _match(text, i, '(', ')')
+            if j > 0 and STEP.match(text, j + 1) and (v := _value(text[i + 1:j], alias)):
+                out.append(_steps(text, j + 1, v))
+    return out
+
+
+def _value(expr, alias):
+    """The path an expression stands for: its deepest config chain, else the item JSON, else None."""
+    cs = _chains(expr, alias)
+    cfg = [c for c in cs if c[:2] == ('json', 'config')]
+    return max(cfg, key=len) if cfg else (('json',) if ('json',) in cs else None)
+
+
+def config_reads(strings):
+    """{config path} the strings read (the path below `config`), aliases resolved to a fixpoint."""
+    text = '\n'.join(strings)
+    alias, destr = {}, set()
+    for _ in range(10):
+        before = dict(alias)
+        for m in DECL.finditer(text):
+            i = m.end()
+            if text.startswith('{', i):
+                j = _match(text, i, '{', '}')
+                eq = re.match(r'\s*=(?!=)\s*([^;\n]*)', text[j + 1:]) if j > 0 else None
+                v = eq and _value(eq.group(1), alias)
+                if not v:
+                    continue
+                parts, depth, cur = [], 0, ''
+                for ch in text[i + 1:j]:
+                    depth += (ch in '{[') - (ch in '}]')
+                    if ch == ',' and depth == 0:
+                        parts.append(cur)
+                        cur = ''
+                    else:
+                        cur += ch
+                for part in parts + [cur]:
+                    part = part.strip()
+                    if not part or part.startswith('...'):
+                        continue
+                    key, _, rest = part.partition(':')
+                    key = key.split('=')[0].strip().strip('\'"')
+                    if re.search(r'[{\[]', rest):
+                        destr.add(v + (key, NESTED))
+                        continue
+                    name = (rest.split('=')[0].strip() if rest else key)
+                    destr.add(v + (key,))
+                    alias[name] = v + (key,)
+            else:
+                d = re.match(r'([A-Za-z_$][\w$]*)\s*=(?!=)\s*([^;\n]*)', text[i:])
+                if d and (v := _value(d.group(2), alias)):
+                    alias[d.group(1)] = v
+        if alias == before:
+            break
+    return {c[2:] for c in set(_chains(text, alias)) | destr if c[:2] == ('json', 'config')}
+
+
+def not_held(path, literal, optional):
+    """The first part of `path` the literal does not hold (None if held). A list or a value ends the walk: what follows
+    is an element, a method or a property of the value, not a config key."""
+    node = literal
+    for i, k in enumerate(path):
+        if not isinstance(node, dict):
+            return None
+        if k not in node:
+            return None if tuple(path[:i + 1]) in optional else tuple(path[:i + 1])
+        node = node[k]
+    return None
 
 
 def main():
@@ -494,6 +652,116 @@ def main():
             mod.ROOT = saved_root
         case('write(): a parent swapped for a link into the repository after the check is refused, nothing left there',
              'moved or landed inside' in refused and os.listdir(fake) == [], refused or 'not refused')
+        # ── Codex CRT #14 (R2) findings, each with its case ──────────────────────────────────────────────────
+        bc = json.load(open(B_CFG, encoding='utf-8'))
+        bc['services'][0] = {'id': 'hair_coloring', 'name': 'Hair Coloring', 'durationMin': 60, 'priceEUR': 80}
+        path = os.path.join(tmp, 'b-colour.json')
+        json.dump(bc, open(path, 'w', encoding='utf-8'))
+        rc, txt, out = render_to('CO', path)
+        fs = code_of(rendered(out)['main'], 'Build LLM Request') if rc == 0 else ''
+        case('M1 (recorded bound, owner ruling): a client offering hair colouring renders, and the fixed example stays as it is',
+             rc == 0 and '"serviceId":"hair_coloring"' in fs and all(fs.count(f) == 1 for f in mod.NOT_OFFERED), txt)
+        for label, edit, needle in (
+                ('its first phrase changed', lambda c: c.replace('Do you do hair coloring?', 'Do you do nails?', 1), 'Do you do hair coloring'),
+                ('its second phrase changed', lambda c: c.replace('asked about hair coloring (not in', 'asked about nails (not in', 1), 'asked about hair coloring'),
+                ('its first phrase present twice', lambda c: c + "\n// Do you do hair coloring? I'm interested", 'Do you do hair coloring'),
+                ('a second example with the "(not in services)" marker', lambda c: c + '\n// "notes":"asked about nails (not in services)"', 'not in services')):
+            nm = os.path.join(tmp, f'exports-notoffered-{len(label)}')
+            copy_exports(nm)
+            mw = json.load(open(os.path.join(nm, 'workflow.main.sanitized.json'), encoding='utf-8'))
+            nodes_of(mw)['Build LLM Request']['parameters']['jsCode'] = edit(code_of(mw, 'Build LLM Request'))
+            json.dump(mw, open(os.path.join(nm, 'workflow.main.sanitized.json'), 'w', encoding='utf-8'))
+            rc, txt, _ = render_to(f'NO{len(label)}', B_CFG, ['--exports', nm])
+            case(f'M1: the fixed "not offered" example watched — {label}: refused, naming it', rc == 1 and 'fixed example' in txt and needle in txt, txt)
+        literal_of = {k: node_eval({'mode': 'literal', 'code': code_of(C[k], mod.LITERALS[k])}) if k in mod.LITERALS else {} for k in C}
+        optional = {k: {(s, key) for s, keys in mod.OPTIONAL.get(k, {}).items() for key in keys} for k in C}
+        reads = {(k, p) for k, wf in C.items() for n in wf['nodes'] for p in config_reads(param_strings(n))}
+        unhandled = sorted((k, p) for k, p in reads if not_held(p, literal_of[k], optional[k]))
+        known = {('main', ('messageTemplates', 'cancelRetry')), ('main', ('messageTemplates', 'bookingConfirmed')),
+                 ('main', ('channels', 'widget', 'turnstile', 'enabled')), ('main', ('bot', 'confidenceThreshold')),
+                 ('purge', ('leadsRetentionDays',)), ('reminders', ('bot', 'killSwitch')), ('reminders', ('ownerAlert', 'throttleMinutes'))}
+        case(f'M2 scan positive control: the reads written in each spelling the exports use are found ({len(reads)} reads)',
+             known <= reads, sorted(known - reads))
+        case('M2: every config path a workflow reads is in its own literal or OPTIONAL — all sections, raw code', not unhandled, unhandled)
+        bare = sorted((k, p) for k, p in reads if not_held(p, literal_of[k], set()))
+        case('M2 check on the real exports with OPTIONAL emptied: exactly the two optional keys are reported',
+             bare == [('main', ('messageTemplates', 'cancelRetry')), ('main', ('messageTemplates', 'dryRunNoChange'))], bare)
+        head = "const cfg = $('Load Config').first().json.config;\n"
+        for label, snippet in SPELLINGS.items():
+            got = [p for p in config_reads([head + snippet]) if not_held(p, literal_of['main'], optional['main'])]
+            case(f'M2 scan negative control — {label}: the unknown key is caught', any('zz' in p[-1] or p[-1] == NESTED for p in got), got)
+        case('M2 scan: a read the literal does hold is not reported',
+             not [p for p in config_reads([head + 'cfg?.messageTemplates?.["bookingConfirmed"]']) if not_held(p, literal_of['main'], optional['main'])])
+        bo = json.load(open(B_CFG, encoding='utf-8'))
+        bo['messageTemplates'].update({'cancelRetry': 'Hofgasse retry text', 'dryRunNoChange': 'Hofgasse dry-run text'})
+        path = os.path.join(tmp, 'b-optional.json')
+        json.dump(bo, open(path, 'w', encoding='utf-8'))
+        rc, txt, out = render_to('OPT', path)
+        mt = node_eval({'mode': 'literal', 'code': code_of(rendered(out)['main'], 'Load Config')})['messageTemplates'] if rc == 0 else {}
+        case('M2: the optional template keys, when the config gives them, are carried into Main\'s literal',
+             rc == 0 and mt.get('cancelRetry') == 'Hofgasse retry text' and mt.get('dryRunNoChange') == 'Hofgasse dry-run text', txt)
+        for label, given in (('empty', ''), ('null', None)):
+            bo['messageTemplates']['cancelRetry'] = given
+            json.dump(bo, open(path + label, 'w', encoding='utf-8'))
+            rc, txt, _ = render_to('OPT' + label, path + label)
+            case(f'M2: an optional template key given {label}: refused by name', rc == 1 and 'messageTemplates.cancelRetry' in txt, txt)
+        fake2 = os.path.join(tmp, 'fake-repo-2')
+        os.makedirs(os.path.join(fake2, 'scripts'))
+        shutil.copy(mod.__file__, os.path.join(fake2, 'scripts', 'render-client.py'))
+        os.makedirs(os.path.join(tmp, 'alias', 'scripts'))
+        os.symlink(os.path.join(fake2, 'scripts', 'render-client.py'), os.path.join(tmp, 'alias', 'scripts', 'render-client.py'))
+        r = subprocess.run([sys.executable, os.path.join(tmp, 'alias', 'scripts', 'render-client.py'), '--config', B_CFG,
+                            '--exports', EXPORTS, '--out', os.path.join(fake2, 'out')], capture_output=True, text=True, timeout=60)
+        case('M3: the script run through a link still knows its repository (an output inside it is refused)',
+             r.returncode == 1 and 'inside this repository' in r.stdout and not os.path.exists(os.path.join(fake2, 'out')), r.stdout[-300:])
+        bi = os.path.join(tmp, 'b-overflow.json')
+        open(bi, 'w').write(open(B_CFG, encoding='utf-8').read().replace('"llmCostCapUsd": 10.0', '"llmCostCapUsd": 1e999', 1))
+        rc, txt, _ = render_to('OVF', bi)
+        case('M4: a number that overflows to infinity (1e999): refused by name', rc == 1 and 'bot.llmCostCapUsd' in txt, txt)
+        raw = open(B_CFG, encoding='utf-8').read()
+        turns = re.search(r'"maxTurnsPerConversation": (\d+)', raw).group()
+        for label, text, needle in (
+                ('an integer of 401 digits (10**400)', raw.replace(turns, f'"maxTurnsPerConversation": {10 ** 400}', 1), 'bot.maxTurnsPerConversation'),
+                ('an integer one past the JS safe range (2**53)', raw.replace(turns, f'"maxTurnsPerConversation": {2 ** 53}', 1), 'bot.maxTurnsPerConversation'),
+                ('a negative integer one past the JS safe range (-2**53)', raw.replace(turns, f'"maxTurnsPerConversation": {-2 ** 53}', 1), 'bot.maxTurnsPerConversation'),
+                ('an overflowing number inside a list element', None, 'services[1].priceEUR'),
+                ('services not a list ("services": 5)', None, 'services must be a list')):
+            if text is None:
+                cfg_ = json.loads(raw)
+                if 'list element' in label:
+                    cfg_['services'][1]['priceEUR'] = '@INF@'
+                    text = json.dumps(cfg_).replace('"@INF@"', '1e999')
+                else:
+                    cfg_['services'] = 5
+                    text = json.dumps(cfg_)
+            bi = os.path.join(tmp, f'b-num-{len(label)}.json')
+            open(bi, 'w').write(text)
+            rc, txt, out = render_to(f'NUM{len(label)}', bi)
+            case(f'M4: {label}: refused by name, no traceback, nothing written',
+                 rc == 1 and needle in txt and 'Traceback' not in txt and not os.path.exists(out), txt[-300:])
+        edge = os.path.join(tmp, 'b-num-edge.json')
+        open(edge, 'w').write(raw.replace(turns, f'"maxTurnsPerConversation": {2 ** 53 - 1}', 1))
+        rc, txt, out = render_to('NUMEDGE', edge)
+        got = node_eval({'mode': 'literal', 'code': code_of(rendered(out)['main'], 'Load Config')})['bot']['maxTurnsPerConversation'] if rc == 0 else None
+        case('M4: the largest safe integer (2**53 - 1) renders, and JS reads it back exactly', rc == 0 and got == 2 ** 53 - 1, txt[-300:])
+        bx = json.load(open(B_CFG, encoding='utf-8'))
+        bx['services'][1]['extra'] = {'demoAddress': 'Musterstrasse 12', 'note': 'not read by any workflow'}
+        path = os.path.join(tmp, 'b-extra.json')
+        json.dump(bx, open(path, 'w', encoding='utf-8'))
+        rc, txt, out = render_to('EXT', path)
+        sv = node_eval({'mode': 'literal', 'code': code_of(rendered(out)['main'], 'Load Config')})['services'] if rc == 0 else [{}, {'extra': 1}]
+        case('L5: a field a list element carries beyond the committed element\'s keys is not carried into the literal',
+             rc == 0 and all(set(x) == {'id', 'name', 'durationMin', 'priceEUR'} for x in sv), sv)
+        with mock.patch.object(mod.os, 'getuid', return_value=os.getuid() + 1):   # "another user" without root
+            rc, txt, _ = render_to('OWN', B_CFG, ['--secrets', sf])
+        case("L6: a secrets file owned by another user: refused", rc == 1 and 'belong to this user' in txt, txt)
+        os.mkdir(os.path.join(tmp, 's-dir'))
+        rc, txt, _ = render_to('SD', B_CFG, ['--secrets', os.path.join(tmp, 's-dir')])
+        case('a secrets path that is a directory: refused, no traceback', rc == 1 and 'REFUSED' in txt and 'Traceback' not in txt, txt)
+        hl = secrets_file('s-hl.json', {'telegramChatId': chat})
+        os.link(hl, os.path.join(tmp, 's-hl-second-name.json'))
+        rc, txt, _ = render_to('HL', B_CFG, ['--secrets', hl])
+        case('a secrets file with a second hard link: refused', rc == 1 and 'hard link' in txt, txt)
         nan = os.path.join(tmp, 'b-nan.json')
         open(nan, 'w').write(open(B_CFG, encoding='utf-8').read().replace('"llmCostCapUsd": 10.0', '"llmCostCapUsd": NaN', 1))
         rc, txt, _ = render_to('NAN', nan)
