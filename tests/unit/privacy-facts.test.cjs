@@ -45,7 +45,7 @@ if (existsSync(join(ROOT, 'n8n', 'staged', 'workflow.purge.sanitized.json'))) pu
 
 test('message text and message ids: the page\'s number is the one both Purge cutoffs use', () => {
   for (const p of purges) {
-    for (const node of ['Compute PII Cutoff', 'Compute Purge Cutoff']) {
+    for (const node of ['Compute PII Cutoff', 'Compute Purge Cutoff']) {   // (the leads rule is the next test)
       const m = code(p, node).match(/\$now\.minus\(\{ days: (\d+) \}\)/);
       assert.ok(m, `${node} computes a fixed day count`);
       assert.equal(Number(m[1]), MESSAGE_TEXT_DAYS, `${node} vs MESSAGE_TEXT_DAYS`);
@@ -54,9 +54,11 @@ test('message text and message ids: the page\'s number is the one both Purge cut
 });
 
 test('leads: the site reads the same config key Purge reads, never a number of its own', () => {
-  assert.match(PRIVACY, /typeof config\.leadsRetentionDays === 'number' \? config\.leadsRetentionDays : null/);
+  assert.match(PRIVACY, /const days = config\.leadsRetentionDays;/);
+  assert.match(PRIVACY, /Number\.isInteger\(days\) && \(days as number\) >= 1 \? \(days as number\) : null;/);
   for (const p of purges) {
     assert.match(code(p, 'Compute Leads Cutoff'), /\.leadsRetentionDays;/);
+    assert.match(code(p, 'Compute Leads Cutoff'), /if \(!Number\.isInteger\(days\) \|\| days < 1\)/, 'the same rule as the site');
     assert.match(code(p, 'Compute Leads Cutoff'), /\$\('Load Config \(Purge\)'\)/);
   }
 });
@@ -77,7 +79,7 @@ test('leads: the page states the Purge\'s safety limit exactly as the code appli
 test('backups: the page\'s number is the backup script\'s default retention', () => {
   const keep = Number(read('db', 'ops', 'pg-backup.sh').match(/KEEP_DAYS="\$\{PG_BACKUP_KEEP_DAYS:-(\d+)\}"/)[1]);
   assert.equal(Number(PRIVACY.match(/export const BACKUP_DAYS = (\d+);/)[1]), keep);
-  for (const anchor of ['Copies outside the database', '{BACKUP_DAYS} days', 'keeps a record of each run']) {
+  for (const anchor of ['Copies outside the database', 'more than {BACKUP_DAYS} full days old', 'keeps a record of each run']) {
     assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
   }
 });
@@ -141,7 +143,7 @@ test('the page, the notice and the footer say it', () => {
   assert.match(PANEL, /from '\.\.\/\.\.\/lib\/retention'/, 'the panel takes the number from retention.ts');
   assert.match(PRIVACY, /export \{ MESSAGE_TEXT_DAYS \} from '\.\/retention';/, 'privacy.ts re-exports the same number');
   for (const anchor of ['real personal details', 'AI model', "from the demo&apos;s database after {MESSAGE_TEXT_DAYS} days",
-    'backups', 'run', 'owner alerts (Telegram) can keep copies longer', 'real demo calendar', 'href="/privacy"']) {
+    'while backups, the engine&apos;s run', 'owner alerts (Telegram) can keep copies longer', 'real demo calendar', 'href="/privacy"']) {
     assert.ok(PANEL.includes(anchor), `notice: ${anchor}`);
   }
   assert.match(FOOTER, /\{isDemo && <span>[^\n]*<a href="\/privacy">Privacy<\/a><\/span>\}/);

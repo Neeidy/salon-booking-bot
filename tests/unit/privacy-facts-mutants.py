@@ -27,7 +27,7 @@ MUTANTS = {
         '{config.demoMode === true && (', '{true && ('),
     'the page served on a non-demo build': (PAGE, 'if (!isDemo) notFound();', ''),
     'the lead retention written as a number of its own': (PRIVACY,
-        "typeof config.leadsRetentionDays === 'number' ? config.leadsRetentionDays : null", '30'),
+        'Number.isInteger(days) && (days as number) >= 1 ? (days as number) : null', '30'),
     'the backup retention changed on the site only': (PRIVACY, 'export const BACKUP_DAYS = 14;', 'export const BACKUP_DAYS = 7;'),
     'the leads safety limit misstated': (PAGE, 'more than a fifth of all callback requests', 'more than a third of all callback requests'),
     'the copies outside the database left out': (PAGE, '<h2>Copies outside the database</h2>', '<h2>Other notes</h2>'),

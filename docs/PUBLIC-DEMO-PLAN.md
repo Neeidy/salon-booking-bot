@@ -76,8 +76,10 @@ a production deployment (measured at deploy time with `get_project`).
 ## 3. Honesty — what a visitor sees and what happens to what they type
 - **Today:** the footer "DEMO — mock data", the "Mock" ribbon, `noindex`, the widget's "Demo" tag.
 - **Added:** one line above the widget's first message — a demo; do not enter real personal details; messages are
-  processed by an AI model and deleted after 30 days — and a `/privacy` page listing the processors (read from the
-  workflows when it is built).
+  processed by an AI model; a nightly job erases their text from the demo's database after 30 days, while backups, the
+  engine's run records and owner alerts can keep copies longer — and a `/privacy` page listing the processors (read
+  from the workflows). *(Corrected in R1: the plan said "deleted after 30 days" unscoped, which the L2 reviews showed
+  was not true of the copies outside the database.)*
 - **Said plainly** (honesty additions above): bookings are written to a REAL demo calendar (`dryRun=false`, kept — it is
   the product's proof); leads and conversations go to Postgres; owner alerts (Telegram) may carry the message text and
   are OUTSIDE Purge; WhatsApp sending is off.
@@ -259,8 +261,9 @@ not committed (UNVERIFIED in the repo). Until the promotion the page says leads 
 `POST /v1/projects/{id}/pause|unpause`, then the page MEASURED: 503 / 200). The token is read from a 0600 env file and
 sent through a 0600 header file, never on a command line, in output, or in a child process's environment (even when
 the env file or the caller exports it). No answer at all (000) is "NOT measured", never "offline", and a pause counts
-only on a measured 503 (`code-reviewer` MEDIUM-5). `tests/unit/demo-offline.test.py` (in check-all; 22 checks, shims
-recording every curl argument list and every child environment) and `demo-offline-mutants.py` 12/12. **Bound:** the shell
+only on a measured 503 (`code-reviewer` MEDIUM-5). `tests/unit/demo-offline.test.py` (in check-all; 24 checks, shims
+recording every curl argument list and every child environment) and `demo-offline-mutants.py` 13/13 (the API address
+must be https, or http to 127.0.0.1, with no user part — a fix-round finding, measured by `code-reviewer`). **Bound:** the shell
 route needs a Vercel token that does not exist; in R2 CC pauses through its Vercel connection (`pause_project`) and
 measures with `demo-offline.sh measure` — whether a token for the shell route is wanted is Yigitcan's call.
 
@@ -271,6 +274,25 @@ other's rows (shown both ways on fixture rows); a pd lead's "no name, no phone" 
 recorded). **Bound:** a visitor who CHOOSES that prefix for a session or a lead makes that row
 removable by `clean-pd`.
 
+### Convergence — what the fix-round review found again, recorded rather than reopened
+The second `code-reviewer` pass (on `ceeeafc`/`05a1bfd`) confirmed every fix and found three residues of classes it had
+already reported once. Under the convergence rule they are **recorded bounds, not another round** — each is corrected
+**before go-live in R2**, because none is public until then:
+- **(HIGH-1's class) the leads safety limit is not a one-night pause.** The page says the job deletes "nothing that
+  night"; the cap is recomputed every night and, with few new leads, the aged share only grows, so the refusal can
+  persist until the owner acts. The sentence must say that.
+- **(MEDIUM-5's class) `measure` reads every non-200 answer except 000 as "offline".** A 401 (deployment protection),
+  404 (a wrong domain binding) or a redirect would read as "offline" too; the pause itself already counts only a 503.
+  `measure` must count only 503 (with Vercel's paused marker) as offline and report other codes as unexpected.
+- **(MEDIUM-4's class) `Build Spend-Cap Reply`'s first comment** still says "the monthly LLM budget is reached"; after the
+  put it also runs on an unreadable meter. It goes with Yigitcan's decision on bound (i) above (widen the Main delta to
+  that node, or the next Main edit).
+Fixed in the same pass because they were NEW classes: the API-address check could be passed with a user part
+(`http://127.0.0.1:1@…`, measured) — now refused, with a test case and a mutant; the backup sentence said "14 days" where
+`find -mtime +14` keeps a dump about 15 (and keeps it while the nightly backup fails) — now "more than 14 full days …
+typically about 15"; the site's lead-retention rule now equals the Purge's (an integer ≥ 1); a test anchor that matched
+any word ("run") was lengthened.
+
 ### R2 — measured before any write
 1. **`Read Spend`'s error behaviour, on a scratch** (a temporary webhook path behind Access; a workflow with a DB
    credential — ⚠ ONAY): a row, no row, and a forced query error (a missing table) — output 0, output 1, and what
@@ -280,11 +302,11 @@ removable by `clean-pd`.
    make up the difference); any NON-`pd-` row older than 30 days will be deleted by the first 30-day run — that is
    D4's policy, but it is a real delete, so it is reported before the put; and if the aged rows are more than a fifth of
    the table, that run deletes nothing and alerts (the cap).
+3. **The existing widget:** which widget the demo's site key belongs to and its current hostnames — CC cannot read
+   widgets (the token is refused), so Yigitcan reads them in the dashboard first.
 4. **Retention outside the database, for the /privacy page:** how long the instance keeps execution data (the engine's
    run records) and the backup retention in force (`PG_BACKUP_KEEP_DAYS` or the script's default 14) — the page is
    corrected to the measured values before go-live.
-3. **The existing widget:** which widget the demo's site key belongs to and its current hostnames — CC cannot read
-   widgets (the token is refused), so Yigitcan reads them in the dashboard first.
 
 ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
 **Order:** CC adds `demo.<apex>` to the Vercel project and reads its DNS target → **A** → CC verifies the domain and

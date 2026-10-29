@@ -40,7 +40,9 @@ MUTANTS = {
     'an exported token left exported':
         ("export -n VERCEL_TOKEN VERCEL_PROJECT_ID VERCEL_TEAM_ID", "true"),
     'a non-https API address accepted':
-        ("  https://*|http://127.0.0.1:*) ;;", "  *) ;;"),
+        ("|| \"$API\" =~ ^http://127\\.0\\.0\\.1:[0-9]+(/|$) ]]", "|| \"$API\" =~ ^http:// ]]"),
+    'a user part in the API address accepted':
+        ("if [[ \"$API\" == *@* ]] || ! [[", "if ! [["),
     'an unknown argument ignored':
         ("  *) echo \"usage: bash scripts/demo-offline.sh measure|pause|unpause [--env FILE]\"; exit 2 ;;\nesac\nAPI=",
          "  *) ;;\nesac\nAPI="),

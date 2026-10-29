@@ -35,10 +35,10 @@ case "$#:${2:-}" in
   *) echo "usage: bash scripts/demo-offline.sh measure|pause|unpause [--env FILE]"; exit 2 ;;
 esac
 API=${VERCEL_API_URL:-https://api.vercel.com}
-case "$API" in
-  https://*|http://127.0.0.1:*) ;;
-  *) echo "demo-offline: VERCEL_API_URL must be https:// (or http://127.0.0.1 for the test)"; exit 2 ;;
-esac
+# No userinfo (`@`): `http://127.0.0.1:1@elsewhere` would send the token to `elsewhere` (code-reviewer, measured).
+if [[ "$API" == *@* ]] || ! [[ "$API" =~ ^https://[^/]+(/|$) || "$API" =~ ^http://127\.0\.0\.1:[0-9]+(/|$) ]]; then
+  echo "demo-offline: VERCEL_API_URL must be https:// (or http://127.0.0.1:<port> for the test), with no user part"; exit 2
+fi
 POLL_S=${POLL_S:-90}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 

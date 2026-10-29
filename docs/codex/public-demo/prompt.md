@@ -16,8 +16,9 @@ own tests and offline commands there; anything you change in the copy is discard
 
 TARGET — two staged engine edits for a PUBLIC demo endpoint, before they are deployed:
 (A) the spend brake. `n8n/staged/workflow.main.sanitized.json` differs from the live export
-`n8n/workflow.main.sanitized.json` in ONE node, `Eval Spend` (its delta file: `n8n/staged/workflow.main.delta.json`).
-It sits between `Read Spend` (a Postgres read of the month's LLM cost, with `alwaysOutputData` and
+`n8n/workflow.main.sanitized.json` in three nodes (its delta file: `n8n/staged/workflow.main.delta.json`): the code
+of `Eval Spend`, and two text-only edits that describe it — the comment lines of `Build Spend-Meter Alert` and the
+`Spend-cap note` sticky. `Eval Spend` sits between `Read Spend` (a Postgres read of the month's LLM cost, with `alwaysOutputData` and
 `onError: continueErrorOutput`) and `Spend Gate` (true → the LLM call; false → a deterministic handoff reply). The old
 code counted an unreadable meter as zero spend (fail-open); the new code is meant to let the LLM run ONLY on a reading
 it can trust. Its premise about n8n's engine and its rule are written in the node's comments and in

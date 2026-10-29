@@ -7,9 +7,10 @@ import { config } from './config';
 
 export { MESSAGE_TEXT_DAYS } from './retention';   // the engine's fixed message-text retention (see retention.ts)
 
-/** Purge deletes a lead after the config's `leadsRetentionDays` — the key it reads itself. Absent → no expiry. */
-export const LEAD_DAYS: number | null =
-  typeof config.leadsRetentionDays === 'number' ? config.leadsRetentionDays : null;
+/** Purge deletes a lead after the config's `leadsRetentionDays` — the key it reads itself, with the same rule it applies
+ *  (`Compute Leads Cutoff`: an integer ≥ 1, otherwise it deletes nothing). */
+const days = config.leadsRetentionDays;
+export const LEAD_DAYS: number | null = Number.isInteger(days) && (days as number) >= 1 ? (days as number) : null;
 
 /** db/ops/pg-backup.sh removes dumps older than KEEP_DAYS — its default, 14. (An operator setting can change it; the
  *  value in force on the server is measured before go-live — PUBLIC-DEMO-PLAN, R2.) */

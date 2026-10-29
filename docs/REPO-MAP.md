@@ -936,6 +936,7 @@
   - ## 6. Scope, NOT-build, skeleton, CRT, estimate
   - ## R1 — stopped at its start (2026-10-29): the deploy tool cannot carry D2 as it stands
   - ## R1 — built (offline), 2026-10-29, under Ruling (d)
+  - ### Convergence — what the fix-round review found again, recorded rather than reopened
   - ### R2 — measured before any write
   - ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
   - ### Estimate (revised by Ruling (d))

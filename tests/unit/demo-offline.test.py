@@ -152,6 +152,16 @@ def main():
                            capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
         case('a plain-http API address (not loopback) → refused before the token is used (exit 2)',
              r.returncode == 2 and len(world.hits) == before, r.stdout)
+        r = subprocess.run(['bash', SCRIPT, 'pause', '--env', env_file],
+                           env=dict(env, VERCEL_API_URL=f'http://127.0.0.1:1@{base[len("http://"):]}'),
+                           capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        case('a loopback-looking address with a user part (the token would go to the host after "@") → refused (exit 2)',
+             r.returncode == 2 and len(world.hits) == before, r.stdout)
+        r = subprocess.run(['bash', SCRIPT, 'pause', '--env', env_file],
+                           env=dict(env, VERCEL_API_URL='https://api.vercel.com@elsewhere.invalid'),
+                           capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
+        case('an https address with a user part → refused before any request (exit 2)',
+             r.returncode == 2 and 'no user part' in r.stdout and len(world.hits) == before, r.stdout)
 
         # 000 — no answer — is never "offline": measure says NOT measured, pause does not succeed on it
         closed = dict(env, DEMO_URL='http://127.0.0.1:9/')

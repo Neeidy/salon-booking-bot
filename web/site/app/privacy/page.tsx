@@ -65,8 +65,9 @@ export default function PrivacyPage() {
 
         <h2>Copies outside the database</h2>
         <ul>
-          <li>Nightly backups of the database are kept for {BACKUP_DAYS} days, so a deleted message or request can
-            remain in a backup for up to {BACKUP_DAYS} days more.</li>
+          <li>Nightly backups of the database are removed once they are more than {BACKUP_DAYS} full days old, and only
+            on a night whose backup succeeds — so a deleted message or request can remain in a backup for at least
+            {' '}{BACKUP_DAYS} days more, typically about {BACKUP_DAYS + 1}.</li>
           <li>The booking engine (n8n) keeps a record of each run, which includes your message and the request sent to
             the AI model; how long those records are kept is a setting on the server, separate from the deletion above.</li>
           <li>The services listed below keep what they receive under their own policies.</li>
