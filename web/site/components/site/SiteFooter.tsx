@@ -1,4 +1,4 @@
-// L7 · FOOTER — demo notice: STATIC, shown only on a DEMO build (honesty-demos.md) · brand: CONFIG
+// L7 · FOOTER — demo notice + the /privacy link: STATIC, shown only on a DEMO build (honesty-demos.md) · brand: CONFIG
 // business.name · place: DERIVED from CONFIG faq.address (§1 L7). If the derivation cannot find a
 // clean address the brand stands alone — never a mangled fragment on a public page.
 import { config, isDemo, shortAddress } from '../../lib/config';
@@ -8,7 +8,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="wrap footer-row">
-        {isDemo && <span>DEMO — mock data, no real customer information.</span>}
+        {isDemo && <span>DEMO — mock data, no real customer information. <a href="/privacy">Privacy</a></span>}
         <span>{config.business.name}{place ? ` · ${place}` : ''}</span>
       </div>
     </footer>

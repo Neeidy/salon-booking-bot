@@ -8,6 +8,9 @@ What it proves: `up` and every action refuse to seed when the edge does not refu
 removes the workflow again); an action never goes through a live workflow that is not the committed build; the
 statements are constants, guarded per table, never name bot_metrics; the clean-up takes the mig-p7 rows and the run-d11
 dashboard markers and nothing else; `clean-p74` (7-4 B) takes the p74 window's rows and the G5 lead and nothing else; inserts send explicit created_at and unique, prefixed, shape-valid fake event ids.
+Public demo (2026-10-29): the pd- actions write and clean only under their OWN prefix (`widget:w-pd-`, `pd-`), and
+`clean` and `clean-pd` each leave the other's rows alone (both directions on fixture rows); a pd lead carries no name
+and no phone.
 7-2 R4: appt-insert's customer_name and lead-insert (name, phone, prefixed message) carry their values — unicode
 included — in the body only, every payload key is named in its statement's recordset, INSERT and SELECT lists (a
 dropped column would insert NULL and exit 0), and an option another action takes is refused, never swallowed.
@@ -40,6 +43,13 @@ P74_GUARD = {     # clean-p74 only: the rows the 7-4 A window left, under that r
     'leads': r"message\s+=\s+'My name is Alex, please call me back'\s+AND\s+source\s+=\s+'widget'\s+AND\s+"
              r"created_at\s+>=\s+'2026-10-27T20:06:00Z'\s+AND\s+created_at\s+<=\s+'2026-10-27T20:10:00Z'",
 }
+
+
+PD_GUARD = {      # the public demo's actions (pd-lead-insert, pd-conv-insert, clean-pd): their own prefix only
+    'conversations': r"sender_key'?\)?\s+LIKE\s+'widget:w-pd-%'",
+    'leads': r"message\s+LIKE\s+'pd-%'",
+}
+PD_ACTIONS = ('pd-lead-insert', 'pd-conv-insert', 'clean-pd')
 
 
 def load_script():
@@ -205,7 +215,9 @@ def make_handler(world, mod):
                               'conv-insert': {'inserted': 1}, 'conv-update': {'updated': 1},
                               'appt-update': {'updated': 1, 'candidates': 1}, 'appt-delete': {'deleted': 1, 'candidates': 1},
                               'clean': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0},
-                              'clean-p74': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0}}
+                              'clean-p74': {'conversations': 0, 'appointments': 0, 'processed_messages': 0, 'leads': 0},
+                              'pd-lead-insert': {'inserted': 0 if world.guard_refuses else n, 'sent': n},
+                              'pd-conv-insert': {'inserted': 1}, 'clean-pd': {'conversations': 0, 'leads': 0}}
                     return self.reply(200, canned.get(action, {'message': 'unknown'}))
                 return self.reply(404, {'message': 'not found'})
     return H
@@ -249,7 +261,7 @@ def main():
     for action, q in mod.SQL.items():
         segs = dml.findall(q)
         case(f'{action}: holds at least one write', bool(segs))
-        guards = P74_GUARD if action == 'clean-p74' else TABLE_GUARD
+        guards = PD_GUARD if action in PD_ACTIONS else P74_GUARD if action == 'clean-p74' else TABLE_GUARD
         for verb, table, seg in segs:
             n_dml += 1
             case(f'{action}: {verb.split()[0]} on salon.{table} is a table this tool may write', table in guards)
@@ -316,6 +328,26 @@ def main():
             case(f"clean-p74 on {table}: {json.dumps(row)} → {'deleted' if got is True else 'kept' if got is False else got}"
                  f"{'' if got == want else ' (WRONG)'}", got == want)
 
+    pd = dict((t, p) for t, p in re.findall(r'DELETE FROM salon\.(\w+) WHERE (.*?) RETURNING', mod.SQL['clean-pd'], re.S))
+    case('clean-pd: one DELETE per pd table (conversations, leads)', set(pd) == set(PD_GUARD))
+    rows_pd = {
+        'conversations': [({'sender_key': 'widget:w-pd-r2-19'}, True), ({'sender_key': 'widget:w-mig-p7-r5-1'}, False),
+                          ({'sender_key': 'widget:w-pd'}, False), ({'sender_key': 'widget:w-pdx-1'}, False),
+                          ({'sender_key': 'widget:w-real-session'}, False), ({'sender_key': 'whatsapp:+490000000001'}, False)],
+        'leads': [({'message': 'pd-13 back-dated'}, True), ({'message': 'mig-p7 lead drill'}, False),
+                  ({'message': 'pdq real text'}, False), ({'message': 'Please call me back'}, False)],
+    }
+    for table, cases in rows_pd.items():
+        for row, want in cases:
+            try:
+                got = evaluate(pd.get(table, "x = 'never'"), row)
+            except (AssertionError, ValueError, IndexError) as e:
+                got = f'unparsable ({e})'
+            case(f"clean-pd on {table}: {json.dumps(row)} → {'deleted' if got is True else 'kept' if got is False else got}"
+                 f"{'' if got == want else ' (WRONG)'}", got == want)
+    for table, row in (('conversations', {'sender_key': 'widget:w-pd-r2-19'}), ('leads', {'message': 'pd-13 back-dated'})):
+        case(f'clean leaves a pd row in {table} alone (the other direction)', evaluate(preds.get(table, "x = 'never'"), row) is False)
+
     # ── payloads: explicit created_at, unique prefixed shape-valid gids, refusals before any call ─────────────
     gids = set()
     for _ in range(200):
@@ -377,7 +409,8 @@ def main():
     for action, opt in (('appt-insert', {'session': 'w-mig-p7-u', 'start': '2030-01-07T13:00:00Z', 'created_at': '2030-01-01T09:00:00Z',
                                          'customer_name': 'x'}),
                         ('lead-insert', {'message': 'mig-p7 x', 'created_at': '2030-01-01T09:00:00Z', 'name': 'x', 'phone': 'y'}),
-                        ('pm-insert', {'session': 'w-mig-p7-u', 'message_id': 'mig-p7-x', 'created_at': '2030-01-01T09:00:00Z'})):
+                        ('pm-insert', {'session': 'w-mig-p7-u', 'message_id': 'mig-p7-x', 'created_at': '2030-01-01T09:00:00Z'}),
+                        ('pd-lead-insert', {'message': 'pd-x', 'created_at': '2030-01-01T09:00:00Z'})):
         q = mod.SQL[action]
         rec = re.search(r'AS x\((.*?)\)\)', q, re.S).group(1)
         cols = re.search(r'INSERT INTO salon\.\w+ \((.*?)\) SELECT (.*?) FROM r', q, re.S)
@@ -399,6 +432,35 @@ def main():
         rc, out = run(mod, w, argv)
         case(f'{label}: an option of another action is REFUSED before any request (exit 2), never swallowed',
              rc == 2 and len(w.hits) == before, out[-200:])
+    # public demo: a pd lead is synthetic (no name, no phone, whatever is offered) and a pd conversation is a handoff
+    rc, out = run(mod, w, ['pd-lead-insert', '--message', 'pd-13 back-dated', '--created-at', '2026-09-01T08:00:00Z'])
+    last = [h for h in w.hits if h[1]][-1]
+    case('pd-lead-insert: one row, no name and no phone, the explicit created_at → exit 0',
+         rc == 0 and last[0] == 'pd-lead-insert' and last[2]['p']['rows'] == [{'name': None, 'phone': None, 'source': 'widget',
+         'message': 'pd-13 back-dated', 'created_at': '2026-09-01T08:00:00.000Z'}], out[-200:])
+    rc, out = run(mod, w, ['pd-conv-insert', '--session', 'w-pd-r2-19', '--turn-count', '3'])
+    last = [h for h in w.hits if h[1]][-1]
+    case('pd-conv-insert: one handoff conversation under the pd prefix → exit 0',
+         rc == 0 and last[0] == 'pd-conv-insert' and last[2]['p'] == {'sender_key': 'widget:w-pd-r2-19', 'turn_count': 3}, out[-200:])
+    case("pd-lead-insert refuses a name or a phone IN SQL too, in both its check and its insert (a direct POST cannot add one)",
+         mod.SQL['pd-lead-insert'].count('name IS NULL AND') == 2 and mod.SQL['pd-lead-insert'].count('phone IS NULL') == 2)
+    case("pd-conv-insert's statement fixes stage and last_intent to 'handoff' (no input reaches them)",
+         "'handoff', (p.j ->> 'turn_count')::int, 'handoff'" in mod.SQL['pd-conv-insert'])
+    for label, argv in (('pd-lead-insert --phone', ['pd-lead-insert', '--message', 'pd-x', '--created-at', '2026-09-01T08:00:00Z',
+                                                    '--phone', '+43 660 0000000']),
+                        ('pd-lead-insert --name', ['pd-lead-insert', '--message', 'pd-x', '--created-at', '2026-09-01T08:00:00Z',
+                                                   '--name', 'Noor']),
+                        ('pd-conv-insert --stage', ['pd-conv-insert', '--session', 'w-pd-a', '--turn-count', '1', '--stage', 'booked'])):
+        before = len(w.hits)
+        rc, out = run(mod, w, argv)
+        case(f'{label}: refused before any request (exit 2), never swallowed', rc == 2 and len(w.hits) == before, out[-200:])
+    for label, argv in (('pd-lead-insert, a message outside the pd prefix', ['pd-lead-insert', '--message', 'mig-p7 x',
+                                                                             '--created-at', '2026-09-01T08:00:00Z']),
+                        ('pd-conv-insert, a session outside the pd prefix', ['pd-conv-insert', '--session', 'w-mig-p7-a', '--turn-count', '1']),
+                        ('conv-insert, a pd session', ['conv-insert', '--session', 'w-pd-a', '--stage', 'new', '--turn-count', '0'])):
+        before = len(w.hits)
+        rc, out = run(mod, w, argv)
+        case(f'{label}: refused BEFORE any request (no hit, exit 1)', rc == 1 and len(w.hits) == before, out[-200:])
     before = len(w.hits)
     rc, out = run(mod, w, ['lead-insert', '--message', 'a real customer', '--created-at', '2030-01-07T08:00:00Z'])
     case('lead-insert with a message outside the prefix is refused BEFORE any request (no hit, exit 1)',

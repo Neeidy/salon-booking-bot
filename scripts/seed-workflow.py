@@ -16,6 +16,12 @@ The statements (SQL below, printed by --print-sql) — what makes them safe is I
       processed_messages            message_id LIKE 'mig-p7-%'  (the clean-up also takes the run-d11 dashboard
                                     markers: message_id LIKE 'd11-%' AND sender_key = 'owner:dashboard' AND channel = 'owner')
       leads                         message LIKE 'mig-p7%'
+    the public demo's actions (2026-10-29) carry their OWN prefix, so neither set of clean-ups can reach the other's:
+      conversations                 sender_key LIKE 'widget:w-pd-%'      (pd-conv-insert, clean-pd)
+      leads                         message LIKE 'pd-%'                  (pd-lead-insert, clean-pd; the insert also
+                                    requires name IS NULL AND phone IS NULL in SQL, not only in this Python)
+    — a bound, stated: the widget's sessionId and a lead's message are visitor-supplied, so a visitor who CHOOSES that
+    prefix makes their own row removable by clean-pd (it removes only rows shaped like a drill row, never a write);
     `clean-p74` (7-4 B) is the one exception to that list: it removes the rows the 7-4 A Turnstile window left, which
     were written by Main under that run's own prefixes — conversations / appointments sender_key LIKE 'widget:w-p74-%',
     processed_messages message_id LIKE 'p74-%' AND sender_key LIKE 'widget:w-p74-%', and the ONE lead golden case G5
@@ -45,6 +51,11 @@ webhooks; N8N_HOST or CLAUDE.local.md's N8N_HOST line). SESSION is a widget sess
   python3 scripts/seed-workflow.py pm-insert --session S --message-id mig-p7-… --created-at ISO
   python3 scripts/seed-workflow.py clean     the prefix-guarded clean-up of every p7 drill row (and the d11 markers)
   python3 scripts/seed-workflow.py clean-p74 the guarded clean-up of the 7-4 A window's rows (p74 prefixes + the G5 lead)
+  python3 scripts/seed-workflow.py pd-lead-insert --message pd-… --created-at ISO [--source widget]
+                                   (public demo #13: a synthetic lead, no name and no phone, back-dated for the Purge)
+  python3 scripts/seed-workflow.py pd-conv-insert --session w-pd-… --turn-count N
+                                   (public demo #19: one conversation at stage 'handoff' for the dashboard's release)
+  python3 scripts/seed-workflow.py clean-pd  the prefix-guarded clean-up of every pd drill row (conversations, leads)
   python3 scripts/seed-workflow.py down      deactivate → delete → GET answers 404
   python3 scripts/seed-workflow.py --print-sql | --selftest       (offline; the selftest asserts it made no call)
   (--bind-target sets cancel_target_id to the session's ONE booked appointment, found in SQL: no record id travels.)
@@ -66,6 +77,7 @@ NAME = 'MIG SEED — P7'
 PATH_PREFIX = 'owner-mig-p7-'
 SESSION_RE = re.compile(r'^w-mig-p7-[a-z0-9][a-z0-9-]{0,60}$')
 MESSAGE_RE = re.compile(r'^mig-p7-[A-Za-z0-9][A-Za-z0-9-]{0,80}$')
+PD_SESSION_RE = re.compile(r'^w-pd-[a-z0-9][a-z0-9-]{0,60}$')     # the public demo's drill sessions (2026-10-29)
 STAGES = ('new', 'collecting', 'ready', 'confirming', 'booked', 'cancel_confirming', 'cancelled',
           'reschedule_confirming', 'handoff')        # = the CHECK in db/schema/001_init.sql
 EDGE_WAIT_S = 4
@@ -77,6 +89,8 @@ GUARD_SENDER = "sender_key LIKE 'widget:w-mig-p7-%'"
 GUARD_MESSAGE = "message_id LIKE 'mig-p7-%'"
 GUARD_D11 = "(message_id LIKE 'd11-%' AND sender_key = 'owner:dashboard' AND channel = 'owner')"
 GUARD_LEAD = "message LIKE 'mig-p7%'"
+GUARD_PD_SENDER = "sender_key LIKE 'widget:w-pd-%'"
+GUARD_PD_LEAD = "message LIKE 'pd-%'"
 
 SQL = {
     'appt-insert': (
@@ -171,6 +185,26 @@ SQL = {
         "AND created_at >= '2026-10-27T20:06:00Z' AND created_at <= '2026-10-27T20:10:00Z' RETURNING 1) "
         "SELECT (SELECT count(*) FROM c)::int AS conversations, (SELECT count(*) FROM a)::int AS appointments, "
         "(SELECT count(*) FROM p)::int AS processed_messages, (SELECT count(*) FROM l)::int AS leads"),
+    # ── the public demo (2026-10-29): their own prefix, so `clean` and `clean-pd` cannot reach each other's rows ──
+    'pd-lead-insert': (
+        "WITH r AS (SELECT * FROM jsonb_to_recordset($1::jsonb -> 'rows') AS x(name text, phone text, source text, "
+        "message text, created_at timestamptz)), "
+        "ok AS (SELECT NOT EXISTS (SELECT 1 FROM r AS q WHERE NOT coalesce(q.message LIKE 'pd-%' "
+        "AND q.created_at IS NOT NULL AND q.name IS NULL AND q.phone IS NULL, false)) AS all_ok), "
+        "ins AS (INSERT INTO salon.leads (name, phone, source, message, created_at) SELECT name, phone, source, message, "
+        "created_at FROM r, ok WHERE ok.all_ok AND message LIKE 'pd-%' AND created_at IS NOT NULL "
+        "AND name IS NULL AND phone IS NULL RETURNING 1) "
+        "SELECT (SELECT count(*) FROM ins)::int AS inserted, (SELECT count(*) FROM r)::int AS sent"),
+    'pd-conv-insert': (
+        "WITH p AS (SELECT $1::jsonb AS j), "
+        "ins AS (INSERT INTO salon.conversations (sender_key, stage, turn_count, last_intent, created_at, last_updated) "
+        "SELECT p.j ->> 'sender_key', 'handoff', (p.j ->> 'turn_count')::int, 'handoff', now(), now() FROM p "
+        "WHERE (p.j ->> 'sender_key') LIKE 'widget:w-pd-%' RETURNING 1) "
+        "SELECT (SELECT count(*) FROM ins)::int AS inserted"),
+    'clean-pd': (
+        "WITH c AS (DELETE FROM salon.conversations WHERE sender_key LIKE 'widget:w-pd-%' RETURNING 1), "
+        "l AS (DELETE FROM salon.leads WHERE message LIKE 'pd-%' RETURNING 1) "
+        "SELECT (SELECT count(*) FROM c)::int AS conversations, (SELECT count(*) FROM l)::int AS leads"),
 }
 EXPECT = {      # the response keys each action must return (ints), and the rule that makes it green
     'appt-insert': ('inserted', 'sent'), 'pm-insert': ('inserted', 'sent'), 'lead-insert': ('inserted', 'sent'),
@@ -178,6 +212,7 @@ EXPECT = {      # the response keys each action must return (ints), and the rule
     'conv-update': ('updated',), 'appt-update': ('updated', 'candidates'), 'appt-delete': ('deleted', 'candidates'),
     'clean': ('conversations', 'appointments', 'processed_messages', 'leads'),
     'clean-p74': ('conversations', 'appointments', 'processed_messages', 'leads'),
+    'pd-lead-insert': ('inserted', 'sent'), 'pd-conv-insert': ('inserted',), 'clean-pd': ('conversations', 'leads'),
 }
 
 
@@ -258,8 +293,24 @@ def payload(action, opt):
     stray = sorted(set(k for k, v in opt.items() if v is not None) - ALLOWED.get(action, set()))
     if stray:
         raise Refused(f'{action} does not take {stray} (refused rather than ignored)')
-    if action in ('clean', 'clean-p74'):
+    if action in ('clean', 'clean-p74', 'clean-pd'):
         return None
+    if action == 'pd-lead-insert':  # synthetic only: no name and no phone travel, whatever the caller has
+        msg = opt.get('message') or ''
+        if not msg.startswith('pd-') or len(msg) > 200:
+            raise Refused("--message must start with 'pd-' (the pd leads guard) and be at most 200 characters")
+        source = opt.get('source') or 'widget'
+        if source not in ('whatsapp', 'widget', 'instagram'):
+            raise Refused('--source must be whatsapp|widget|instagram (the table CHECK)')
+        created = _iso(opt.get('created_at'), '--created-at')
+        return {'rows': [{'name': None, 'phone': None, 'source': source, 'message': msg,
+                          'created_at': created.strftime('%Y-%m-%dT%H:%M:%S.000Z')}]}
+    if action == 'pd-conv-insert':
+        if not PD_SESSION_RE.match(opt.get('session') or ''):
+            raise Refused(f'--session must match {PD_SESSION_RE.pattern}')
+        if not re.fullmatch(r'[0-9]{1,4}', str(opt.get('turn_count') or '')):
+            raise Refused('--turn-count is an integer 0..9999 (turn_count is integer NOT NULL: no null)')
+        return {'sender_key': 'widget:' + opt['session'], 'turn_count': int(opt['turn_count'])}
     if action == 'lead-insert':     # a lead has no session: its guard is the message prefix (the clean-up's own)
         msg = opt.get('message') or ''
         if not msg.startswith('mig-p7') or len(msg) > 200:
@@ -340,9 +391,11 @@ def judge(action, p, body):
         # synthetic names and phones
         shape = sorted(body)[:8] if isinstance(body, dict) else type(body).__name__
         return [f'unexpected response (a SQL error or a wrong path); response keys: {shape}']
-    if action in ('appt-insert', 'pm-insert', 'lead-insert'):
+    if action in ('appt-insert', 'pm-insert', 'lead-insert', 'pd-lead-insert'):
         return [] if body['inserted'] == body['sent'] == len(p['rows']) else \
             [f"inserted {body['inserted']} of {body['sent']} (the guard refused; all-or-nothing, so none)"]
+    if action == 'pd-conv-insert':
+        return [] if body['inserted'] == 1 else ['no row inserted (the pd guard, or that session already exists)']
     if action == 'conv-insert':
         return [] if body['inserted'] == 1 else ['no row inserted (guard, or --bind-target found no single booked row)']
     if action == 'conv-update':
@@ -567,6 +620,16 @@ def selftest():
                 case(f'lead-insert refuses {bad}: NOT refused', False)
             except Refused as e:
                 case(f'lead-insert refuses {bad} ({str(e)[:60]})', True)
+        for action, bad, opt in (
+                ('pd-lead-insert', 'a message outside the pd prefix', {'message': 'mig-p7 x', 'created_at': '2030-01-01T09:00:00Z'}),
+                ('pd-lead-insert', 'a name (a pd lead carries none)', {'message': 'pd-x', 'name': 'A', 'created_at': '2030-01-01T09:00:00Z'}),
+                ('pd-conv-insert', 'a session outside the pd prefix', {'session': 'w-mig-p7-a', 'turn_count': '1'}),
+                ('pd-conv-insert', 'a missing turn count', {'session': 'w-pd-a'})):
+            try:
+                payload(action, opt)
+                case(f'{action} refuses {bad}: NOT refused', False)
+            except Refused as e:
+                case(f'{action} refuses {bad} ({str(e)[:60]})', True)
         g = payload('appt-insert', {'session': 'w-mig-p7-a', 'start': '2030-01-01T10:00:00Z',
                                     'created_at': '2030-01-01T09:00:00Z'})['rows'][0]['gcal_event_id']
         case('a fake gid is prefixed and passes /^[0-9a-v]{5,1024}$/', g.startswith('migp7')
@@ -595,7 +658,9 @@ ALLOWED = {
     'appt-update': {'session', 'blank_calendar_id', 'fake_gid'},
     'appt-delete': {'session'},
     'pm-insert': {'session', 'message_id', 'created_at'},
-    'clean': set(), 'clean-p74': set(), 'up': set(), 'down': set(),
+    'pd-lead-insert': {'message', 'created_at', 'source'},
+    'pd-conv-insert': {'session', 'turn_count'},
+    'clean': set(), 'clean-p74': set(), 'clean-pd': set(), 'up': set(), 'down': set(),
 }
 
 

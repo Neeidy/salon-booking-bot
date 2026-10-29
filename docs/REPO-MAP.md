@@ -142,6 +142,7 @@
 - `docs/PHASE-6-BACKLOG.md`
 - `docs/PHASE-7-PLAN.md`
 - `docs/PHASE-8-PLAN.md`
+- `docs/PUBLIC-DEMO-PLAN.md`
 - `docs/REPO-MAP.md`
 - `docs/RESTORE-PROCEDURE.md`
 - `docs/ROADMAP.md`
@@ -898,6 +899,21 @@
   - ## R2b — the internal reviews of the R2 fixes, and the last round (2026-10-28)
   - ## Phase 8 — closed (2026-10-28)
 
+### `docs/PUBLIC-DEMO-PLAN.md`
+  - ## Rulings (Yigitcan, 2026-10-29)
+  - ## Ruling (d) (Yigitcan, 2026-10-29) — none of (a)/(b)/(c); no deploy-tool rule changes
+  - ## 1. Where the site can run — measured 2026-10-29 (read-only), then the recommendation
+  - ## 2. The gates — what closes each, the proof, and whether it is live
+  - ## 3. Honesty — what a visitor sees and what happens to what they type
+  - ## 4. Spend and abuse bounds for a public endpoint, and the rollback
+  - ## 5. Yigitcan's unavoidable manual steps (minimised, grouped)
+  - ## 6. Scope, NOT-build, skeleton, CRT, estimate
+  - ## R1 — stopped at its start (2026-10-29): the deploy tool cannot carry D2 as it stands
+  - ## R1 — built (offline), 2026-10-29, under Ruling (d)
+  - ### R2 — measured before any write
+  - ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
+  - ### Estimate (revised by Ruling (d))
+
 ### `docs/REPO-MAP.md`
   - ## Tracked files by directory
   - ### (root)
@@ -1004,6 +1020,7 @@
   - ### `docs/PHASE-6-BACKLOG.md`
   - ### `docs/PHASE-7-PLAN.md`
   - ### `docs/PHASE-8-PLAN.md`
+  - ### `docs/PUBLIC-DEMO-PLAN.md`
   - ### `docs/REPO-MAP.md`
 
 ### `docs/RESTORE-PROCEDURE.md`
@@ -1044,6 +1061,7 @@
   - ## 5 · Postgres roles (`db/schema/002_roles.sql`)
   - ## 6 · Viewing the workflows safely
   - ## 7 · A database GUI over an SSH tunnel, as `salon_ro`
+  - ## 8 · Public demo (`docs/PUBLIC-DEMO-PLAN.md`)
 
 ### `docs/SCREEN-INVENTORY.md`
   - ## §0 — Amaç, kural, görsel dil

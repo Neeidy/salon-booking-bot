@@ -18,6 +18,7 @@ import {
 } from '@salon/shared/chat';
 import { TurnstileWidget, type TurnstileState } from './TurnstileWidget';
 import { lockLineDecision } from '../../lib/lockedOnce';
+import { MESSAGE_TEXT_DAYS } from '../../lib/retention';   // no config import: a client component
 
 interface Bubble { from: 'bot' | 'user' | 'system'; text: string; stamp: string }
 
@@ -120,6 +121,17 @@ export function LiveChatPanel({ config, endpoint }: { config: ClientConfig; endp
         </div>
         <button className="panel-close" type="button" data-close aria-label="Close chat">×</button>
       </div>
+
+      {config.demoMode === true && (
+        // Public demo notice (honesty additions, 2026-10-29): above the first message and OUTSIDE the live log, so it
+        // is read once rather than announced as something the bot said. Inline style: globals.css is a locked contract.
+        <p style={{ margin: 0, padding: '10px 18px 0', fontSize: 12, lineHeight: 1.45, color: 'var(--muted)' }}>
+          Demo: please don&apos;t enter real personal details. Messages are processed by an AI model; a nightly job erases
+          their text from the demo&apos;s database after {MESSAGE_TEXT_DAYS} days, while backups, the engine&apos;s run
+          records and owner alerts (Telegram) can keep copies longer; bookings go onto a real demo calendar.{' '}
+          <a href="/privacy">Privacy</a>
+        </p>
+      )}
 
       <div className="thread" role="log" aria-live="polite" ref={threadRef}>
         {thread.map((b, i) => (
