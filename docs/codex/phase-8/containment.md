@@ -1,8 +1,12 @@
 # Phase 8 R2 — how the CRT #14 run was contained
 
 **Harness:** the 7-2 R2 one (`docs/codex/7-2-r2/containment.md`), re-built for this run because its runner script
-was not committed. **This run's runner IS committed:** `docs/codex/phase-8/run.sh` — the file that ran attempt 2, with
-the session scratch directory and the repository path turned into parameters; its body is otherwise byte-identical.
+was not committed. **This run's runner IS committed:** `docs/codex/phase-8/run.sh` — the file that ran attempt 2, its body from the
+`EXP=` line on byte-identical (measured by the build at commit time with `diff` against the original in the session
+scratchpad, which is not committed — so not re-checkable from the repo; the original's last modification is the
+mount-check fix, about 5–6 seconds before attempt 2 started, and nothing touched it after). Above that line it was
+changed for the record: its header comments, a usage line, the session scratch directory and the repository path as
+parameters (they were literals), and a STOP if the scratch directory is inside the repository.
 One throwaway container (label `c72=run`, all capabilities dropped, no new privileges) from the image
 `c72-codex-audit:r2` (its dependencies come from the committed lockfiles, unchanged since it was built); a read-only
 single-branch export of the pushed `main` at the pin `35df5cc` (no remote, no reflog, no hooks; 326 files), copied

@@ -1,7 +1,9 @@
 #!/bin/bash
 # Phase 8 R2: ONE Codex run on CRT #14 in the 7-2 R2 harness — the runner of attempt 2, committed as a record
-# (docs/codex/phase-8/containment.md). The only change from the file that ran: the session scratch directory and the
-# repository path were literals there and are parameters here. Prints counts and statuses only (never the auth file,
+# (docs/codex/phase-8/containment.md). From `EXP=` on, byte-identical to the file that ran (measured at commit time,
+# see containment.md). Above that line, changed for the record: these header comments, a usage line, the session scratch
+# directory and the repository path as parameters (they were literals), and a STOP if the scratch directory is inside
+# the repository. Prints counts and statuses only (never the auth file,
 # never a command's output). Run after the prompt commit is pushed; the pin is origin/main.
 # Usage: bash docs/codex/phase-8/run.sh <an empty scratch directory OUTSIDE the repository>
 set -uo pipefail

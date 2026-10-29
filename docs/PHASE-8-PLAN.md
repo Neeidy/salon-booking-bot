@@ -71,7 +71,7 @@ None external; no live write. Mock: `config/client.config.example-b.json` ("Hofg
 ## Critical-Review Target
 **CRT #14 — client render isolation.** Criteria: silent failure (5) and a data/PII leak (3): a missed slot silently
 carries client A's calendar id, chat id or address into B's workflows — B's customers written into A's calendar, A's
-owner alerted. Verification: `python3 tests/unit/render-client.test.py` (proofs 1, 2, 3, 6); audited by Codex (R2).
+owner alerted. Verification: `python3 tests/unit/render-client.test.py` (proofs 1, 2, 3, 6); audited by Codex (R2) — as it turned out, a pre-fix audit, the fixes verified by the internal reviews (R2b).
 The rendered output can carry secrets, so forcing it out of the repository is part of the same target.
 
 ## Acceptance criteria
