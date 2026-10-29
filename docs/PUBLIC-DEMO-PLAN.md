@@ -50,7 +50,7 @@ a production deployment (measured at deploy time with `get_project`).
 | Gate | Closed by | Proof | Live? |
 |---|---|---|---|
 | **#11** Turnstile weak | D2's hostname check; a NEW demo widget in **Managed** mode listing only `demo.<apex>` (no `localhost`), created by the provisioning script | offline: a stubbed siteverify `{success:true, hostname:<other>}` is refused (test + mutant); live: the dummy token is 403 | yes (Main write, ⚠ ONAY) |
-| **#12** rate-limit BLOCK | measured: 25 requests a minute from this server to a NON-existent `/webhook/zz-rl-probe` path (the rule matches "path contains `/webhook/`"; no n8n execution, no LLM) — blocked after the 20th; the rule itself read with the D3 token | the blocking response and the rule's fields | yes (requests only) |
+| **#12** rate-limit BLOCK | to be measured: 25 requests a minute from this server to a NON-existent `/webhook/zz-rl-probe` path (the rule matches "path contains `/webhook/`"; no n8n execution, no LLM) — blocked after the 20th; the rule itself read with the D3 token | the blocking response and the rule's fields | yes (requests only) |
 | **#13** leads TTL live | D5: a back-dated synthetic `pd-` lead seeded into production (the S2 pattern); the real 04:00 Purge deletes it | `salon_ro`: 1 row before, 0 after; the Purge execution | yes (a temporary workflow with a DB credential, ⚠ ONAY) |
 | **#14** Privacy Addendum, the open half | a `/privacy` page on the site, linked from the footer and the widget | headless: the page, the links, Cloudflare's privacy link | no (build) |
 | **#15** SP4a in Managed mode | the existing harness, headless, against the deployed page | the render-moment record | yes (read) |
@@ -77,7 +77,7 @@ a production deployment (measured at deploy time with `get_project`).
   endpoint it becomes fail-closed — a deterministic handoff reply and an alert.
 - **Take the demo offline in one step:** pause the Vercel project (back with unpause). The site and the widget go; after
   #11 no valid token can be minted on another hostname, so the engine cannot spend either. `scripts/demo-offline.sh`
-  pauses and measures. D6: standing approval for this pause in an emergency; Main deactivation stays ⚠ ONAY.
+  (to be built in R1) will pause and measure. D6: standing approval for this pause in an emergency; Main deactivation stays ⚠ ONAY.
 
 ## 5. Yigitcan's unavoidable manual steps (minimised, grouped)
 **Once, at the start of R2:**
