@@ -196,7 +196,10 @@
 
 ### docs/codex/phase-8
 
+- `docs/codex/phase-8/containment.md`
+- `docs/codex/phase-8/crt14.md`
 - `docs/codex/phase-8/prompt.md`
+- `docs/codex/phase-8/run.sh`
 
 ### n8n
 
@@ -1251,6 +1254,12 @@
   - ## Flag 2 — run 9
   - ## Flag 3 — run 9
   - ## Tur 1b — containment by isolation (runs 1b, 2, 5, 6, 12, 4, 11)
+
+### `docs/codex/phase-8/containment.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/phase-8/crt14.md`
+  - _(no `##` headings — flat file)_
 
 ### `docs/codex/phase-8/prompt.md`
   - _(no `##` headings — flat file)_
