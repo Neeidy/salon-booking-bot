@@ -12,8 +12,8 @@
 > **Honest status:** this is a **demo / learning build**, not a system serving paying customers.
 > Phases 0–6 are done. The bot's store then moved from Airtable to **self-hosted Postgres** in an interim
 > phase whose cutover was accepted on 2026-10-24. Phase 7 (test, Codex audit, Definition of Done) closed on
-> 2026-10-28 with its gaps named, and Phase 8 (a config-only second client) is in progress: its render step is built
-> and proven offline, its independent audit is next — live status in
+> 2026-10-28 with its gaps named, and Phase 8 (a config-only second client) closed the same day: its render step is built and
+> proven offline; Codex audited the pre-fix code, and the fixes were verified by the internal reviews — live status in
 > [`docs/ROADMAP.md`](docs/ROADMAP.md). Everything below marked ✅ has been built **and verified from execution
 > logs**; 🔜 means not built yet. No invented metrics, no fake traffic.
 
@@ -202,8 +202,8 @@ another event, so two requests at the same moment can both yield: no double book
 (three inline copies, plus the owner's chat id and the Turnstile secret), so a new client used to mean editing them.
 Since Phase 8's first round, **a new client = a config file + secret inputs → `scripts/render-client.py` → import into
 its own n8n; no node edited by hand** (with both secret inputs given) — shown offline on a second, fictional client (`tests/unit/render-client.test.py`: only the ten measured slots differ from the demo's workflows; a synthetic client whose every config value differs from the demo's shows every key of the three config literals fed from the client's own config (the few-shot from its first service, the chat id and Turnstile secret from its secret input); and no demo-client string of five or more characters reaches the new client outside six allowlisted code comments and fallbacks;
-`tests/unit/render-client-mutants.py`, 17 mutants red), with these bounds in the same breath:
-EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the new instance's credentials linked by hand, and not yet shown on a real second deployment (`docs/PHASE-8-PLAN.md`; its independent audit, CRT #14, is the next round).
+`tests/unit/render-client-mutants.py`, 35 mutants red), with these bounds in the same breath:
+EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the prompt carries a fixed example that hair colouring is not offered; a client offering it gets a contradicting prompt until a Main edit (quality only: `Merge Slots` and `Slot Gate` refuse a service id the config does not hold), the new instance's credentials linked by hand, and not yet shown on a real second deployment (`docs/PHASE-8-PLAN.md`; CRT #14: Codex audited the pre-fix code, `docs/codex/phase-8/crt14.md`; the fixes were verified by the internal reviews).
 
 ---
 

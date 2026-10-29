@@ -1,7 +1,9 @@
 # Phase 8 — Template-ize · PLAN
 
-> **Status: APPROVED by Yigitcan (plan-gate), 2026-10-28**, presented in chat in the full format, rulings D1–D4 as
-> proposed. Derived against `0c97044`. Offline only: no live write, no n8n call. **R1 stopped at its start (below):** a
+> **Status: ✅ CLOSED 2026-10-28 after R2b** (CRT #14: a pre-fix Codex audit — no HIGH, four MEDIUM, two LOW — and
+> internal verification of the fixes; five fixed with a test and a killing mutant, M1 a recorded bound by the owner's
+> ruling — below). *Was:* **APPROVED by Yigitcan (plan-gate), 2026-10-28**, presented in chat in the full
+> format, rulings D1–D4 as proposed. Derived against `0c97044`. Offline only: no live write, no n8n call. **R1 stopped at its start (below):** a
 > slot outside the measured set turned up; ruled the same day: it is the tenth slot (below).
 > **Order (ruling 2026-10-28):** Phase 8 now (offline, 2 rounds), then a **public demo** phase (ship gates 11–16, 19,
 > 21, the deploy). The Phase 8 row's named item "per-client Turnstile provisioning" moved to that phase (ROADMAP).
@@ -144,14 +146,14 @@ and they are linked in the new instance — the plan's "credentials are per inst
   that style: the deploy tool's `turnstile: { enabled: … }` pattern and the parity script's `timezone: "…"` /
   `ownerAlert: { … }` patterns find nothing in JSON's quoted keys — and a parity check that finds nothing on both sides
   passes. The comments inside the Purge literal are not carried into a rendered client (its header comments are).
-- **`tests/unit/render-client.test.py`** (in `check-all`): proofs 1–6 and the drill matrix, 63 cases (45 in the first
-  cut; the review rounds below added 18). The A-leak scan
+- **`tests/unit/render-client.test.py`** (in `check-all`): proofs 1–6 and the drill matrix, 63 cases at R1's push (45 in
+  the first cut; the review rounds below added 18; R2 brought it to 75). The A-leak scan
   takes every string of the demo client (5+ characters, lists included) that example-b does not hold, minus `site.*`
   (no workflow literal carries the site's copy — asserted); its allowlist has six entries, one per hit (two comments,
   four template fallbacks), and a stale entry is red; positive control: every probe is found in render(example);
   negative control: an A literal planted outside the slots is caught. Proof 5 includes a tamper control: a timezone
   split between render(B)'s Main and Reminders turns `check-cancel-validation-parity` red, so it reads the rendered form.
-- **Mutants — `tests/unit/render-client-mutants.py`, 17 of 17 red, each by its own case** (not in `check-all`: it
+- **Mutants — `tests/unit/render-client-mutants.py`, 17 of 17 red at R1's push (35 of 35 after R2b), each by its own case** (not in `check-all`: it
   re-runs the test per mutant). *(A mutant of the repository check writes into the repo, as such a mutant would; in
   the first runs its directory — the mock client's render, placeholders only, gitignored — was left and deleted by its
   literal path, twice, and it contaminated the later mutants' runs. Every case that targets the repo now removes exactly
@@ -195,4 +197,90 @@ and they are linked in the new instance — the plan's "credentials are per inst
   `MASTER-BRIEF.md` carry the honest sentence with its bounds in the same sentence; CRT #14 is in MASTER-BRIEF §9
   (`[ ]` until Codex) and ARCHITECTURE-DECISIONS §7, the rulings in its decision log. README's status note, which still
   said Phase 7 was in progress and Phase 8 not started, is corrected.
-- **Next: R2** — Codex audits CRT #14.
+- ~~Next: R2 — Codex audits CRT #14.~~ → done, below.
+
+## R2 — Codex CRT #14, and the fixes (2026-10-28)
+
+- **The run:** the prompt committed and pushed first (`docs/codex/phase-8/prompt.md`, pin `35df5cc`), one container run
+  in the 7-2 R2 harness, the raw answer committed verbatim (`docs/codex/phase-8/crt14.md`), the containment record in
+  `docs/codex/phase-8/containment.md`. *Declared there: the first attempt's mount check failed on its OWN filter — it
+  selected mounts by filesystem type and dropped tmpfs, where the scratchpad and therefore `/audit` and `/codexhome`
+  live; Codex never started. Corrected to select by mount point and shown able to fail (one extra mount → 97) and pass
+  before the second attempt, whose check passed.*
+- **Codex's findings (no HIGH) and what each became.** Codex audited the code at the pin, BEFORE these fixes; the
+  fixes were verified by the internal reviews (R2b below), not re-audited by Codex.
+  - **M1 — a catalogue assumption outside the slots:** `Build LLM Request` has a fixed example saying hair colouring
+    is NOT offered; a client whose services include it gets a self-contradicting prompt. **Not made a slot** (the slot
+    set is the ruled ten). R2 first answered it with a word guard (refuse a service whose id or name matched
+    `colou?r`); the reviews showed it both missed (Balayage, Highlights, Hair Dye …) and refused the unrelated (Gel
+    Colour …), so the owner ruled it a **recorded bound** (R2b): the guard is removed, the bound is written beside the
+    others, and the example is watched, not rewritten.
+  - **M2 — two template keys a workflow reads were dropped:** `Build Cancel-Aborted State` reads
+    `messageTemplates.cancelRetry` and `dryRunNoChange`, which Main's literal does not hold, so a client's text for
+    them never arrived (the node's generic fallback answered). They are now **optional**: carried when the config
+    gives them as non-empty text, refused when given empty or null, the code's fallback when absent. The drift check
+    behind it is the R2b one: every config path a workflow reads, in every section, is held by its literal or is on that
+    optional list. RUNBOOK §0b corrected — it said every read key is refused when missing.
+  - **M3 — running the script through a link moved "the repository":** `ROOT` came from the link's location, so the
+    inside-the-repo refusal checked the wrong directory. `ROOT` now comes from the real path; the case runs a link to a
+    copy of the script that sits in a stand-in repository. **Bound, stated in the script and RUNBOOK:** a COPY of the
+    script elsewhere, or a hard link to it, still guards the directory it sits in — run it from the repository.
+  - **M4 — a number that overflows (`1e999`) parsed to infinity** without any NaN/Infinity token and reached the
+    literal as `Infinity` (a spend cap that never trips). Every number is now checked finite AND, for an integer,
+    inside the JS safe-integer range (R2b: `10**400` slipped past the first, float-only check), by name.
+  - **L5 — list elements kept fields the workflows never read:** an element was checked against the committed shape and
+    then copied whole; it is now projected onto the committed element's keys.
+  - **L6 — the "never printed" case read stdout only, and no case covered the owner check:** the test now captures
+    stderr too, and runs the owner check against another uid (without root).
+  - **Also from the audit's notes:** a directory as the secrets path raised instead of refusing — the checks now run on
+    the open descriptor before it becomes a file object; a secrets file with a second hard link (a second name could
+    sit inside the repo) is refused. Recorded, not changed: the mode check takes "no group/other access" (0400 passes).
+- **No HIGH, so no second Codex run** (the brief: a re-run only after a HIGH's fix).
+
+## R2b — the internal reviews of the R2 fixes, and the last round (2026-10-28)
+
+- **Why there was a round after R2:** `code-reviewer` showed three R2 fixes closing the instance Codex showed and not
+  its class — M4 (`10**400`, an integer, went past the float-only check and still rendered `Infinity`), M1 (the word
+  guard above) and M2 (the drift test read `json.dumps` text with two spellings, and missed `?.`, brackets,
+  destructuring, a line-split chain and every section but `messageTemplates`) — plus a regression (`"services": 5`
+  raised a traceback instead of refusing), a `null` optional key accepted, a second "not offered" example unwatched,
+  and four surviving mutants. `security-auditor` passed security and failed the content (the colour bound over-claimed,
+  the Codex sentence without "pre-fix", the attempt number, the containment record's gaps, RUNBOOK §0b). The round
+  STOPPED under "the same defect twice"; the local commit was not pushed, and its content is rewritten here.
+- **The owner's ruling (Yigitcan, 2026-10-28):** M1 a recorded bound; M4, M2, the regression, `null`, the second
+  example, the four mutants and the docs fixed; no second Codex run; **convergence** — the reviews judge only this
+  round's diff, and the same class again is recorded as a bound with its reason, not another round.
+- **What R2b did:** the word guard removed and the bound written on every surface that carries the bounds · numbers
+  finite and inside ±(2^53 − 1), in lists too, and the largest safe integer shown to come back exact from JS ·
+  `services` not a list refused by name · an optional key given `null` refused · the example's `(not in services)`
+  marker watched once, so a second such example is refused (one written without that marker is not seen — stated) ·
+  the drift scan rewritten on the RAW parameter strings: every chain from the Load Config item or `$json`, through
+  aliases, one-level destructuring, groupings and every accessor spelling, checked against the workflow's own literal
+  in every section, with sixteen synthetic spellings as its negative controls and, on the real exports, `OPTIONAL`
+  emptied as a red control; its bounds are stated in the test (a computed key ends a chain; a config object passed into
+  a function is not followed; a grouping stands for its deepest config chain) · the test turns an exception in the
+  script into a red case, so a mutant that crashes cannot pass as "no red line" · the containment record completed
+  and its runner committed.
+- **After R2b:** the render test **103** cases green; the mutant runner **35 of 35** red, each by its own case (the four
+  that survived R2 replaced by mutants aimed at the gaps they showed, one for each R2b check, and one from the review).
+- **The review of R2b's diff (`code-reviewer`, only this round's diff, per the convergence ruling):** no HIGH; it
+  re-ran the test (102 then) and the mutants (34/34) itself. One NEW-class finding, fixed: the "±" of the safe-integer
+  check was untested (dropping `abs` survived) — a `-2**53` case and its mutant were added, after the review (not
+  re-reviewed; the behaviour itself the reviewer had already measured correct). Six findings of the SAME classes,
+  **recorded as bounds, not fixed** (the ruling), each written where it applies:
+  - the drift scan (M2's class; the test's comment): a declaration with several names, a grouping after a keyword
+    (`return (…).k`), and an item reached other than through `$('Load Config…')` / `$json` are not followed — none
+    occurs on a config read in today's exports (measured: 70 of the 80 `.config` accesses start at a recognised root,
+    the other 10 are the followed `lc` alias or comments), so a NEW read written that way would pass unseen;
+  - the number check (M4's class; the script's docstring): a list nested about a thousand deep ends in a recursion
+    traceback before anything is written; an integer of more than 4300 digits is refused, but not by name;
+  - the optional keys (M2's class; the script's docstring): a template given only spaces is taken as text, and the
+    customer gets a blank reply — true of the required templates too.
+
+## Phase 8 — closed (2026-10-28)
+
+**A new client = a config file + secret inputs → `scripts/render-client.py` → import into its own n8n; no node edited by
+hand (with both secret inputs given)** — shown OFFLINE on a fictional second client and a synthetic third; CRT #14: a pre-fix
+Codex audit + internal verification of the fixes (`code-reviewer` and `security-auditor`, R2b). **The bounds, in the same breath:** EUR only (`priceEUR`, and `€` written in two nodes), customer text in English, two config keys that drive nothing (`instagram`, `business.locale`), the prompt carries a fixed example that hair colouring is not offered; a client offering it gets a contradicting prompt until a Main edit (quality only: `Merge Slots` and `Slot Gate` refuse a service id the config does not hold), the new instance's credentials linked by hand, and not yet shown on a real second deployment. Not built in this phase and named: a real
+second deployment (its own n8n, Postgres and credentials), and the per-client Turnstile provisioning (moved to the
+public-demo phase).
