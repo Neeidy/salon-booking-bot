@@ -51,7 +51,7 @@ function runSql(store, query, params) {
   if (del) {
     const i = store.leads.findIndex((l) => l.id === params[0]);
     if (i < 0) return [];
-    store.leads.splice(i, 1);
+    if (!store.noopDelete) store.leads.splice(i, 1);   // noopDelete: the store acknowledges and removes nothing
     store.deleted.push(params[0]);
     return [{ id: params[0], deleted: true }];
   }
@@ -73,8 +73,8 @@ const expr = (raw, $, $json) => {
   return new Function('$', '$json', 'return (' + m[1] + ');')($, $json);
 };
 
-function simulate({ leads, retentionDays = 30, failing = [] }) {
-  const store = { leads: leads.map((l) => ({ ...l })), deleted: [] };
+function simulate({ leads, retentionDays = 30, failing = [], noopDelete = false }) {
+  const store = { leads: leads.map((l) => ({ ...l })), deleted: [], noopDelete };
   const out0 = {};
   const collected = [];
   const $ = (name) => {
@@ -212,6 +212,17 @@ test('over the cap: five aged in ten (cap 2) is refused as leads_purge_capped, n
   assert.deepEqual(refusals(r), ['leads_purge_capped']);
   assert.equal(r.collected[0].candidates, 5);
   assert.equal(r.collected[0].cap, 2);
+  assert.equal(r.left, 10);
+});
+
+// Codex CRT #15 F2 (public demo, 2026-10-29): the suite stayed green with Verify Leads Purge disabled, because the fake
+// store always removed what it acknowledged. A delete that says "deleted" and removes nothing must alert.
+test('a delete acknowledged but not done → leads_purge_arithmetic_mismatch reaches the collector', () => {
+  const r = simulate({ leads: leads(10, 1), noopDelete: true });
+  assert.deepEqual(refusals(r), ['leads_purge_arithmetic_mismatch']);
+  assert.equal(r.collected.length, 1, 'the mismatch alone reaches the collector');
+  const m = r.collected.find((j) => j._leads_refused === 'leads_purge_arithmetic_mismatch');
+  assert.deepEqual({ before: m.before, after: m.after, deleted: m.deleted }, { before: 1, after: 1, deleted: 1 });
   assert.equal(r.left, 10);
 });
 

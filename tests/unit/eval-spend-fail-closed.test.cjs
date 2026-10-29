@@ -113,6 +113,15 @@ test('trusted readings run the LLM: a row under the cap, a numeric-text cost, an
   assert.equal(evalSpend(CUR, NO_ROW).sender_key, CTX.sender_key, 'the message item is restored from Merge State');
 });
 
+// Codex CRT #15 F1 (public demo, 2026-10-29): a mutant rounding the cost to cents passed every test, yet blocks a
+// legitimate 9.999999 under a cap of 10 and drops spend before Build Spend Record adds this call's cost.
+test('the cost is carried at full precision: 9.999999 under a cap of 10 runs, and 4.500001 stays 4.500001', () => {
+  assert.deepEqual(route(CUR, ROW('9.999999')), LLM);
+  assert.equal(evalSpend(CUR, ROW('9.999999'))._spend.prev, 9.999999);
+  assert.equal(evalSpend(CUR, ROW('4.500001'))._spend.prev, 4.500001);
+  assert.equal(evalSpend(CUR, ROW(0.000001))._spend.prev, 0.000001);
+});
+
 test('at or over the cap: closed (the cap itself is not under)', () => {
   assert.deepEqual(route(CUR, ROW(10)), CLOSED);
   assert.deepEqual(route(CUR, ROW(12.5)), CLOSED);

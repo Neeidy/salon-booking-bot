@@ -37,6 +37,8 @@ MUTANTS = {
         ("items.length === 1 ? items[0].json : null", "items.length >= 1 ? items[0].json : null"),
     'any item without fields read as "no row"':
         ("Object.keys(rec).length === 0", "!rec.fields"),
+    'the cost rounded to cents (Codex CRT #15 F1)':
+        ("{ prev = Number(c); meter = 'row'; }", "{ prev = Math.round(Number(c) * 100) / 100; meter = 'row'; }"),
     'the read error ignored on the no-row path':
         ("if (!readFailed && rec && Object.keys(rec).length === 0)", "if (rec && Object.keys(rec).length === 0)"),
 }

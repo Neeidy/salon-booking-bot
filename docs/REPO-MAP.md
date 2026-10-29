@@ -204,6 +204,8 @@
 
 ### docs/codex/public-demo
 
+- `docs/codex/public-demo/containment.md`
+- `docs/codex/public-demo/crt15.md`
 - `docs/codex/public-demo/prompt.md`
 - `docs/codex/public-demo/run.sh`
 
@@ -362,6 +364,7 @@
 - `tests/unit/eval-spend-mutants.py`
 - `tests/unit/golden-set.test.cjs`
 - `tests/unit/guards-tur2.test.py`
+- `tests/unit/leads-purge-mutants.py`
 - `tests/unit/leads-purge-read-error.test.cjs`
 - `tests/unit/live-parity-target.test.py`
 - `tests/unit/locked-once-parity.test.cjs`
@@ -937,6 +940,7 @@
   - ## R1 — stopped at its start (2026-10-29): the deploy tool cannot carry D2 as it stands
   - ## R1 — built (offline), 2026-10-29, under Ruling (d)
   - ### Convergence — what the fix-round review found again, recorded rather than reopened
+  - ### CRT #15 — the Codex run (one run, pin `4210208`; `docs/codex/public-demo/crt15.md`, containment beside it)
   - ### R2 — measured before any write
   - ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
   - ### Estimate (revised by Ruling (d))
@@ -1310,6 +1314,12 @@
   - _(no `##` headings — flat file)_
 
 ### `docs/codex/phase-8/prompt.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/public-demo/containment.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/public-demo/crt15.md`
   - _(no `##` headings — flat file)_
 
 ### `docs/codex/public-demo/prompt.md`

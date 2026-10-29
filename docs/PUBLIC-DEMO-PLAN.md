@@ -293,6 +293,21 @@ Fixed in the same pass because they were NEW classes: the API-address check coul
 typically about 15"; the site's lead-retention rule now equals the Purge's (an integer ≥ 1); a test anchor that matched
 any word ("run") was lengthened.
 
+### CRT #15 — the Codex run (one run, pin `4210208`; `docs/codex/public-demo/crt15.md`, containment beside it)
+**No HIGH; two MEDIUM, both test coverage; no runtime defect found in the staged edits** under the documented engine
+model (Codex had no engine source; the model is measured live in R2, as planned). Both fixed in-round, each with a test
+case and a mutant it kills; not re-run through Codex (no HIGH):
+- **F1 — a cost rounded to cents passed the spend suite** (it would block a legitimate 9.999999 under a cap of 10 and
+  drop spend before `Build Spend Record`). A full-precision test case and the rounding mutant: `eval-spend` 10 tests,
+  mutants 11/11.
+- **F2 — the Purge suite stayed green with the deletion verifier disabled** (its fake store always removed what it
+  acknowledged). A store that acknowledges and removes nothing must now produce `leads_purge_arithmetic_mismatch`
+  (`leads-purge-read-error` 12 tests); `tests/unit/leads-purge-mutants.py`: 3 mutants × the committed and the staged
+  export = 6/6. Shown: the verifier-off mutant SURVIVES the previous version of the test and dies on the new one.
+  **Recorded gap (F2's other direction, `code-reviewer`):** the verifier also guards a delete that removes MORE than
+  asked, and no test drives that direction — a verifier blind to it (`before - after < deleted`) survives. The delete
+  removes one row by primary key, so it needs a concurrent deleter; recorded, not built.
+
 ### R2 — measured before any write
 1. **`Read Spend`'s error behaviour, on a scratch** (a temporary webhook path behind Access; a workflow with a DB
    credential — ⚠ ONAY): a row, no row, and a forced query error (a missing table) — output 0, output 1, and what
