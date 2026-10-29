@@ -202,6 +202,11 @@
 - `docs/codex/phase-8/prompt.md`
 - `docs/codex/phase-8/run.sh`
 
+### docs/codex/public-demo
+
+- `docs/codex/public-demo/prompt.md`
+- `docs/codex/public-demo/run.sh`
+
 ### n8n
 
 - `n8n/notes.md`
@@ -214,6 +219,13 @@
 ### n8n/screenshots
 
 - `n8n/screenshots/.gitkeep`
+
+### n8n/staged
+
+- `n8n/staged/workflow.main.delta.json`
+- `n8n/staged/workflow.main.sanitized.json`
+- `n8n/staged/workflow.purge.delta.json`
+- `n8n/staged/workflow.purge.sanitized.json`
 
 ### ops/systemd
 
@@ -249,6 +261,7 @@
 - `scripts/check-sql-params.py`
 - `scripts/codex-containment.py`
 - `scripts/compile-intent-validator.cjs`
+- `scripts/demo-offline.sh`
 - `scripts/deploy-workflow-copy.py`
 - `scripts/diff-workflow-copy.py`
 - `scripts/env-presence.sh`
@@ -342,7 +355,11 @@
 
 - `tests/unit/codex-containment.test.py`
 - `tests/unit/content-parity-inactive.test.py`
+- `tests/unit/demo-offline-mutants.py`
+- `tests/unit/demo-offline.test.py`
 - `tests/unit/drill-state-shape.test.cjs`
+- `tests/unit/eval-spend-fail-closed.test.cjs`
+- `tests/unit/eval-spend-mutants.py`
 - `tests/unit/golden-set.test.cjs`
 - `tests/unit/guards-tur2.test.py`
 - `tests/unit/leads-purge-read-error.test.cjs`
@@ -352,11 +369,14 @@
 - `tests/unit/message-id-guard.test.cjs`
 - `tests/unit/owner-actions-tur2.test.cjs`
 - `tests/unit/owner-alert-detail.test.cjs`
+- `tests/unit/privacy-facts-mutants.py`
+- `tests/unit/privacy-facts.test.cjs`
 - `tests/unit/render-client-mutants.py`
 - `tests/unit/render-client.test.py`
 - `tests/unit/reschedule-orphan-alert.test.cjs`
 - `tests/unit/resolve-date.test.cjs`
 - `tests/unit/sanitize-postgres.test.cjs`
+- `tests/unit/seed-pd-mutants.py`
 - `tests/unit/seed-workflow.test.py`
 - `tests/unit/settings-parity.test.py`
 - `tests/unit/staged-sanitised.test.py`
@@ -461,6 +481,10 @@
 
 - `web/site/app/install/page.tsx`
 
+### web/site/app/privacy
+
+- `web/site/app/privacy/page.tsx`
+
 ### web/site/components/site
 
 - `web/site/components/site/Closer.tsx`
@@ -485,6 +509,8 @@
 - `web/site/lib/endpoint.ts`
 - `web/site/lib/heroScenarios.ts`
 - `web/site/lib/lockedOnce.ts`
+- `web/site/lib/privacy.ts`
+- `web/site/lib/retention.ts`
 
 ### web/site/public/fonts
 
@@ -939,8 +965,10 @@
   - ### docs/codex/7-2-r2
   - ### docs/codex/7-2-r2b
   - ### docs/codex/phase-8
+  - ### docs/codex/public-demo
   - ### n8n
   - ### n8n/screenshots
+  - ### n8n/staged
   - ### ops/systemd
   - ### prompts
   - ### schemas
@@ -971,6 +999,7 @@
   - ### web/site
   - ### web/site/app
   - ### web/site/app/install
+  - ### web/site/app/privacy
   - ### web/site/components/site
   - ### web/site/lib
   - ### web/site/public/fonts
@@ -1280,6 +1309,9 @@
   - _(no `##` headings — flat file)_
 
 ### `docs/codex/phase-8/prompt.md`
+  - _(no `##` headings — flat file)_
+
+### `docs/codex/public-demo/prompt.md`
   - _(no `##` headings — flat file)_
 
 ### `docs/n8n-rollback.md`
