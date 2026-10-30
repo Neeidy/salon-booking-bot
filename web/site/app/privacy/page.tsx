@@ -56,7 +56,8 @@ export default function PrivacyPage() {
             opening hours and free slots come from fixed rules, not from the AI.</li>
           <li>The last few messages of a conversation are stored in the demo&apos;s database and erased by a nightly job
             {' '}{MESSAGE_TEXT_DAYS} days after the conversation&apos;s last activity. The conversation record itself — its
-            booking step, the chosen slot and a random session id from your browser — is kept.</li>
+            booking step, the chosen slot, the assistant&apos;s last reply and a random session id from your browser — is
+            not deleted automatically; it is deleted on request.</li>
           <li>Message ids, kept only to ignore a message delivered twice, are deleted after {MESSAGE_TEXT_DAYS} days.</li>
           <li>{LEAD_DAYS === null
             ? 'A callback request — your contact details and your message — is not deleted automatically.'
@@ -83,8 +84,9 @@ export default function PrivacyPage() {
         <h2>Bookings are real</h2>
         <p>
           A booking is written to a real Google Calendar — the demo&apos;s own — and to the demo&apos;s database, with
-          the service, the time, the name you give and the random session id. It is not deleted automatically. Cancelling in the chat removes
-          the calendar event; the booking record stays in the database, marked cancelled.
+          the service, the time, the name you give and the random session id. It is not deleted automatically; it is
+          deleted on request, from the calendar and the database. Cancelling in the chat removes the calendar event; the
+          booking record stays in the database, marked cancelled.
         </p>
 
         <h2>Alerts to the owner</h2>
@@ -107,6 +109,17 @@ export default function PrivacyPage() {
         <p>
           A random session id is kept in this tab&apos;s session storage so a conversation can continue; it is gone when
           the tab closes. The site sets no tracking or advertising cookies of its own.
+        </p>
+
+        <h2>Why, and your rights</h2>
+        <p>
+          The demo processes what you type on the basis of legitimate interest (GDPR Art. 6(1)(f)): demonstrating the
+          booking assistant.
+        </p>
+        <p>
+          You can ask for access to what the demo holds about you, for its rectification or erasure, and object to its
+          processing — write to the contact below. You also have the right to lodge a complaint with a data-protection
+          supervisory authority.
         </p>
 
         <h2>Questions about your data</h2>

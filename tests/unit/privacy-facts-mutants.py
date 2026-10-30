@@ -46,6 +46,14 @@ MUTANTS = {
         "return t === '' ? 'privacy@example.com' : t;"),
     'the controller never shown on the page': (PAGE, ': `${PRIVACY_CONTROLLER} is responsible for this demo', ': `Someone is responsible for this demo'),
     'an address typed into the page': (PAGE, 'Write to ${PRIVACY_CONTACT} to ask', 'Write to privacy@example.com to ask'),
+    # R2h: the GDPR basics and the measured retention of the two kept records
+    'the legal basis left out': (PAGE, 'legitimate interest (GDPR Art. 6(1)(f))', 'our interest'),
+    'the complaint right left out': (PAGE, 'You also have the right to lodge a complaint with a data-protection\n          supervisory authority.', ''),
+    'the conversation record said to be deleted automatically': (PAGE, 'not deleted automatically; it is deleted on request.</li>',
+        'deleted with the messages.</li>'),
+    'the kept last reply left unsaid': (PAGE, "the assistant&apos;s last reply and ", ''),
+    'Purge deleting conversations while the page says kept': ('n8n/workflow.purge.sanitized.json',
+        'DELETE FROM salon.leads', 'DELETE FROM salon.conversations WHERE false; DELETE FROM salon.leads'),
 }
 
 

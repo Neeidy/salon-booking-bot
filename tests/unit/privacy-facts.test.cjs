@@ -16,6 +16,10 @@
  *   · the controller and the contact → read from build-time env only, never a literal (rulings R2h-1/2: the real values
  *     carry a redaction target and a person's name); unset → a visible placeholder each (a go-live blocker);
  *   · "bookings are not deleted automatically" → no Purge statement touches salon.appointments;
+ *   · the conversation record and the booking record are kept until a request (R2h-4) → no committed workflow deletes
+ *     from salon.conversations or salon.appointments, and Purge's only write to a conversation empties recent_messages
+ *     (so the last reply, computed_reply, is kept, as the page says);
+ *   · legal basis, rights and the complaint right (R2h-3) → text anchors;
  *   · the services list → every outside host a workflow calls maps to a listed service (comment-only hosts allowlisted);
  *   · "nothing is sent over WhatsApp" → Main's `Should Send?` (the gate in front of `Send WhatsApp (Zernio)`) is fed only
  *     by the WhatsApp ACK responder, and Reminders' literal holds `whatsappSendDisabled: true`;
@@ -25,7 +29,7 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { existsSync, readFileSync } = require('node:fs');
+const { existsSync, readdirSync, readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 const ROOT = join(__dirname, '..', '..');
@@ -115,6 +119,29 @@ test('bookings: no Purge statement touches salon.appointments (so "not deleted a
     assert.ok(sql.length >= 5, 'the Purge statements were found (a zero would prove nothing)');
     assert.ok(!sql.some((q) => /salon\.appointments/.test(q)));
   }
+});
+
+test('conversation and booking records: no committed workflow deletes either, so the page says "deleted on request"', () => {
+  const files = readdirSync(join(ROOT, 'n8n')).filter((f) => /^workflow\..+\.sanitized\.json$/.test(f));
+  assert.ok(files.length >= 5, 'the committed workflows were found (a zero would prove nothing)');
+  const sql = files.flatMap((f) => JSON.parse(read('n8n', f)).nodes
+    .map((n) => `${(n.parameters || {}).query || ''}\n${(n.parameters || {}).jsCode || ''}`));
+  assert.ok(sql.some((q) => /DELETE FROM salon\.leads/.test(q)), 'the search can see a DELETE (positive control)');
+  assert.ok(!sql.some((q) => /DELETE\s+FROM\s+salon\.(conversations|appointments)\b/i.test(q)), 'no workflow deletes them');
+  for (const p of purges) {
+    const convWrites = p.nodes.map((n) => (n.parameters || {}).query || '').filter((q) => /salon\.conversations/.test(q)
+      && /^\s*(UPDATE|DELETE|INSERT)/i.test(q));
+    assert.deepEqual(convWrites.map((q) => q.match(/SET ([^W]+)WHERE/)[1].trim()), ["recent_messages = ''"],
+      'Purge only empties the message text, so the rest of the record (the last reply included) is kept');
+  }
+  for (const anchor of ['the assistant&apos;s last reply', 'not deleted automatically; it is deleted on request.</li>',
+    'deleted on request, from the calendar and the database']) assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
+});
+
+test('legal basis, rights and the complaint right are stated (R2h-3, the same text for every client)', () => {
+  for (const anchor of ['legitimate interest (GDPR Art. 6(1)(f))', 'access to what the demo holds about you',
+    'rectification or erasure', 'object to its', 'lodge a complaint with a data-protection',
+    'supervisory authority']) assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
 });
 
 test('cancelling: the calendar event is deleted and the booking row is kept, marked cancelled (as the page says)', () => {
