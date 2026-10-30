@@ -458,9 +458,9 @@ committed workflows/config — no deletion run on real data); the page states wh
 is the demo's, and `security-auditor` noted what it does not cover (the restriction right, Art. 18; transfers to
 services outside the EU, Art. 13(1)(f)). Those were not added: ruling (3) names the list.
 
-**Start gates (23:24 Vienna): FIRST and outside the Reminders window** — all green (dummy token 403, both parity guards,
+**Start gates (23:24 Vienna): FIRST and outside the Reminders window** — all green *(terminal-measured, as is everything in C below)* (dummy token 403, both parity guards,
 listeners, host leak, hook drift; secret scan "NOT MEASURED" on a clean tree, by design). **(5):** the R2g scratch repo
-deleted, read back absent; the file its link pointed to is untouched.
+deleted, read back absent; the file its link pointed to is untouched *(terminal-measured)*.
 
 **A — the mechanism (`9f05b21`).** `PRIVACY_CONTACT` / `PRIVACY_CONTROLLER` = `envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTACT
 | …CONTROLLER)` — literal references, which Next inlines at build (its own guide, read in `node_modules/next/dist/docs`);
@@ -508,8 +508,9 @@ file CC can read; CC does not write a guessed name onto a legal page. Redeploy (
 **The deployed page: NOT read — the brief's stop condition.** The REST file tree lists `/out/privacy` and its `.rsc`
 segments as `lambda` outputs with no file id, so their content cannot be fetched with the token; every other route to a
 protected page changes protection: the Vercel connection's `web_fetch_vercel_url` creates a 23-hour share link anyone
-holding it can open, and a bypass secret was ruled out in R2c. **Unauthenticated, the same name × path set (5 names ×
-9 paths, `/_next/image` included): 45 of 45 → `302` to `vercel.com/sso-api`, the page nowhere** *(terminal-measured)*.
+holding it can open *(from the tool's own description, not measured)*, and a bypass secret was ruled out in R2c. **Unauthenticated, 5 names — `demo.<apex>`, the two project aliases, the R2f
+deployment URL and the NEW R2h deployment URL (R2g's deployment URL was not in this set) — × the R2g 9 paths
+(`/_next/image` included): 45 of 45 → `302` to `vercel.com/sso-api`, the page nowhere** *(terminal-measured)*.
 
 ### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
 **Rulings, verbatim where the repo can carry them** *(auditor LOW-5 of R2f: they had only been paraphrased)*:
@@ -578,7 +579,7 @@ recommendation is (a)**, because it is the pattern the repo already uses for a v
   backups. The conversation record and the booking record are kept with no period ("kept", "not deleted
   automatically"), and owner alerts are outside the deletion. *(Stated; the two open-ended records are a gap to rule on.)*
 - **Deletion request path:** only the contact — "to ask what the demo holds about you or to have it deleted" — which is
-  the placeholder today; no other route and no rights or complaint statement. *(Gap.)*
+  the placeholder at R2g; no other route and no rights or complaint statement. *(Gap — see R2h.)*
 No content was added; these are for go-live check 4.
 
 **C — pushed and redeployed: GREEN.** `6a19a06` pushed after `security-auditor` GO (0 findings). Redeploy with the same
