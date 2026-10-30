@@ -9,9 +9,9 @@
 #
 #   measure   GET the demo's front page: 200 → "online", exit 0 · Vercel's PAUSED answer — 503 with DEPLOYMENT_PAUSED in
 #             the body, the form Vercel documents (vercel.com/docs/errors/DEPLOYMENT_PAUSED) → "offline", exit 3 · no
-#             answer at all (000: timeout, DNS, network) → "NOT measured", exit 4 · ANY other answer (a 401 from deployment
-#             protection, a 404 from a wrong domain, a redirect, a 503 without the marker) → "unexpected", exit 5 — it is
-#             not counted as offline (R2a: the convergence residue of code-reviewer MEDIUM-5). Needs no token.
+#             answer at all (000: timeout, DNS, network) → "NOT measured", exit 4 · ANY other answer (a 302 to Vercel's login
+#             from deployment protection — measured R2f, a 404 from a wrong domain, a redirect, a 503 without the
+#             marker) → "unexpected", exit 5 — it is not counted as offline (R2a: the convergence residue of code-reviewer MEDIUM-5). Needs no token.
 #   pause     POST Vercel's pause endpoint, then poll until the page gives Vercel's paused answer → exit 0 (else 1).
 #   unpause   POST Vercel's unpause endpoint, then poll until the page answers 200 → exit 0 (else 1).
 #

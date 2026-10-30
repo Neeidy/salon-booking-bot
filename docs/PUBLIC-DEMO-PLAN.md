@@ -387,9 +387,8 @@ the GENERIC target, not a project-specific one as the dashboard steps below expe
 Build settings (install from the `web/` workspace root) are not measured until the first deployment.
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
-**State after R2e:** true — 2, 3, 7 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 5 (the
-pause drill) and 8 (#16 on a READY deployment; (a), (b) and (c) are already read back, (d) is not), both of which wait
-for a green Vercel build — now blocked on the project's Node version (R2e) · **a ruling on the `next` advisory** (R2e) ·
+**State after R2f:** true — 2, 3, 5, 7, 8 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 9 (the
+`next` patch — blocked on a ruling, R2f) and the `engines` cap (ruled, waiting with 9's commit) ·
 after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at the phase close: the
 Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
@@ -404,7 +403,8 @@ reads this list:
    copies outside the database.
 5. **The first real pause records Vercel's actual paused body** — `measure` counts only `DEPLOYMENT_PAUSED` in a 503
    body, the documented form; if the real body differs, `pause` exits 1 and `measure` exits 5 (the safe direction),
-   and the script is corrected before go-live.
+   and the script is corrected before go-live. **R2f: true** — the real answer is a 503 with `x-vercel-error:
+   DEPLOYMENT_PAUSED` and the marker in its body; `measure` → exit 3; no correction needed.
 6. **The `*.vercel.app` alias cannot mint a token** — the deployment's `*.vercel.app` address is a second public name
    for the same page, outside the widget's hostname list, so the widget there must fail with `110200` (measured by
    behaviour on the deployed alias, the way #11 was measured on `127.0.0.1`), or the alias is switched off
@@ -415,6 +415,64 @@ reads this list:
 8. **#16 is read back on the real deployment** — (a) platform, (b) root `web/site`, (c) no `web/dashboard` path in the
    deployment's file list, (d) an unauthenticated visitor gets Vercel's protection on BOTH the demo hostname and the
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
+   **R2f: true** on a READY production deployment (all names and the static paths → `302` to Vercel's login).
+9. **`next` is past every critical/high advisory of its own** — measured with `npm audit` on the committed lockfile
+   (auditor LOW-1, R2e; ruling (2), 2026-10-30: patching is a gate, not an acceptance). **R2f: open** — the lowest clean
+   version is 16.4.1, a minor jump; waiting on a ruling (see R2f).
+
+### R2f — Node 24 green, deployment protected and measured, pause drill done; the `next` patch STOPPED (2026-10-30; no go-live)
+**Start gates (21:21 Vienna):** all green.
+
+**A — Node 24.x alone (ruling (1)): GREEN.** The project's Node set to `24.x` through the Vercel connection and read back
+through the REST API (`nodeVersion: "24.x"`; install command, root directory, protection `all` and no Git link
+unchanged). Redeploy of `8f5a283` (54 files, 0 under `web/dashboard`) with the same script: **`READY`, target
+production** — install "added 39 packages", `next build` compiled, 5 static pages, "Build Completed". **Which Node:** the
+build log does not print a version; the deployment record reads `projectSettings.nodeVersion = 24.x`. So "Node 24 is
+required" is measured for THIS tree only: 26.x red (R2e), 24.x green on Vercel and locally. *(R2e wrote it as a
+requirement before Vercel had built on 24 — auditor LOW-3; it is now a measurement, for this tree.)*
+
+**#16 — GREEN on a READY deployment, all four read back** *(terminal-measured; outputs not committed)*: (a) platform
+Vercel · (b) root `web/site` · (c) no `web/dashboard` in the file list (R2d, same 54-file set) · **(d) protection, by
+behaviour: every name the deployment answers to — `demo.<apex>`, two project aliases (`<project>.vercel.app`,
+`<project>-<team>.vercel.app`) and the deployment URL — returned `302` to `vercel.com/sso-api` to an unauthenticated
+request, with no page; so did `/barber-widget.js`, `/privacy`, `/install`, a font, `/_next/static/` and `/robots.txt` on
+the demo hostname and an alias.** The stop condition (page reachable unauthenticated) was never met.
+**Certificate:** issued for `demo.<apex>` by Let's Encrypt, valid 2026-10-30 → 2027-01-28, subject and SAN the demo
+hostname only.
+
+**Pause drill — DONE (go-live check 5)** *(terminal-measured)*. `pause_project` (the Vercel connection): the demo hostname
+answered at the first poll with **Vercel's real paused answer: `503`, header `x-vercel-error: DEPLOYMENT_PAUSED`,
+`server: Vercel`, `content-type: text/plain`, a 99-byte body "The deployment is currently unavailable" / `DEPLOYMENT_PAUSED`
+/ a request id.** The body is not the documented "DEPLOYMENT_PAUSED: Service Unavailable" wording, but it carries the
+marker `measure` looks for: **`demo-offline.sh measure` → `offline (503 DEPLOYMENT_PAUSED)`, exit 3** — the script needs
+no correction. An alias gave 503 too. `unpause_project`: back within about 5 s to `302` (protection) on the hostname and
+both aliases, the project reading `paused: false`; **`measure` then exits 5 ("unexpected (302)")** — correct by design:
+while protection is on, the site never answers 200, so "online" cannot be measured until go-live, and a protection
+answer is never mistaken for offline.
+
+**B — the `next` patch: STOPPED before any change (ruling (2) and the brief's stop condition meet here).** Measured, not
+assumed: a lockfile-only install of each candidate in its own scratch directory, then `npm audit` *(terminal-measured)*:
+
+| next | next's own advisories |
+|---|---|
+| 16.3.4, 16.3.5 | critical 3 · high 2 · moderate 5 · low 1 |
+| 16.3.6, 16.3.7 | critical 2 · high 2 · moderate 5 · low 1 |
+| 16.3.8, 16.4.0 | critical 2 · high 1 |
+| 16.4.1, 16.4.2, 16.4.3 | none |
+
+At 16.3.8 the three remaining advisories all carry the range `>=16.0.0 <=16.4.0`: an unauthenticated RCE in the Image
+Optimization API (critical, GHSA-2464-fhr4-w9xw), an RCE in `use cache` functions (critical, GHSA-673q-mjm6-r5xr) and a
+Server Actions DoS (high, GHSA-p3m5-59mp-jv5r). **So no 16.3.x patch clears next's critical/high; the lowest clean
+version is 16.4.1** (published 2026-10-14). The note that the `next/og` RCE is fixed in 16.3.6 is consistent with the
+table (16.3.6 drops one critical), but other criticals remain. **That is a minor jump (16.3 → 16.4)**, and the brief stops
+on "a minor jump beyond 16.x patch" while ruling (2) says "lowest 16.x" — the two read differently here, so nothing was
+changed: no `next` bump, no `engines` cap, no `npm audit fix`. **A ruling.** *(R2e's "16.0.0–16.4.0" range was itself
+read from `npm audit`'s summary range; the per-advisory ranges above are the measured ones.)*
+**For that ruling, also measured:** `npm audit fix --dry-run` on the deploy set's lockfile offers non-breaking fixes for
+the three transitive advisories (`fast-uri`, `sharp`, `source-map-js`; five lockfile changes). **And the applicability
+reading of R2e (auditor LOW-2) is weaker than it looked:** an Image Optimization endpoint can exist whether or not the
+app imports `next/image`, so "the feature is not used in the source" does not show the critical one is unreachable —
+another reason the patch is a gate, not an acceptance.
 
 ### R2e — install fixed, build red on Node 26 (2026-10-30, the R2e brief; no go-live) — ⚠ stopped: no third attempt
 **Start gates (21:06 Vienna):** all green. **Precondition measured first:** in a `git archive` copy of the deploy set,

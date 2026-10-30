@@ -196,8 +196,10 @@ The engine does NOT stop — its webhook stays up, bounded by the LLM cap, the e
 it is the kill-switch or deactivating Main (⚠ ONAY). An emergency pause has a standing approval (ruling D6); unpausing,
 and deactivating Main, do not.
 - CC: Vercel `pause_project` (its Vercel connection), then `bash scripts/demo-offline.sh measure` → `offline (503
-  DEPLOYMENT_PAUSED)`, exit 3. Only Vercel's paused answer counts as offline: any other answer (401, 404, a redirect, a 503
-  without the marker) is `unexpected`, exit 5 — the demo is NOT proven offline.
+  DEPLOYMENT_PAUSED)`, exit 3. Only Vercel's paused answer counts as offline: any other answer (a 302 to Vercel's login
+  from deployment protection, a 404, another redirect, a 503 without the marker) is `unexpected`, exit 5 — the demo is NOT
+  proven offline. **Measured R2f:** the real paused answer is a 503 with `x-vercel-error: DEPLOYMENT_PAUSED` and the marker
+  in the body (exit 3); while protection is on, the unpaused site answers 302 and `measure` exits 5 — expected until go-live.
 - A shell: `bash scripts/demo-offline.sh pause` (and `unpause`) — needs `~/.vercel-demo.env` (0600, this user):
   `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, and `VERCEL_TEAM_ID` if the project is in a team. It prints statuses only and
   exits 0 only when the new state was MEASURED (Vercel's paused answer after a pause, 200 after an unpause); no answer at all is "NOT
@@ -240,8 +242,8 @@ binary fonts (R2c). *(This sentence said "the route is open" until R2d.)* **The 
 workspace root:** R2d's first build ran Vercel's default install inside `web/site`, which (inferred from the package counts, not a
 package list) skipped the snippet's
 devDependencies, and the build failed on a missing `esbuild` (the plan, R2d) — the project's Install Command is `cd .. && npm ci` since R2e.
-**The project's Node must be 24.x, not 26.x:** with Next 16.3.4, `next build` fails on Node 26 in `next/font/google`
-(reproduced locally, the plan, R2e) — pending a ruling at R2e's close. The deployment uploads the committed tree only — `git archive HEAD` of
+**The project's Node is 24.x** (since R2f): with Next 16.3.4, `next build` fails on Node 26 in `next/font/google`
+(reproduced locally, R2e) and is green on 24.x on Vercel (R2f) — measured for this tree; re-check on a Next upgrade. The deployment uploads the committed tree only — `git archive HEAD` of
 `web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
 schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo
