@@ -11,7 +11,9 @@
  *     committed Purge literal is held by render-client.test.py case 1, not here);
  *   · the leads safety limit the page states (a fifth, 200, fewer than five → none) → `Leads Purge Sane?`'s constants
  *     and its `within` rule; a lead stores the visitor's message → `Capture Lead` inserts `message`;
- *   · backups kept BACKUP_DAYS → db/ops/pg-backup.sh's KEEP_DAYS default (the server's own setting is measured in R2);
+ *   · backups kept BACKUP_DAYS → db/ops/pg-backup.sh's KEEP_DAYS default (in force on the server: measured in R2, 2026-10-30);
+ *   · run records kept RUN_RECORD_DAYS → NOT checkable here (a server setting); the constant must carry its measurement;
+ *   · the privacy contact → a visible placeholder while it is null (Yigitcan's answer pending, a go-live blocker);
  *   · "bookings are not deleted automatically" → no Purge statement touches salon.appointments;
  *   · the services list → every outside host a workflow calls maps to a listed service (comment-only hosts allowlisted);
  *   · "nothing is sent over WhatsApp" → Main's `Should Send?` (the gate in front of `Send WhatsApp (Zernio)`) is fed only
@@ -71,6 +73,7 @@ test('leads: the page states the Purge\'s safety limit exactly as the code appli
     assert.match(c, /const within = rows\.length > 0 && rows\.length <= cap;/);
   }
   for (const anchor of ['more than a fifth of all callback requests, or more than 200, at once', 'deleting nothing that night',
+    'it can keep stopping the job, night after night',
     'with fewer than five', 'your contact details and your message']) assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
   const cap = wf('main').nodes.find((n) => n.name === 'Capture Lead').parameters.query;
   assert.match(cap, /^INSERT INTO salon\.leads \(name, phone, source, message,/);
@@ -79,9 +82,21 @@ test('leads: the page states the Purge\'s safety limit exactly as the code appli
 test('backups: the page\'s number is the backup script\'s default retention', () => {
   const keep = Number(read('db', 'ops', 'pg-backup.sh').match(/KEEP_DAYS="\$\{PG_BACKUP_KEEP_DAYS:-(\d+)\}"/)[1]);
   assert.equal(Number(PRIVACY.match(/export const BACKUP_DAYS = (\d+);/)[1]), keep);
-  for (const anchor of ['Copies outside the database', 'more than {BACKUP_DAYS} full days old', 'keeps a record of each run']) {
+  for (const anchor of ['Copies outside the database', 'more than {BACKUP_DAYS} full days old', 'keeps a record of each run',
+    'for about {RUN_RECORD_DAYS} days', 'its backups are removed']) {
     assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
   }
+  // RUN_RECORD_DAYS is a server measurement, not a repo fact: the constant must say so, so it is not read as tested.
+  assert.match(PRIVACY, /Measured by behaviour \(R2 measurement 4[^)]*\)[\s\S]*export const RUN_RECORD_DAYS = 14;/);
+});
+
+test('the privacy contact: until Yigitcan names one, the page shows a visible PLACEHOLDER, never an invented address', () => {
+  const m = PRIVACY.match(/export const PRIVACY_CONTACT: string \| null = (null|'[^']+');/);
+  assert.ok(m, 'PRIVACY_CONTACT is declared');
+  // Pinned to null until Yigitcan names the contact: the value is his to give, so a change here must come with his answer.
+  assert.equal(m[1], 'null', 'no contact has been given — the constant stays null');
+  assert.ok(PAGE.includes("{PRIVACY_CONTACT === null\n            ? 'PLACEHOLDER — the contact for privacy requests has not been published yet"),
+    'null renders the placeholder');
 });
 
 test('bookings: no Purge statement touches salon.appointments (so "not deleted automatically" is true)', () => {

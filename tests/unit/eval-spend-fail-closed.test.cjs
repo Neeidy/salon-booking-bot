@@ -15,7 +15,11 @@
  *   · a zero-row SELECT on this Postgres node version returns no item, so "no row" also reaches Eval Spend as `{}`;
  *   · a THROWN error under continueErrorOutput passes the node's input items through on output 0 and stores no
  *     output 1, so `$('Read Spend').all(1)` throws "has no branch with index 1".
- * It is a model: the live behaviour on Read Spend is measured on a scratch workflow in R2 before the put.
+ * MEASURED LIVE (R2 measurement 1, 2026-10-30, a scratch workflow whose Postgres node was built like Read Spend, SELECT
+ * only, removed afterwards): a row → output 0 one item with numeric fields.cost_usd, output 1 empty; no row → output 0
+ * ONE empty item, output 1 empty; a query error (a missing table) → output 0 one empty item, output 1 one item with
+ * `error` and `message`. `$('…').all(1)` returned [] in the first two, never threw. These are ROW, NO_ROW and QUERY_ERROR
+ * below. The THROWN case was not provoked and stays a model result.
  *
  * NEGATIVE CONTROL: the pre-fix Main export (read from git at a pinned commit) runs the same cases, and the
  * read-error and thrown-error cases must come out OPEN there — so the model reproduces the defect it was written for.
@@ -95,9 +99,9 @@ test('premise: Read Spend still carries alwaysOutputData + continueErrorOutput, 
   assert.deepEqual(CUR.wf.connections['Spend Gate'].main.map((o) => o.map((c) => c.node)), [LLM, CLOSED]);
 });
 
-test('the edit changes Eval Spend\'s code and only TEXT elsewhere: the meter alert\'s comment lines and the sticky', () => {
+test('the edit changes Eval Spend\'s and Build Spend-Cap Reply\'s code and only TEXT elsewhere: the meter alert\'s comment lines and the sticky', () => {
   const differs = CUR.wf.nodes.filter((n) => JSON.stringify(n) !== JSON.stringify(PRE.byName[n.name])).map((n) => n.name).sort();
-  if (EXPORT === STAGED) assert.deepEqual(differs, ['Build Spend-Meter Alert', 'Eval Spend', 'Spend-cap note']);
+  if (EXPORT === STAGED) assert.deepEqual(differs, ['Build Spend-Cap Reply', 'Build Spend-Meter Alert', 'Eval Spend', 'Spend-cap note']);
   const code = (m) => m.byName['Build Spend-Meter Alert'].parameters.jsCode.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
   assert.equal(code(CUR), code(PRE), 'Build Spend-Meter Alert: everything but its comment lines is unchanged');
   assert.equal(CUR.byName['Spend-cap note'].type, 'n8n-nodes-base.stickyNote');
@@ -161,4 +165,58 @@ test('NEGATIVE CONTROL: the pre-fix export is fail-OPEN on the read-error and th
   assert.deepEqual(route(PRE, ROW(3.25)), LLM);
   assert.deepEqual(route(PRE, NO_ROW), LLM);
   assert.deepEqual(route(PRE, ROW(10)), CLOSED);
+});
+
+// R2a (Yigitcan's ruling on bound (i), 2026-10-29): a turn closed because the meter is blind is an infrastructure
+// failure, not a reached budget — Build Spend-Cap Reply raises spend_meter_unavailable for it, and Build Owner Alert
+// (both from the export) turns that into the class the owner reads. A reached budget stays spend_cap.
+function capReply(m, spendJson) {
+  const $ = (name) => {
+    if (name === 'Load Config') return { first: () => ({ json: { config: { messageTemplates: { handoff: 'H' } } } }) };
+    throw new Error(`the model does not know $('${name}')`);
+  };
+  const out = new Function('$', '$json', m.byName['Build Spend-Cap Reply'].parameters.jsCode)($, spendJson);
+  assert.equal(out.length, 1);
+  return out[0].json;
+}
+function alertClass(m, item, sd = {}) {
+  const $ = (name) => {
+    if (name === 'Load Config') return { first: () => ({ json: { config: { ownerAlert: { enabled: true, throttleMinutes: 30 }, bot: {} } } }) };
+    throw new Error(`Node '${name}' hasn't been executed`);   // e.g. Build Booked State: not run on this path
+  };
+  const out = new Function('$', '$json', '$getWorkflowStaticData', m.byName['Build Owner Alert'].parameters.jsCode)(
+    $, item, () => sd);
+  return out.length ? out[0].json._alert_class : null;
+}
+const closedTurn = (m, read) => capReply(m, evalSpend(m, read));
+
+test('a turn closed on a blind meter raises spend_meter_unavailable with the error flag; a reached budget stays spend_cap', () => {
+  for (const [label, read] of [['query error', QUERY_ERROR], ['thrown error', THROWN], ['untrusted row', ROW('abc')],
+                               ['two items', { main: [[ROW(1).main[0][0], ROW(1).main[0][0]], []] }]]) {
+    const j = closedTurn(CUR, read);
+    assert.equal(alertClass(CUR, j), 'spend_meter_unavailable', label);
+    assert.deepEqual(j._outbound_body, { ok: false, error: 'spend_meter_unavailable', handoff: true, reply: 'H' }, label);
+    assert.equal(j._outbound_status, 200, label);
+    assert.equal(j.spend_cap_tripped, undefined, `${label}: never "budget reached"`);
+  }
+  const cap = closedTurn(CUR, ROW(12.5));
+  assert.equal(alertClass(CUR, cap), 'spend_cap');
+  assert.deepEqual(cap._outbound_body, { ok: true, handoff: true, reply: 'H' });
+  assert.equal(cap.spend_meter_unavailable, undefined);
+  assert.equal(cap.sender_key, CTX.sender_key, 'the message item travels on');
+});
+
+test('on a caught read error the meter alert and the closed turn carry the SAME class, so one throttle key, one alert', () => {
+  const meter = new Function('$', CUR.byName['Build Spend-Meter Alert'].parameters.jsCode)(
+    () => ({ first: () => ({ json: CTX }) }))[0].json;
+  const sd = {};   // one workflow's static data, as both items reach Build Owner Alert in the same execution
+  assert.equal(alertClass(CUR, meter, sd), 'spend_meter_unavailable');
+  assert.equal(alertClass(CUR, closedTurn(CUR, QUERY_ERROR), sd), null, 'the second one is throttled: same class, same sender');
+  assert.equal(alertClass(CUR, closedTurn(CUR, QUERY_ERROR)), 'spend_meter_unavailable', 'alone it alerts');
+});
+
+test('NEGATIVE CONTROL: before R2a every closed turn read as spend_cap — the defect the ruling removes', () => {
+  assert.equal(alertClass(PRE, closedTurn(PRE, ROW(12.5))), 'spend_cap');
+  // the pre-fix export never closes on a blind meter, so the current Eval Spend feeds the old reply here
+  assert.equal(alertClass(PRE, capReply(PRE, evalSpend(CUR, THROWN))), 'spend_cap');
 });

@@ -10,7 +10,9 @@
  */
 import { notFound } from 'next/navigation';
 import { config, isDemo } from '../../lib/config';
-import { BACKUP_DAYS, LEAD_DAYS, MESSAGE_TEXT_DAYS, PROCESSORS, TURNSTILE_PRIVACY_URL } from '../../lib/privacy';
+import {
+  BACKUP_DAYS, LEAD_DAYS, MESSAGE_TEXT_DAYS, PRIVACY_CONTACT, PROCESSORS, RUN_RECORD_DAYS, TURNSTILE_PRIVACY_URL,
+} from '../../lib/privacy';
 
 export const metadata = {
   title: `Privacy — ${config.business.name} (demo)`,
@@ -59,8 +61,9 @@ export default function PrivacyPage() {
             ? 'A callback request — your contact details and your message — is not deleted automatically.'
             : `A callback request — your contact details and your message — is deleted by the nightly job once it is
               older than ${LEAD_DAYS} days. A safety limit stops that job, deleting nothing that night and alerting the
-              owner, when it would delete more than a fifth of all callback requests, or more than 200, at once — so with fewer than five
-              requests stored, none is deleted automatically.`}</li>
+              owner, when it would delete more than a fifth of all callback requests, or more than 200, at once. The limit
+              is checked again every night, so it can keep stopping the job, night after night, until enough new requests
+              arrive or the owner deletes the old ones by hand — and with fewer than five requests stored, none is deleted automatically.`}</li>
         </ul>
 
         <h2>Copies outside the database</h2>
@@ -69,7 +72,10 @@ export default function PrivacyPage() {
             on a night whose backup succeeds — so a deleted message or request can remain in a backup for at least
             {' '}{BACKUP_DAYS} days more, typically about {BACKUP_DAYS + 1}.</li>
           <li>The booking engine (n8n) keeps a record of each run, which includes your message and the request sent to
-            the AI model; how long those records are kept is a setting on the server, separate from the deletion above.</li>
+            the AI model, for about {RUN_RECORD_DAYS} days — a setting on the server, separate from the deletion above.
+            The engine&apos;s own database, which holds those records, is backed up nightly and its backups are removed
+            the same way as the ones above, so a run record can remain in a backup for at least {BACKUP_DAYS} days
+            more, typically about {BACKUP_DAYS + 1}.</li>
           <li>The services listed below keep what they receive under their own policies.</li>
         </ul>
 
@@ -100,6 +106,13 @@ export default function PrivacyPage() {
         <p>
           A random session id is kept in this tab&apos;s session storage so a conversation can continue; it is gone when
           the tab closes. The site sets no tracking or advertising cookies of its own.
+        </p>
+
+        <h2>Questions about your data</h2>
+        <p>
+          {PRIVACY_CONTACT === null
+            ? 'PLACEHOLDER — the contact for privacy requests has not been published yet; it is added before this demo goes live.'
+            : `Write to ${PRIVACY_CONTACT} to ask what the demo holds about you or to have it deleted.`}
         </p>
 
         <p><a href="/">← Back to the demo</a></p>

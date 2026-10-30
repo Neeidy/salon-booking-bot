@@ -190,27 +190,34 @@ So:
 
 ## 8 · Public demo (`docs/PUBLIC-DEMO-PLAN.md`)
 
-**Take it offline — one step.** Pausing the Vercel project makes the demo answer 503: the site and the chat widget go.
+**Take it offline — one step.** Pausing the Vercel project makes the demo give Vercel's paused answer (503 with
+`DEPLOYMENT_PAUSED` in the body): the site and the chat widget go.
 The engine does NOT stop — its webhook stays up, bounded by the LLM cap, the edge rate limit and the turn cap; stopping
 it is the kill-switch or deactivating Main (⚠ ONAY). An emergency pause has a standing approval (ruling D6); unpausing,
 and deactivating Main, do not.
-- CC: Vercel `pause_project` (its Vercel connection), then `bash scripts/demo-offline.sh measure` → `offline (503)`.
+- CC: Vercel `pause_project` (its Vercel connection), then `bash scripts/demo-offline.sh measure` → `offline (503
+  DEPLOYMENT_PAUSED)`, exit 3. Only Vercel's paused answer counts as offline: any other answer (401, 404, a redirect, a 503
+  without the marker) is `unexpected`, exit 5 — the demo is NOT proven offline.
 - A shell: `bash scripts/demo-offline.sh pause` (and `unpause`) — needs `~/.vercel-demo.env` (0600, this user):
   `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, and `VERCEL_TEAM_ID` if the project is in a team. It prints statuses only and
-  exits 0 only when the new state was MEASURED (503 after a pause, 200 after an unpause); no answer at all is "NOT
+  exits 0 only when the new state was MEASURED (Vercel's paused answer after a pause, 200 after an unpause); no answer at all is "NOT
   measured" (`measure` exit 4), never "offline".
 
 **The staged engine edits** (`n8n/staged/`): `Eval Spend` fail-closed (Main, `--delta-file
 n8n/staged/workflow.main.delta.json`) and the 30-day lead retention (Purge, `--delta-file
 n8n/staged/workflow.purge.delta.json`). Each is deployed with §3 — note §3 step 1: the tool reads the export from HEAD,
-so the put names the STAGED path, which is committed. The Main delta allows three nodes: `Eval Spend`'s code and two
-text-only edits (`Build Spend-Meter Alert`'s comment lines, the `Spend-cap note` sticky). Before the Main put, the
+so the put names the STAGED path, which is committed. The Main delta allows four nodes: `Eval Spend`'s code,
+`Build Spend-Cap Reply`'s code (R2a: a turn closed on a blind meter raises `spend_meter_unavailable`, never `spend_cap`) and
+two text-only edits (`Build Spend-Meter Alert`'s comment lines, the `Spend-cap note` sticky). Before the Main put, the
 `Read Spend` scratch measurement
 (the plan, "R2 — measured before any write"); before the Purge put, the leads counts read with `salon_ro`.
 **The promotion commit** (once both are live and read back): copy each staged export over its committed export, set
 `leadsRetentionDays` to 30 in `config/client.config.example.json` in the SAME commit (`render-client.test.py` case 1
 holds the example to the committed export), and correct the sentences that describe the meter as fail-open
-(`docs/FLOW-DIAGRAM.md`, `docs/DATA-MODEL.md`, `docs/UX-ARCHITECTURE.md`) — they are true until the put and false after.
+(`docs/FLOW-DIAGRAM.md`, `docs/DATA-MODEL.md`, `docs/UX-ARCHITECTURE.md` — including its guard-trip list, which names
+`Build Spend-Cap Reply`, and its spend-meter row, which names `Build Spend-Meter Alert` as the only source) and add the
+new `200 {ok:false, error:'spend_meter_unavailable', handoff, reply}` body to the engine-shape table at the top of
+`web/shared/src/chat/chatClient.ts` — they are true until the put and false after.
 **Before go-live:** the /privacy page states the backup retention from `db/ops/pg-backup.sh`'s default and says the
 engine's run records are kept "for a period set on the server" — measure both values in force and correct the page if
 either differs (the plan, "R2 — measured before any write").

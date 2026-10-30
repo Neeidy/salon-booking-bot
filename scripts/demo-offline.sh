@@ -1,14 +1,17 @@
 #!/bin/bash
 # demo-offline.sh — take the public demo offline in one step, and MEASURE that it is (public demo plan §4, ruling D6).
 #
-# Pausing the Vercel project makes Vercel answer the demo with 503 (DEPLOYMENT_PAUSED): the site and the chat widget
+# Pausing the Vercel project makes Vercel answer the demo with 503 and DEPLOYMENT_PAUSED in the body: the site and the chat widget
 # are gone. It does NOT stop the engine: its webhook stays up, bounded by the LLM cap, the edge rate limit and the
 # per-conversation turn cap — stopping the engine is the kill-switch or deactivating Main (⚠ ONAY, not this script).
 # D6: a STANDING approval covers this pause in an emergency; unpausing and deactivating Main are not covered by it.
 #
-#   measure   GET the demo's front page: 200 → "online", exit 0 · another status → "offline (<code>)", exit 3 ·
-#             no answer at all (000: timeout, DNS, network) → "NOT measured", exit 4. Needs no token.
-#   pause     POST Vercel's pause endpoint, then poll until the page answers 503 → exit 0 (else 1).
+#   measure   GET the demo's front page: 200 → "online", exit 0 · Vercel's PAUSED answer — 503 with DEPLOYMENT_PAUSED in
+#             the body, the form Vercel documents (vercel.com/docs/errors/DEPLOYMENT_PAUSED) → "offline", exit 3 · no
+#             answer at all (000: timeout, DNS, network) → "NOT measured", exit 4 · ANY other answer (a 401 from deployment
+#             protection, a 404 from a wrong domain, a redirect, a 503 without the marker) → "unexpected", exit 5 — it is
+#             not counted as offline (R2a: the convergence residue of code-reviewer MEDIUM-5). Needs no token.
+#   pause     POST Vercel's pause endpoint, then poll until the page gives Vercel's paused answer → exit 0 (else 1).
 #   unpause   POST Vercel's unpause endpoint, then poll until the page answers 200 → exit 0 (else 1).
 #
 # The token: VERCEL_TOKEN, VERCEL_PROJECT_ID (and VERCEL_TEAM_ID when the project is in a team) come from an env
@@ -22,7 +25,8 @@
 #
 # Usage: bash scripts/demo-offline.sh measure|pause|unpause [--env FILE]
 # Exit: 0 the asked-for state was measured · 1 refused by the API or the state was not reached · 2 usage or setup ·
-#       3 (measure only) the demo answers, but not 200 · 4 (measure only) no answer — nothing was measured.
+#       3 (measure only) offline: Vercel's paused answer · 4 (measure only) no answer — nothing was measured ·
+#       5 (measure only) an answer that is neither online nor Vercel's paused answer.
 set -uo pipefail
 set +x
 unset VERCEL_TOKEN VERCEL_PROJECT_ID VERCEL_TEAM_ID   # drop any value (and export) the caller's environment carried
@@ -51,8 +55,12 @@ demo_url() {
   echo "https://demo.$apex/"
 }
 
-measure_code() {
-  curl -4 -s -o /dev/null -m 15 -w '%{http_code}' "$1" 2>/dev/null || true
+# Prints 200, "paused" (503 + DEPLOYMENT_PAUSED in the body), another status code, or 000 for no answer.
+measure_state() {
+  local out code
+  out=$(curl -4 -s -m 15 -w '\n%{http_code}' "$1" 2>/dev/null || true)
+  code=${out##*$'\n'}
+  if [ "$code" = 503 ] && [[ "${out%$'\n'*}" == *DEPLOYMENT_PAUSED* ]]; then echo paused; else echo "${code:-000}"; fi
 }
 
 case "$ACTION" in
@@ -63,10 +71,11 @@ esac
 URL=$(demo_url) || { echo "demo-offline: no DEMO_URL and no APEX_HOST line in CLAUDE.local.md"; exit 2; }
 
 if [ "$ACTION" = measure ]; then
-  code=$(measure_code "$URL")
+  code=$(measure_state "$URL")
   if [ "$code" = 200 ]; then echo "demo: online (200)"; exit 0; fi
+  if [ "$code" = paused ]; then echo "demo: offline (503 DEPLOYMENT_PAUSED)"; exit 3; fi
   if [ -z "$code" ] || [ "$code" = 000 ]; then echo "demo: NOT measured (no answer)"; exit 4; fi
-  echo "demo: offline ($code)"; exit 3
+  echo "demo: unexpected answer ($code) — neither online nor Vercel's paused answer; NOT counted as offline"; exit 5
 fi
 
 # ── pause / unpause: the env file, checked before it is read ──
@@ -91,8 +100,8 @@ echo "vercel $ACTION: HTTP ${status:-000}"
 
 deadline=$(( $(date +%s) + POLL_S ))
 while :; do
-  code=$(measure_code "$URL")
-  if [ "$ACTION" = pause ] && [ "$code" = 503 ]; then echo "demo: offline (503) — measured"; exit 0; fi
+  code=$(measure_state "$URL")
+  if [ "$ACTION" = pause ] && [ "$code" = paused ]; then echo "demo: offline (503 DEPLOYMENT_PAUSED) — measured"; exit 0; fi
   if [ "$ACTION" = unpause ] && [ "$code" = 200 ]; then echo "demo: online (200) — measured"; exit 0; fi
   [ "$(date +%s)" -ge "$deadline" ] && break
   sleep 3

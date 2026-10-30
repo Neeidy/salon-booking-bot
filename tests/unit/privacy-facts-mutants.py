@@ -33,6 +33,14 @@ MUTANTS = {
     'the copies outside the database left out': (PAGE, '<h2>Copies outside the database</h2>', '<h2>Other notes</h2>'),
     'the notice promising erasure without its limits': ('web/site/components/site/LiveChatPanel.tsx',
         'owner alerts (Telegram) can keep copies longer', 'nothing is kept longer'),
+    # R2a: the residue of HIGH-1's class, and the two measured copies outside the database
+    'the safety limit described as a one-night pause': (PAGE,
+        'The limit\n              is checked again every night, so it can keep stopping the job, night after night, until enough new requests\n              arrive or the owner deletes the old ones by hand — and with',
+        'And with'),
+    'the run-record retention left as an unmeasured setting': (PAGE, 'for about {RUN_RECORD_DAYS} days', 'for a while'),
+    'the run-record constant stripped of its measurement': (PRIVACY, 'Measured by behaviour (R2 measurement 4', 'Assumed (R2'),
+    'an invented privacy contact': (PRIVACY, 'export const PRIVACY_CONTACT: string | null = null;',
+        "export const PRIVACY_CONTACT: string | null = 'privacy@example.com';"),
 }
 
 

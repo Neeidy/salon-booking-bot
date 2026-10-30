@@ -255,13 +255,15 @@ a workflow calls is a listed service; nothing reaches WhatsApp (`Should Send?` i
 Reminders' `whatsappSendDisabled: true`). Built (`next build`) and rendered headless on 127.0.0.1 — the page, the notice,
 two `/privacy` links — and again after the review round's text changes; that evidence is in the session scratchpad,
 not committed (UNVERIFIED in the repo). Until the promotion the page says leads are kept 90 days — true for what is live.
-**Open (Yigitcan):** the page names no contact for a privacy request; what contact, if any, to publish is his call.
+**Open (Yigitcan):** what contact to publish for a privacy request is his call — since R2a the page shows a visible
+PLACEHOLDER until he answers, and it is go-live check 1 below.
 
 **4. `scripts/demo-offline.sh`** — `measure` (no token) · `pause` / `unpause` (Vercel's documented
 `POST /v1/projects/{id}/pause|unpause`, then the page MEASURED: 503 / 200). The token is read from a 0600 env file and
 sent through a 0600 header file, never on a command line, in output, or in a child process's environment (even when
 the env file or the caller exports it). No answer at all (000) is "NOT measured", never "offline", and a pause counts
-only on a measured 503 (`code-reviewer` MEDIUM-5). `tests/unit/demo-offline.test.py` (in check-all; 24 checks, shims
+only on a measured 503 (`code-reviewer` MEDIUM-5) — *R1's record; since R2a only Vercel's paused answer (503 with
+`DEPLOYMENT_PAUSED` in the body) counts, and the counts below are R1's (R2a: mutants 15/15).* `tests/unit/demo-offline.test.py` (in check-all; 24 checks, shims
 recording every curl argument list and every child environment) and `demo-offline-mutants.py` 13/13 (the API address
 must be https, or http to 127.0.0.1, with no user part — a fix-round finding, measured by `code-reviewer`). **Bound:** the shell
 route needs a Vercel token that does not exist; in R2 CC pauses through its Vercel connection (`pause_project`) and
@@ -322,6 +324,56 @@ case and a mutant it kills; not re-run through Codex (no HIGH):
 4. **Retention outside the database, for the /privacy page:** how long the instance keeps execution data (the engine's
    run records) and the backup retention in force (`PG_BACKUP_KEEP_DAYS` or the script's default 14) — the page is
    corrected to the measured values before go-live.
+
+### R2a — measured, then fixed (2026-10-30; rulings of 2026-10-29 in the R2a brief)
+**Measurements (before any write):**
+1. **`Read Spend`, live, on a scratch** (an Access-covered temporary webhook → a Postgres node built like `Read Spend` —
+   same type, version, query, `alwaysOutputData`, `continueErrorOutput`, the one postgres credential; SELECT only; each
+   path refused at the edge without a token first — 403, an Access header, no execution; the scratch removed, GET 404):
+   a row → output 0 one item (numeric `fields.cost_usd`), output 1 empty · no row → output 0 ONE empty item, output 1
+   empty · a query error (a missing table) → output 0 one empty item, output 1 one `{error, message}` item;
+   `$('…').all(1)` returned `[]` for a row and for no row, one item for the query error, and never threw. **The model in `eval-spend-fail-closed.test.cjs` is confirmed** for
+   these three (`ROW`, `NO_ROW`, `QUERY_ERROR`); the thrown case was not provoked and stays a model result.
+2. **The leads table, `salon_ro`, counts only:** **0 rows** (positive control on the same connection: `bot_metrics` 1 row,
+   `to_regclass('salon.leads')` exists). So the first 30-day run deletes nothing, and no real lead is affected. For #13
+   the seed needs at least 5 `pd-` rows (one aged), because the cap is `floor(20% of the table)`.
+3. *(Yigitcan's, with Cowork — the widget page.)*
+4. **Retention outside the database:** the engine's run records — the oldest stored execution was **13 days 23 hours**
+   old (653 executions read through the API), which fits n8n's default pruning of 336 hours; the setting itself is in a
+   root-owned file and was not read. The salon dumps — the nightly job calls `pg-backup.sh` without
+   `PG_BACKUP_KEEP_DAYS`, so its default **14** is in force (6 dumps on disk, the first from 2026-10-25). **Found, not
+   planned:** the same job backs up **n8n's own database** (which holds the run records) and removes those copies after
+   14 days too (15 on disk). `/privacy` now states all three: run records about 14 days, and backups of either database
+   kept more than 14 full days.
+
+**Fixed (each with a test case and a mutant that dies):**
+- **Bound (i), ruled WIDEN:** `Build Spend-Cap Reply` raises `spend_meter_unavailable` (and the error flag in the body,
+  like the other `*_unavailable` replies, 200) when `_spend.meter` is `unreadable`; a reached budget stays `spend_cap`.
+  On a caught read error the meter alert and the closed turn now carry the same class and so one throttle key: the owner
+  gets one alert. Its first comment no longer says only "budget reached" (the MEDIUM-4 residue). The Main delta is
+  four nodes (`Build Spend-Cap Reply` added; not a GATE node); the sticky's last sentence, which named the old bound, is
+  corrected. `eval-spend` 13 tests, mutants 16/16.
+- **The leads-cap sentence (the HIGH-1 residue):** the page says the limit is checked every night and can keep stopping
+  the job until the owner deletes by hand. Privacy mutants 13/13.
+- **`measure` (the MEDIUM-5 residue):** only Vercel's documented paused answer — 503 with `DEPLOYMENT_PAUSED` in the body
+  (vercel.com/docs/errors/DEPLOYMENT_PAUSED; no header is documented, so none is relied on) — is "offline" (exit 3); a
+  401, 404, redirect or bare 503 is "unexpected" (exit 5); `pause` succeeds only on the paused answer. demo-offline
+  mutants 15/15.
+- **The privacy contact:** pending Yigitcan — the page shows a visible PLACEHOLDER (`PRIVACY_CONTACT = null`, pinned by
+  the test so no address can be invented). **A go-live blocker.**
+
+### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
+A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
+reads this list:
+1. **The privacy contact is published:** `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null` (Yigitcan's
+   answer; the test pinning it to `null` changes with it). Until then the page shows a PLACEHOLDER.
+2. **The Main put and the Purge put are live and promoted** (parity green against the promoted exports).
+3. **Widget step B is done and #11 is measured by behaviour** (another hostname → `110200`).
+4. **The `/privacy` text is final** — the leads retention reads 30 (from the promoted example config) and the measured
+   copies outside the database.
+5. **The first real pause records Vercel's actual paused body** — `measure` counts only `DEPLOYMENT_PAUSED` in a 503
+   body, the documented form; if the real body differs, `pause` exits 1 and `measure` exits 5 (the safe direction),
+   and the script is corrected before go-live.
 
 ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
 **Order:** CC adds `demo.<apex>` to the Vercel project and reads its DNS target → **A** → CC verifies the domain and

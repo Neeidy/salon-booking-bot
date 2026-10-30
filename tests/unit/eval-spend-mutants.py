@@ -3,8 +3,8 @@
 hold, and each must turn tests/unit/eval-spend-fail-closed.test.cjs red — a mutant that survives means the test does
 not measure that property.
 
-Each mutant is a single text replacement in one node's jsCode — Eval Spend's, or (the last one) Build Spend-Meter
-Alert's, whose edit must stay comment-only — that must apply exactly once, or the run fails; it is written into a copy
+Each mutant is a single text replacement in one node's jsCode — Eval Spend's, Build Spend-Meter Alert's (whose edit
+must stay comment-only), or Build Spend-Cap Reply's (R2a: its own class for a blind meter) — that must apply exactly once, or the run fails; it is written into a copy
 of the staged Main export in a temporary directory and handed to the test as its argument.
 
 Not in check-all: it re-runs the test once per mutant. Run before a change to Eval Spend or its test is pushed.
@@ -46,6 +46,19 @@ OTHER_NODE_MUTANTS = {   # node → {label: (old, new)}
     'Build Spend-Meter Alert': {
         'the meter alert changed beyond its comments':
             ("    spend_meter_unavailable: true,", "    spend_meter_unavailable: false,"),
+    },
+    'Build Spend-Cap Reply': {   # R2a, Yigitcan's ruling on bound (i)
+        'a blind meter reported as a reached budget':
+            ("const blind = ($json._spend || {}).meter === 'unreadable';", "const blind = false;"),
+        'every closed turn reported as a blind meter':
+            ("const blind = ($json._spend || {}).meter === 'unreadable';", "const blind = true;"),
+        'the error flag dropped from the body':
+            ('({ ok: false, error: "spend_meter_unavailable", handoff: true, reply })', '({ ok: true, handoff: true, reply })'),
+        'the budget flag set beside the meter flag':
+            ("...(blind ? { spend_meter_unavailable: true } : { spend_cap_tripped: true })",
+             "spend_meter_unavailable: blind, spend_cap_tripped: true"),
+        'a 503 after the claim':
+            ("    _outbound_status: 200,", "    _outbound_status: blind ? 503 : 200,"),
     },
 }
 

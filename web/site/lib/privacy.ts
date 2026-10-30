@@ -12,9 +12,19 @@ export { MESSAGE_TEXT_DAYS } from './retention';   // the engine's fixed message
 const days = config.leadsRetentionDays;
 export const LEAD_DAYS: number | null = Number.isInteger(days) && (days as number) >= 1 ? (days as number) : null;
 
-/** db/ops/pg-backup.sh removes dumps older than KEEP_DAYS — its default, 14. (An operator setting can change it; the
- *  value in force on the server is measured before go-live — PUBLIC-DEMO-PLAN, R2.) */
+/** db/ops/pg-backup.sh removes dumps older than KEEP_DAYS — its default, 14. Measured in force on the server
+ *  (PUBLIC-DEMO-PLAN, R2 measurement 4, 2026-10-30): the nightly job calls the script without PG_BACKUP_KEEP_DAYS, and
+ *  removes its backups of n8n's own database after the same 14 days. */
 export const BACKUP_DAYS = 14;
+
+/** How long n8n keeps its execution records — a server setting outside this repo (root-owned), so it cannot be tested
+ *  here. Measured by behaviour (R2 measurement 4, 2026-10-30): the oldest stored execution was 13 days 23 hours old,
+ *  which fits n8n's default pruning age of 336 hours. Re-measure if the server's settings change. */
+export const RUN_RECORD_DAYS = 14;
+
+/** Who a visitor writes to about their data. PENDING Yigitcan's answer (R2a): null renders a visible placeholder, and
+ *  the page must not go live with it (PUBLIC-DEMO-PLAN, "Go-live checks", item 1). */
+export const PRIVACY_CONTACT: string | null = null;
 
 /** Cloudflare's privacy addendum for Turnstile — the bot check in the chat panel. */
 export const TURNSTILE_PRIVACY_URL = 'https://www.cloudflare.com/turnstile-privacy-policy/';

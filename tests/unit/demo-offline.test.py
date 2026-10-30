@@ -3,8 +3,9 @@
 remote-operator.md). The script's real curl calls run against it, through a curl shim on PATH that records every
 argument list.
 
-What it proves: `measure` tells 200 from another status from NO answer (000 is "not measured", never "offline");
-`pause` succeeds only on a measured 503 and `unpause` only on a measured 200, each after ONE authorised POST to the right
+What it proves: `measure` tells 200 from Vercel's paused answer (503 + DEPLOYMENT_PAUSED) from any other answer (a 401,
+404, redirect or bare 503 is "unexpected", never "offline") from NO answer (000 is "not measured"); `pause` succeeds only
+on a measured paused answer and `unpause` only on a measured 200, each after ONE authorised POST to the right
 endpoint, failing when the API refuses or the page does not change; an env file that is readable by others, missing,
 or lacks the token, an unknown argument and a non-https API address are refused before any request; and the token —
 generated here at run time, never written into this file — is in no argument list, no output, no leftover file, and no
@@ -32,6 +33,7 @@ class World:
     def __init__(self, token):
         self.token, self.paused, self.api_status, self.ignore_pause, self.hits = token, False, 200, False, []
         self.paused_code = 503
+        self.paused_marker = True   # Vercel's documented paused body: "DEPLOYMENT_PAUSED: Service Unavailable"
 
 
 def make_handler(world):
@@ -39,14 +41,16 @@ def make_handler(world):
         def log_message(self, *a):
             pass
 
-        def send(self, code):
+        def send(self, code, body=b'{}'):
             self.send_response(code)
-            self.send_header('Content-Length', '2')
+            self.send_header('Content-Length', str(len(body)))
             self.end_headers()
-            self.wfile.write(b'{}')
+            self.wfile.write(body)
 
         def do_GET(self):
-            self.send(world.paused_code if world.paused else 200)
+            if not world.paused:
+                return self.send(200)
+            self.send(world.paused_code, b'DEPLOYMENT_PAUSED: Service Unavailable' if world.paused_marker else b'{}')
 
         def do_POST(self):
             world.hits.append((self.path, self.headers.get('Authorization') == f'Bearer {world.token}'))
@@ -108,13 +112,25 @@ def main():
         case('measure: the page answers 200 → "online", exit 0', rc == 0 and 'online (200)' in out, out)
         world.paused = True
         rc, out = run('measure')
-        case('measure: the page answers 503 → "offline", exit 3', rc == 3 and 'offline (503)' in out, out)
+        case('measure: Vercel\'s paused answer (503 + DEPLOYMENT_PAUSED) → "offline", exit 3',
+             rc == 3 and 'offline (503 DEPLOYMENT_PAUSED)' in out, out)
+        world.paused_marker = False
+        rc, out = run('measure')
+        case('measure: a 503 WITHOUT the paused marker → "unexpected", exit 5, not offline',
+             rc == 5 and 'unexpected answer (503)' in out and 'offline (' not in out, out)
+        world.paused_marker = True
+        for other in (401, 404, 308):
+            world.paused_code = other
+            rc, out = run('measure')
+            case(f'measure: {other} (protection / wrong domain / redirect) → "unexpected", exit 5, not offline',
+                 rc == 5 and f'unexpected answer ({other})' in out, out)
+        world.paused_code = 503
         world.paused = False
 
         rc, out = run('pause')
         case('pause: one authorised POST to the pause endpoint (team in the query), then offline MEASURED → exit 0',
              rc == 0 and world.hits[-1] == (f'/v1/projects/{PROJECT}/pause?teamId=team_test', True)
-             and 'offline (503) — measured' in out, out)
+             and 'offline (503 DEPLOYMENT_PAUSED) — measured' in out, out)
         rc, out = run('unpause')
         case('unpause: one authorised POST, then online MEASURED → exit 0',
              rc == 0 and world.hits[-1][0].startswith(f'/v1/projects/{PROJECT}/unpause') and 'online (200) — measured' in out, out)
@@ -176,6 +192,11 @@ def main():
         rc, out = run('pause')
         case('pause accepted but the page answers 404, not 503 → NOT measured, exit 1', rc == 1 and 'NOT measured' in out, out)
         world.paused_code = 503
+        world.paused_marker = False
+        rc, out = run('pause')
+        case('pause accepted but the page answers 503 without the paused marker → NOT measured, exit 1',
+             rc == 1 and 'NOT measured' in out, out)
+        world.paused_marker = True
         run('unpause')
 
         # the env file EXPORTS the token, and the caller's environment carries one too: no child may see either

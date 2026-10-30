@@ -36,7 +36,13 @@ MUTANTS = {
     'no answer (000) reported as offline':
         ("  if [ -z \"$code\" ] || [ \"$code\" = 000 ]; then echo \"demo: NOT measured (no answer)\"; exit 4; fi\n", ""),
     'pause counted as done on any status but 200':
-        ("[ \"$ACTION\" = pause ] && [ \"$code\" = 503 ]", "[ \"$ACTION\" = pause ] && [ \"$code\" != 200 ]"),
+        ("[ \"$ACTION\" = pause ] && [ \"$code\" = paused ]", "[ \"$ACTION\" = pause ] && [ \"$code\" != 200 ]"),
+    # (R2a, the convergence residue of MEDIUM-5) only Vercel's paused answer is "offline"
+    'any 503 counted as the paused answer':
+        ("if [ \"$code\" = 503 ] && [[ \"${out%$'\\n'*}\" == *DEPLOYMENT_PAUSED* ]]; then", "if [ \"$code\" = 503 ]; then"),
+    'an unexpected answer counted as offline':
+        ("echo \"demo: unexpected answer ($code) — neither online nor Vercel's paused answer; NOT counted as offline\"; exit 5",
+         "echo \"demo: offline ($code)\"; exit 3"),
     'an exported token left exported':
         ("export -n VERCEL_TOKEN VERCEL_PROJECT_ID VERCEL_TEAM_ID", "true"),
     'a non-https API address accepted':
