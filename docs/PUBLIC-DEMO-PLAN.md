@@ -87,7 +87,9 @@ a production deployment (measured at deploy time with `get_project`).
 
 ## 4. Spend and abuse bounds for a public endpoint, and the rollback
 - **Bounds:** Turnstile (Managed, hostname-bound after #11) · the Cloudflare edge rule on `/webhook/`, 30 requests per 10 s per IP and Cloudflare data centre, Block for 10 s
-  (read R2c; blocking shown by #12 in R2c — R2b's "RED" was a probe under the threshold) · the LLM cap, $10 a UTC month · 12 turns per conversation · `bot.killSwitch`
+  (read R2c; blocking shown by #12 in R2c — R2b's "RED" was a probe under the threshold) — it limits the request VOLUME
+  reaching the origin, not spend: it still admits about 3 requests a second per IP and data centre, and a distributed
+  source multiplies that; spend is bounded by the controls that follow · the LLM cap, $10 a UTC month · 12 turns per conversation · `bot.killSwitch`
   (flipping it is a workflow write).
 - **The Main edit (Ruling (d)):** `Eval Spend` today runs the turn when the meter cannot be read (fail-open, ruled at
   K-SPEND); for a public endpoint it becomes fail-closed — a deterministic handoff reply and an alert (built in R1,
@@ -385,6 +387,10 @@ the GENERIC target, not a project-specific one as the dashboard steps below expe
 Build settings (install from the `web/` workspace root) are not measured until the first deployment.
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
+**State after R2d:** true — 2, 3, 7 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 5 (the
+pause drill) and 8 (#16 on a READY deployment; (c) is already read back), both of which wait for a green Vercel build ·
+after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at the phase close: the
+Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
 1. **The privacy contact is published** *(R2c: pending — a Zoho address from Yigitcan; Cloudflare Email Routing is
@@ -409,6 +415,46 @@ reads this list:
    deployment's file list, (d) an unauthenticated visitor gets Vercel's protection on BOTH the demo hostname and the
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
 
+### R2d — first deployment attempted (2026-10-30, the R2d brief; no go-live) — ⚠ stopped: Vercel's build was red
+**Start gates (20:43 Vienna):** all green, as before. **The route (ruling of 2026-10-30, reversing R2a's "no token"):**
+a team-scoped Vercel token created by Yigitcan in `~/.vercel-demo.env` (mode 0600, this user — measured), used only
+for this phase and revoked at its close; Git integration stays off. **CLI:** `vercel@64.3.1` — the newest stable
+release published at least two weeks earlier (2026-10-15) — installed into a scratch prefix. Its own code reads
+`VERCEL_TOKEN` from the environment (`tokenSource = "env"`), so the token went into the deploying process's environment
+from the 0600 file and nowhere else: never `--token`, never printed; the CLI's global config pointed at a scratch
+directory. After every token-using step a script counted the files outside the 0600 file that contain the token's
+value: **0** each time (the CLI log, its global config, the deploy directory, the measured headers and bodies, the
+build events).
+
+**Protection read back BEFORE deploying:** `ssoProtection: {enabled: true, deploymentType: all}`.
+
+**The deployment** — `git archive HEAD` (`597b28a`), **54 files, 0 under `web/dashboard`**, `vercel deploy --prod`:
+uploaded (344 KB), built in `iad1` by Vercel's own `vercel build`, and **FAILED: state `ERROR`, `module_not_found` in
+the build step.** The build events (read through the REST API with the token in a 0600 header file — the CLI's
+`inspect` needs a user and a team-scoped token has none, `/v2/user` → 404) show the cause: Vercel's default install ran
+in the project root `web/site` and added 36 packages (a local `npm ci` at the `web/` workspace root adds 39); the site's
+prebuild then built the snippet, and `web/snippet/build.mjs` could not find **`esbuild`** — the snippet's own
+devDependency, which an install scoped to the `web/site` workspace does not bring. *(Why the install skipped it is
+inferred from the package counts and npm's workspace behaviour, not from a package list.)* The R2b offline proof ran
+`npm ci` at the workspace root, which is exactly the step Vercel did not take — the proof was right about the files and
+silent about where Vercel would install them.
+**Stopped on the brief's stop condition ("Vercel build red"); not retried.** The likely fix is a project setting, not
+code: the install command at the workspace root (e.g. `cd .. && npm ci`) — **a ruling.**
+
+**What an unauthenticated visitor saw** (the brief's stop condition was never met — no page anywhere):
+- the deployment URL (`<deployment>.vercel.app`) → **302 to `vercel.com/sso-api`**, no page: Vercel Authentication answers;
+- the project alias (`salon-booking-demo-<team>.vercel.app`) → **404**: no READY production deployment to serve;
+- `demo.<apex>` → **no TLS** (curl 000 for 90 s): no certificate is issued while no deployment is assigned to it.
+So protection is observed on the deployment URL only, and on a FAILED deployment; on the demo hostname it is still
+unmeasured.
+
+**#16 on the real deployment (partly):** (a) platform **Vercel** (the deployment exists in the project, source `cli`,
+region `iad1`) · (b) root **`web/site`** — by behaviour: the build ran in `/vercel/path0/web/site` · (c) the
+deployment's file list (`list_deployment_files`) holds `config/`, `schemas/` and `web/{package.json,
+package-lock.json, shared, site, snippet}` — **no `web/dashboard`** · (d) protection `all` read back, behaviour seen on
+the deployment URL only (above). **Pause drill: not done** — it needs a READY production deployment.
+The failed deployment is left in place (it serves nothing; removing a deployment is not reversible and buys nothing).
+
 ### R2c — measured (2026-10-30, the R2c brief; no go-live) — ⚠ stopped at the first deployment again, for a different reason
 **Start gates (20:07 Vienna):** dummy token → 403 · exports parity and live parity green · listeners · host leak · hook
 drift — all green.
@@ -430,7 +476,10 @@ correction beside the old number.
 
 **Step 3 — the first deployment: NOT DONE. The route the brief names cannot carry the files.** The Vercel connection
 deploys files only as content inside the tool call: `create_deployment` takes each file's `data` inline, and
-`upload_file` takes the file as a base64 `requestBody`. The deployment set (54 committed files, R2b) includes two
+`upload_file` takes the file as a base64 `requestBody`. Its other route, `gitSource`, deploys from a Git repository
+through the project's Git connection, and this project has none by design — R2a: no push may deploy before the go-live
+checks (a Git deployment would also take the whole repository, `web/dashboard` included — reasoning, not measured).
+The deployment set (54 committed files, R2b) includes two
 binary fonts, `web/site/public/fonts/fraunces-variable.woff2` (205,500 bytes) and `instrument-sans-variable.woff2`
 (88,784 bytes) — about 392,000 characters of base64 that would have to be read into CC's context and written back out
 byte-exact. That is not a reliable transport, and a deployment that silently drops the fonts is not the page that goes

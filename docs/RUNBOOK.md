@@ -230,9 +230,13 @@ both values in force" until R2b — true before R2a, stale after it.)*
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_WEBHOOK_URL`, so both must be in the Vercel project env first — both
 are SET since R2c (read back on Production + Preview). The site key reaches CC in the brief (a public value), never by
 printing the server's env file, and is compared with that file by a script that prints only MATCH / DIFFERENT. *(This
-line said "entered by Yigitcan" until R2c.)* **The route is open (R2c):** the Vercel connection carries files only
-inline or as base64, which cannot reliably carry the two binary fonts; the recommended route — pending a ruling — is a
-short-lived Vercel token in `~/.vercel-demo.env` and a pinned Vercel CLI. The deployment uploads the committed tree only — `git archive HEAD` of
+line said "entered by Yigitcan" until R2c.)* **The route (ruled 2026-10-30, R2d):** a pinned Vercel CLI (`vercel@64.3.1`,
+installed into a scratch prefix, never globally) with the team-scoped token from `~/.vercel-demo.env` (0600), read into
+the deploying process's environment only — never `--token`, never printed; the token is revoked at the phase close. The
+Vercel connection is not the route: it carries files only inline or as base64, which cannot reliably carry the two
+binary fonts (R2c). *(This sentence said "the route is open" until R2d.)* **The install must run at the `web/`
+workspace root:** R2d's first build ran Vercel's default install inside `web/site`, which skipped the snippet's
+devDependencies, and the build failed on a missing `esbuild` (the plan, R2d). The deployment uploads the committed tree only — `git archive HEAD` of
 `web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
 schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo

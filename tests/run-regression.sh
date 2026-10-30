@@ -26,9 +26,11 @@ PASS=0; FAIL=0; N=0
 
 # Pacing (NOT a rate-limit workaround). The CP5b Cloudflare rule blocks more than 30 requests per 10 s per IP and
 # Cloudflare data centre on /webhook/* (read 2026-10-30; this comment said >20/min/IP until then); the full
-# suite makes ~44 requests, so a single unpaced burst would trip our OWN protection. We do NOT weaken the rule
-# ("temporarily raise the limit" is a habit that never gets reverted) — instead every request is spaced by
-# PACE seconds so the whole suite runs in one pass (~15/min at PACE=4, far under the rule's 30 per 10 s).
+# suite makes ~44 requests. Against the rule as READ, only a CONCURRENT burst of them is sure to trip our OWN
+# protection; whether the sequential suite, with model latency on every turn, would ever reach 30 in 10 s is NOT
+# measured (this sentence assumed 20/min until R2d). The pace stays because it is cheap and keeps the suite clear of
+# the rule whatever the latency. We do NOT weaken the rule ("temporarily raise the limit" is a habit that never gets
+# reverted) — every request is spaced by PACE seconds so the whole suite runs in one pass (~15/min at PACE=4).
 # Override for a looser/tighter limit:  PACE=2 bash tests/run-regression.sh
 PACE="${PACE:-4}"
 
