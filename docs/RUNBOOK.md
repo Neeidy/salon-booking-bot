@@ -276,9 +276,13 @@ every deletion below is on the ⚠ ONAY list for CC anyway.
      days, before the nightly scrub — on the text in `recent_messages`.
    - **A callback request:** `salon.leads` by `name`, `phone` and `created_at`.
    - **No reliable match:** tell the requester the demo cannot identify them from what was given, and what extra detail
-     would let it (GDPR Art. 11(2)). Delete nothing.
-2. **Access:** send the matched rows to the requester (the dashboard's CSV export covers leads and appointments).
-3. **Erasure:** delete the booking's calendar event (`gcal_event_id`, if it was not cancelled); then, with a write role,
+     would let it (GDPR Art. 11(2)). Send nothing and delete nothing — a wrong match would hand one person another's data.
+2. **Access:** send ONLY the rows matched in step 1, read unmasked with `salon_ro`: the appointments, the conversation
+   row (with `recent_messages` and the last reply, `computed_reply`), the sender's `processed_messages` rows and the
+   leads. Not the dashboard's CSV export: it masks names and phones, leaves out the message and the conversation, and
+   returns the whole table — other people's rows included (`security-auditor` M-1, R2h).
+3. **Erasure:** delete the booking's calendar event (`gcal_event_id`, in the calendar named by `calendar_id`, if it was
+   not cancelled); then, with a write role,
    the matched `salon.appointments`, `salon.conversations`, `salon.processed_messages` and `salon.leads` rows; then the
    owner alerts about the requester in the owner's Telegram chat. Copies in the nightly backups (at least 14 days more)
    and the engine's run records (about 14 days) remain until they expire, as `/privacy` says — tell the requester.
