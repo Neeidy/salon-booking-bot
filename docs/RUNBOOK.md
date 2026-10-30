@@ -239,7 +239,9 @@ Vercel connection is not the route: it carries files only inline or as base64, w
 binary fonts (R2c). *(This sentence said "the route is open" until R2d.)* **The install must run at the `web/`
 workspace root:** R2d's first build ran Vercel's default install inside `web/site`, which (inferred from the package counts, not a
 package list) skipped the snippet's
-devDependencies, and the build failed on a missing `esbuild` (the plan, R2d). The deployment uploads the committed tree only — `git archive HEAD` of
+devDependencies, and the build failed on a missing `esbuild` (the plan, R2d) — the project's Install Command is `cd .. && npm ci` since R2e.
+**The project's Node must be 24.x, not 26.x:** with Next 16.3.4, `next build` fails on Node 26 in `next/font/google`
+(reproduced locally, the plan, R2e) — pending a ruling at R2e's close. The deployment uploads the committed tree only — `git archive HEAD` of
 `web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
 schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo

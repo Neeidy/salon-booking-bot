@@ -387,8 +387,9 @@ the GENERIC target, not a project-specific one as the dashboard steps below expe
 Build settings (install from the `web/` workspace root) are not measured until the first deployment.
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
-**State after R2d:** true — 2, 3, 7 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 5 (the
-pause drill) and 8 (#16 on a READY deployment; (a), (b) and (c) are already read back, (d) is not), both of which wait for a green Vercel build ·
+**State after R2e:** true — 2, 3, 7 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 5 (the
+pause drill) and 8 (#16 on a READY deployment; (a), (b) and (c) are already read back, (d) is not), both of which wait
+for a green Vercel build — now blocked on the project's Node version (R2e) · **a ruling on the `next` advisory** (R2e) ·
 after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at the phase close: the
 Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
@@ -414,6 +415,40 @@ reads this list:
 8. **#16 is read back on the real deployment** — (a) platform, (b) root `web/site`, (c) no `web/dashboard` path in the
    deployment's file list, (d) an unauthenticated visitor gets Vercel's protection on BOTH the demo hostname and the
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
+
+### R2e — install fixed, build red on Node 26 (2026-10-30, the R2e brief; no go-live) — ⚠ stopped: no third attempt
+**Start gates (21:06 Vienna):** all green. **Precondition measured first:** in a `git archive` copy of the deploy set,
+`cd ..` from `web/site` lands in `web/`, which holds `package.json` (workspaces `shared, site, snippet, dashboard`) and
+`package-lock.json`; `npm ci` there added 39 packages with `esbuild` present *(terminal-measured)*.
+**Install Command set** to `cd .. && npm ci` (ruling of 2026-10-30) through the Vercel connection, and read back through
+the REST API — the connection's answer does not show the field: `installCommand: "cd .. && npm ci"`, `rootDirectory:
+"web/site"`, `sourceFilesOutsideRootDirectory: true`, `ssoProtection: {deploymentType: all}`, **no Git link**, `nodeVersion:
+"26.x"`.
+
+**The redeploy** (same script, `8223fb8`, 54 files, 0 under `web/dashboard`): **the install is now GREEN** — Vercel ran
+`cd .. && npm ci`, "added 39 packages", and the snippet built (18.1 kB). **The build is RED in a new place:** `next build`
+(Turbopack) failed with 6 errors, `Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'` /
+`next/font/google queries have exactly one entry`, in the `next/font/google` faces of `web/site/app/layout.tsx`.
+
+**The cause, reproduced rather than guessed** *(terminal-measured)*: the same copy built locally with **Node 26.13.0** —
+the version in Vercel's build log, from the official tarball checked against `SHASUMS256.txt` (a checksum over TLS, not
+a signature check) — fails with the identical errors; built with **Node 24.21.0** it is green (`/`, `/install`,
+`/privacy` static). **So the build breaks on Node 26 with this Next (16.3.4), and the project's Node setting is
+`26.x`.** The fix is again a project setting, not code: Node **24.x** for the project — **a ruling**, since the brief
+allowed no third attempt.
+
+**What an unauthenticated visitor saw — no page anywhere:** the new deployment URL → 302 to `vercel.com/sso-api`;
+`demo.<apex>` → no TLS for 90 s (no READY production deployment to assign it). **#16(d) on the demo hostname, the
+certificate and the pause drill all still wait for a green build.** Token handling as in R2d: the files the scripts
+produced held the token's value 0 times (the same scope as R2d's count).
+
+**Found on the way — Vercel's `npm ci` reported 4 advisories**, listed by `npm audit` on the same lockfile: **`next`
+16.3.4 — critical** (range 16.0.0–16.4.0; among them an RCE in `next/og`'s `ImageResponse`, a Draft Mode leak through
+`use cache`, ISR cache poisoning when self-hosted) · `sharp` high · `source-map-js` high · `fast-uri` moderate (all
+transitive except `next`; fixes exist). A search of `web/site`'s source for `next/og`, `ImageResponse`, `use cache`,
+`revalidate`, `draftMode` and `sharp` finds no use (only generated type files and a comment), and every route is static
+— so the critical one looks inapplicable, **but that is a reading, not a test. A ruling before go-live:** raise Next
+past the fixed range (a version at least two weeks old) or accept with this reason recorded.
 
 ### R2d — first deployment attempted (2026-10-30, the R2d brief; no go-live) — ⚠ stopped: Vercel's build was red
 **Start gates (20:43 Vienna):** all green, as before. **The route (ruling of 2026-10-30, reversing R2a's "no token"):**
