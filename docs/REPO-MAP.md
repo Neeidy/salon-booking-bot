@@ -506,6 +506,8 @@
 - `web/site/lib/heroScenarios.ts`
 - `web/site/lib/lockedOnce.ts`
 - `web/site/lib/privacy.ts`
+- `web/site/lib/privacyEnv.test.ts`
+- `web/site/lib/privacyEnv.ts`
 - `web/site/lib/retention.ts`
 
 ### web/site/public/fonts
