@@ -339,11 +339,11 @@ case and a mutant it kills; not re-run through Codex (no HIGH):
    the seed needs at least 5 `pd-` rows (one aged), because the cap is `floor(20% of the table)`.
 3. *(Yigitcan's, with Cowork — the widget page.)*
 4. **Retention outside the database:** the engine's run records — the oldest stored execution was **13 days 23 hours**
-   old (653 executions read through the API), which fits n8n's default pruning of 336 hours; the setting itself is in a
-   root-owned file and was not read. The salon dumps — the nightly job calls `pg-backup.sh` without
-   `PG_BACKUP_KEEP_DAYS`, so its default **14** is in force (6 dumps on disk, the first from 2026-10-25). **Found, not
-   planned:** the same job backs up **n8n's own database** (which holds the run records) and removes those copies after
-   14 days too (15 on disk). `/privacy` now states all three: run records about 14 days, and backups of either database
+   old (every execution read through the API), which fits n8n's default pruning of 336 hours; the setting itself was
+   not read. The salon dumps — the nightly job calls `pg-backup.sh` without `PG_BACKUP_KEEP_DAYS`, so its default
+   **14** is in force. **Found, not planned:** the engine's own database, which holds the run records, is backed up
+   too and those copies are removed after 14 days as well. *(Raw counts and file listings are deliberately not
+   recorded here — inventory that goes stale, `security-auditor` L1.)* `/privacy` now states all three: run records about 14 days, and backups of either database
    kept more than 14 full days.
 
 **Fixed (each with a test case and a mutant that dies):**

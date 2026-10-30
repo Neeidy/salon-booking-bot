@@ -235,7 +235,7 @@ tarafı ayrışır**:
 | Sınıf | Sebep | State yazar mı | HTTP | Node |
 |---|---|---|---|---|
 | **guard-trip** | kill-switch · max-turns · spend-cap | ❌ geçici | 200 | `Handoff Reply` · `Build Spend-Cap Reply` (bütçe doldu) |
-| **infra-unavailable** | dış sistem çöktü | ❌ geçici | **5xx + `error` bayrağı** | `LLM/Lead/Calendar/Cancel Delete Unavailable Reply` · `Send Error Response` · `Build Spend-Cap Reply` (spend metresi okunamadı: 200 + `error:"spend_meter_unavailable"`, R2a 2026-10-30) |
+| **infra-unavailable** | dış sistem çöktü | ❌ geçici | **`error` bayrağı** — claim'den sonra 200 + reply, yalnız claim'den önce 503 (`handoff.md`) | `LLM/Lead/Calendar/Cancel Delete Unavailable Reply` · `Send Error Response` · `Build Spend-Cap Reply` (spend metresi okunamadı: 200 + `error:"spend_meter_unavailable"`, R2a 2026-10-30) |
 | **intent-handoff** | düşük güven · bilinmeyen · needs-human | ✅ `stage=handoff`, `last_intent` | 200 | `Mark Handoff` + 14 builder |
 
 **Devir kilidi:** `stage === 'handoff'` iken `Check Handoff Lock` her mesajı `Handoff Lock Reply`'a
