@@ -834,6 +834,7 @@
   - ## 11 · Rulings (Yigitcan, 2026-10-19: "onaylıyorum", with Cowork's recommendations)
 
 ### `docs/OPERATIONAL-INCIDENTS.md`
+  - ## OPS-10 · 2026-10-30 · A local `next build` in the repo broke the LIVE owner dashboard, which runs from the same directory
   - ## OPS-9 · 2026-10-26 · A commit landed after a RED `check-all`, because the command chain did not gate on it
   - ## OPS-8 · 2026-10-26 · Mutant runners left test artefacts in the repo and in /tmp, and later runs read them
   - ## OPS-7 · 2026-10-26 · An installer test installed the pre-push gate into THIS repository's `.git/hooks`
@@ -937,6 +938,7 @@
   - ### R2 — measured before any write
   - ### R2a — measured, then fixed (2026-10-30; rulings of 2026-10-29 in the R2a brief)
   - ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
+  - ### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
   - ### R2f — Node 24 green, deployment protected and measured, pause drill done; the `next` patch STOPPED (2026-10-30; no go-live)
   - ### R2e — install fixed, build red on Node 26 (2026-10-30, the R2e brief; no go-live) — ⚠ stopped: no third attempt
   - ### R2d — first deployment attempted (2026-10-30, the R2d brief; no go-live) — ⚠ stopped: Vercel's build was red

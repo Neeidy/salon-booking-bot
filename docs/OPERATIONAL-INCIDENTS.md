@@ -18,6 +18,29 @@
 
 ---
 
+## OPS-10 · 2026-10-30 · A local `next build` in the repo broke the LIVE owner dashboard, which runs from the same directory
+
+**What happened (public demo R2g).** The `next` 16.4.1 upgrade was installed and built IN the repository — `npm install`
+in `web/` (about 22:58 Vienna), then `next build` for the site and for `web/dashboard` (`.next/BUILD_ID` 23:00:11). But
+the owner dashboard's service (`ops/systemd/salon-dashboard.service`) runs `next start` with
+`WorkingDirectory=…/web/dashboard`: its `.next/` and the shared `web/node_modules` are the ones that were just replaced.
+The running 16.3.4 server could no longer load its own chunks — the next request to `/` returned **500** with a
+`ChunkLoadError` / `MODULE_NOT_FOUND` for a chunk of the old build.
+
+**What it cost:** the service log shows **0 errors from 2026-10-26 20:00 to 22:59 and exactly one failed request after
+the build — the 500 of the measuring request itself (23:00:36)**; no other request is logged as failed. The broken window
+ran from the install (about 22:58) to the restart (23:01:24), about three minutes. `systemctl --user restart
+salon-dashboard.service` brought it back on the build that was on disk: `/` 200 two seconds later, `next-server
+(v16.4.1)`, bound to `127.0.0.1`, no error since. **So the live dashboard now runs `next` 16.4.1** — the approved version,
+tested (`check-all` 0, `next build` green) and committed in `6a19a06` — but it got there by this accident, not by a
+deployment decision.
+
+**Why it happened:** R2e and R2f built in a scratchpad COPY of the deploy set, so they never touched it; R2g built in
+place. Nothing in the repo said that `web/` is the dashboard's live directory — the unit file says it, the build
+instructions do not. **The habit, changed:** an install or build in `web/` changes the running dashboard; build a
+dependency change in a copy, or restart the dashboard straight after and measure it (`docs/RUNBOOK.md` §8). **How it
+was noticed:** reading the unit's `WorkingDirectory` after the build, then measuring `/` before touching anything.
+
 ## OPS-9 · 2026-10-26 · A commit landed after a RED `check-all`, because the command chain did not gate on it
 
 **What happened (7-2 R4).** One shell command ran `check-all`, printed its exit code, and then committed — the commit

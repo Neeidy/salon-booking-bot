@@ -203,7 +203,10 @@ and deactivating Main, do not.
 - A shell: `bash scripts/demo-offline.sh pause` (and `unpause`) — needs `~/.vercel-demo.env` (0600, this user):
   `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, and `VERCEL_TEAM_ID` if the project is in a team. It prints statuses only and
   exits 0 only when the new state was MEASURED (Vercel's paused answer after a pause, 200 after an unpause); no answer at all is "NOT
-  measured" (`measure` exit 4), never "offline".
+  measured" (`measure` exit 4), never "offline". **While protection is on, the shell `unpause` exits 1 even when the
+  project did unpause** — it waits for a 200 and the site answers 302 (auditor LOW-6, R2f; recorded, the script is
+  unchanged). Read the state with `measure` (exit 5 = protection, not paused) instead of reading exit 1 as a failure.
+  The shell `pause`/`unpause` have not been run live; the R2f drill used the Vercel connection.
 
 **The engine edits — DEPLOYED and PROMOTED 2026-10-30 (R2a)**; kept here as the record of how they were deployed, so a
 later edit follows the same path. They were staged in `n8n/staged/` (emptied by the promotion): `Eval Spend` fail-closed (Main, `--delta-file
@@ -243,7 +246,13 @@ workspace root:** R2d's first build ran Vercel's default install inside `web/sit
 package list) skipped the snippet's
 devDependencies, and the build failed on a missing `esbuild` (the plan, R2d) — the project's Install Command is `cd .. && npm ci` since R2e.
 **The project's Node is 24.x** (since R2f): with Next 16.3.4, `next build` fails on Node 26 in `next/font/google`
-(reproduced locally, R2e) and is green on 24.x on Vercel (R2f) — measured for this tree; re-check on a Next upgrade. The deployment uploads the committed tree only — `git archive HEAD` of
+(reproduced locally, R2e) and is green on 24.x on Vercel (R2f) — measured for this tree. With Next 16.4.1 (R2g) the build
+is green on 24.x, locally and on Vercel; Node 26 was NOT re-measured on 16.4.1, and `web/package.json` caps
+`engines.node` at `<25` (ruling R2f-3) until a build on the newer major is measured.
+**⚠ `web/` is also the LIVE owner dashboard's directory** (OPS-10): its service runs `next start` in `web/dashboard`
+on the shared `web/node_modules`, so an `npm install` or `next build` in `web/` replaces what the running dashboard
+loads, and its next request can fail. Build a dependency change in a scratch copy; if it was built in place, restart the
+dashboard at once (`systemctl --user restart salon-dashboard.service`) and measure `/` on its loopback port. The deployment uploads the committed tree only — `git archive HEAD` of
 `web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
 schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo

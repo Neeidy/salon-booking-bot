@@ -387,20 +387,25 @@ the GENERIC target, not a project-specific one as the dashboard steps below expe
 Build settings (install from the `web/` workspace root) are not measured until the first deployment.
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
-**State after R2f:** true — 2, 3, 5, 7, 8 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 9 (the
-`next` patch — blocked on a ruling, R2f) and the `engines` cap (ruled, waiting with 9's commit) ·
-after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at the phase close: the
-Vercel token is revoked.**
+**State after R2g:** true — 2, 3, 5, 7, 8, 9 (and the `engines` cap, committed with 9) · open before go-live — 1 (the
+contact: STOPPED in R2g, the host-leak guard flags the address — a ruling) and 4 (`/privacy` final: R2g read the built
+page and lists its gaps) · after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at
+the phase close: the Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
 1. **The privacy contact is published** *(R2c: pending — a Zoho address from Yigitcan; Cloudflare Email Routing is
    ruled out)*: `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null` (Yigitcan's
-   answer; the test pinning it to `null` changes with it). Until then the page shows a PLACEHOLDER.
+   answer; the test pinning it to `null` changes with it). Until then the page shows a PLACEHOLDER. **R2g: open —
+   STOPPED.** Yigitcan named the address (a Zoho alias at `<apex>`), but `<apex>` is a redaction target, so the
+   host-leak guard flags the address in all three of its scans; the brief stops there and no guard is edited without a
+   ruling (see "R2g").
 2. **The Main put and the Purge put are live and promoted** (parity green against the promoted exports).
 3. **Widget step B is done and #11 is measured by behaviour** (another hostname → `110200`). **R2b: true** (`127.0.0.1`
    → `110200`, with a control; see "R2b").
 4. **The `/privacy` text is final** — the leads retention reads 30 (from the promoted example config) and the measured
-   copies outside the database.
+   copies outside the database. **R2g: open** — read from the built page: retention and the copies outside the
+   database are stated; the controller is not named, there is no legal basis or rights statement, and the deletion
+   path runs only through the contact, which is still the placeholder (see "R2g").
 5. **The first real pause records Vercel's actual paused body** — `measure` counts only `DEPLOYMENT_PAUSED` in a 503
    body, the documented form; if the real body differs, `pause` exits 1 and `measure` exits 5 (the safe direction),
    and the script is corrected before go-live. **R2f: true** — the real answer is a 503 with `x-vercel-error:
@@ -417,8 +422,95 @@ reads this list:
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
    **R2f: true** on a READY production deployment (all names and the static paths → `302` to Vercel's login).
 9. **`next` is past every critical/high advisory of its own** — measured with `npm audit` on the committed lockfile
-   (auditor LOW-1, R2e; ruling (2), 2026-10-30: patching is a gate, not an acceptance). **R2f: open** — the lowest clean
-   version is 16.4.1, a minor jump; waiting on a ruling (see R2f).
+   (auditor LOW-1, R2e; ruling (2), 2026-10-30: patching is a gate, not an acceptance). *(R2f: open — the lowest clean
+   version is 16.4.1, a minor jump; waiting on a ruling.)* **R2g: true** — `next` 16.4.1 in `6a19a06`; `npm audit` on the
+   committed lockfile: 0 advisories of any severity; Vercel's install of the deploy set: "found 0 vulnerabilities".
+
+### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
+**Rulings, verbatim where the repo can carry them** *(auditor LOW-5 of R2f: they had only been paraphrased)*:
+- R2f, Yigitcan, 2026-10-30: "(1) project Node → 24.x — APPROVED, deployed ALONE (attribution). (2) next advisory — NOT
+  accepted; patching is a go-live gate. Target = lowest 16.x where `npm audit` shows no critical/high for next — measure
+  it, don't assume it. (3) web/package.json engines upper bound `<25` — APPROVED. Whether Vercel honors it = unverified,
+  record as such. Failed deployments stay (no deletes)."
+- R2g, Yigitcan, 2026-10-30: "(1) next → 16.4.1 APPROVED (the R2f stop was correct; the conflict was in Cowork's brief
+  wording). (2) privacy contact = `salon-demo@<apex>` — Zoho alias, delivery verified by a test mail landing in the
+  mailbox." *(The domain is written as `<apex>` because it is a redaction target — the subject of B below. "Delivery
+  verified" is an operator statement, not measured here.)*
+
+**Start gates (23:03 Vienna):** all green — dummy token 403, both parity guards, listeners, host leak (3 targets), hook
+drift, secret scan. ⚠ **They ran inside the Reminders window (:55–:05)** — the clock was misread; one dummy-token request
+reached Main and was refused at Turnstile (403). A gate deviation, recorded; the end gates ran outside the window.
+
+**A — commit `6a19a06`: GREEN.** `next` 16.3.4 → **16.4.1** in `web/site` AND `web/dashboard` *(declared: the brief named
+`next`, not the two packages; they share one lockfile and one deduped `next`, so bumping only the site would have left
+the dashboard on 16.3.4)*; `engines.node` `">=22.18 <25"`; `npm audit fix`, non-breaking only. **The audit fix was two
+packages, not the five lockfile changes measured in R2f:** `sharp` 0.35.5 (with its `@img/*` binaries) arrives with
+`next` 16.4.1 itself, so the fix left `fast-uri` 3.1.7 → 3.1.9 and `source-map-js` 1.2.1 → 1.2.2. The lockfile diff
+holds only the `next`/`@next`, `sharp`/`@img`, `fast-uri` and `source-map-js` families plus the two workspace entries
+(`security-auditor`: 0 added, 0 removed, every changed entry resolved from registry.npmjs.org with a sha512 integrity).
+No app source changed. `check-all` 0; `next build` green on Node 24.21.0 for the site (5 static pages) and the
+dashboard. **`npm audit`, all severities** *(terminal-measured)*:
+
+| | critical | high | moderate | low |
+|---|---|---|---|---|
+| before (`a6584cb`) | 1 (`next`: 3 advisories) | 2 (`sharp`, `source-map-js`) | 1 (`fast-uri`) | 0 |
+| after (`6a19a06`) | 0 | 0 | 0 | 0 |
+
+⚠ **The in-place build broke the live owner dashboard for about three minutes** (OPS-10): it runs from `web/dashboard`,
+so the install and the build replaced what its 16.3.4 server was loading; `/` returned 500 to the measuring request. A
+restart put it on the 16.4.1 build on disk (`/` 200, loopback only, no error since). **So the dashboard now runs 16.4.1** —
+by that accident, not by a deployment decision; recorded rather than reverted, since reverting needs a second rebuild
+and restart of the same service.
+
+**B — the privacy contact: STOPPED; nothing committed.** The mechanism the plan and code already define is the source
+constant `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` — one place, pinned to `null` by
+`tests/unit/privacy-facts.test.cjs`; no config or env route exists, and none was added. **Measured, not assumed:** in an
+isolated scratch repository (the real guard script, `CLAUDE.local.md` linked rather than copied, the address assembled
+from the parsed apex rather than typed), the null constant → `check-no-host-leak.sh` exit **0** (3 targets scanned);
+the address in the constant → exit **1** unstaged and exit **1** staged, the hit in all three scans. The brief's stop
+condition ("any guard flags the contact address → STOP, no allow-list/guard edit without a ruling") applies. **For the
+ruling:** the address's domain IS the apex, so any repo file that carries it carries a redaction target. The options:
+(a) the address reaches the build the way `NEXT_PUBLIC_WEBHOOK_URL` already does — a Vercel env value, never a repo
+file (that URL carries a redaction target too), with the page failing closed to the placeholder when it is absent; (b) a
+guard exception for exactly this address; (c) a different address, on a domain that is not a redaction target; (d) the
+apex ceasing to be a target. (a) is a new mechanism and (b) an allow-list edit, so each needs a ruling; **CC's
+recommendation is (a)**, because it is the pattern the repo already uses for a value of the same class.
+**What `/privacy` states, read from the BUILT page** (`next build` output, not the source):
+- **Controller:** not named — the page speaks of "the demo's owner" and "the demo author's own server"; no name, entity
+  or address. *(Gap.)*
+- **Contact:** the visible PLACEHOLDER ("the contact for privacy requests has not been published yet; it is added before
+  this demo goes live"). *(Gap — B.)*
+- **Purpose:** stated per item, not as a section — messages go to the AI "to work out what you want"; bookings are
+  written to the calendar and database; the owner is alerted on handoff or failure; the session id lets a conversation
+  continue. No legal basis is stated. *(Gap.)*
+- **Retention:** stated — message text 30 days after last activity; message ids 30 days; callback requests 30 days (with
+  the cap's caveats); backups at least 14 days more (typically about 15); the engine's run records about 14 days plus
+  backups. The conversation record and the booking record are kept with no period ("kept", "not deleted
+  automatically"), and owner alerts are outside the deletion. *(Stated; the two open-ended records are a gap to rule on.)*
+- **Deletion request path:** only the contact — "to ask what the demo holds about you or to have it deleted" — which is
+  the placeholder today; no other route and no rights or complaint statement. *(Gap.)*
+No content was added; these are for go-live check 4.
+
+**C — pushed and redeployed: GREEN.** `6a19a06` pushed after `security-auditor` GO (0 findings). Redeploy with the same
+script (54 files, 0 under `web/dashboard`): **`READY`, production**, `projectSettings.nodeVersion = 24.x`; the build log
+reads "Detected Next.js version: 16.4.1", install "added 39 packages … found 0 vulnerabilities", 5 static pages. Token
+outside its 0600 file: 0. **Unauthenticated, the R2f name set plus the new deployment URL** (`demo.<apex>`, the two
+project aliases, the R2f and R2g deployment URLs) **× the R2f path set plus `/_next/image`** (`/`, `/barber-widget.js`,
+`/privacy`, `/install`, a font, a `/_next/static/` path, `/robots.txt`, `/_next/image` with and without a query): **45 of
+45 requests → `302` to `vercel.com/sso-api`, the page nowhere** *(terminal-measured)*. Whether Vercel honours
+`engines` stays unverified: the build printed no engines message either way.
+
+**Auditor LOW-1…6 of R2f:**
+- **LOW-1 — resolved:** `/_next/image` read without authentication (both forms, every name) → 302, above.
+- **LOW-2 — resolved:** the Image Optimization reachability sentence in R2f is labelled as reasoning.
+- **LOW-3 — resolved:** the ROADMAP's R2f stop sentence now says what the plan says (the brief's "minor jump" and
+  ruling (2)'s "lowest 16.x" read differently, so it went to a ruling).
+- **LOW-4 — resolved:** the ROADMAP's R2e sentence ("not used in the source") now points to R2f's weakening of it.
+- **LOW-5 — resolved:** the rulings are recorded above, verbatim except the redaction target.
+- **LOW-6 — recorded, not fixed:** the shell `unpause` waits for a 200, so while protection is on it exits 1 even when
+  the project did unpause; the RUNBOOK says so now. The shell `pause`/`unpause` were never run live (R2f used the Vercel
+  connection), and R2f's "no correction needed" for `pause` is an inference from the check `measure` shares with it,
+  not a measurement.
 
 ### R2f — Node 24 green, deployment protected and measured, pause drill done; the `next` patch STOPPED (2026-10-30; no go-live)
 **Start gates (21:21 Vienna):** all green.
@@ -471,8 +563,9 @@ read from `npm audit`'s summary range; the per-advisory ranges above are the mea
 **For that ruling, also measured:** `npm audit fix --dry-run` on the deploy set's lockfile offers non-breaking fixes for
 the three transitive advisories (`fast-uri`, `sharp`, `source-map-js`; five lockfile changes). **And the applicability
 reading of R2e (auditor LOW-2) is weaker than it looked:** an Image Optimization endpoint can exist whether or not the
-app imports `next/image`, so "the feature is not used in the source" does not show the critical one is unreachable —
-another reason the patch is a gate, not an acceptance.
+app imports `next/image` *(reasoning, not measured — label added in R2g, auditor LOW-2 of R2f)*, so "the feature is not
+used in the source" does not show the critical one is unreachable — another reason the patch is a gate, not an
+acceptance.
 
 ### R2e — install fixed, build red on Node 26 (2026-10-30, the R2e brief; no go-live) — ⚠ stopped: no third attempt
 **Start gates (21:06 Vienna):** all green. **Precondition measured first:** in a `git archive` copy of the deploy set,
