@@ -370,6 +370,20 @@ example config's `leadsRetentionDays` 30, and the fail-open sentences corrected 
 UX-ARCHITECTURE, the engine-shape table in `chatClient.ts`). Purge's first 30-day run is tonight's 04:00 run (the table
 is empty, so it deletes nothing — measurement 2).
 
+**Vercel (2026-10-30, the ⚠ ONAY in the R2a brief):** account plan **Hobby** (read from the API). Project
+`salon-booking-demo` created with `framework: nextjs`, `rootDirectory: web/site` and **NO git link**, so no push can
+deploy it before the go-live checks — the first deployment is a deliberate step. **Protection, measured as far as it can
+be without a deployment:** `ssoProtection: {deploymentType: "all"}` (Vercel Authentication on every deployment,
+production domains included) was ACCEPTED on Hobby and reads back `enabled: true, deploymentType: all`; whether it
+actually refuses a visitor on the production domain is measurable only on a deployment, so it is **not yet measured**
+(and it must be switched off at go-live, or the public cannot reach the demo). Env: `NEXT_PUBLIC_WEBHOOK_URL` (Main's
+widget path; public by design — it is inlined into the browser bundle). **Not set by CC:** `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+— its only copy here is in a gitignored env file that CC does not read; it is public and shown on the widget's page, so
+it is entered in step B. Domain `demo.<apex>` added to the project: `verified: true`, `misconfigured: true` until the
+DNS record exists. **The DNS target Vercel recommends** (`get_domain_config`, rank 1): `CNAME cname.vercel-dns.com.` —
+the GENERIC target, not a project-specific one as the dashboard steps below expected; the API offered no other CNAME.
+Build settings (install from the `web/` workspace root) are not measured until the first deployment.
+
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
@@ -389,9 +403,8 @@ its certificate → **B** → CC measures #11 by behaviour.
 
 **A — the DNS record** (Cloudflare: "Create DNS records"):
 1. Cloudflare dashboard → the `<apex>` zone → **DNS** → **Records** → **Add record**.
-2. **Type:** `CNAME` · **Name:** `demo` · **Target:** the project-specific value Vercel shows for `demo.<apex>`
-   (Vercel: "the recommended project-specific target"). CC reads it from Vercel after adding the domain and hands it
-   to you; it is not guessed.
+2. **Type:** `CNAME` · **Name:** `demo` · **Target:** the value Vercel recommends for `demo.<apex>` — read by CC on
+   2026-10-30: `cname.vercel-dns.com` (the generic target; the API offered no project-specific one). It is not guessed.
 3. **Proxy status:** **DNS only** (grey cloud) — ruling D1. **TTL:** Auto. **Save**.
 
 **B — the widget** (Cloudflare: "Turnstile widget", "Hostname management"):
