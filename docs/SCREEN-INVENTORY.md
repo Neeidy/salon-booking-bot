@@ -271,7 +271,7 @@ Design bunları ayrı durum olarak ele almalı (özellikle 503 grubunun "tekrar 
 | W56 | **Duplicate mesaj** | 200 | ❌ **EKRAN YOK — sessizce yutulur** (bkz. 2.10.1) | `Idempotent Replay` |
 | W57 | **Turnstile reddi** | **403** | ❌ **METİN YOK** — `{ok:false,error:'turnstile_failed'}` | `Reject Bot Request` |
 | W58 | **Normalize reddi** (`sessionId` yok) | **400** | ❌ **METİN YOK** — `{ok:false,error:'bad_request'}` | `Respond Normalize Reject` |
-| W59 | **Rate-limit** | Cloudflare | ❌ istek n8n'e **hiç ulaşmaz** | edge kuralı `barber-inbound-ratelimit`, 20/dk/IP |
+| W59 | **Rate-limit** | Cloudflare | ❌ istek n8n'e **hiç ulaşmaz** | edge kuralı `barber-inbound-ratelimit`, IP + Cloudflare veri merkezi başına 10 sn'de 30 istek, 10 sn blok (2026-10-30'da okundu ve bloklaması gösterildi; önceden "20/dk/IP" yazıyordu) |
 | W60 | **Offline / n8n erişilemez** | — | ❌ | ağ hatası, sistemde karşılığı yok |
 
 ### 2.10.1 — Metni olmayan çıkışların KARARI (BULGU-6 kapandı, K1 uygulandı)

@@ -937,6 +937,7 @@
   - ### R2 — measured before any write
   - ### R2a — measured, then fixed (2026-10-30; rulings of 2026-10-29 in the R2a brief)
   - ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
+  - ### R2c — measured (2026-10-30, the R2c brief; no go-live) — ⚠ stopped at the first deployment again, for a different reason
   - ### R2b — measured (2026-10-30, the R2b brief; no go-live) — ⚠ stopped at the first deployment
   - ### Yigitcan's dashboard steps (R2) — from Cloudflare's and Vercel's current documentation, read 2026-10-29
   - ### Estimate (revised by Ruling (d))

@@ -311,7 +311,7 @@ göstereceği motorda tanımlı değil — frontend'in kendi kararı. §9 açık
 
 | Durum | Nerede | Müşteri ne görür |
 |---|---|---|
-| **Rate-limit** | **Cloudflare edge** — `barber-inbound-ratelimit`, `/webhook/` içeren yol, **20 istek/dk/IP, Block**. n8n içinde rate-limit **yok** | Widget'ın `fetch`'i Cloudflare'in blok cevabını alır (n8n'e hiç ulaşmaz). Sayfa yüklenmeye devam eder — **sadece mesaj gönderimi** engellenir. 🕳 **BOŞLUK** — widget'ın "çok hızlı gönderiyorsunuz" durumu tasarlanmamış |
+| **Rate-limit** | **Cloudflare edge** — `barber-inbound-ratelimit`, `/webhook/` içeren yol, **IP + Cloudflare veri merkezi başına 10 sn'de 30 istek, Block (10 sn)** — 2026-10-30'da okundu ve gösterildi; önceden "20 istek/dk/IP" yazıyordu. n8n içinde rate-limit **yok** | Widget'ın `fetch`'i Cloudflare'in blok cevabını alır (n8n'e hiç ulaşmaz). Sayfa yüklenmeye devam eder — **sadece mesaj gönderimi** engellenir. 🕳 **BOŞLUK** — widget'ın "çok hızlı gönderiyorsunuz" durumu tasarlanmamış |
 | **n8n tamamen erişilemez** | ağ/host | 🕳 **BOŞLUK** — offline/timeout durumu tasarlanmamış (`docs/PHASE-6-BACKLOG.md` §1 bunu zaten açık bırakıyor) |
 | **Duplicate mesaj** | `Dedupe Gate` → `Is Duplicate` | bkz. 3.1 #4 |
 

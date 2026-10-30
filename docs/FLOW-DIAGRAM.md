@@ -230,7 +230,8 @@ while a cancel is awaiting confirmation" → the pending cancel is dropped (book
 Four brakes sit around the public webhook so the LLM endpoint can be published safely (they MUST all be in
 place before Phase 6):
 
-- **Rate-limit (Cloudflare, Adım 2):** a CF rule blocks >20/min/IP on any path containing `/webhook/` — abuse
+- **Rate-limit (Cloudflare, Adım 2):** a CF rule blocks more than 30 requests per 10 s per IP and Cloudflare data centre, for 10 s, on any path containing
+  `/webhook/` (read and shown blocking 2026-10-30, public demo R2c; this line said ">20/min/IP" until then) — abuse
   can't spam the endpoint into cost. (Cloudflare edge, not an n8n node.)
 - **Turnstile (widget bot-protection, CP5b-1):** the widget branch runs `Turnstile Gate → Verify Turnstile
   (siteverify) → Turnstile Valid?`; fail → `Reject Bot Request` (403, fail-CLOSED). The whatsapp branch skips

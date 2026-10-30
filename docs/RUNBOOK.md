@@ -192,7 +192,7 @@ So:
 
 **Take it offline — one step.** Pausing the Vercel project makes the demo give Vercel's paused answer (503 with
 `DEPLOYMENT_PAUSED` in the body): the site and the chat widget go.
-The engine does NOT stop — its webhook stays up, bounded by the LLM cap and the turn cap (the edge rate limit is not counted while ship gate #12 is red — the plan, R2b); stopping
+The engine does NOT stop — its webhook stays up, bounded by the LLM cap, the edge rate limit (30 requests per 10 s per IP and Cloudflare data centre, Block for 10 s; shown blocking in R2c) and the turn cap; stopping
 it is the kill-switch or deactivating Main (⚠ ONAY). An emergency pause has a standing approval (ruling D6); unpausing,
 and deactivating Main, do not.
 - CC: Vercel `pause_project` (its Vercel connection), then `bash scripts/demo-offline.sh measure` → `offline (503
@@ -227,9 +227,12 @@ setting changes, re-measure and correct the page (the plan, "R2a — measured, t
 both values in force" until R2b — true before R2a, stale after it.)*
 
 **The first deployment** (the plan, "R2b" and "Go-live checks"): the site build FAILS CLOSED without
-`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_WEBHOOK_URL`, so both must be in the Vercel project env first. CC
-enters the webhook URL; the site key is entered by Yigitcan from the widget's page, because CC does not print the
-value from the server's env file. The deployment uploads the committed tree only — `git archive HEAD` of
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_WEBHOOK_URL`, so both must be in the Vercel project env first — both
+are SET since R2c (read back on Production + Preview). The site key reaches CC in the brief (a public value), never by
+printing the server's env file, and is compared with that file by a script that prints only MATCH / DIFFERENT. *(This
+line said "entered by Yigitcan" until R2c.)* **The route is open (R2c):** the Vercel connection carries files only
+inline or as base64, which cannot reliably carry the two binary fonts; the recommended route — pending a ruling — is a
+short-lived Vercel token in `~/.vercel-demo.env` and a pinned Vercel CLI. The deployment uploads the committed tree only — `git archive HEAD` of
 `web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
 schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo

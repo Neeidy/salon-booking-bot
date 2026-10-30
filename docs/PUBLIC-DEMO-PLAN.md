@@ -64,7 +64,7 @@ a production deployment (measured at deploy time with `get_project`).
 | Gate | Closed by | Proof | Live? |
 |---|---|---|---|
 | **#11** Turnstile weak | Ruling (d): the EXISTING widget set to **Managed**, its hostname list = `demo.<apex>` only (no apex, no `localhost`) — Yigitcan in the dashboard. Part 1 (the engine's hostname check) and the secret in a credential: a recorded bound | live, by behaviour: a page on a hostname NOT in the list cannot mint a token (`110200`); the demo page can; the dummy token is still 403 | yes (dashboard, **Yigitcan**) |
-| **#12** rate-limit BLOCK | to be measured: 25 requests a minute from this server to a NON-existent `/webhook/zz-rl-probe` path (the rule matches "path contains `/webhook/`"; no n8n execution, no LLM) — blocked after the 20th. Shown by behaviour only (D3 withdrawn: the rule is not read) | the blocking response | yes (requests only) |
+| **#12** rate-limit BLOCK | **GREEN (R2c):** 40 requests in 2.4 s from this server to a NON-existent `/webhook/zz-rl-probe` path → requests 1–30 n8n's 404, 31–40 Cloudflare's `429` (`error code: 1015`, `Retry-After: 10`); no n8n execution, no LLM. The rule as read by Cowork (R2c): path contains `/webhook/`, 30 requests per 10 s per IP and Cloudflare data centre, Block for 10 s. *(This cell said "25 requests a minute … blocked after the 20th" — the plan's assumed rule, never read; it was wrong, and R2b's probe built on it stayed under the real threshold.)* | the blocking response | yes (requests only) |
 | **#13** leads TTL live | D5: a back-dated synthetic `pd-` lead seeded into production (the S2 pattern); the real 04:00 Purge deletes it | `salon_ro`: 1 row before, 0 after; the Purge execution | yes (a temporary workflow with a DB credential, ⚠ ONAY) |
 | **#14** Privacy Addendum, the open half | a `/privacy` page on the site, linked from the footer and the widget | headless: the page, the links, Cloudflare's privacy link | no (build) |
 | **#15** SP4a in Managed mode | the existing harness, headless, against the deployed page | the render-moment record | yes (read) |
@@ -86,14 +86,14 @@ a production deployment (measured at deploy time with `get_project`).
 - **Retention:** leads 30 days (D4), message text 30 days (unchanged) — one number to tell a visitor.
 
 ## 4. Spend and abuse bounds for a public endpoint, and the rollback
-- **Bounds:** Turnstile (Managed, hostname-bound after #11) · the Cloudflare edge rule on `/webhook/`, 20 requests a
-  minute per IP, Block (**R2b: #12 measured RED — not counted as a bound until it is shown blocking**) · the LLM cap, $10 a UTC month · 12 turns per conversation · `bot.killSwitch`
+- **Bounds:** Turnstile (Managed, hostname-bound after #11) · the Cloudflare edge rule on `/webhook/`, 30 requests per 10 s per IP and Cloudflare data centre, Block for 10 s
+  (read R2c; blocking shown by #12 in R2c — R2b's "RED" was a probe under the threshold) · the LLM cap, $10 a UTC month · 12 turns per conversation · `bot.killSwitch`
   (flipping it is a workflow write).
 - **The Main edit (Ruling (d)):** `Eval Spend` today runs the turn when the meter cannot be read (fail-open, ruled at
   K-SPEND); for a public endpoint it becomes fail-closed — a deterministic handoff reply and an alert (built in R1,
   staged; live at R2's put).
 - **Take the demo offline in one step:** pause the Vercel project (back with unpause). The site and the widget go. The
-  engine does NOT stop: its webhook stays up, bounded by the LLM cap and the turn cap — the edge rate limit is NOT counted while #12 is red (R2b) — (Turnstile's
+  engine does NOT stop: its webhook stays up, bounded by the LLM cap, the edge rate limit (#12, shown in R2c) and the turn cap (Turnstile's
   hostname binding is checked against the origin the browser reports, so it is not a proof that no token can be minted
   — corrected after `code-reviewer`'s R1 review, reasoning, not measured); stopping the engine is the kill-switch or
   deactivating Main (⚠ ONAY). `scripts/demo-offline.sh` measures the pause (built in R1, below). D6: standing approval for
@@ -141,7 +141,7 @@ the measurements.
 | 1 | real token | Yigitcan, live demo | book + cancel, one event | the LLM, the calendar write | a second event |
 | 2 | wrong hostname | a page on a hostname not in the widget's list (Ruling (d): by behaviour) | no token minted (`110200`) | — | a request to the engine |
 | 3 | dummy token | live | 403 | the Turnstile branch | the LLM |
-| 4 | rate limit | 25 requests a minute, a non-existent path | blocked after 20 | the edge rule | an n8n execution |
+| 4 | rate limit | 40 requests within ~3 s, a non-existent path | blocked from the 31st (R2c: shown) | the edge rule | an n8n execution |
 | 5 | over cap / meter unreadable | unit | handoff + alert | the deterministic reply | the LLM |
 | 6 | offline | pause | the site unreachable; unpause restores it | — | — |
 | 7 | Purge | the 04:00 run, a `pd-` lead | 1 → 0 | the real Purge | any other row deleted |
@@ -387,7 +387,8 @@ Build settings (install from the `web/` workspace root) are not measured until t
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
-1. **The privacy contact is published:** `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null` (Yigitcan's
+1. **The privacy contact is published** *(R2c: pending — a Zoho address from Yigitcan; Cloudflare Email Routing is
+   ruled out)*: `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null` (Yigitcan's
    answer; the test pinning it to `null` changes with it). Until then the page shows a PLACEHOLDER.
 2. **The Main put and the Purge put are live and promoted** (parity green against the promoted exports).
 3. **Widget step B is done and #11 is measured by behaviour** (another hostname → `110200`). **R2b: true** (`127.0.0.1`
@@ -400,11 +401,51 @@ reads this list:
 6. **The `*.vercel.app` alias cannot mint a token** — the deployment's `*.vercel.app` address is a second public name
    for the same page, outside the widget's hostname list, so the widget there must fail with `110200` (measured by
    behaviour on the deployed alias, the way #11 was measured on `127.0.0.1`), or the alias is switched off
-   (`security-auditor` L2, R2a).
-7. **#12 is GREEN by behaviour** — the edge rate limit actually blocks after the 20th request. R2b measured it RED.
+   (`security-auditor` L2, R2a). **R2c ruling: measured right AFTER go-live** — while protection is on, the alias shows
+   Vercel's protection, not the widget, so there is nothing to mint against before then; #15 moves after go-live too.
+7. **#12 is GREEN by behaviour** — the edge rate limit actually blocks above its threshold. **R2c: true** (blocked from
+   the 31st of 40 requests in 2.4 s; the rule: 30 requests per 10 s per IP and Cloudflare data centre, Block for 10 s). R2b's "RED" was its probe, see R2b.
 8. **#16 is read back on the real deployment** — (a) platform, (b) root `web/site`, (c) no `web/dashboard` path in the
    deployment's file list, (d) an unauthenticated visitor gets Vercel's protection on BOTH the demo hostname and the
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
+
+### R2c — measured (2026-10-30, the R2c brief; no go-live) — ⚠ stopped at the first deployment again, for a different reason
+**Start gates (20:07 Vienna):** dummy token → 403 · exports parity and live parity green · listeners · host leak · hook
+drift — all green.
+
+**Step 1 — the site key env: DONE.** The brief carried the site key (a public value — it ships in every page). Before
+use it was compared with the server env file's line by a script that printed only the verdict: **FULL MATCH**. Set in
+the Vercel project as `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, type plain, targets Production and Preview; read back with
+`filter_project_envs`: both env keys present (`NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_WEBHOOK_URL`), each on
+Production + Preview. The value is in no repo file.
+
+**Step 2 — #12: GREEN** *(terminal-measured; the output is not committed)*. The rule as Cowork read it from the zone's
+rate-limit phase: `barber-inbound-ratelimit`, enabled, path contains `/webhook/`, **30 requests per 10 s per IP and
+Cloudflare data centre, Block, mitigation 10 s**. 40 GET requests in 2.4 s from this server to the non-existent
+`https://<n8n host>/webhook/zz-rl-probe`: **requests 1–30 → n8n's 404; 31–40 → `429`, body `error code: 1015`,
+`Retry-After: 10` counting down to 9** (no `cf-mitigated` header). The newest n8n execution id was the same before and
+after: **0 executions**. The "20 requests a minute" that this plan, the RUNBOOK, the diagrams and the tests carried was
+an unread assumption; every current-state sentence now states the read rule, and the historical records carry the
+correction beside the old number.
+
+**Step 3 — the first deployment: NOT DONE. The route the brief names cannot carry the files.** The Vercel connection
+deploys files only as content inside the tool call: `create_deployment` takes each file's `data` inline, and
+`upload_file` takes the file as a base64 `requestBody`. The deployment set (54 committed files, R2b) includes two
+binary fonts, `web/site/public/fonts/fraunces-variable.woff2` (205,500 bytes) and `instrument-sans-variable.woff2`
+(88,784 bytes) — about 392,000 characters of base64 that would have to be read into CC's context and written back out
+byte-exact. That is not a reliable transport, and a deployment that silently drops the fonts is not the page that goes
+live. Checked, not assumed: there is no Vercel CLI on this server and no token file (`~/.vercel-demo.env` absent — R2a's
+ruling was "no Vercel token"). **A ruling is needed** (recommendation in the R2c report): the recommended route is a
+short-lived Vercel token, created by Yigitcan, scoped to the project's team, in `~/.vercel-demo.env` (0600) — the file
+`scripts/demo-offline.sh` already specifies — so CC deploys a `git archive` of HEAD with a pinned Vercel CLI, the token
+read from that file and never on a command line or in a report. The certificate, #16 (a)–(d), and Vercel's own install
+and build wait for it.
+
+**Step 4 — the pause drill: NOT DONE** (it needs a production deployment; without one the hostname does not complete TLS).
+
+**Rulings recorded (Yigitcan, 2026-10-30):** #15 runs AFTER go-live against the public page — no bypass secret is
+created. Cloudflare Email Routing is NOT used (the zone's MX is Zoho; enabling it would break existing mail); the
+privacy contact will be a Zoho address Yigitcan provides — go-live stays blocked on it.
 
 ### R2b — measured (2026-10-30, the R2b brief; no go-live) — ⚠ stopped at the first deployment
 **Start gates (19:27 Vienna):** dummy token → 403 · exports parity and live parity green · listeners · host leak ·
@@ -430,16 +471,16 @@ speaking, not a broken page. The page was generated by a script that read the ke
 the key was never printed and never on a command line. The engine still answers a dummy token with **403** (start and
 end gates). Mode recorded as Managed (Cowork's reading, above).
 
-**#12 — RED** *(terminal-measured; the output is not committed)*. 25 GET requests in 1.7 seconds from this server to the non-existent `https://<n8n host>/webhook/zz-rl-probe`:
+**#12 — R2b recorded RED; R2c showed the PROBE was wrong, not the rule** *(terminal-measured; the output is not committed)*. 25 GET requests in 1.7 seconds from this server to the non-existent `https://<n8n host>/webhook/zz-rl-probe`:
 **all 25 answered 404 by n8n; none was blocked.** The instrument was checked rather than trusted: the host resolves to
 Cloudflare addresses (no `/etc/hosts` entry), and the answer carries `server: cloudflare` and a `cf-ray` — the requests
 DID cross the edge. No n8n execution was created (the newest execution id was the same before and after). Not
-repeated. **What it means:** the edge rule did not block this traffic. Which of the possible reasons — the rule's
-expression does not match this request (method, path, hostname), the rule is in a log-only mode, the counting window or
-threshold differs from the record, or Cloudflare's counter lags — is **unknown**: the rule was not read (D3 withdrawn).
-Reading it needs a Cloudflare reader (Cowork's read-only connection). What still bounds SPEND is unchanged: the LLM spend cap,
-the per-conversation turn cap, Turnstile (Managed and demo-hostname-only per Cowork's reading; `127.0.0.1` refused by
-behaviour) and the kill-switch. None of them bounds the request VOLUME reaching the origin — that was the rate limit's job. **This is a go-live blocker (check 7).**
+repeated. **Corrected in R2c:** the rule, read by Cowork, allows 30 requests per 10 s — 25 in 1.7 s were UNDER it, so
+"no block" was the correct answer to a wrong question. R2b listed "the counting window or threshold differs from the
+record" among the possible reasons; that was the one. The re-measure with 40 requests blocked from the 31st (R2c).
+*(The R2b text concluded "the edge rule did not block" and called it a go-live blocker; both are withdrawn here rather
+than left beside the correction. The lesson stands: a probe derived from an unread rule tests the assumption, not
+the rule.)*
 
 **Step 1 — the site key — MATCH, but not entered.** The site key in the server's env file starts with the widget's
 prefix (`MATCH`, 24 characters; read by a script that printed only the verdict). Entering it into the Vercel project

@@ -281,8 +281,8 @@ This repository is **public**, so it is built as if it were.
 - **Cancel identity (honest limit):** a customer can only cancel their OWN booking — cancel looks up
   appointments by the channel-authenticated `sender_key`, never a customer-supplied booking id, so IDOR
   is structurally impossible. On the widget, though, `sender_key` derives from a **client-supplied
-  `sessionId`** — session-token strength, not a verified identity. Endpoint rate-limiting and Turnstile
-  (Phase 5) raise the cost of abusing it; they do not make the session an identity. Recorded in
+  `sessionId`** — session-token strength, not a verified identity. Endpoint rate-limiting (a Cloudflare edge rule — 30 requests per 10 s per IP and data
+  centre — whose blocking was shown on 2026-10-30) and Turnstile (Phase 5) raise the cost of abusing it; they do not make the session an identity. Recorded in
   `docs/ARCHITECTURE-DECISIONS.md` §5.
 
 ---

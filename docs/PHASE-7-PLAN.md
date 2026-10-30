@@ -905,7 +905,7 @@ minutes**, plus everything else outside it.
 | the race drill — two bookings fired in parallel into one slot, then both "yes" | 4 | CRT 1b, asserted on the M2 expectation (`race_other_count >= 1`, no orphan) |
 | one DST-boundary booking | 2 | CRT 12 |
 
-~52 requests at `PACE=4` (the edge rate limit is 20/min/IP; the pace is not a workaround, it keeps us under
+~52 requests at `PACE=4` (the edge rate limit was recorded as 20/min/IP — read on 2026-10-30 as 30 per 10 s per IP and data centre; the pace is not a workaround, it keeps us under
 our own rule) ≈ 3.5 minutes of pacing + model latency ≈ **6–7 minutes, one window.**
 
 **Outside the window — gate UP, no exposure:** `run-d11` (owner path, not the widget lane) · the unit

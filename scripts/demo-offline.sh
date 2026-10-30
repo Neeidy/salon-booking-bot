@@ -2,9 +2,9 @@
 # demo-offline.sh — take the public demo offline in one step, and MEASURE that it is (public demo plan §4, ruling D6).
 #
 # Pausing the Vercel project makes Vercel answer the demo with 503 and DEPLOYMENT_PAUSED in the body: the site and the chat widget
-# are gone. It does NOT stop the engine: its webhook stays up, bounded by the LLM cap and the per-conversation turn
-# cap (the edge rate limit is not counted while ship gate #12 is red — PUBLIC-DEMO-PLAN, R2b) — stopping the engine
-# is the kill-switch or deactivating Main (⚠ ONAY, not this script).
+# are gone. It does NOT stop the engine: its webhook stays up, bounded by the LLM cap, the edge rate limit (30 requests
+# per 10 s per IP and Cloudflare data centre; shown blocking in R2c) and the per-conversation turn cap — stopping the
+# engine is the kill-switch or deactivating Main (⚠ ONAY, not this script).
 # D6: a STANDING approval covers this pause in an emergency; unpausing and deactivating Main are not covered by it.
 #
 #   measure   GET the demo's front page: 200 → "online", exit 0 · Vercel's PAUSED answer — 503 with DEPLOYMENT_PAUSED in
