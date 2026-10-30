@@ -63,6 +63,9 @@ MUTANTS = {
     'Owner Actions emptying the last reply': ('n8n/workflow.owner-actions.sanitized.json',
         "SET stage = 'new', last_intent = ''", "SET stage = 'new', last_intent = '', computed_reply = NULL"),
     'the copies of a record deleted on request left unsaid': (PAGE, 'remain until they expire as described', 'are removed too'),
+    'Main deleting bookings across a line break': ('n8n/workflow.main.sanitized.json',
+        'UPDATE salon.conversations SET last_alert_class',
+        'DELETE FROM\\nsalon.appointments WHERE false; UPDATE salon.conversations SET last_alert_class'),
 }
 
 

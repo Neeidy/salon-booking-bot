@@ -126,12 +126,14 @@ test('conversation and booking records: no committed workflow deletes either, so
   const files = readdirSync(join(ROOT, 'n8n')).filter((f) => /^workflow\..+\.sanitized\.json$/.test(f));
   assert.ok(files.length >= 5, 'the committed workflows were found (a zero would prove nothing)');
   const nodes = files.flatMap((f) => JSON.parse(read('n8n', f)).nodes);
-  // Every string a node carries, not only `query`/`jsCode` (security-auditor L1, R2h): a statement can sit anywhere.
-  const text = nodes.map((n) => JSON.stringify(n.parameters || {}));
-  const kills = /\b(DELETE\s+FROM|TRUNCATE(\s+TABLE)?)\s+salon\s*\.\s*(conversations|appointments)\b/i;
+  // Every string a node carries, not only `query`/`jsCode` (security-auditor L1, R2h), walked RAW: stringifying the
+  // tree turned a line break into the two characters \n, which `\s` does not match (L-1).
+  const strings = (v) => (typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : []);
+  const text = nodes.map((n) => strings(n.parameters || {}).join('\n'));
+  const kills = /\b(DELETE\s+FROM|TRUNCATE(\s+TABLE)?(\s+ONLY)?)\s+(salon\s*\.\s*)?(conversations|appointments)\b/i;
   assert.ok(text.some((t) => /DELETE FROM salon\.leads/.test(t)), 'the search can see a DELETE (positive control)');
-  // Quotes stripped first: stringified, a quoted name reads \"salon\" and the pattern would not see it.
-  assert.ok(!text.some((t) => kills.test(t.replace(/\\?"/g, ''))), 'no workflow deletes or truncates them, quoted names included');
+  // Quotes stripped first, so a quoted name ("salon"."conversations") is seen too.
+  assert.ok(!text.some((t) => kills.test(t.replace(/"/g, ''))), 'no workflow deletes or truncates them, quoted names included');
   for (const n of nodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) {
     assert.equal(n.parameters.operation, 'executeQuery', `${n.name}: a native delete operation would bypass the search above`);
   }
