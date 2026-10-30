@@ -940,6 +940,7 @@
   - ### R2 — measured before any write
   - ### R2a — measured, then fixed (2026-10-30; rulings of 2026-10-29 in the R2a brief)
   - ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
+  - ### R2h — `/privacy`: controller and contact from build-time env, GDPR basics, the kept records stated as measured; redeployed, protected (2026-10-30; no go-live)
   - ### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
   - ### R2f — Node 24 green, deployment protected and measured, pause drill done; the `next` patch STOPPED (2026-10-30; no go-live)
   - ### R2e — install fixed, build red on Node 26 (2026-10-30, the R2e brief; no go-live) — ⚠ stopped: no third attempt

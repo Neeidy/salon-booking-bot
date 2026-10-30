@@ -390,9 +390,10 @@ the GENERIC target, not a project-specific one as the dashboard steps below expe
 Build settings (install from the `web/` workspace root) are not measured until the first deployment.
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
-**State after R2g:** true — 2, 3, 5, 7, 8, 9 (and the `engines` cap, committed with 9) · open before go-live — 1 (the
-contact: STOPPED in R2g, the host-leak guard flags the address — a ruling) and 4 (`/privacy` final: R2g read the built
-page and lists its gaps) · after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at
+**State after R2h:** true — 2, 3, 5, 7, 8, 9 (and the `engines` cap, committed with 9) · open before go-live — 1 (the
+contact env is set; the controller's value has not reached CC, and the DEPLOYED page could not be read without a
+protection change) and 4 (every row filled in an isolated build with fake values; the deployed page is unread) · after
+go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at
 the phase close: the Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
@@ -404,14 +405,20 @@ reads this list:
    `security-auditor` M2.)* **R2g: open —
    STOPPED.** Yigitcan named the address (a Zoho alias at `<apex>`), but `<apex>` is a redaction target, so the
    host-leak guard flags the address in all three of its scans; the brief stops there and no guard is edited without a
-   ruling (see "R2g").
+   ruling (see "R2g"). **R2h: open** — the mechanism is built (build-time env, rulings R2h-1/2); `NEXT_PUBLIC_PRIVACY_CONTACT`
+   is set in Vercel production (read back by name); `NEXT_PUBLIC_PRIVACY_CONTROLLER` is NOT set — its value is in neither
+   the brief nor anything CC can read, and CC does not guess a person's name; and the deployed page was not read, because
+   every route to a protected page is a protection change (see "R2h").
 2. **The Main put and the Purge put are live and promoted** (parity green against the promoted exports).
 3. **Widget step B is done and #11 is measured by behaviour** (another hostname → `110200`). **R2b: true** (`127.0.0.1`
    → `110200`, with a control; see "R2b").
 4. **The `/privacy` text is final** — the leads retention reads 30 (from the promoted example config) and the measured
    copies outside the database. **R2g: open** — read from the built page: retention and the copies outside the
    database are stated; the controller is not named, there is no legal basis or rights statement, and the deletion
-   path runs only through the contact, which is still the placeholder (see "R2g").
+   path runs only through the contact, which is still the placeholder (see "R2g"). **R2h: open** — legal basis, rights,
+   the complaint right and the two kept records (measured: "not deleted automatically; deleted on request", with the
+   procedure in RUNBOOK §8) are on the page; in an isolated build with fake values every row R2g found empty is filled.
+   Still open: the same read on the DEPLOYED page (with check 1), and the counsel note below.
 5. **The first real pause records Vercel's actual paused body** — `measure` counts only `DEPLOYMENT_PAUSED` in a 503
    body, the documented form; if the real body differs, `pause` exits 1 and `measure` exits 5 (the safe direction),
    and the script is corrected before go-live. **R2f: true** — the real answer is a 503 with `x-vercel-error:
@@ -434,6 +441,75 @@ reads this list:
    version is 16.4.1, a minor jump; waiting on a ruling.)* **R2g: true** — `next` 16.4.1 in `6a19a06`; `npm audit` on the
    committed lockfile: 0 advisories of any severity; Vercel's install of the deploy set: "found 0 vulnerabilities"
    *(terminal-measured, not committed)*.
+
+### R2h — `/privacy`: controller and contact from build-time env, GDPR basics, the kept records stated as measured; redeployed, protected (2026-10-30; no go-live)
+**Rulings (Yigitcan, 2026-10-30), verbatim except the two values:** "(0) dashboard 16.4.1 deviation ACCEPTED; OPS-10's
+state kept (no rollback). (1) contact enters at build time as a Vercel env value (same path as NEXT_PUBLIC_WEBHOOK_URL),
+not source. (2) controller identity shown on the page, value = `<controller>`, via the same env path. Neither value ever
+enters the repo, a commit, a report or a screenshot — reports write `salon-demo@<apex>` and `<controller>`. (3) generic
+text added (same for every client): legal basis for the demo = GDPR Art. 6(1)(f) legitimate interest (demonstrating the
+product); rights (access, rectification, erasure, objection); right to lodge a complaint with a data-protection
+supervisory authority. Plan note: client deployments must have their own counsel review this page. (4)
+conversation-log and booking-record retention: measure where each lives and whether any automatic deletion exists (from
+committed workflows/config — no deletion run on real data); the page states what is TRUE. No automatic deletion →
+"deleted on request" + the manual deletion procedure written into RUNBOOK. No new purge. (5) delete the R2g scratch repo
+— approved."
+**Plan note (ruling 3): a client deployment's `/privacy` must be reviewed by that client's own counsel** — the text here
+is the demo's, and `security-auditor` noted what it does not cover (the restriction right, Art. 18; transfers to
+services outside the EU, Art. 13(1)(f)). Those were not added: ruling (3) names the list.
+
+**Start gates (23:24 Vienna): FIRST and outside the Reminders window** — all green (dummy token 403, both parity guards,
+listeners, host leak, hook drift; secret scan "NOT MEASURED" on a clean tree, by design). **(5):** the R2g scratch repo
+deleted, read back absent; the file its link pointed to is untouched.
+
+**A — the mechanism (`9f05b21`).** `PRIVACY_CONTACT` / `PRIVACY_CONTROLLER` = `envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTACT
+| …CONTROLLER)` — literal references, which Next inlines at build (its own guide, read in `node_modules/next/dist/docs`);
+unset or blank → null → the visible placeholder. Used only by `/privacy` (a server component). Tests:
+`web/site/lib/privacyEnv.test.ts` (site `check`), `privacy-facts.test.cjs` (env reads only, no e-mail address in the
+source, both branches). **Built in an isolated copy, never in `web/` (OPS-10)** *(terminal-measured)*:
+
+| build | controller | contact |
+|---|---|---|
+| both env unset | placeholder | placeholder |
+| fake values (`example.test`, "Test Controller") | named | shown |
+
+**B — the content (`cb9730a`, then `881a440` and `9a5be00` after review).** Ruling (3)'s text, and ruling (4) measured from
+the committed exports and `db/schema/001_init.sql`:
+
+| record | where | automatic deletion |
+|---|---|---|
+| message text | `conversations.recent_messages` | emptied by Purge after 30 days |
+| the conversation record (step, slot, last reply `computed_reply`, session id) | `salon.conversations` | **none** — no workflow deletes from it; Purge's only write empties `recent_messages` |
+| the booking | `salon.appointments` | **none** — cancelling sets `status = 'cancelled'` |
+| the calendar event (service, time, name in its title) | the demo's Google Calendar | only when cancelled in the chat |
+| message ids · callback requests | `processed_messages` · `leads` | 30 days · 30 days, within the cap |
+
+So the page says the conversation record and the booking are "not deleted automatically; deleted on request", that a
+record deleted on request keeps its copies in the backups and run records until they expire, and what a requester should
+give for the records to be found (the session id is gone with the tab). The procedure is RUNBOOK §8. No purge was added.
+The test holds all of it to every committed workflow: every parameter string walked raw, quotes normalised, `TRUNCATE`
+included, every Postgres node a plain query, no SQL emptying `computed_reply`, with a positive control. Mutants 27/27.
+*(Two forms still pass, recorded rather than chased: an empty value passed as a SQL parameter, and a non-`postgres` node
+type with a native delete — `security-auditor` INFO, R2h.)*
+
+**Review — `security-auditor`, four rounds, push GO each time.**
+- **M1:** "deleted on request" with no procedure and no way to find a record. Fixed by RUNBOOK §8 and the requester sentence on the page.
+- **M2:** the plan still said "`PRIVACY_CONTACT = null`, pinned". Corrected in place, and go-live check 1 now reads the deployed page.
+- **L1, then L-1:** the delete scan missed quoted names and `TRUNCATE`, then multi-line SQL. Fixed.
+- **L2:** copies of a record deleted on request. Fixed.
+- **M-1:** the access step pointed at the dashboard's CSV export, which is masked and returns the whole table (other people's rows). It now sends only the matched rows, read unmasked.
+- **L-2:** go-live check 4 still described R2g. Fixed here.
+
+**C — pushed `fae3ea6`; env; redeployed.** `NEXT_PUBLIC_PRIVACY_CONTACT` created through the Vercel connection —
+`encrypted`, production — and read back BY NAME through the REST API (key, type, target; no value printed).
+**`NEXT_PUBLIC_PRIVACY_CONTROLLER` was NOT set:** ruling (2) names whose name it is, not the value, and the value is in no
+file CC can read; CC does not write a guessed name onto a legal page. Redeploy (56 files, 0 under `web/dashboard`):
+**`READY`, production**, Next 16.4.1, install "found 0 vulnerabilities" *(terminal-measured)*.
+**The deployed page: NOT read — the brief's stop condition.** The REST file tree lists `/out/privacy` and its `.rsc`
+segments as `lambda` outputs with no file id, so their content cannot be fetched with the token; every other route to a
+protected page changes protection: the Vercel connection's `web_fetch_vercel_url` creates a 23-hour share link anyone
+holding it can open, and a bypass secret was ruled out in R2c. **Unauthenticated, the same name × path set (5 names ×
+9 paths, `/_next/image` included): 45 of 45 → `302` to `vercel.com/sso-api`, the page nowhere** *(terminal-measured)*.
 
 ### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
 **Rulings, verbatim where the repo can carry them** *(auditor LOW-5 of R2f: they had only been paraphrased)*:
