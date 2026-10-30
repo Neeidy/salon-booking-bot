@@ -54,6 +54,15 @@ MUTANTS = {
     'the kept last reply left unsaid': (PAGE, "the assistant&apos;s last reply and ", ''),
     'Purge deleting conversations while the page says kept': ('n8n/workflow.purge.sanitized.json',
         'DELETE FROM salon.leads', 'DELETE FROM salon.conversations WHERE false; DELETE FROM salon.leads'),
+    # R2h, security-auditor L1: the forms the first version of the test could not see
+    'Reminders truncating the bookings': ('n8n/workflow.reminders.sanitized.json',
+        'UPDATE salon.appointments SET reminder_sent', 'TRUNCATE salon.appointments; UPDATE salon.appointments SET reminder_sent'),
+    'Main deleting conversations under quoted names': ('n8n/workflow.main.sanitized.json',
+        'UPDATE salon.conversations SET last_alert_class',
+        'DELETE FROM \\"salon\\".\\"conversations\\" WHERE false; UPDATE salon.conversations SET last_alert_class'),
+    'Owner Actions emptying the last reply': ('n8n/workflow.owner-actions.sanitized.json',
+        "SET stage = 'new', last_intent = ''", "SET stage = 'new', last_intent = '', computed_reply = NULL"),
+    'the copies of a record deleted on request left unsaid': (PAGE, 'remain until they expire as described', 'are removed too'),
 }
 
 

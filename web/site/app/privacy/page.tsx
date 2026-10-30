@@ -78,6 +78,8 @@ export default function PrivacyPage() {
             The engine&apos;s own database, which holds those records, is backed up nightly and its backups are removed
             the same way as the ones above, so a run record can remain in a backup for at least {BACKUP_DAYS} days
             more, typically about {BACKUP_DAYS + 1}.</li>
+          <li>A record deleted on request is removed from the database and the calendar; its copies in the backups and
+            run records above remain until they expire as described.</li>
           <li>The services listed below keep what they receive under their own policies.</li>
         </ul>
 
@@ -131,7 +133,9 @@ export default function PrivacyPage() {
         <p>
           {PRIVACY_CONTACT === null
             ? 'PLACEHOLDER — the contact for privacy requests has not been published yet; it is added before this demo goes live.'
-            : `Write to ${PRIVACY_CONTACT} to ask what the demo holds about you or to have it deleted.`}
+            : `Write to ${PRIVACY_CONTACT} to ask what the demo holds about you or to have it deleted. The session id is gone
+              once your tab closes, so say what you booked and when, or roughly when you chatted and what you wrote —
+              that is how your records are found.`}
         </p>
 
         <p><a href="/">← Back to the demo</a></p>

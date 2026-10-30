@@ -18,7 +18,8 @@
  *   · "bookings are not deleted automatically" → no Purge statement touches salon.appointments;
  *   · the conversation record and the booking record are kept until a request (R2h-4) → no committed workflow deletes
  *     from salon.conversations or salon.appointments, and Purge's only write to a conversation empties recent_messages
- *     (so the last reply, computed_reply, is kept, as the page says);
+ *     and no workflow empties computed_reply (so the last reply is kept, as the page says); every Postgres node is a
+ *     plain query, so no native delete operation hides from that search;
  *   · legal basis, rights and the complaint right (R2h-3) → text anchors;
  *   · the services list → every outside host a workflow calls maps to a listed service (comment-only hosts allowlisted);
  *   · "nothing is sent over WhatsApp" → Main's `Should Send?` (the gate in front of `Send WhatsApp (Zernio)`) is fed only
@@ -124,18 +125,29 @@ test('bookings: no Purge statement touches salon.appointments (so "not deleted a
 test('conversation and booking records: no committed workflow deletes either, so the page says "deleted on request"', () => {
   const files = readdirSync(join(ROOT, 'n8n')).filter((f) => /^workflow\..+\.sanitized\.json$/.test(f));
   assert.ok(files.length >= 5, 'the committed workflows were found (a zero would prove nothing)');
-  const sql = files.flatMap((f) => JSON.parse(read('n8n', f)).nodes
-    .map((n) => `${(n.parameters || {}).query || ''}\n${(n.parameters || {}).jsCode || ''}`));
-  assert.ok(sql.some((q) => /DELETE FROM salon\.leads/.test(q)), 'the search can see a DELETE (positive control)');
-  assert.ok(!sql.some((q) => /DELETE\s+FROM\s+salon\.(conversations|appointments)\b/i.test(q)), 'no workflow deletes them');
+  const nodes = files.flatMap((f) => JSON.parse(read('n8n', f)).nodes);
+  // Every string a node carries, not only `query`/`jsCode` (security-auditor L1, R2h): a statement can sit anywhere.
+  const text = nodes.map((n) => JSON.stringify(n.parameters || {}));
+  const kills = /\b(DELETE\s+FROM|TRUNCATE(\s+TABLE)?)\s+salon\s*\.\s*(conversations|appointments)\b/i;
+  assert.ok(text.some((t) => /DELETE FROM salon\.leads/.test(t)), 'the search can see a DELETE (positive control)');
+  // Quotes stripped first: stringified, a quoted name reads \"salon\" and the pattern would not see it.
+  assert.ok(!text.some((t) => kills.test(t.replace(/\\?"/g, ''))), 'no workflow deletes or truncates them, quoted names included');
+  for (const n of nodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) {
+    assert.equal(n.parameters.operation, 'executeQuery', `${n.name}: a native delete operation would bypass the search above`);
+  }
+  // In SQL only: a JS local named computed_reply starts as '' in Reschedule Lookup and is not a write.
+  assert.ok(!text.some((t) => /\bSET\b[^;]*\bcomputed_reply\s*=\s*(NULL|'')/i.test(t)), 'no workflow empties the last reply');
   for (const p of purges) {
     const convWrites = p.nodes.map((n) => (n.parameters || {}).query || '').filter((q) => /salon\.conversations/.test(q)
       && /^\s*(UPDATE|DELETE|INSERT)/i.test(q));
     assert.deepEqual(convWrites.map((q) => q.match(/SET ([^W]+)WHERE/)[1].trim()), ["recent_messages = ''"],
-      'Purge only empties the message text, so the rest of the record (the last reply included) is kept');
+      'Purge only empties the message text');
   }
   for (const anchor of ['the assistant&apos;s last reply', 'not deleted automatically; it is deleted on request.</li>',
-    'deleted on request, from the calendar and the database']) assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
+    'deleted on request, from the calendar and the database', 'A record deleted on request is removed from the database',
+    'remain until they expire as described', 'say what you booked and when, or roughly when you chatted and what you wrote']) {
+    assert.ok(PAGE.includes(anchor), `page: ${anchor}`);
+  }
 });
 
 test('legal basis, rights and the complaint right are stated (R2h-3, the same text for every client)', () => {
