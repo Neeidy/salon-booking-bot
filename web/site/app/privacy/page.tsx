@@ -11,7 +11,8 @@
 import { notFound } from 'next/navigation';
 import { config, isDemo } from '../../lib/config';
 import {
-  BACKUP_DAYS, LEAD_DAYS, MESSAGE_TEXT_DAYS, PRIVACY_CONTACT, PROCESSORS, RUN_RECORD_DAYS, TURNSTILE_PRIVACY_URL,
+  BACKUP_DAYS, LEAD_DAYS, MESSAGE_TEXT_DAYS, PRIVACY_CONTACT, PRIVACY_CONTROLLER, PROCESSORS, RUN_RECORD_DAYS,
+  TURNSTILE_PRIVACY_URL,
 } from '../../lib/privacy';
 
 export const metadata = {
@@ -109,6 +110,11 @@ export default function PrivacyPage() {
         </p>
 
         <h2>Questions about your data</h2>
+        <p>
+          {PRIVACY_CONTROLLER === null
+            ? 'PLACEHOLDER — who is responsible for this demo’s data (the controller) has not been published yet; it is added before this demo goes live.'
+            : `${PRIVACY_CONTROLLER} is responsible for this demo’s data (the controller).`}
+        </p>
         <p>
           {PRIVACY_CONTACT === null
             ? 'PLACEHOLDER — the contact for privacy requests has not been published yet; it is added before this demo goes live.'

@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit && node --test lib/privacyEnv.test.ts"
   },
   "dependencies": {
     "@salon/shared": "*",

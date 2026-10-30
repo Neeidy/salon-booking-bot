@@ -47,13 +47,15 @@ absent means `false`, i.e. a real client install shows no mock ribbon.
 
 ## Browser-visible build inputs (slice 2 — the live widget)
 
-`web/site` needs two values at build time. They live in `web/site/.env.local` (gitignored) or in the
+`web/site` needs two values at build time, and the demo's `/privacy` page two more. They live in `web/site/.env.local` (gitignored) or in the
 deploy platform's environment — **never in a committed file**. Names only, for reference:
 
 | Variable | What | Secret? |
 |---|---|---|
 | `NEXT_PUBLIC_WEBHOOK_URL` | full URL of the widget inbound webhook (`https://<n8n-host>/webhook/barber-inbound`) | no — the endpoint is public by design |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile **site** key | no — site keys are public |
+| `NEXT_PUBLIC_PRIVACY_CONTACT` | the address `/privacy` gives for data requests; unset → a visible placeholder (must not go live) | no — shown on the page; kept out of the repo because it can carry a redaction target |
+| `NEXT_PUBLIC_PRIVACY_CONTROLLER` | who is responsible for the demo's data (the controller), as `/privacy` names them; unset → a visible placeholder | no — shown on the page; a person's name, so never committed |
 
 The Turnstile **secret** key is not here and never reaches the frontend: it lives in n8n, which is what
 verifies the token.

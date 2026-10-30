@@ -39,8 +39,13 @@ MUTANTS = {
         'And with'),
     'the run-record retention left as an unmeasured setting': (PAGE, 'for about {RUN_RECORD_DAYS} days', 'for a while'),
     'the run-record constant stripped of its measurement': (PRIVACY, 'Measured by behaviour (R2 measurement 4', 'Assumed (R2'),
-    'an invented privacy contact': (PRIVACY, 'export const PRIVACY_CONTACT: string | null = null;',
-        "export const PRIVACY_CONTACT: string | null = 'privacy@example.com';"),
+    # R2h: the controller and the contact come from build-time env only
+    'an invented privacy contact': (PRIVACY, 'envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTACT)', "'privacy@example.com'"),
+    'an invented controller': (PRIVACY, 'envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTROLLER)', "'Test Controller'"),
+    'a default value behind an unset env': ('web/site/lib/privacyEnv.ts', "return t === '' ? null : t;",
+        "return t === '' ? 'privacy@example.com' : t;"),
+    'the controller never shown on the page': (PAGE, ': `${PRIVACY_CONTROLLER} is responsible for this demo', ': `Someone is responsible for this demo'),
+    'an address typed into the page': (PAGE, 'Write to ${PRIVACY_CONTACT} to ask', 'Write to privacy@example.com to ask'),
 }
 
 

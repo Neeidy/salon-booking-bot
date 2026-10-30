@@ -13,7 +13,8 @@
  *     and its `within` rule; a lead stores the visitor's message → `Capture Lead` inserts `message`;
  *   · backups kept BACKUP_DAYS → db/ops/pg-backup.sh's KEEP_DAYS default (in force on the server: measured in R2, 2026-10-30);
  *   · run records kept RUN_RECORD_DAYS → NOT checkable here (a server setting); the constant must carry its measurement;
- *   · the privacy contact → a visible placeholder while it is null (Yigitcan's answer pending, a go-live blocker);
+ *   · the controller and the contact → read from build-time env only, never a literal (rulings R2h-1/2: the real values
+ *     carry a redaction target and a person's name); unset → a visible placeholder each (a go-live blocker);
  *   · "bookings are not deleted automatically" → no Purge statement touches salon.appointments;
  *   · the services list → every outside host a workflow calls maps to a listed service (comment-only hosts allowlisted);
  *   · "nothing is sent over WhatsApp" → Main's `Should Send?` (the gate in front of `Send WhatsApp (Zernio)`) is fed only
@@ -38,6 +39,7 @@ const code = (w, name) => {
 const PRIVACY = read('web', 'site', 'lib', 'privacy.ts');
 const RETENTION = read('web', 'site', 'lib', 'retention.ts');
 const PAGE = read('web', 'site', 'app', 'privacy', 'page.tsx');
+const PRIVACY_ENV = read('web', 'site', 'lib', 'privacyEnv.ts');
 const PANEL = read('web', 'site', 'components', 'site', 'LiveChatPanel.tsx');
 const FOOTER = read('web', 'site', 'components', 'site', 'SiteFooter.tsx');
 const MESSAGE_TEXT_DAYS = Number(RETENTION.match(/export const MESSAGE_TEXT_DAYS = (\d+);/)[1]);
@@ -90,13 +92,21 @@ test('backups: the page\'s number is the backup script\'s default retention', ()
   assert.match(PRIVACY, /Measured by behaviour \(R2 measurement 4[^)]*\)[\s\S]*export const RUN_RECORD_DAYS = 14;/);
 });
 
-test('the privacy contact: until Yigitcan names one, the page shows a visible PLACEHOLDER, never an invented address', () => {
-  const m = PRIVACY.match(/export const PRIVACY_CONTACT: string \| null = (null|'[^']+');/);
-  assert.ok(m, 'PRIVACY_CONTACT is declared');
-  // Pinned to null until Yigitcan names the contact: the value is his to give, so a change here must come with his answer.
-  assert.equal(m[1], 'null', 'no contact has been given — the constant stays null');
+test('the controller and the contact: build-time env only, a visible PLACEHOLDER when unset, never a literal', () => {
+  // The real values carry a redaction target and a person's name, so the repo holds only the env reads (R2h-1/2).
+  assert.match(PRIVACY, /export const PRIVACY_CONTACT: string \| null = envValue\(process\.env\.NEXT_PUBLIC_PRIVACY_CONTACT\);/);
+  assert.match(PRIVACY, /export const PRIVACY_CONTROLLER: string \| null = envValue\(process\.env\.NEXT_PUBLIC_PRIVACY_CONTROLLER\);/);
+  assert.match(PRIVACY, /import \{ envValue \} from '\.\/privacyEnv';/);
+  assert.match(PRIVACY_ENV, /return t === '' \? null : t;/, 'unset or blank is null — no default value');
+  for (const [name, text] of [['privacy.ts', PRIVACY], ['privacyEnv.ts', PRIVACY_ENV], ['page.tsx', PAGE]]) {
+    assert.ok(!/[\w.+-]+@[\w-]+\.[\w.-]+/.test(text), `${name} holds no e-mail address`);
+  }
+  assert.ok(PAGE.includes("{PRIVACY_CONTROLLER === null\n            ? 'PLACEHOLDER — who is responsible for this demo"),
+    'an unset controller renders the placeholder');
+  assert.ok(PAGE.includes(": `${PRIVACY_CONTROLLER} is responsible for this demo"), 'a set controller is named');
   assert.ok(PAGE.includes("{PRIVACY_CONTACT === null\n            ? 'PLACEHOLDER — the contact for privacy requests has not been published yet"),
-    'null renders the placeholder');
+    'an unset contact renders the placeholder');
+  assert.ok(PAGE.includes(": `Write to ${PRIVACY_CONTACT} to ask"), 'a set contact is shown');
 });
 
 test('bookings: no Purge statement touches salon.appointments (so "not deleted automatically" is true)', () => {

@@ -4,6 +4,7 @@
  * workflows by tests/unit/privacy-facts.test.cjs, so the page cannot quietly claim something the engine does not do.
  */
 import { config } from './config';
+import { envValue } from './privacyEnv';
 
 export { MESSAGE_TEXT_DAYS } from './retention';   // the engine's fixed message-text retention (see retention.ts)
 
@@ -22,9 +23,12 @@ export const BACKUP_DAYS = 14;
  *  which fits n8n's default pruning age of 336 hours. Re-measure if the server's settings change. */
 export const RUN_RECORD_DAYS = 14;
 
-/** Who a visitor writes to about their data. PENDING Yigitcan's answer (R2a): null renders a visible placeholder, and
- *  the page must not go live with it (PUBLIC-DEMO-PLAN, "Go-live checks", item 1). */
-export const PRIVACY_CONTACT: string | null = null;
+/** Who a visitor writes to about their data, and who is responsible for it (the controller). Build-time env values on
+ *  the same path as NEXT_PUBLIC_WEBHOOK_URL (rulings R2h-1/2): the real ones carry a redaction target and a person's
+ *  name, so they never enter the repo. Unset or blank → null → the page shows a visible placeholder, and it must not go
+ *  live with one (PUBLIC-DEMO-PLAN, "Go-live checks", items 1 and 4). */
+export const PRIVACY_CONTACT: string | null = envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTACT);
+export const PRIVACY_CONTROLLER: string | null = envValue(process.env.NEXT_PUBLIC_PRIVACY_CONTROLLER);
 
 /** Cloudflare's privacy addendum for Turnstile — the bot check in the chat panel. */
 export const TURNSTILE_PRIVACY_URL = 'https://www.cloudflare.com/turnstile-privacy-policy/';
