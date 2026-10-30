@@ -18,6 +18,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STAGED = os.path.join(ROOT, 'n8n', 'staged', 'workflow.main.sanitized.json')
+if not os.path.exists(STAGED):   # promoted 2026-10-30 (R2a): the mutants run on the committed export, as the test does
+    STAGED = os.path.join(ROOT, 'n8n', 'workflow.main.sanitized.json')
 TEST = os.path.join(ROOT, 'tests', 'unit', 'eval-spend-fail-closed.test.cjs')
 MUTANTS = {
     'the error output not read':
