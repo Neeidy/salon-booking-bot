@@ -258,7 +258,8 @@ Reminders' `whatsappSendDisabled: true`). Built (`next build`) and rendered head
 two `/privacy` links — and again after the review round's text changes; that evidence is in the session scratchpad,
 not committed (UNVERIFIED in the repo). Until the promotion the page says leads are kept 90 days — true for what is live.
 **Open (Yigitcan):** what contact to publish for a privacy request is his call — since R2a the page shows a visible
-PLACEHOLDER until he answers, and it is go-live check 1 below.
+PLACEHOLDER until he answers, and it is go-live check 1 below. *(R2h: the contact, and the controller beside it, now come
+from build-time env — rulings R2h-1/2; see go-live check 1.)*
 
 **4. `scripts/demo-offline.sh`** — `measure` (no token) · `pause` / `unpause` (Vercel's documented
 `POST /v1/projects/{id}/pause|unpause`, then the page MEASURED: 503 / 200). The token is read from a 0600 env file and
@@ -361,8 +362,10 @@ case and a mutant it kills; not re-run through Codex (no HIGH):
   (vercel.com/docs/errors/DEPLOYMENT_PAUSED; no header is documented, so none is relied on) — is "offline" (exit 3); a
   401, 404, redirect or bare 503 is "unexpected" (exit 5); `pause` succeeds only on the paused answer. demo-offline
   mutants 15/15.
-- **The privacy contact:** pending Yigitcan — the page shows a visible PLACEHOLDER (`PRIVACY_CONTACT = null`, pinned by
-  the test so no address can be invented). **A go-live blocker.**
+- **The privacy contact:** pending Yigitcan — the page shows a visible PLACEHOLDER while the value is absent. **A go-live
+  blocker.** *(Until R2h this read "`PRIVACY_CONTACT = null`, pinned by the test"; since R2h the value is the build-time env
+  `NEXT_PUBLIC_PRIVACY_CONTACT` and the test pins the env read, never a literal — corrected in place, `security-auditor`
+  M2.)*
 
 **Deployed (2026-10-30, the ⚠ ONAY in the R2a brief):** each edit rehearsed on a scratch first (edit + rollback read
 back green, scratch deleted with a 404 read back), then deactivate → put (a pre-PUT snapshot kept outside the repo) →
@@ -393,9 +396,12 @@ page and lists its gaps) · after go-live (rulings) — 6 (the alias cannot mint
 the phase close: the Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:
-1. **The privacy contact is published** *(R2c: pending — a Zoho address from Yigitcan; Cloudflare Email Routing is
-   ruled out)*: `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null` (Yigitcan's
-   answer; the test pinning it to `null` changes with it). Until then the page shows a PLACEHOLDER. **R2g: open —
+1. **The privacy contact and the controller are published** *(R2c: pending — a Zoho address from Yigitcan; Cloudflare
+   Email Routing is ruled out)*: measured on the DEPLOYED `/privacy` — neither PLACEHOLDER text is on the page, and the
+   contact and the controller are. Since R2h both come from build-time env (`NEXT_PUBLIC_PRIVACY_CONTACT`,
+   `NEXT_PUBLIC_PRIVACY_CONTROLLER`, rulings R2h-1/2), so the source cannot answer this check — only the built page can.
+   *(Until R2h the check read "`PRIVACY_CONTACT` in `web/site/lib/privacy.ts` is not `null`"; corrected in place,
+   `security-auditor` M2.)* **R2g: open —
    STOPPED.** Yigitcan named the address (a Zoho alias at `<apex>`), but `<apex>` is a redaction target, so the
    host-leak guard flags the address in all three of its scans; the brief stops there and no guard is edited without a
    ruling (see "R2g").
@@ -470,7 +476,8 @@ and restart of the same service.
 
 **B — the privacy contact: STOPPED; nothing committed.** The mechanism the plan and code already define is the source
 constant `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` — one place, pinned to `null` by
-`tests/unit/privacy-facts.test.cjs`; no config or env route exists, and none was added. **Measured, not assumed:** in an
+`tests/unit/privacy-facts.test.cjs`; no config or env route existed then, and none was added in R2g *(R2h added the env
+route by ruling R2h-1)*. **Measured, not assumed:** in an
 isolated scratch repository (the real guard script, `CLAUDE.local.md` linked rather than copied, the address assembled
 from the parsed apex rather than typed), the null constant → `check-no-host-leak.sh` exit **0** (3 targets scanned);
 the address in the constant → exit **1** unstaged and exit **1** staged, the hit in all three scans *(terminal-measured;

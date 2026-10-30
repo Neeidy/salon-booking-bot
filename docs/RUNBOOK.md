@@ -258,6 +258,33 @@ schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboar
 measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo
 hostname or the `*.vercel.app` alias, pause at once (the D6 standing approval) and stop.
 
+**The `/privacy` controller and contact** come from the Vercel project env at build time —
+`NEXT_PUBLIC_PRIVACY_CONTROLLER` and `NEXT_PUBLIC_PRIVACY_CONTACT` (rulings R2h-1/2; the same path as
+`NEXT_PUBLIC_WEBHOOK_URL`). Their values never enter the repo, a commit, a report or a screenshot. Unset → the page shows
+a PLACEHOLDER for each, and go-live check 1 reads the DEPLOYED page for it. A change to either needs a redeploy:
+`NEXT_PUBLIC_*` values are fixed into the build.
+
+**A privacy request — access or erasure, by hand** (ruling R2h-4: nothing deletes the conversation record or the
+booking automatically, and no new purge is built). The owner does this; CC holds only the read-only database role, and
+every deletion below is on the ⚠ ONAY list for CC anyway.
+1. **Match the requester to rows — read first, with `salon_ro`, never delete on a guess.** The visitor's session id is
+   gone once their tab closed, so the page asks for what they booked and when, or roughly when they chatted and what they
+   wrote.
+   - **A booking:** `salon.appointments` by `customer_name` and `start_utc`. Its `sender_key` then leads to the
+     conversation (`salon.conversations.sender_key`) and to that sender's `salon.processed_messages` rows.
+   - **No booking:** a conversation row holds no name. Match on `last_updated` near the stated time, and — only within 30
+     days, before the nightly scrub — on the text in `recent_messages`.
+   - **A callback request:** `salon.leads` by `name`, `phone` and `created_at`.
+   - **No reliable match:** tell the requester the demo cannot identify them from what was given, and what extra detail
+     would let it (GDPR Art. 11(2)). Delete nothing.
+2. **Access:** send the matched rows to the requester (the dashboard's CSV export covers leads and appointments).
+3. **Erasure:** delete the booking's calendar event (`gcal_event_id`, if it was not cancelled); then, with a write role,
+   the matched `salon.appointments`, `salon.conversations`, `salon.processed_messages` and `salon.leads` rows; then the
+   owner alerts about the requester in the owner's Telegram chat. Copies in the nightly backups (at least 14 days more)
+   and the engine's run records (about 14 days) remain until they expire, as `/privacy` says — tell the requester.
+4. **Answer** without undue delay and within one month (GDPR Art. 12(3)). Record the date and what was done, without the
+   personal data itself.
+
 **Seed rows** (`scripts/seed-workflow.py` — its `up`, each action and `down` are each gated, per its docstring): `pd-lead-insert
 --message pd-… --created-at <ISO, more than 30 days back>` for #13 (plus fresh `pd-` leads if the table is too small for
 the Purge's cap — at least 5 rows per aged one); `pd-conv-insert --session w-pd-… --turn-count N` for #19; `clean-pd`
