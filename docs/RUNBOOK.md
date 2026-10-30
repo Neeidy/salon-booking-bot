@@ -192,7 +192,7 @@ So:
 
 **Take it offline — one step.** Pausing the Vercel project makes the demo give Vercel's paused answer (503 with
 `DEPLOYMENT_PAUSED` in the body): the site and the chat widget go.
-The engine does NOT stop — its webhook stays up, bounded by the LLM cap, the edge rate limit and the turn cap; stopping
+The engine does NOT stop — its webhook stays up, bounded by the LLM cap and the turn cap (the edge rate limit is not counted while ship gate #12 is red — the plan, R2b); stopping
 it is the kill-switch or deactivating Main (⚠ ONAY). An emergency pause has a standing approval (ruling D6); unpausing,
 and deactivating Main, do not.
 - CC: Vercel `pause_project` (its Vercel connection), then `bash scripts/demo-offline.sh measure` → `offline (503
