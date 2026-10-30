@@ -388,7 +388,7 @@ Build settings (install from the `web/` workspace root) are not measured until t
 
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
 **State after R2d:** true — 2, 3, 7 · open before go-live — 1 (the Zoho contact), 4 (`/privacy` final), 5 (the
-pause drill) and 8 (#16 on a READY deployment; (c) is already read back), both of which wait for a green Vercel build ·
+pause drill) and 8 (#16 on a READY deployment; (a), (b) and (c) are already read back, (d) is not), both of which wait for a green Vercel build ·
 after go-live (rulings) — 6 (the alias cannot mint) and #15, then #13's read, #19, #21 · **at the phase close: the
 Vercel token is revoked.**
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
@@ -420,19 +420,23 @@ reads this list:
 a team-scoped Vercel token created by Yigitcan in `~/.vercel-demo.env` (mode 0600, this user — measured), used only
 for this phase and revoked at its close; Git integration stays off. **CLI:** `vercel@64.3.1` — the newest stable
 release published at least two weeks earlier (2026-10-15) — installed into a scratch prefix. Its own code reads
-`VERCEL_TOKEN` from the environment (`tokenSource = "env"`), so the token went into the deploying process's environment
-from the 0600 file and nowhere else: never `--token`, never printed; the CLI's global config pointed at a scratch
-directory. After every token-using step a script counted the files outside the 0600 file that contain the token's
-value: **0** each time (the CLI log, its global config, the deploy directory, the measured headers and bodies, the
-build events).
+`VERCEL_TOKEN` from the environment (`tokenSource = "env"`), so for the deployment the token went from the 0600 file into
+the deploying process's environment: never `--token`, never printed; the CLI's global config pointed at a scratch
+directory. **The second place it existed, named:** the build-event read below sent it through a temporary 0600 header
+file created with `mktemp` and removed by the script's exit trap (the same pattern as `scripts/demo-offline.sh`).
+**What was counted, and its scope:** after each token-using step a script counted, among the files it produced, those
+containing the token's value — the CLI log, the CLI's global config directory, the deploy directory, the measured
+headers and bodies, the build-event output: **0** each time. That count did not cover the temporary header file
+(deleted by then) or anything outside those paths.
 
 **Protection read back BEFORE deploying:** `ssoProtection: {enabled: true, deploymentType: all}`.
 
 **The deployment** — `git archive HEAD` (`597b28a`), **54 files, 0 under `web/dashboard`**, `vercel deploy --prod`:
-uploaded (344 KB), built in `iad1` by Vercel's own `vercel build`, and **FAILED: state `ERROR`, `module_not_found` in
+uploaded (344 KB *(terminal-measured, output not committed)*), built in `iad1` by Vercel's own `vercel build`, and **FAILED: state `ERROR`, `module_not_found` in
 the build step.** The build events (read through the REST API with the token in a 0600 header file — the CLI's
 `inspect` needs a user and a team-scoped token has none, `/v2/user` → 404) show the cause: Vercel's default install ran
-in the project root `web/site` and added 36 packages (a local `npm ci` at the `web/` workspace root adds 39); the site's
+in the project root `web/site` and added 36 packages (a local `npm ci` at the `web/` workspace root adds 39 — both
+*terminal-measured, output not committed*); the site's
 prebuild then built the snippet, and `web/snippet/build.mjs` could not find **`esbuild`** — the snippet's own
 devDependency, which an install scoped to the `web/site` workspace does not bring. *(Why the install skipped it is
 inferred from the package counts and npm's workspace behaviour, not from a package list.)* The R2b offline proof ran
@@ -444,7 +448,8 @@ code: the install command at the workspace root (e.g. `cd .. && npm ci`) — **a
 **What an unauthenticated visitor saw** (the brief's stop condition was never met — no page anywhere):
 - the deployment URL (`<deployment>.vercel.app`) → **302 to `vercel.com/sso-api`**, no page: Vercel Authentication answers;
 - the project alias (`salon-booking-demo-<team>.vercel.app`) → **404**: no READY production deployment to serve;
-- `demo.<apex>` → **no TLS** (curl 000 for 90 s): no certificate is issued while no deployment is assigned to it.
+- `demo.<apex>` → **no TLS** (curl 000 for 90 s *(terminal-measured)*); the likely reason — no certificate while no
+  deployment is assigned to the domain — is Vercel's behaviour as understood, not measured.
 So protection is observed on the deployment URL only, and on a FAILED deployment; on the demo hostname it is still
 unmeasured.
 
