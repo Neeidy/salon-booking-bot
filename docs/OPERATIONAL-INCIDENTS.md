@@ -27,7 +27,7 @@ the owner dashboard's service (`ops/systemd/salon-dashboard.service`) runs `next
 The running 16.3.4 server could no longer load its own chunks — the next request to `/` returned **500** with a
 `ChunkLoadError` / `MODULE_NOT_FOUND` for a chunk of the old build.
 
-**What it cost:** the service log shows **0 errors from 2026-10-26 20:00 to 22:59 and exactly one failed request after
+**What it cost** *(read from the service journal and the build's file times, not committed)*: the service log shows **0 errors from 2026-10-26 20:00 to 22:59 and exactly one failed request after
 the build — the 500 of the measuring request itself (23:00:36)**; no other request is logged as failed. The broken window
 ran from the install (about 22:58) to the restart (23:01:24), about three minutes. `systemctl --user restart
 salon-dashboard.service` brought it back on the build that was on disk: `/` 200 two seconds later, `next-server

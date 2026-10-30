@@ -421,10 +421,13 @@ reads this list:
    deployment's file list, (d) an unauthenticated visitor gets Vercel's protection on BOTH the demo hostname and the
    `*.vercel.app` alias, never the page. Only then is protection switched off — which is what makes the demo public.
    **R2f: true** on a READY production deployment (all names and the static paths → `302` to Vercel's login).
+   **R2g: true again** on the 16.4.1 deployment — every name × the paths plus `/_next/image`, 45 of 45 → `302`
+   *(terminal-measured; see "R2g")*.
 9. **`next` is past every critical/high advisory of its own** — measured with `npm audit` on the committed lockfile
    (auditor LOW-1, R2e; ruling (2), 2026-10-30: patching is a gate, not an acceptance). *(R2f: open — the lowest clean
    version is 16.4.1, a minor jump; waiting on a ruling.)* **R2g: true** — `next` 16.4.1 in `6a19a06`; `npm audit` on the
-   committed lockfile: 0 advisories of any severity; Vercel's install of the deploy set: "found 0 vulnerabilities".
+   committed lockfile: 0 advisories of any severity; Vercel's install of the deploy set: "found 0 vulnerabilities"
+   *(terminal-measured, not committed)*.
 
 ### R2g — `next` 16.4.1 committed and deployed, protected; the privacy contact STOPPED at the host-leak guard (2026-10-30; no go-live)
 **Rulings, verbatim where the repo can carry them** *(auditor LOW-5 of R2f: they had only been paraphrased)*:
@@ -438,8 +441,11 @@ reads this list:
   verified" is an operator statement, not measured here.)*
 
 **Start gates (23:03 Vienna):** all green — dummy token 403, both parity guards, listeners, host leak (3 targets), hook
-drift, secret scan. ⚠ **They ran inside the Reminders window (:55–:05)** — the clock was misread; one dummy-token request
-reached Main and was refused at Turnstile (403). A gate deviation, recorded; the end gates ran outside the window.
+drift, secret scan. ⚠ **Two gate deviations, recorded:** (1) they did NOT run first — they were deferred to wait out the
+Reminders window, and A's install (about 22:58), builds and commit (`6a19a06`, 23:02) happened before them; (2) at 23:03
+they were still INSIDE the Reminders window (:55–:05) — the clock was misread; one dummy-token request reached Main and was
+refused at Turnstile (403). The end gates ran outside the window. *(The first version of this line named only (2);
+`security-auditor` MEDIUM-1 found the order from the timestamps.)*
 
 **A — commit `6a19a06`: GREEN.** `next` 16.3.4 → **16.4.1** in `web/site` AND `web/dashboard` *(declared: the brief named
 `next`, not the two packages; they share one lockfile and one deduped `next`, so bumping only the site would have left
@@ -467,7 +473,8 @@ constant `PRIVACY_CONTACT` in `web/site/lib/privacy.ts` — one place, pinned to
 `tests/unit/privacy-facts.test.cjs`; no config or env route exists, and none was added. **Measured, not assumed:** in an
 isolated scratch repository (the real guard script, `CLAUDE.local.md` linked rather than copied, the address assembled
 from the parsed apex rather than typed), the null constant → `check-no-host-leak.sh` exit **0** (3 targets scanned);
-the address in the constant → exit **1** unstaged and exit **1** staged, the hit in all three scans. The brief's stop
+the address in the constant → exit **1** unstaged and exit **1** staged, the hit in all three scans *(terminal-measured;
+the scratch repository is not committed)*. The brief's stop
 condition ("any guard flags the contact address → STOP, no allow-list/guard edit without a ruling") applies. **For the
 ruling:** the address's domain IS the apex, so any repo file that carries it carries a redaction target. The options:
 (a) the address reaches the build the way `NEXT_PUBLIC_WEBHOOK_URL` already does — a Vercel env value, never a repo
@@ -494,7 +501,7 @@ No content was added; these are for go-live check 4.
 **C — pushed and redeployed: GREEN.** `6a19a06` pushed after `security-auditor` GO (0 findings). Redeploy with the same
 script (54 files, 0 under `web/dashboard`): **`READY`, production**, `projectSettings.nodeVersion = 24.x`; the build log
 reads "Detected Next.js version: 16.4.1", install "added 39 packages … found 0 vulnerabilities", 5 static pages. Token
-outside its 0600 file: 0. **Unauthenticated, the R2f name set plus the new deployment URL** (`demo.<apex>`, the two
+outside its 0600 file: 0 *(these build-log and count values: terminal-measured, not committed)*. **Unauthenticated, the R2f name set plus the new deployment URL** (`demo.<apex>`, the two
 project aliases, the R2f and R2g deployment URLs) **× the R2f path set plus `/_next/image`** (`/`, `/barber-widget.js`,
 `/privacy`, `/install`, a font, a `/_next/static/` path, `/robots.txt`, `/_next/image` with and without a query): **45 of
 45 requests → `302` to `vercel.com/sso-api`, the page nowhere** *(terminal-measured)*. Whether Vercel honours

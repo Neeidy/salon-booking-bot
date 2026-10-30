@@ -205,7 +205,7 @@ and deactivating Main, do not.
   exits 0 only when the new state was MEASURED (Vercel's paused answer after a pause, 200 after an unpause); no answer at all is "NOT
   measured" (`measure` exit 4), never "offline". **While protection is on, the shell `unpause` exits 1 even when the
   project did unpause** — it waits for a 200 and the site answers 302 (auditor LOW-6, R2f; recorded, the script is
-  unchanged). Read the state with `measure` (exit 5 = protection, not paused) instead of reading exit 1 as a failure.
+  unchanged). Read the state with `measure` (exit 5 = neither online nor paused; under protection it is the 302) instead of reading exit 1 as a failure.
   The shell `pause`/`unpause` have not been run live; the R2f drill used the Vercel connection.
 
 **The engine edits — DEPLOYED and PROMOTED 2026-10-30 (R2a)**; kept here as the record of how they were deployed, so a
