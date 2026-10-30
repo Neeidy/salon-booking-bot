@@ -19,9 +19,13 @@
  *   • handoff / lock     200 { ok, handoff, reply }                              → reply PRESENT
  *   • spend-cap          200 { ok, handoff, reply }                              → reply PRESENT
  *   • spend meter blind  200 { ok:false, error:'spend_meter_unavailable', handoff, reply } → reply PRESENT
- *   • llm/lead/calendar  503 { ok:false, error:…, reply }                         → reply PRESENT
+ *   • llm/lead/calendar  200 { ok:false, error:…, reply }                         → reply PRESENT
  *   • invalid payload    400 { ok:false, error:'invalid_payload', handoff:true }  → NO reply
- *   • state unavailable  503 { ok:false, error:'state_unavailable', handoff:true }→ NO reply
+ *   • state unavailable  503 { ok:false, error:'state_unavailable', handoff:true }→ NO reply  (BEFORE the claim)
+ *                        200 { ok:false, error:'state_unavailable', handoff, reply } → reply PRESENT (after it)
+ *   (CLAIM-RETRY, 7-2: once the message id is claimed a retry would be swallowed as a duplicate, so every
+ *    infra-unavailable branch past the claim answers 200 with its reply; only the pre-claim state failure is a 503.
+ *    The llm/lead/calendar rows said 503 until R2b — the engine had changed and this table had not.)
  *   • duplicate          200 { status:'duplicate_ignored' }                       → NO reply, NO screen
  *   • turnstile / sig    403 { ok:false, error:'turnstile_failed' }               → NO reply
  *

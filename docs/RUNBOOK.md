@@ -221,9 +221,19 @@ holds the example to the committed export), and correct the sentences that descr
 `Build Spend-Cap Reply`, and its spend-meter row, which names `Build Spend-Meter Alert` as the only source) and add the
 new `200 {ok:false, error:'spend_meter_unavailable', handoff, reply}` body to the engine-shape table at the top of
 `web/shared/src/chat/chatClient.ts` — they are true until the put and false after.
-**Before go-live:** the /privacy page states the backup retention from `db/ops/pg-backup.sh`'s default and says the
-engine's run records are kept "for a period set on the server" — measure both values in force and correct the page if
-either differs (the plan, "R2 — measured before any write").
+**The /privacy retention values were measured in R2a** (backups 14 days, run records about 14 days, n8n's own database
+backups 14 days) and the page states them (`web/site/lib/privacy.ts`). If the server's backup job or n8n's pruning
+setting changes, re-measure and correct the page (the plan, "R2a — measured, then fixed"). *(This line said "measure
+both values in force" until R2b — true before R2a, stale after it.)*
+
+**The first deployment** (the plan, "R2b" and "Go-live checks"): the site build FAILS CLOSED without
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `NEXT_PUBLIC_WEBHOOK_URL`, so both must be in the Vercel project env first. CC
+enters the webhook URL; the site key is entered by Yigitcan from the widget's page, because CC does not print the
+value from the server's env file. The deployment uploads the committed tree only — `git archive HEAD` of
+`web/package.json web/package-lock.json web/shared web/site web/snippet config/client.config.example.json
+schemas/client.config.schema.json` (54 files at R2b, nothing under `web/dashboard`) — with protection ON; it is
+measured as an unauthenticated visitor before anything else (go-live check 8). If the page itself answers on the demo
+hostname or the `*.vercel.app` alias, pause at once (the D6 standing approval) and stop.
 
 **Seed rows** (`scripts/seed-workflow.py` — its `up`, each action and `down` are each gated, per its docstring): `pd-lead-insert
 --message pd-… --created-at <ISO, more than 30 days back>` for #13 (plus fresh `pd-` leads if the table is too small for
