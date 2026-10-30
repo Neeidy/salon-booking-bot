@@ -117,7 +117,7 @@
     "throttleMinutes": 30
   },
   "$comment_leadsRetentionDays": "Days a leads row is kept. ABSENT = the purge deletes nothing and alerts (fail-closed).",
-  "leadsRetentionDays": 90,
+  "leadsRetentionDays": 30,
   "messageTemplates": {
     "askIntent": "Hi! I can help you book, change or cancel an appointment — what would you like?",
     "askService": "Which service would you like? (Haircut / Beard Trim / Haircut + Beard)",

@@ -81,7 +81,8 @@ Indexes: `(sender_key, status)` and `(status, start_utc)`.
 | updated_at | timestamptz | nullable — last increment |
 | created_at | timestamptz | `NOT NULL DEFAULT now()` |
 
-Read-fail/write-fail → fail-OPEN (the LLM still runs) + a `spend_meter_unavailable` owner alert. TOCTOU across
+Read-fail → fail-CLOSED since the public demo's R2a put (2026-10-30): no LLM, the deterministic handoff reply and a
+`spend_meter_unavailable` owner alert. Write-fail (after a call) → that call is not counted + the same alert. TOCTOU across
 concurrent turns is accepted at this tier (a soft brake, not an atomic ledger): the upsert writes the total the
 turn computed, it does not add to the stored one. The month's row is the real spend meter since the cutover (kept
 at Round 3c's cleanup by ruling).

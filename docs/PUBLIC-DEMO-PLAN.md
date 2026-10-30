@@ -362,6 +362,14 @@ case and a mutant it kills; not re-run through Codex (no HIGH):
 - **The privacy contact:** pending Yigitcan — the page shows a visible PLACEHOLDER (`PRIVACY_CONTACT = null`, pinned by
   the test so no address can be invented). **A go-live blocker.**
 
+**Deployed (2026-10-30, the ⚠ ONAY in the R2a brief):** each edit rehearsed on a scratch first (edit + rollback read
+back green, scratch deleted with a 404 read back), then deactivate → put (a pre-PUT snapshot kept outside the repo) →
+activate (published == draft). Main: 4 nodes changed, the dummy-token probe 403, the sole holder of its path; Purge: 1
+node. **Promoted** in the next commit: the staged exports copied over the committed ones (`n8n/staged/` emptied), the
+example config's `leadsRetentionDays` 30, and the fail-open sentences corrected (FLOW-DIAGRAM, DATA-MODEL,
+UX-ARCHITECTURE, the engine-shape table in `chatClient.ts`). Purge's first 30-day run is tonight's 04:00 run (the table
+is empty, so it deletes nothing — measurement 2).
+
 ### Go-live checks — every one true BEFORE the first public deployment (R2a, `code-reviewer` MEDIUM-1)
 A check that lives only in a sentence does not stop a deploy, so they are listed here, by number, and the deploy step
 reads this list:

@@ -239,8 +239,11 @@ place before Phase 6):
   Spend → Spend Gate`. Under `bot.llmCostCapUsd` → `Build LLM Request`; over → `Build Spend-Cap Reply`
   (deterministic handoff, **no LLM, no state write** — a transient guard-trip) + `spend_cap` owner alert. After
   a successful call a fan-out (`Extract Intent[success] → Build Spend Record → Record LLM Spend`) adds
-  tokens × config price to the month. A meter read/write failure is **fail-OPEN** (the LLM still runs) + a
-  `spend_meter_unavailable` owner alert — never a silent blind brake.
+  tokens × config price to the month. **The read is fail-CLOSED** (public demo, live 2026-10-30): `Eval Spend` lets
+  the LLM run only on a trusted row or on "no row this month"; an unreadable or untrusted meter takes the same
+  deterministic reply from `Build Spend-Cap Reply`, which then raises `spend_meter_unavailable` (error flag in the body),
+  never `spend_cap`. A WRITE failure after a call leaves that call uncounted + a `spend_meter_unavailable` alert —
+  never a silent blind brake.
 - **Global dry-run (CP5b-3, `bot.dryRun`, default false):** blocks the two real-world writes — `Live Booking?`
   (dry → `Build Dry-Run Booked State`, no GCal event) and `Live Send?` (dry → `WhatsApp Send (dry-run)` NoOp).
   Fail-safe OR with the reminder-send `whatsappSendDisabled` brake.

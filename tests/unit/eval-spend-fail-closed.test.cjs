@@ -2,8 +2,8 @@
  * `Eval Spend` must let the LLM run only on a spend reading it can trust (public demo Ruling (d), 2026-10-29).
  *
  * WHY IT EXISTS: K-SPEND ruled the spend brake fail-OPEN — a missing row or a read error counted as "nothing spent".
- * For a public endpoint that is a brake that releases exactly when it cannot see. The fix (staged in
- * n8n/staged/workflow.main.sanitized.json until it is live) keeps the two trusted readings — a row with a finite,
+ * For a public endpoint that is a brake that releases exactly when it cannot see. The fix (staged, then live and
+ * promoted into n8n/workflow.main.sanitized.json on 2026-10-30, R2a) keeps the two trusted readings — a row with a finite,
  * non-negative cost, and the empty item that stands for "no row this month yet" — and closes on everything else.
  *
  * HOW: Eval Spend's code and Spend Gate's IF expression, both taken from the export, run against the outputs Read

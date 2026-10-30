@@ -1,6 +1,0 @@
-{
-  "_doc": "Public demo R1 (ruling D4 / (d), Yigitcan 2026-10-29): demo lead retention 30 days — Load Config (Purge)'s literal as scripts/render-client.py renders it from the demo config with leadsRetentionDays 30; a parameter edit of one node, no node, edge or setting.",
-  "allow": [
-    "Load Config (Purge)"
-  ]
-}

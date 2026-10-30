@@ -162,7 +162,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Load Config (Purge) — FIX-1. The purge workflow can now ALERT, so it needs the shared ownerAlert\n// config. Mirrors the reminders pattern (each workflow carries its own inline config).\n// SHARED KEY CONTRACT: ownerAlert.{enabled,throttleMinutes} MUST equal the main + reminders Load Configs\n// — asserted by scripts/check-cancel-validation-parity.py. A kill that silences only some alerts is not a kill.\n// one-swap-to-real: replace this literal with client.config.json / an n8n variable (Phase 4/template).\nconst config = {\n  ownerAlert: { enabled: true, throttleMinutes: 30 },\n  // leads TTL (CP 6d-1). ABSENT would make the leads branch refuse and alert — fail-closed by\n  // design, because a retention default nobody chose is how a wrong cutoff sweeps a table.\n  leadsRetentionDays: 90\n};\nreturn [{ json: { ...$json, config } }];"
+        "jsCode": "// Load Config (Purge) — FIX-1. The purge workflow can now ALERT, so it needs the shared ownerAlert\n// config. Mirrors the reminders pattern (each workflow carries its own inline config).\n// SHARED KEY CONTRACT: ownerAlert.{enabled,throttleMinutes} MUST equal the main + reminders Load Configs\n// — asserted by scripts/check-cancel-validation-parity.py. A kill that silences only some alerts is not a kill.\n// one-swap-to-real: replace this literal with client.config.json / an n8n variable (Phase 4/template).\nconst config = { ownerAlert: { enabled: true, throttleMinutes: 30 }, leadsRetentionDays: 30 };\nreturn [{ json: { ...$json, config } }];"
       },
       "id": "purge_load_config",
       "name": "Load Config (Purge)",

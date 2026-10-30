@@ -203,10 +203,13 @@ and deactivating Main, do not.
   exits 0 only when the new state was MEASURED (Vercel's paused answer after a pause, 200 after an unpause); no answer at all is "NOT
   measured" (`measure` exit 4), never "offline".
 
-**The staged engine edits** (`n8n/staged/`): `Eval Spend` fail-closed (Main, `--delta-file
+**The engine edits — DEPLOYED and PROMOTED 2026-10-30 (R2a)**; kept here as the record of how they were deployed, so a
+later edit follows the same path. They were staged in `n8n/staged/` (emptied by the promotion): `Eval Spend` fail-closed (Main, `--delta-file
 n8n/staged/workflow.main.delta.json`) and the 30-day lead retention (Purge, `--delta-file
 n8n/staged/workflow.purge.delta.json`). Each is deployed with §3 — note §3 step 1: the tool reads the export from HEAD,
-so the put names the STAGED path, which is committed. The Main delta allows four nodes: `Eval Spend`'s code,
+so the put names the STAGED path, which is committed — as a plain repo path, NOT `HEAD:n8n/staged/…` (the tool accepts
+`REV:` only for the workflow's own committed export; the first rehearsal of R2a was refused on exactly that, before
+any write). The Main delta allows four nodes: `Eval Spend`'s code,
 `Build Spend-Cap Reply`'s code (R2a: a turn closed on a blind meter raises `spend_meter_unavailable`, never `spend_cap`) and
 two text-only edits (`Build Spend-Meter Alert`'s comment lines, the `Spend-cap note` sticky). Before the Main put, the
 `Read Spend` scratch measurement

@@ -18,6 +18,7 @@
  *   • success            200 { channel, sender_key, reply }                      → reply PRESENT
  *   • handoff / lock     200 { ok, handoff, reply }                              → reply PRESENT
  *   • spend-cap          200 { ok, handoff, reply }                              → reply PRESENT
+ *   • spend meter blind  200 { ok:false, error:'spend_meter_unavailable', handoff, reply } → reply PRESENT
  *   • llm/lead/calendar  503 { ok:false, error:…, reply }                         → reply PRESENT
  *   • invalid payload    400 { ok:false, error:'invalid_payload', handoff:true }  → NO reply
  *   • state unavailable  503 { ok:false, error:'state_unavailable', handoff:true }→ NO reply

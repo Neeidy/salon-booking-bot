@@ -1,9 +1,0 @@
-{
-  "_doc": "Public demo R1 (Ruling (d), Yigitcan 2026-10-29): Eval Spend fail-closed — the jsCode of Eval Spend, plus two TEXT-ONLY edits that describe the same change and would be false after it: the comment lines of Build Spend-Meter Alert and the Spend-cap note sticky (code-reviewer MEDIUM-4; tests/unit/eval-spend-fail-closed.test.cjs proves they are text only). Widened in R2a (Yigitcan's ruling on bound (i), 2026-10-29) to Build Spend-Cap Reply's jsCode: a turn closed on an unreadable or untrusted meter raises spend_meter_unavailable (error flag in the body), never spend_cap. No node, edge or setting. None is a GATE node (measured against diff-workflow-copy.GATE_NODES).",
-  "allow": [
-    "Eval Spend",
-    "Build Spend-Meter Alert",
-    "Spend-cap note",
-    "Build Spend-Cap Reply"
-  ]
-}

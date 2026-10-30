@@ -234,8 +234,8 @@ tarafı ayrışır**:
 
 | Sınıf | Sebep | State yazar mı | HTTP | Node |
 |---|---|---|---|---|
-| **guard-trip** | kill-switch · max-turns · spend-cap | ❌ geçici | 200 | `Handoff Reply` · `Build Spend-Cap Reply` |
-| **infra-unavailable** | dış sistem çöktü | ❌ geçici | **5xx + `error` bayrağı** | `LLM/Lead/Calendar/Cancel Delete Unavailable Reply` · `Send Error Response` |
+| **guard-trip** | kill-switch · max-turns · spend-cap | ❌ geçici | 200 | `Handoff Reply` · `Build Spend-Cap Reply` (bütçe doldu) |
+| **infra-unavailable** | dış sistem çöktü | ❌ geçici | **5xx + `error` bayrağı** | `LLM/Lead/Calendar/Cancel Delete Unavailable Reply` · `Send Error Response` · `Build Spend-Cap Reply` (spend metresi okunamadı: 200 + `error:"spend_meter_unavailable"`, R2a 2026-10-30) |
 | **intent-handoff** | düşük güven · bilinmeyen · needs-human | ✅ `stage=handoff`, `last_intent` | 200 | `Mark Handoff` + 14 builder |
 
 **Devir kilidi:** `stage === 'handoff'` iken `Check Handoff Lock` her mesajı `Handoff Lock Reply`'a
@@ -380,7 +380,7 @@ Kapı: `ownerAlert.enabled !== true` → hiç alert yok. Throttle: **(sınıf, s
 | 7 | `state_unsaved` | `Booking State-Unsaved Reply` | booking gerçek, state yok — elle doğrula |
 | 8 | `cancel_delete_failed` | `Cancel Delete Unavailable Reply` | GCal'dan elle sil |
 | 9 | `spend_cap` | `Build Spend-Cap Reply` | bütçe kararı |
-| 10 | `spend_meter_unavailable` | `Build Spend-Meter Alert` | `bot_metrics` erişimi (**fail-OPEN** — LLM çalışmaya devam eder) |
+| 10 | `spend_meter_unavailable` | `Build Spend-Meter Alert` · `Build Spend-Cap Reply` (metre okunamadığı için kapanan tur) | `bot_metrics` erişimi (okuma **fail-CLOSED** — LLM çalışmaz, R2a 2026-10-30; yazma hatasında o çağrı sayılmaz) |
 | 11 | `normalize_drift` | `Build Normalize Reject` (**yalnız whatsapp**) | Zernio payload şekli değişti |
 | 12 | `dedupe_marker_failed` | `Build Dedupe-Marker Alert` | çift işleme riski |
 | 13 | `zernio_send_failed` | `Outbound Send Failed` | müşteriye cevap **gitmedi** — elle yaz |
@@ -462,8 +462,8 @@ değiştirmek n8n editöründe kod düzenlemek demek; `client.config.example.jso
 | `bot.cancellationCutoffHours` | `2` | `Cancel Lookup` · `Reschedule Lookup` (+validate) | iptal/erteleme kesim saati |
 
 **Spend metresi:** `bot_metrics` (`period_key` aylık · `cost_usd` · `updated_at`). LLM'den **önce**
-okunur, **sonra** artırılır. Okuma/yazma patlarsa **fail-OPEN** (LLM çalışır) +
-`spend_meter_unavailable` alert. Eşzamanlı turlarda TOCTOU kabul edilmiş — yumuşak fren, atomik
+okunur, **sonra** artırılır. Okuma patlarsa **fail-CLOSED** (LLM çalışmaz, deterministik handoff — public demo
+R2a, 2026-10-30); yazma patlarsa o çağrı sayılmaz. İkisinde de `spend_meter_unavailable` alert. Eşzamanlı turlarda TOCTOU kabul edilmiş — yumuşak fren, atomik
 defter değil.
 
 **Ekranda olması gerekenler:** kill-switch/dry-run durumu (ve **kim ne zaman açtı** — bugün kayıtlı
